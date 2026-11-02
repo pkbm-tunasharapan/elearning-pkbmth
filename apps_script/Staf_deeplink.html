@@ -1,0 +1,45 @@
+<!-- ==== DEEP LINK APLIKASI FLUTTER (mulai) ==== -->
+<script>
+// Dipakai aplikasi Flutter: ?halaman=staf&t=TOKEN&tab=tabX|Teks menu&mapel=ID_MAPEL
+// Token dari aplikasi disimpan ke sesi halaman ini, lalu tab/mapel yang diminta dibuka.
+(function () {
+  try {
+    if (!window.google || !google.script || !google.script.url) return;
+    google.script.url.getLocation(function (loc) {
+      var p = (loc && loc.parameter) || {};
+      if (!p.t) return;
+      try { simpanToken(p.t); } catch (e) {}
+      try { S.token = p.t; } catch (e) {}
+      try { muatProfil(); } catch (e) { return; }
+      var coba = 0;
+      var tunggu = setInterval(function () {
+        coba++;
+        var siap = false;
+        try { siap = !!(S.profil && S.profil.peran); } catch (e) {}
+        if (!siap && coba < 60) return;
+        clearInterval(tunggu);
+        if (!siap) return;
+        try {
+          if (p.mapel && S.profil.mapel) {
+            if (typeof tampilTabAdmin === 'function' && S.profil.peran === 'Admin') tampilTabAdmin('lihat');
+            var m = S.profil.mapel.filter(function (x) { return String(x.idMapel) === String(p.mapel); })[0];
+            if (m) pilihMapel(m);
+            return;
+          }
+          if (p.tab) {
+            var el = document.getElementById(p.tab);
+            if (!el) {
+              var semua = document.querySelectorAll('#areaAdminTabs .tab, .tab');
+              for (var i = 0; i < semua.length; i++) {
+                if ((semua[i].textContent || '').indexOf(p.tab) >= 0) { el = semua[i]; break; }
+              }
+            }
+            if (el) el.click();
+          }
+        } catch (e) {}
+      }, 250);
+    });
+  } catch (e) {}
+})();
+</script>
+<!-- ==== DEEP LINK APLIKASI FLUTTER (selesai) ==== -->
