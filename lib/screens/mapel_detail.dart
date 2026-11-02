@@ -6,6 +6,7 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'soal_ujian.dart';
 import 'web_menu.dart';
 
 String? get _t => Sesi.instance.token;
@@ -194,12 +195,12 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
             ListTile(
               leading: const Icon(Icons.list_alt_rounded),
               title: Text('Soal ujian (${angka(item['jumlahSoal'])})'),
-              subtitle: const Text('Dikelola di versi web'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(c);
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => WebMenu(judul: teks(item['judul']), tab: 'tabLihat', idMapel: widget.idMapel, denganAppBar: true),
+                await Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => SoalUjianScreen(idMapel: widget.idMapel, idUjian: teks(item['id']), judul: teks(item['judul'])),
                 ));
+                _muatUlang();
               },
             ),
           if (boleh && status != 'Aktif')
