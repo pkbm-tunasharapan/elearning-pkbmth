@@ -112,7 +112,7 @@ class _KurikulumTabState extends State<KurikulumTab> with AutomaticKeepAliveClie
           ]),
         ),
         children: [
-          Row(children: [
+          if (!Sesi.instance.hanyaLihat) Row(children: [
             OutlinedButton.icon(onPressed: () => _buka(UbahKurScreen(idMapel: widget.idMapel, x: x)), icon: const Icon(Icons.edit_rounded, size: 18), label: const Text('Ubah')),
             const SizedBox(width: 8),
             if (perluDraft)
@@ -179,7 +179,7 @@ class _KurikulumTabState extends State<KurikulumTab> with AutomaticKeepAliveClie
                         : 'Fitur susun otomatis belum tersedia. Silakan hubungi admin, atau pakai "Lewat Gemini langsung" di bawah.'),
                   ),
                 const SizedBox(height: 12),
-                Wrap(spacing: 8, runSpacing: 8, children: [
+                if (!Sesi.instance.hanyaLihat) Wrap(spacing: 8, runSpacing: 8, children: [
                   if (rows.isEmpty)
                     FilledButton.icon(
                       onPressed: siapAi ? () => _buka(SusunKurScreen(idMapel: widget.idMapel, judul: widget.judul, mode: 'penuh', d: d)) : null,

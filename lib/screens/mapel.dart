@@ -5,6 +5,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'admin_lain.dart';
+import 'dokumen_rpp.dart';
 import 'mapel_detail.dart';
 
 /// Daftar mata pelajaran yang diampu (tutor) atau semua mapel aktif (admin), dikelompokkan per rombel.
@@ -22,6 +23,7 @@ class _MapelScreenState extends State<MapelScreen> {
   Widget build(BuildContext context) {
     return Muatan<List<Map<String, dynamic>>>(
       muat: () async {
+        if (Sesi.instance.hanyaLihat) return muatMapelRpp();
         await Sesi.instance.segarkanProfil();
         return Sesi.instance.mapel;
       },
@@ -64,7 +66,12 @@ class _MapelScreenState extends State<MapelScreen> {
                 ),
               )
             else if (mapel.isEmpty)
-              const Kosong(pesan: 'Belum ada mata pelajaran yang Anda ampu. Hubungi admin untuk didaftarkan.'),
+              Kosong(pesan: Sesi.instance.hanyaLihat ? 'Belum ada mata pelajaran aktif.' : 'Belum ada mata pelajaran yang Anda ampu. Hubungi admin untuk didaftarkan.'),
+            if (Sesi.instance.hanyaLihat && mapel.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text('Mode lihat: Anda dapat membuka semua mapel untuk memantau konten, kurikulum, jadwal ujian, absensi, nilai, dan RPP tanpa mengubahnya.'),
+              ),
             for (final e in grup.entries) ...[
               JudulBagian(e.key, sub: '${e.value.length} mapel'),
               Card(

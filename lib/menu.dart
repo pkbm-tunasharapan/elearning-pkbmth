@@ -46,7 +46,7 @@ const _lihatSemua = {'Kepala Sekolah', 'Koordinator Kurikulum'};
 
 final List<MenuApp> semuaMenu = [
   MenuApp(id: 'pengguna', judul: 'Kelola Tutor & Enrollment', ikon: Icons.groups_outlined, peran: _admin, native: () => const PenggunaScreen(), utama: true),
-  MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: _pengampu, native: () => const MapelScreen(), utama: true),
+  MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: _semua, native: () => const MapelScreen(), utama: true),
   MenuApp(id: 'rpp', judul: 'Dokumen RPP', ikon: Icons.description_outlined, peran: _lihatSemua, native: () => const DokumenRppScreen(), utama: true),
   MenuApp(id: 'rppSemua', judul: 'Dokumen RPP', ikon: Icons.description_outlined, peran: _pengampu, native: () => const DokumenRppScreen()),
   MenuApp(id: 'progres', judul: 'Progres Kelas', ikon: Icons.insights_outlined, peran: _pimpinan, native: () => const ProgresScreen(), utama: true),

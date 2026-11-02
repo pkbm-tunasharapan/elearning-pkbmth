@@ -437,17 +437,14 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
             ]),
           ),
         ),
-        if (_sudahDinilai)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Nilai: ${teks(rw?['nilai'])}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.green)),
-              if (teks(rw?['komentar']).isNotEmpty) Text('"${teks(rw?['komentar'])}"', style: const TextStyle(fontStyle: FontStyle.italic)),
-              if (teks(rw?['penilai']).isNotEmpty) Text('— ${teks(rw?['penilai'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-            ]),
-          ),
+        _KartuStatusDiskusi(riwayat: rw, terkunci: widget.terkunci),
+        if (!_bolehTulis && _terkirim) ...[
+          const SizedBox(height: 14),
+          _JawabanTerkirim(teksJawaban: teks(rw?['jawaban']), waktu: teks(rw?['waktu'])),
+          const SizedBox(height: 12),
+          if (_terkirim && !_edit && !_sudahDinilai && !widget.terkunci)
+            OutlinedButton.icon(onPressed: () => setState(() => _edit = true), icon: const Icon(Icons.edit_rounded), label: const Text('Ubah tanggapan')),
+        ] else ...[
         const SizedBox(height: 14),
         Text(rw == null ? 'Tanggapan Anda' : 'Tanggapan Anda (terkirim ${teks(rw['waktu'])})', style: const TextStyle(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
@@ -516,7 +513,101 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
               ),
             ),
           ]),
+        ],
       ]),
+    );
+  }
+}
+
+/// Ringkasan status diskusi untuk siswa: terbuka/ditutup, terkirim, dan nilai (bila sudah dinilai).
+class _KartuStatusDiskusi extends StatelessWidget {
+  const _KartuStatusDiskusi({required this.riwayat, required this.terkunci});
+  final Map<String, dynamic>? riwayat;
+  final bool terkunci;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final rw = riwayat;
+    final nilai = teks(rw?['nilai']);
+    final dinilai = nilai.isNotEmpty;
+    final terkirim = rw != null;
+    final status = dinilai ? 'Sudah dinilai' : (terkirim ? 'Terkirim · menunggu penilaian tutor' : (terkunci ? 'Ditutup' : 'Belum dikerjakan'));
+    final warna = dinilai ? Colors.green : (terkirim ? const Color(0xFF3B82F6) : (terkunci ? cs.error : cs.outline));
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: warna.withValues(alpha: 0.09), borderRadius: BorderRadius.circular(16), border: Border.all(color: warna.withValues(alpha: 0.35))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              Lencana(status, warna: warna),
+              Lencana(terkunci ? 'Diskusi ditutup' : 'Diskusi dibuka', warna: terkunci ? cs.outline : Colors.green),
+            ]),
+            if (terkirim && teks(rw?['waktu']).isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text('Dikirim ${teks(rw?['waktu'])}', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+            ],
+            if (dinilai && teks(rw?['komentar']).isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('"${teks(rw?['komentar'])}"', style: const TextStyle(fontStyle: FontStyle.italic)),
+            ],
+            if (dinilai && teks(rw?['penilai']).isNotEmpty)
+              Text('— ${teks(rw?['penilai'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            if (terkunci && !terkirim)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('Sesi sudah berakhir. Hubungi tutor pengampu bila perlu dibukakan.', style: TextStyle(fontSize: 12.5, color: cs.error)),
+              ),
+          ]),
+        ),
+        if (dinilai)
+          Container(
+            margin: const EdgeInsets.only(left: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(14)),
+            child: Column(children: [
+              const Text('Nilai', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+              Text(nilai, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+            ]),
+          ),
+      ]),
+    );
+  }
+}
+
+/// Jawaban diskusi yang sudah dikirim (tampil walaupun diskusi sudah ditutup).
+class _JawabanTerkirim extends StatelessWidget {
+  const _JawabanTerkirim({required this.teksJawaban, required this.waktu});
+  final String teksJawaban;
+  final String waktu;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final p = pisahJawabanDiskusi(teksJawaban);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Jawaban yang Anda kirim', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          SelectableText(p.uraian.isEmpty ? '(kosong)' : p.uraian, style: const TextStyle(height: 1.5)),
+          if (p.tautan.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(syaratDiskusiPenanda, style: const TextStyle(fontWeight: FontWeight.w700)),
+            for (var i = 0; i < p.tautan.length; i++)
+              InkWell(
+                onTap: () => _buka(p.tautan[i]),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text('${i + 1}. ${p.tautan[i]}', style: TextStyle(color: cs.primary, decoration: TextDecoration.underline)),
+                ),
+              ),
+          ],
+        ]),
+      ),
     );
   }
 }

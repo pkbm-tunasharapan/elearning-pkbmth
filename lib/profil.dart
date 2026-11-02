@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'config.dart';
 import 'session.dart';
+import 'siswa/kartu_siswa.dart';
 import 'siswa/sesi_siswa.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -370,6 +371,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
             child: Column(children: [
               for (final x in info) ListTile(leading: Icon(x.$1, color: cs.primary), title: Text(x.$3), subtitle: Text(x.$2)),
             ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              onPressed: () => siswa ? bukaKartuSiswa(context) : bukaKartuStaf(context),
+              icon: const Icon(Icons.qr_code_2_rounded),
+              label: Text(siswa ? 'Tampilkan Kartu Siswa (QR)' : 'Tampilkan Kartu Tutor (QR)'),
+            ),
           ),
           if (siswa)
             Padding(

@@ -57,8 +57,9 @@ class MapelDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lihat = Sesi.instance.hanyaLihat;
     return DefaultTabController(
-      length: 7,
+      length: lihat ? 6 : 7,
       child: Scaffold(
         appBar: AppBar(
           titleSpacing: 0,
@@ -87,14 +88,18 @@ class MapelDetailScreen extends StatelessWidget {
               ],
             ),
           ],
-          bottom: const PreferredSize(
-            preferredSize: Size.fromHeight(52),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(52),
             child: Padding(
-              padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: [Tab(text: 'Konten'), Tab(text: 'Kurikulum'), Tab(text: 'Jadwal Ujian'), Tab(text: 'Absensi'), Tab(text: 'Nilai'), Tab(text: 'Siswa'), Tab(text: 'RPP')],
+                tabs: [
+                  const Tab(text: 'Konten'), const Tab(text: 'Kurikulum'), const Tab(text: 'Jadwal Ujian'), const Tab(text: 'Absensi'), const Tab(text: 'Nilai'),
+                  if (!lihat) const Tab(text: 'Siswa'),
+                  const Tab(text: 'RPP'),
+                ],
               ),
             ),
           ),
@@ -105,7 +110,7 @@ class MapelDetailScreen extends StatelessWidget {
           JadwalUjianTab(idMapel: idMapel),
           _TabAbsensi(idMapel: idMapel),
           _TabNilai(idMapel: idMapel),
-          _TabSiswa(idMapel: idMapel),
+          if (!lihat) _TabSiswa(idMapel: idMapel),
           RppTab(idMapel: idMapel),
         ]),
       ),
@@ -265,7 +270,7 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
 
         return Scaffold(
           backgroundColor: Colors.transparent,
-          floatingActionButton: _pilih.isNotEmpty
+          floatingActionButton: _pilih.isNotEmpty || Sesi.instance.hanyaLihat
               ? null
               : FloatingActionButton.extended(
                   onPressed: () => showModalBottomSheet<void>(
@@ -319,7 +324,7 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
                     ),
                 ]),
               ),
-              Builder(builder: (_) {
+              if (!Sesi.instance.hanyaLihat) Builder(builder: (_) {
                 final pending = semua.where((x) => x['boleh'] == true && teks(x['status']) == 'Draft' && !(teks(x['jenis']) == 'Ujian' && x['terjadwal'] == true)).toList();
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -358,7 +363,7 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
                   child: Column(children: [
                     for (final x in grup[s]!)
                       ListTile(
-                        onLongPress: x['boleh'] == true ? () => setState(() => _pilih.contains(teks(x['id'])) ? _pilih.remove(teks(x['id'])) : _pilih.add(teks(x['id']))) : null,
+                        onLongPress: x['boleh'] == true && !Sesi.instance.hanyaLihat ? () => setState(() => _pilih.contains(teks(x['id'])) ? _pilih.remove(teks(x['id'])) : _pilih.add(teks(x['id']))) : null,
                         onTap: _pilih.isNotEmpty
                             ? () => setState(() => _pilih.contains(teks(x['id'])) ? _pilih.remove(teks(x['id'])) : _pilih.add(teks(x['id'])))
                             : () => _menuItem(x, sesi),

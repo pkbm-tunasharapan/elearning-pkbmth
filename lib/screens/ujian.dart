@@ -125,7 +125,7 @@ class _JadwalUjianTabState extends State<JadwalUjianTab> with AutomaticKeepAlive
                     const SizedBox(height: 10),
                     Text(teks(k['cakupanTeks']), style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
                     const SizedBox(height: 10),
-                    Row(children: [
+                    if (!Sesi.instance.hanyaLihat) Row(children: [
                       Expanded(child: FilledButton.icon(onPressed: () => _tetapkan(k), icon: const Icon(Icons.event_available_rounded), label: const Text('Tetapkan jadwal'))),
                     ]),
                   ],
@@ -183,7 +183,7 @@ class _JadwalUjianTabState extends State<JadwalUjianTab> with AutomaticKeepAlive
           padding: const EdgeInsets.only(top: 6),
           child: Text('Permohonan perubahan ke ${teks(ubah['usulanTanggal'])} ${teks(ubah['usulanJam'])}: ${teks(ubah['status'])}', style: const TextStyle(fontSize: 12.5, color: Color(0xFFE9A23B))),
         )
-      else if (j['sudahMulai'] != true)
+      else if (j['sudahMulai'] != true && !Sesi.instance.hanyaLihat)
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(onPressed: () => _ajukanUbah(k), icon: const Icon(Icons.edit_calendar_rounded), label: const Text('Ajukan perubahan jadwal')),

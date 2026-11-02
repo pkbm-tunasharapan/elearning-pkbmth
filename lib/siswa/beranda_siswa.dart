@@ -8,6 +8,7 @@ import '../profil.dart';
 import '../ruang.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'kartu_siswa.dart';
 import 'mapel_siswa.dart';
 import 'sesi_siswa.dart';
 
@@ -72,6 +73,12 @@ class _BerandaIsi extends StatelessWidget {
                   Image.asset('assets/logo.png', width: 36, height: 36),
                   const SizedBox(width: 10),
                   const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Kartu siswa (QR)',
+                    onPressed: () => bukaKartuSiswa(context),
+                    icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 28),
+                  ),
                 ]),
                 const SizedBox(height: 18),
                 Row(children: [
@@ -93,6 +100,13 @@ class _BerandaIsi extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(99)),
                   child: Text('${s.namaRombel} · ${mapel.length} mata pelajaran', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12.5)),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Gaya.ungu, minimumSize: const Size.fromHeight(44)),
+                  onPressed: () => bukaKartuSiswa(context),
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  label: const Text('Tampilkan Kartu Siswa (QR)', style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ]),
             ),
@@ -279,6 +293,10 @@ class _BerandaSiswaState extends State<BerandaSiswa> {
           ListTile(leading: const Icon(Icons.calendar_month_rounded), title: const Text('Kalender akademik'), onTap: () {
             Navigator.pop(c);
             setState(() => _i = 3);
+          }),
+          ListTile(leading: const Icon(Icons.qr_code_2_rounded), title: const Text('Kartu siswa (QR)'), onTap: () {
+            Navigator.pop(c);
+            bukaKartuSiswa(context);
           }),
           ListTile(leading: const Icon(Icons.vpn_key_rounded), title: const Text('Kode akses ujian'), onTap: () {
             Navigator.pop(c);

@@ -9,6 +9,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'dokumen_rpp.dart';
+import '../siswa/kartu_siswa.dart';
 
 /// Kerangka aplikasi: beranda bergradasi + navigasi bawah + laci menu.
 class HomeScreen extends StatefulWidget {
@@ -83,6 +84,17 @@ class _HomeScreenState extends State<HomeScreen> {
             label: Text(x.isNative ? x.judul : '${x.judul}  🌐'),
           ),
         const Padding(padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8), child: Divider()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: ListTile(
+            leading: const Icon(Icons.qr_code_2_rounded),
+            title: const Text('Kartu tutor (QR)'),
+            onTap: () {
+              if (!lebar) _kunciScaffold.currentState?.closeDrawer();
+              bukaKartuStaf(context);
+            },
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: ListTile(leading: Icon(Icons.logout_rounded, color: cs.error), title: Text('Keluar', style: TextStyle(color: cs.error)), onTap: _keluar),
@@ -224,6 +236,7 @@ class Beranda extends StatelessWidget {
                 const SizedBox(width: 8),
                 const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 const Spacer(),
+                IconButton(onPressed: () => bukaKartuStaf(context), icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 28), tooltip: 'Kartu tutor (QR)'),
                 IconButton(onPressed: onKeluar, icon: const Icon(Icons.logout_rounded, color: Colors.white), tooltip: 'Keluar'),
               ]),
               const SizedBox(height: 8),
@@ -511,7 +524,7 @@ class _RingkasSemuaMapelState extends State<_RingkasSemuaMapel> {
       flex: 2,
       child: IntrinsicHeight(
         child: Row(children: [
-          _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: n == null ? '…' : '${n[0]}', label: 'Mapel', onTap: () => widget.onPilih('rpp')),
+          _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: n == null ? '…' : '${n[0]}', label: 'Mapel', onTap: () => widget.onPilih('mapelSaya')),
           const VerticalDivider(width: 1),
           _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: n == null ? '…' : '${n[1]}', label: 'Rombel', onTap: () => widget.onPilih('siswaRombel')),
         ]),
