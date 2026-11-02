@@ -285,7 +285,7 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
       FilledButton(
         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         onPressed: () => Navigator.pop(context, {'nama': teks(_hasil['nama']), 'kataSandi': teks(_hasil['kataSandi'])}),
-        child: const Text('Masuk ke E-Course TH'),
+        child: const Text('Masuk ke TH.E-Course'),
       ),
     ]);
   }

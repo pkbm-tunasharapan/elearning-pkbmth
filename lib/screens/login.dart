@@ -98,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Image.asset('assets/logo.png', width: 104, height: 104),
                       ),
                       const SizedBox(height: 16),
-                      Text('E-Course TH', style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                      Text('TH.E-Course', style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 4),
                       Text(kNamaSekolah, style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
                       const SizedBox(height: 28),
@@ -203,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text(
                         kIsWeb
                             ? 'Kode akses diberikan oleh admin.'
-                            : 'Masuk dengan Google membuka browser. Setelah memilih akun, ketuk "Kembali ke aplikasi E-Course TH".',
+                            : 'Masuk dengan Google memakai akun Google yang terdaftar di SIM SETARA. Kode akses diberikan oleh admin.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
                       ),

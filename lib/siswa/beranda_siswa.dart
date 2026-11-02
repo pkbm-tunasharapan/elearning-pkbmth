@@ -71,7 +71,7 @@ class _BerandaIsi extends StatelessWidget {
                 Row(children: [
                   Image.asset('assets/logo.png', width: 36, height: 36),
                   const SizedBox(width: 10),
-                  const Text('E-Course TH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                  const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                 ]),
                 const SizedBox(height: 18),
                 Row(children: [

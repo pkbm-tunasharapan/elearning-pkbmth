@@ -88,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 4, 16, 0),
-          child: Text('E-Course TH versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
+          child: Text('TH.E-Course versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
         ),
         const SizedBox(height: 12),
       ],
@@ -221,7 +221,7 @@ class Beranda extends StatelessWidget {
               Row(children: [
                 Image.asset('assets/logo.png', width: 30, height: 30),
                 const SizedBox(width: 8),
-                const Text('E-Course TH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 const Spacer(),
                 IconButton(onPressed: onKeluar, icon: const Icon(Icons.logout_rounded, color: Colors.white), tooltip: 'Keluar'),
               ]),

@@ -387,7 +387,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
             ),
           ],
           const SizedBox(height: 12),
-          Center(child: Text('E-Course TH versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline))),
+          Center(child: Text('TH.E-Course versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline))),
         ]),
       ),
     ]);

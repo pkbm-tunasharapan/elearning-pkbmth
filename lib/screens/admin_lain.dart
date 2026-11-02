@@ -345,7 +345,7 @@ class _PengajuanTutorScreenState extends State<PengajuanTutorScreen> {
                     TextButton.icon(
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(
-                            text: 'Undangan menjadi tutor PKBM Tunas Harapan.\nBuka aplikasi E-Course TH → Tutor / Staf → "Daftar dengan kode undangan".\nKode undangan: $kode'));
+                            text: 'Undangan menjadi tutor PKBM Tunas Harapan.\nBuka aplikasi TH.E-Course → Tutor / Staf → "Daftar dengan kode undangan".\nKode undangan: $kode'));
                         if (context.mounted) kabar(context, 'Pesan undangan disalin. Tempel di WhatsApp ke calon tutor.');
                       },
                       icon: const Icon(Icons.copy_rounded),

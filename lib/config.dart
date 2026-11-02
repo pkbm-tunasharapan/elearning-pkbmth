@@ -6,11 +6,11 @@ const String kApiUrl =
 /// Halaman staf versi web (dipakai untuk menu yang belum dibuat native).
 const String kWebUrl = kApiUrl;
 
-const String kNamaAplikasi = 'E-Course TH';
+const String kNamaAplikasi = 'TH.E-Course';
 const String kNamaSekolah = 'PKBM Tunas Harapan';
 
 /// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
-const String kVersi = '1.8.3';
+const String kVersi = '1.8.4';
 
 /// Client ID OAuth jenis "Web application" (proyek Google Cloud Master Classroom Control).
 /// Dipakai sebagai serverClientId agar Google memberi ID token yang dapat diperiksa server.

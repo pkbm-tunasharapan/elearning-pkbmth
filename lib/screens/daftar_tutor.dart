@@ -284,7 +284,7 @@ class _DaftarTutorScreenState extends State<DaftarTutorScreen> {
       FilledButton(
         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         onPressed: () => Navigator.pop(context, {'nama': teks(_hasil['nama']), 'kode': kode}),
-        child: const Text('Masuk ke E-Course TH'),
+        child: const Text('Masuk ke TH.E-Course'),
       ),
     ]);
   }
