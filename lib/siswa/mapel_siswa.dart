@@ -61,12 +61,16 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
     final jenis = teks(item['jenis']);
     final rw = riwayat[teks(item['id'])] == null ? null : peta(riwayat[teks(item['id'])]);
     Widget layar;
-    if (jenis == 'Diskusi') {
-      layar = DiskusiSiswaScreen(idMapel: widget.idMapel, item: item, riwayat: rw);
+    final buka = peta(riwayat['__buka'])[teks(item['sesiKey'])] != null;
+    final terkunci = item['terkunciSesi'] == true && !buka;
+    if ((jenis == 'Diskusi' || jenis == 'Ujian') && terkunci && rw == null) {
+      layar = SesiTerkunciScreen(item: item);
+    } else if (jenis == 'Diskusi') {
+      layar = DiskusiSiswaScreen(idMapel: widget.idMapel, item: item, riwayat: rw, terkunci: terkunci);
     } else if (jenis == 'Ujian') {
       layar = UjianSiswaScreen(idMapel: widget.idMapel, item: item);
     } else if (jenis == 'Absensi') {
-      layar = AbsensiSiswaScreen(idMapel: widget.idMapel, item: item, riwayat: rw);
+      layar = AbsensiSiswaScreen(idMapel: widget.idMapel, item: item, riwayat: rw, dibuka: buka);
     } else {
       layar = MateriSiswaScreen(idMapel: widget.idMapel, item: item);
     }
@@ -127,13 +131,25 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
                       final j = teks(x['jenis']);
                       final rw = riwayat[teks(x['id'])] == null ? null : peta(riwayat[teks(x['id'])]);
                       final nilai = rw == null ? '' : teks(rw['nilai']);
+                      final dibuka = peta(riwayat['__buka'])[teks(x['sesiKey'])] != null;
+                      final tutup = x['terkunciSesi'] == true && !dibuka;
+                      Widget belum;
+                      if (j == 'Materi') {
+                        belum = const Icon(Icons.chevron_right_rounded);
+                      } else if (j == 'Absensi') {
+                        belum = (absBerjalan(x) || dibuka) ? const Lencana('Isi sekarang', warna: Color(0xFFE0789B)) : Lencana('Tidak terisi', warna: cs.error);
+                      } else if (tutup) {
+                        belum = Lencana('Ditutup', warna: cs.error);
+                      } else {
+                        belum = Lencana('Belum', warna: cs.outline);
+                      }
                       return ListTile(
                         onTap: () => _buka(x, riwayat),
                         leading: IkonBulat(_ikon(j), warna: _warna(j), ukuran: 42, sudut: 14),
                         title: Text(teks(x['judul']), maxLines: 2, overflow: TextOverflow.ellipsis),
                         subtitle: Text([j, if (teks(x['batasWaktu']).isNotEmpty) 'batas ${teks(x['batasWaktu'])}'].join(' · ')),
                         trailing: rw == null
-                            ? (j == 'Materi' ? const Icon(Icons.chevron_right_rounded) : Lencana('Belum', warna: cs.outline))
+                            ? belum
                             : (nilai.isNotEmpty ? Lencana('Nilai $nilai', warna: Colors.green) : const Lencana('Selesai', warna: Colors.green)),
                       );
                     }),
@@ -192,43 +208,159 @@ class _MateriSiswaScreenState extends State<MateriSiswaScreen> {
   }
 }
 
+// ───────────────────────── ATURAN (sama dengan web) ─────────────────────────
+
+/// Syarat tanggapan diskusi, sama persis dengan halaman web siswa.
+const syaratDiskusiKata = 150;
+const syaratDiskusiTautan = 3;
+const syaratDiskusiPenanda = 'Sumber berita:';
+
+int hitungKataDiskusi(String teks) {
+  final t = teks.replaceAll(RegExp(r'''https?://[^\s<>"')\]]+''', caseSensitive: false), ' ');
+  return t.split(RegExp(r'\s+')).where((w) => RegExp(r'[A-Za-z0-9À-ɏ]').hasMatch(w)).length;
+}
+
+bool tautanSahDiskusi(String u) => RegExp(r'^https?://[^\s/?#]+\.[^\s/?#]+[^\s]*$', caseSensitive: false).hasMatch(u.trim());
+
+/// Memisahkan uraian dan daftar tautan dari jawaban tersimpan ("... Sumber berita: 1. https://...").
+({String uraian, List<String> tautan}) pisahJawabanDiskusi(String teks) {
+  final i = teks.toLowerCase().lastIndexOf(syaratDiskusiPenanda.toLowerCase());
+  final uraian = i >= 0 ? teks.substring(0, i) : teks;
+  final sisa = i >= 0 ? teks.substring(i) : '';
+  final tautan = RegExp(r'''https?://[^\s<>"')\]]+''', caseSensitive: false).allMatches(sisa).map((m) => m.group(0)!).toList();
+  return (uraian: uraian.trim(), tautan: tautan);
+}
+
+/// Absensi masih bisa diisi (sesi berjalan), sama dengan absBerjalan_ di web.
+bool absBerjalan(Map<String, dynamic> m) {
+  final a = peta(m['absen']);
+  return teks(a['status']) == 'berjalan' && DateTime.now().millisecondsSinceEpoch <= angka(a['selesaiMs']);
+}
+
+String _tglMs(dynamic ms) {
+  final n = angka(ms);
+  if (n <= 0) return '';
+  final d = DateTime.fromMillisecondsSinceEpoch(n);
+  const b = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  return '${d.day} ${b[d.month - 1]} ${d.year}';
+}
+
+/// Diskusi/ujian pada sesi yang sudah berakhir dan belum dikerjakan (sama dengan renderKunciSesi_ di web).
+class SesiTerkunciScreen extends StatelessWidget {
+  const SesiTerkunciScreen({super.key, required this.item});
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final jenis = teks(item['jenis']);
+    final selesai = _tglMs(item['sesiBerakhirMs']);
+    return Scaffold(
+      appBar: AppBar(title: Text(teks(item['judul']), overflow: TextOverflow.ellipsis)),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        if (teks(item['konten']).isNotEmpty)
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_teksHtml(teks(item['konten'])), style: const TextStyle(height: 1.5)))),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(children: [
+              IkonBulat(Icons.lock_rounded, warna: cs.error, ukuran: 72),
+              const SizedBox(height: 12),
+              Text('Sesi ini sudah berakhir${selesai.isNotEmpty ? ' ($selesai)' : ''}',
+                  textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text(
+                'Pengerjaan ${jenis == 'Ujian' ? 'ujian' : 'diskusi'} ini sudah ditutup. Jika Anda berhalangan, misalnya sakit atau terkendala jaringan, '
+                'hubungi tutor pengampu agar sesi ini dibukakan untuk Anda.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(context, true),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Sudah dibukakan tutor? Periksa lagi'),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 // ───────────────────────── DISKUSI ─────────────────────────
 
 class DiskusiSiswaScreen extends StatefulWidget {
-  const DiskusiSiswaScreen({super.key, required this.idMapel, required this.item, this.riwayat});
+  const DiskusiSiswaScreen({super.key, required this.idMapel, required this.item, this.riwayat, this.terkunci = false});
   final String idMapel;
   final Map<String, dynamic> item;
   final Map<String, dynamic>? riwayat;
+  final bool terkunci;
 
   @override
   State<DiskusiSiswaScreen> createState() => _DiskusiSiswaScreenState();
 }
 
 class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
-  final _jawab = TextEditingController();
+  final _uraian = TextEditingController();
+  final List<TextEditingController> _tautan = [];
   bool _sibuk = false;
-  bool _berubah = false;
+  bool _edit = false;
 
   String get _idMateri => teks(widget.item['id']);
   bool get _sudahDinilai => teks(widget.riwayat?['nilai']).isNotEmpty;
+  bool get _terkirim => widget.riwayat != null;
+  bool get _bolehTulis => !_sudahDinilai && !widget.terkunci && (!_terkirim || _edit);
 
   @override
   void initState() {
     super.initState();
-    if (widget.riwayat != null) {
-      _jawab.text = teks(widget.riwayat?['jawaban']);
+    if (_terkirim) {
+      _isi(teks(widget.riwayat?['jawaban']));
     } else {
+      _isi('');
       Api.instance('waGetDraftDiskusi', [_s.idRombel, widget.idMapel, _idMateri, _s.nama]).then((r) {
         final d = peta(r);
-        if (mounted && d['ada'] == true && _jawab.text.isEmpty) setState(() => _jawab.text = teks(d['teks']));
+        if (mounted && d['ada'] == true && _uraian.text.isEmpty) setState(() => _isi(teks(d['teks'])));
       }).catchError((_) {});
     }
   }
 
+  void _isi(String teksJawaban) {
+    final p = pisahJawabanDiskusi(teksJawaban);
+    _uraian.text = p.uraian;
+    for (final c in _tautan) {
+      c.dispose();
+    }
+    _tautan.clear();
+    final n = p.tautan.length > syaratDiskusiTautan ? p.tautan.length : syaratDiskusiTautan;
+    for (var i = 0; i < n; i++) {
+      _tautan.add(TextEditingController(text: i < p.tautan.length ? p.tautan[i] : ''));
+    }
+  }
+
+  List<String> _ambilTautan() {
+    final unik = <String>{};
+    final out = <String>[];
+    for (final c in _tautan) {
+      final v = c.text.trim();
+      if (v.isEmpty || !tautanSahDiskusi(v)) continue;
+      final k = v.toLowerCase().replaceAll(RegExp(r'/+$'), '');
+      if (unik.add(k)) out.add(v);
+    }
+    return out;
+  }
+
+  String _gabung(String uraian, List<String> tautan) =>
+      '$uraian\n\n$syaratDiskusiPenanda\n${[for (var i = 0; i < tautan.length; i++) '${i + 1}. ${tautan[i]}'].join('\n')}';
+
   Map<String, dynamic> get _dasar => {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'idMateri': _idMateri, 'nama': _s.nama};
 
   Future<void> _draft() async {
-    final r = await jalankan(context, () => Api.instance('waSimpanDraftDiskusi', [{..._dasar, 'teks': _jawab.text}]), teksProses: 'Menyimpan draft...');
+    final t = _ambilTautan();
+    final teksDraft = t.isEmpty ? _uraian.text : _gabung(_uraian.text.trim(), t);
+    final r = await jalankan(context, () => Api.instance('waSimpanDraftDiskusi', [{..._dasar, 'teks': teksDraft}]), teksProses: 'Menyimpan draft...');
     if (r.ok && mounted) {
       final d = peta(r.data);
       kabar(context, d['sukses'] == true ? 'Draft tersimpan.' : teks(d['pesan']), galat: d['sukses'] != true);
@@ -236,16 +368,27 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
   }
 
   Future<void> _kirim() async {
-    if (_jawab.text.trim().isEmpty) {
-      kabar(context, 'Tulis tanggapan Anda dulu.', galat: true);
-      return;
+    final uraian = _uraian.text.trim();
+    if (uraian.isEmpty) return kabar(context, 'Jawaban tidak boleh kosong.', galat: true);
+    final k = hitungKataDiskusi(uraian);
+    if (k < syaratDiskusiKata) {
+      return kabar(context, 'Tanggapan baru $k kata. Minimal $syaratDiskusiKata kata (tautan tidak dihitung).', galat: true);
+    }
+    for (var j = 0; j < _tautan.length; j++) {
+      final v = _tautan[j].text.trim();
+      if (v.isNotEmpty && !tautanSahDiskusi(v)) {
+        return kabar(context, 'Tautan ke-${j + 1} tidak valid. Awali dengan http:// atau https://.', galat: true);
+      }
+    }
+    final tautan = _ambilTautan();
+    if (tautan.length < syaratDiskusiTautan) {
+      return kabar(context, 'Baru ${tautan.length} tautan sumber berita yang berbeda. Minimal $syaratDiskusiTautan tautan.', galat: true);
     }
     setState(() => _sibuk = true);
     try {
-      final d = peta(await Api.instance('waSubmitJawaban', [{..._dasar, 'jawaban': _jawab.text}]));
+      final d = peta(await Api.instance('waSubmitJawaban', [{..._dasar, 'jawaban': _gabung(uraian, tautan)}]));
       if (!mounted) return;
       if (d['sukses'] == true) {
-        _berubah = true;
         kabar(context, teks(d['pesan'], 'Tanggapan terkirim.'));
         Navigator.pop(context, true);
       } else {
@@ -262,68 +405,110 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final rw = widget.riwayat;
-    return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, _) {},
-      child: Scaffold(
-        appBar: AppBar(title: Text(teks(widget.item['judul']), overflow: TextOverflow.ellipsis)),
-        body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  IkonBulat(Icons.forum_rounded, warna: _warna('Diskusi'), ukuran: 34, sudut: 10),
-                  const SizedBox(width: 10),
-                  const Text('Pertanyaan diskusi', style: TextStyle(fontWeight: FontWeight.w800)),
-                ]),
-                const SizedBox(height: 10),
-                SelectableText(_teksHtml(teks(widget.item['konten'])), style: const TextStyle(height: 1.5)),
-                if (teks(widget.item['batasWaktu']).isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text('Batas: ${teks(widget.item['batasWaktu'])}', style: TextStyle(fontSize: 12.5, color: cs.error)),
-                ],
+    final kata = hitungKataDiskusi(_uraian.text);
+    final jmlTautan = _ambilTautan().length;
+    final cukup = kata >= syaratDiskusiKata && jmlTautan >= syaratDiskusiTautan;
+    return Scaffold(
+      appBar: AppBar(title: Text(teks(widget.item['judul']), overflow: TextOverflow.ellipsis)),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                IkonBulat(Icons.forum_rounded, warna: _warna('Diskusi'), ukuran: 34, sudut: 10),
+                const SizedBox(width: 10),
+                const Text('Pertanyaan diskusi', style: TextStyle(fontWeight: FontWeight.w800)),
               ]),
-            ),
-          ),
-          if (_sudahDinilai)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Nilai: ${teks(rw?['nilai'])}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.green)),
-                if (teks(rw?['komentar']).isNotEmpty) Text('"${teks(rw?['komentar'])}"', style: const TextStyle(fontStyle: FontStyle.italic)),
-                if (teks(rw?['penilai']).isNotEmpty) Text('— ${teks(rw?['penilai'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              ]),
-            ),
-          const SizedBox(height: 14),
-          Text(rw == null ? 'Tanggapan Anda' : 'Tanggapan Anda (terkirim ${teks(rw['waktu'])})', style: const TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _jawab,
-            minLines: 6,
-            maxLines: 16,
-            readOnly: _sudahDinilai,
-            decoration: InputDecoration(hintText: _sudahDinilai ? '' : 'Tulis pendapat Anda dengan kalimat sendiri...', alignLabelWithHint: true),
-          ),
-          if (!_sudahDinilai) ...[
-            const SizedBox(height: 12),
-            Row(children: [
-              if (rw == null) Expanded(child: OutlinedButton.icon(onPressed: _sibuk ? null : _draft, icon: const Icon(Icons.save_outlined), label: const Text('Simpan draft'))),
-              if (rw == null) const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _sibuk ? null : _kirim,
-                  icon: _sibuk ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
-                  label: Text(rw == null ? 'Kirim' : 'Perbarui'),
-                ),
-              ),
+              const SizedBox(height: 10),
+              SelectableText(_teksHtml(teks(widget.item['konten'])), style: const TextStyle(height: 1.5)),
+              if (teks(widget.item['batasWaktu']).isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Batas: ${teks(widget.item['batasWaktu'])}', style: TextStyle(fontSize: 12.5, color: cs.error)),
+              ],
             ]),
-          ],
-          if (_berubah) const SizedBox.shrink(),
-        ]),
-      ),
+          ),
+        ),
+        if (_sudahDinilai)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Nilai: ${teks(rw?['nilai'])}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.green)),
+              if (teks(rw?['komentar']).isNotEmpty) Text('"${teks(rw?['komentar'])}"', style: const TextStyle(fontStyle: FontStyle.italic)),
+              if (teks(rw?['penilai']).isNotEmpty) Text('— ${teks(rw?['penilai'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ]),
+          ),
+        const SizedBox(height: 14),
+        Text(rw == null ? 'Tanggapan Anda' : 'Tanggapan Anda (terkirim ${teks(rw['waktu'])})', style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _uraian,
+          minLines: 6,
+          maxLines: 16,
+          readOnly: !_bolehTulis,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(hintText: _bolehTulis ? 'Tulis pendapat Anda dengan kalimat sendiri (minimal $syaratDiskusiKata kata)...' : ''),
+        ),
+        if (_bolehTulis)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('$kata / $syaratDiskusiKata kata · $jmlTautan / $syaratDiskusiTautan tautan',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cukup ? Colors.green.shade700 : const Color(0xFFB45309))),
+          ),
+        const SizedBox(height: 14),
+        Text('Sumber berita (minimal $syaratDiskusiTautan tautan berbeda)', style: const TextStyle(fontWeight: FontWeight.w800)),
+        if (_bolehTulis)
+          Text('Cantumkan tautan berita yang relevan dengan topik. Boleh menambah lebih dari $syaratDiskusiTautan.',
+              style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        for (var i = 0; i < _tautan.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TextField(
+              controller: _tautan[i],
+              readOnly: !_bolehTulis,
+              keyboardType: TextInputType.url,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'https://...',
+                prefixIcon: const Icon(Icons.link_rounded),
+                suffixIcon: _tautan[i].text.trim().isEmpty
+                    ? null
+                    : (tautanSahDiskusi(_tautan[i].text)
+                        ? const Icon(Icons.check_circle_rounded, color: Colors.green)
+                        : Icon(Icons.error_rounded, color: cs.error)),
+              ),
+            ),
+          ),
+        if (_bolehTulis)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _tautan.add(TextEditingController())),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Tambah tautan'),
+            ),
+          ),
+        const SizedBox(height: 12),
+        if (widget.terkunci && !_sudahDinilai)
+          Text('Sesi ini sudah berakhir, jawaban tidak dapat diubah. Hubungi tutor pengampu bila perlu.', style: TextStyle(color: cs.error)),
+        if (_terkirim && !_edit && !_sudahDinilai && !widget.terkunci)
+          OutlinedButton.icon(onPressed: () => setState(() => _edit = true), icon: const Icon(Icons.edit_rounded), label: const Text('Ubah tanggapan')),
+        if (_bolehTulis)
+          Row(children: [
+            if (!_terkirim) Expanded(child: OutlinedButton.icon(onPressed: _sibuk ? null : _draft, icon: const Icon(Icons.save_outlined), label: const Text('Simpan draft'))),
+            if (!_terkirim) const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _sibuk ? null : _kirim,
+                icon: _sibuk ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
+                label: Text(_terkirim ? 'Kirim perubahan' : 'Kirim'),
+              ),
+            ),
+          ]),
+      ]),
     );
   }
 }
@@ -331,66 +516,113 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
 // ───────────────────────── ABSENSI ─────────────────────────
 
 class AbsensiSiswaScreen extends StatefulWidget {
-  const AbsensiSiswaScreen({super.key, required this.idMapel, required this.item, this.riwayat});
+  const AbsensiSiswaScreen({super.key, required this.idMapel, required this.item, this.riwayat, this.dibuka = false});
   final String idMapel;
   final Map<String, dynamic> item;
   final Map<String, dynamic>? riwayat;
+  final bool dibuka;
 
   @override
   State<AbsensiSiswaScreen> createState() => _AbsensiSiswaScreenState();
 }
 
 class _AbsensiSiswaScreenState extends State<AbsensiSiswaScreen> {
-  String? _pesan;
-  bool _hadir = false;
+  Map<String, dynamic>? _tercatat;
 
   @override
   void initState() {
     super.initState();
-    _hadir = widget.riwayat != null;
+    _tercatat = widget.riwayat;
   }
 
   Future<void> _isi() async {
+    final ok = await konfirmasi(context, 'Catat kehadiran Anda sekarang?', 'Setelah dikirim, absensi tidak dapat diubah.', ya: 'Ya, saya hadir');
+    if (!ok || !mounted) return;
     final r = await jalankan(context, () => Api.instance('waAbsenIsi', [
           {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'nama': _s.nama, 'idMateri': teks(widget.item['id'])}
         ]), teksProses: 'Mencatat kehadiran...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
-    setState(() {
-      _pesan = teks(d['pesan']);
-      _hadir = d['sukses'] == true;
-    });
+    if (d['sukses'] == true) {
+      setState(() => _tercatat = {'jawaban': 'Hadir', 'waktu': teks(d['waktu'])});
+      if (d['sudah'] == true) kabar(context, teks(d['pesan']));
+    } else {
+      kabar(context, teks(d['pesan'], 'Absensi gagal dicatat.'), galat: true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(title: Text(teks(widget.item['judul'], 'Absensi'))),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            IkonBulat(_hadir ? Icons.verified_rounded : Icons.how_to_reg_rounded, warna: _hadir ? Colors.green : _warna('Absensi'), ukuran: 96),
-            const SizedBox(height: 18),
-            Text(_hadir ? 'Kehadiran tercatat' : 'Isi absensi sesi ini', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text(teks(widget.item['sesi']), style: TextStyle(color: cs.onSurfaceVariant)),
-            if (_pesan != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_pesan!, textAlign: TextAlign.center)),
-            if (widget.riwayat != null && _pesan == null)
-              Padding(padding: const EdgeInsets.only(top: 12), child: Text('Tercatat ${teks(widget.riwayat?['waktu'])}', textAlign: TextAlign.center)),
-            const SizedBox(height: 24),
-            if (!_hadir)
-              FilledButton.icon(
-                style: FilledButton.styleFrom(minimumSize: const Size(220, 54)),
-                onPressed: _isi,
-                icon: const Icon(Icons.check_rounded),
-                label: const Text('Saya hadir'),
-              )
-            else
-              OutlinedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kembali')),
-          ]),
-        ),
+    final it = widget.item;
+    final absen = peta(it['absen']);
+    final berjalan = absBerjalan(it);
+    final bisaIsi = _tercatat == null && (berjalan || widget.dibuka);
+    final ditutup = _tercatat == null && !bisaIsi;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.pop(context, _tercatat != null && widget.riwayat == null);
+      },
+      child: Scaffold(
+        appBar: AppBar(title: Text(teks(it['judul'], 'Absensi'))),
+        body: ListView(padding: const EdgeInsets.all(20), children: [
+          Center(
+            child: IkonBulat(
+              _tercatat != null ? Icons.verified_rounded : (ditutup ? Icons.block_rounded : Icons.how_to_reg_rounded),
+              warna: _tercatat != null ? Colors.green : (ditutup ? cs.error : _warna('Absensi')),
+              ukuran: 96,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(teks(it['judul'], 'Absensi'), textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+          if (teks(absen['rentang']).isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 4), child: Text(teks(absen['rentang']), textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant))),
+          const SizedBox(height: 20),
+          if (_tercatat != null) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+              child: Text('Kehadiran Anda tercatat\n${teks(_tercatat!['waktu'])}${teks(_tercatat!['catatan']).isNotEmpty ? ' · ${teks(_tercatat!['catatan'])}' : ''}',
+                  textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 10),
+            Text('Absensi hanya diisi satu kali untuk setiap sesi dan tidak dapat diubah.', textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
+          ] else if (bisaIsi) ...[
+            Text(
+              'Setiap sesi, Anda wajib mengisi absensi. Absensi hanya dapat diisi satu kali, selama sesi berjalan'
+              '${angka(absen['selesaiMs']) > 0 ? ' (sampai ${_tglMs(absen['selesaiMs'])} pukul 23:59)' : ''}. Kehadiran dihitung dalam penilaian.'
+              '${widget.dibuka && !berjalan ? ' Sesi ini sudah berakhir tetapi dibukakan tutor untuk Anda.' : ''}',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+              onPressed: _isi,
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Saya hadir di sesi ini'),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(16)),
+              child: Text(
+                'Absensi sesi ini tidak terisi\nSesi berakhir pada ${_tglMs(absen['selesaiMs'])}. Bila Anda berhalangan, misalnya sakit atau terkendala jaringan, '
+                'hubungi tutor pengampu agar sesi ini dibukakan untuk Anda.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onErrorContainer),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const FilledButton(onPressed: null, child: Text('Saya hadir di sesi ini')),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Sudah dibukakan tutor? Periksa lagi'),
+            ),
+          ],
+        ]),
       ),
     );
   }

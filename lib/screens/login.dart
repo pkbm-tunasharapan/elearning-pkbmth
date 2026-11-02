@@ -42,12 +42,17 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _galat = _siswa ? 'Isi nama dan kata sandi.' : 'Isi nama dan kode akses.');
       return;
     }
+    final angkaLahir = _kode.text.replaceAll(RegExp(r'\D'), '');
+    if (_siswa && angkaLahir.length != 8) {
+      setState(() => _galat = 'Isi 8 angka tanggal lahir dengan urutan ddmmyyyy. Contoh: 03032009.');
+      return;
+    }
     setState(() {
       _sibuk = true;
       _galat = null;
     });
     try {
-      final g = _siswa ? await SesiSiswa.instance.masukSiswa(_nama.text, _kode.text) : await Sesi.instance.masukKode(_nama.text, _kode.text);
+      final g = _siswa ? await SesiSiswa.instance.masukSiswa(_nama.text, 'TH-$angkaLahir') : await Sesi.instance.masukKode(_nama.text, _kode.text);
       if (mounted && g != null) setState(() => _galat = g);
     } on ApiException catch (e) {
       if (mounted) setState(() => _galat = e.ramah);
@@ -109,6 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               selected: {_siswa},
                               onSelectionChanged: (v) => setState(() {
                                 _siswa = v.first;
+                                _kode.clear();
                                 _galat = null;
                               }),
                             ),
@@ -138,9 +144,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               obscureText: !_lihat,
                               autofillHints: const [AutofillHints.password],
                               onSubmitted: (_) => _masuk(),
+                              keyboardType: _siswa ? TextInputType.number : TextInputType.text,
+                              inputFormatters: _siswa ? [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)] : null,
                               decoration: InputDecoration(
-                                hintText: _siswa ? 'Kata sandi (TH-ddmmyyyy)' : 'Kode akses',
+                                hintText: _siswa ? 'ddmmyyyy' : 'Kode akses',
+                                helperText: _siswa ? 'Kata sandi: tanggal lahir 8 angka, contoh 03032009' : null,
                                 prefixIcon: const Icon(Icons.key_rounded),
+                                prefixText: _siswa ? 'TH-' : null,
+                                prefixStyle: const TextStyle(fontWeight: FontWeight.w800),
                                 suffixIcon: IconButton(onPressed: () => setState(() => _lihat = !_lihat), icon: Icon(_lihat ? Icons.visibility_off_rounded : Icons.visibility_rounded)),
                               ),
                             ),
