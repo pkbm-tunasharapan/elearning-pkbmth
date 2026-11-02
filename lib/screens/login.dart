@@ -67,9 +67,9 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: const BoxDecoration(gradient: Gaya.gradasi),
           child: Stack(children: [
             // Lingkaran dekoratif lembut
-            Positioned(top: -70, right: -50, child: _Gelembung(200, 0.12)),
-            Positioned(top: 140, left: -60, child: _Gelembung(140, 0.08)),
-            Positioned(bottom: -90, right: -40, child: _Gelembung(240, 0.10)),
+            const Positioned(top: -70, right: -50, child: _Gelembung(200, 0.12)),
+            const Positioned(top: 140, left: -60, child: _Gelembung(140, 0.08)),
+            const Positioned(bottom: -90, right: -40, child: _Gelembung(240, 0.10)),
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(

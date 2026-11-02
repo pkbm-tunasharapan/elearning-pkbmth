@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../session.dart';
+import '../theme.dart';
 import '../widgets.dart';
-import 'home.dart';
+import 'mapel_detail.dart';
 
 /// Daftar mata pelajaran yang diampu (tutor) atau semua mapel aktif (admin), dikelompokkan per rombel.
 class MapelScreen extends StatefulWidget {
@@ -45,13 +46,14 @@ class _MapelScreenState extends State<MapelScreen> {
                 child: Column(children: [
                   for (final m in e.value)
                     ListTile(
-                      leading: const IkonBulat(Icons.menu_book_rounded, ukuran: 42, sudut: 14),
+                      leading: IkonBulat(Icons.menu_book_rounded, warna: Gaya.warnaMenu(teks(m['namaMapel'])), ukuran: 42, sudut: 14),
                       title: Text(teks(m['namaMapel'])),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MapelWebScreen(
-                          judul: '${teks(m['namaMapel'])} · ${teks(m['namaRombel'])}',
+                        builder: (_) => MapelDetailScreen(
                           idMapel: teks(m['idMapel']),
+                          namaMapel: teks(m['namaMapel']),
+                          namaRombel: teks(m['namaRombel']),
                         ),
                       )),
                     ),
