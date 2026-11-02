@@ -57,4 +57,36 @@ if ikon.exists():
         t.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(f, t)
     print('Ikon aplikasi dipasang.')
+# Pasang kunci tanda tangan tetap langsung di konfigurasi Gradle (cara pasti).
+kts = akar / 'android/app/build.gradle.kts'
+gro = akar / 'android/app/build.gradle'
+if kunci.exists():
+    if kts.exists():
+        g = kts.read_text()
+        if 'tool/debug.keystore' not in g:
+            g = g.replace('android {', """android {
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("../../tool/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }""", 1)
+            kts.write_text(g)
+        print('Gradle (kts) memakai kunci tetap.')
+    elif gro.exists():
+        g = gro.read_text()
+        if 'tool/debug.keystore' not in g:
+            g = g.replace('android {', """android {
+    signingConfigs {
+        debug {
+            storeFile file('../../tool/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }""", 1)
+            gro.write_text(g)
+        print('Gradle (groovy) memakai kunci tetap.')
 print('Platform siap.')
