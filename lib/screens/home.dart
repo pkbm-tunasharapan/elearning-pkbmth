@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config.dart';
 import '../menu.dart';
 import '../session.dart';
 import '../theme.dart';
@@ -92,6 +93,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: ListTile(leading: Icon(Icons.logout_rounded, color: cs.error), title: Text('Keluar', style: TextStyle(color: cs.error)), onTap: _keluar),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 4, 16, 0),
+          child: Text('BM Staf versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
         ),
         const SizedBox(height: 12),
       ],
@@ -291,6 +296,8 @@ class Beranda extends StatelessWidget {
                     children: [for (final x in lain) _KartuMenu(menu: x, onTap: () => onPilih(x.id))],
                   );
                 }),
+                const SizedBox(height: 14),
+                Center(child: Text('Versi $kVersi', style: tt.bodySmall?.copyWith(color: cs.outline))),
                 if (lain.any((x) => !x.isNative)) ...[
                   const SizedBox(height: 14),
                   Row(children: [

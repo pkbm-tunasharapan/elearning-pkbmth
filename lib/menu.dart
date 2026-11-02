@@ -11,6 +11,7 @@ import 'screens/progres.dart';
 import 'screens/reset.dart';
 import 'screens/siswa_rombel.dart';
 import 'screens/tahun_ajaran.dart';
+import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
 import 'session.dart';
 
@@ -41,6 +42,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: _semua, native: () => const MapelScreen(), utama: true),
   MenuApp(id: 'progres', judul: 'Progres Kelas', ikon: Icons.insights_outlined, peran: _pimpinan, native: () => const ProgresScreen(), utama: true),
   MenuApp(id: 'nilai', judul: 'Belum Dinilai', ikon: Icons.rate_review_outlined, peran: _semua, native: () => const BelumDinilaiScreen(), utama: true),
+  MenuApp(id: 'kotakUjian', judul: 'Kotak Ujian', ikon: Icons.assignment_turned_in_outlined, peran: _semua, native: () => const KotakUjianScreen()),
   MenuApp(id: 'siswaRombel', judul: 'Siswa per Rombel', ikon: Icons.school_outlined, peran: _semua, native: () => const SiswaRombelScreen()),
   MenuApp(id: 'kelolaMapel', judul: 'Kelola Mata Pelajaran', ikon: Icons.library_books_outlined, peran: _admin, native: () => const KelolaMapelScreen()),
   MenuApp(id: 'daftar', judul: 'Pendaftaran Siswa', ikon: Icons.how_to_reg_outlined, peran: _admin, native: () => const PendaftaranScreen()),

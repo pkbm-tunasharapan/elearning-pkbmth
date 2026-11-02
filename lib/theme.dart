@@ -53,6 +53,7 @@ class Gaya {
       'pengajuanTutor': 0,
       'cp': 6,
       'ai': 5,
+      'kotakUjian': 3,
     };
     return _palet[(tetap[id] ?? id.hashCode.abs()) % _palet.length];
   }

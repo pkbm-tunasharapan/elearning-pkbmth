@@ -8,3 +8,6 @@ const String kWebUrl = kApiUrl;
 
 const String kNamaAplikasi = 'Belajar Mandiri Staf';
 const String kNamaSekolah = 'PKBM Tunas Harapan';
+
+/// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
+const String kVersi = '1.4.0';

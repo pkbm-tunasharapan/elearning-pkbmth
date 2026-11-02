@@ -7,6 +7,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'soal_ujian.dart';
+import 'ujian.dart';
 import 'web_menu.dart';
 
 String? get _t => Sesi.instance.token;
@@ -52,7 +53,7 @@ class MapelDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           titleSpacing: 0,
@@ -79,13 +80,14 @@ class MapelDetailScreen extends StatelessWidget {
               child: TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: [Tab(text: 'Konten'), Tab(text: 'Absensi'), Tab(text: 'Nilai'), Tab(text: 'Siswa')],
+                tabs: [Tab(text: 'Konten'), Tab(text: 'Jadwal Ujian'), Tab(text: 'Absensi'), Tab(text: 'Nilai'), Tab(text: 'Siswa')],
               ),
             ),
           ),
         ),
         body: TabBarView(children: [
           _TabKonten(idMapel: idMapel),
+          JadwalUjianTab(idMapel: idMapel),
           _TabAbsensi(idMapel: idMapel),
           _TabNilai(idMapel: idMapel),
           _TabSiswa(idMapel: idMapel),
