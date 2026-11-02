@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../config.dart';
 import '../session.dart';
+import '../siswa/daftar_siswa.dart';
 import '../siswa/sesi_siswa.dart';
 import '../theme.dart';
 
@@ -91,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 16),
                       Text('E-Course TH', style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 4),
-                      Text('$kNamaSekolah · Ruang Staf', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
+                      Text(kNamaSekolah, style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
                       const SizedBox(height: 28),
                       Container(
                         padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
@@ -104,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                             Text('Selamat datang 👋', style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
                             const SizedBox(height: 4),
-                            Text('Masuk untuk mengelola kelas dan materi.', style: TextStyle(color: cs.onSurfaceVariant)),
+                            Text(_siswa ? 'Masuk untuk belajar, berdiskusi, dan ujian.' : 'Masuk untuk mengelola kelas dan materi.', style: TextStyle(color: cs.onSurfaceVariant)),
                             const SizedBox(height: 20),
                             SegmentedButton<bool>(
                               segments: const [
@@ -178,10 +179,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
                                   : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Masuk'), SizedBox(width: 8), Icon(Icons.arrow_forward_rounded, size: 20)]),
                             ),
+                            if (_siswa) ...[
+                              const SizedBox(height: 10),
+                              TextButton.icon(
+                                onPressed: _sibuk ? null : _daftar,
+                                icon: const Icon(Icons.person_add_alt_1_rounded),
+                                label: const Text('Belum punya akun? Daftar siswa baru'),
+                              ),
+                            ],
                           ]),
                         ),
                       ),
                       const SizedBox(height: 18),
+                      if (!_siswa)
                       Text(
                         kIsWeb
                             ? 'Kode akses diberikan oleh admin.'
@@ -198,6 +208,17 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _daftar() async {
+    final r = await Navigator.of(context).push<Map<String, String>>(MaterialPageRoute(builder: (_) => const DaftarSiswaScreen()));
+    if (r == null || !mounted) return;
+    setState(() {
+      _nama.text = r['nama'] ?? '';
+      _kode.text = (r['kataSandi'] ?? '').replaceAll(RegExp(r'\D'), '');
+      _galat = null;
+    });
+    if (_nama.text.isNotEmpty && _kode.text.length == 8) _masuk();
   }
 
   void _masukGoogle() {

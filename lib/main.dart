@@ -4,7 +4,12 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'api.dart';
 import 'config.dart';
+import 'notif.dart';
+import 'ruang.dart';
+import 'screens/mapel_detail.dart';
+import 'siswa/mapel_siswa.dart';
 import 'screens/home.dart';
 import 'screens/login.dart';
 import 'session.dart';
@@ -28,19 +33,60 @@ class AplikasiStaf extends StatefulWidget {
 
 class _AplikasiStafState extends State<AplikasiStaf> {
   StreamSubscription<Uri>? _langgananTautan;
-  final _kunciPesan = GlobalKey<ScaffoldMessengerState>();
+  GlobalKey<ScaffoldMessengerState> get _kunciPesan => Notif.instance.kunciPesan;
 
   @override
   void initState() {
     super.initState();
+    final n = Notif.instance;
+    n.bukaRuang = (kunci) {
+      final nav = n.kunciNavigator.currentState;
+      if (nav == null) return;
+      if (SesiSiswa.instance.masuk) {
+        bukaChatSiswa(nav, kunci);
+      } else if (Sesi.instance.masuk) {
+        final id = kunci.replaceFirst('MAPEL:', '');
+        final m = Sesi.instance.mapel.where((x) => teks(x['idMapel']) == id).firstOrNull;
+        bukaChatStaf(nav, kunci, namaRombel: m == null ? '' : teks(m['namaRombel']));
+      }
+    };
+    n.bukaNilai = (x) {
+      final nav = n.kunciNavigator.currentState;
+      if (nav == null) return;
+      final idMapel = teks(x['idMapel']);
+      if (SesiSiswa.instance.masuk) {
+        final m = SesiSiswa.instance.mapel.where((e) => teks(e['id']) == idMapel).firstOrNull;
+        nav.push(MaterialPageRoute(
+          builder: (_) => MapelSiswaScreen(idMapel: idMapel, namaMapel: teks(m?['nama'], teks(x['mapel'])), tutor: teks(m?['tutor'])),
+        ));
+      } else if (Sesi.instance.masuk) {
+        nav.push(MaterialPageRoute(
+          builder: (_) => DiskusiScreen(idMapel: idMapel, item: {'id': teks(x['idMateri']), 'judul': teks(x['judul']), 'jenis': 'Diskusi'}, bolehNilai: true),
+        ));
+      }
+    };
+    Sesi.instance.addListener(_aturNotif);
+    SesiSiswa.instance.addListener(_aturNotif);
+    _aturNotif();
     if (!kIsWeb) {
       // Login Google: halaman web mengembalikan tiket lewat bmstaf://sso?tiket=...
       _langgananTautan = AppLinks().uriLinkStream.listen(_terimaTautan, onError: (_) {});
     }
   }
 
+  bool? _notifJalan;
+
+  void _aturNotif() {
+    final masuk = Sesi.instance.masuk || SesiSiswa.instance.masuk;
+    if (masuk == _notifJalan) return;
+    _notifJalan = masuk;
+    masuk ? Notif.instance.mulai() : Notif.instance.henti();
+  }
+
   @override
   void dispose() {
+    Sesi.instance.removeListener(_aturNotif);
+    SesiSiswa.instance.removeListener(_aturNotif);
     _langgananTautan?.cancel();
     super.dispose();
   }
@@ -66,6 +112,7 @@ class _AplikasiStafState extends State<AplikasiStaf> {
   Widget build(BuildContext context) {
     return MaterialApp(
       scaffoldMessengerKey: _kunciPesan,
+      navigatorKey: Notif.instance.kunciNavigator,
       title: kNamaAplikasi,
       debugShowCheckedModeBanner: false,
       theme: Gaya.tema(Brightness.light),

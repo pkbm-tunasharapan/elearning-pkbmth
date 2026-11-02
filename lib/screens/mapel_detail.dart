@@ -8,6 +8,9 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'soal_ujian.dart';
 import 'ujian.dart';
+import '../kalender.dart';
+import '../ruang.dart';
+import 'admin_lain.dart';
 import 'web_menu.dart';
 
 String? get _t => Sesi.instance.token;
@@ -62,14 +65,28 @@ class MapelDetailScreen extends StatelessWidget {
             Text(namaRombel, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
           actions: [
+            IconButton(
+              tooltip: 'Chat kelas',
+              onPressed: () => bukaChatStaf(Navigator.of(context), 'MAPEL:$idMapel', namaRombel: namaRombel),
+              icon: const Icon(Icons.chat_rounded),
+            ),
             PopupMenuButton<String>(
               tooltip: 'Lainnya',
               icon: const Icon(Icons.more_vert_rounded),
-              onSelected: (v) => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => WebMenu(judul: namaMapel, tab: 'tabLihat', idMapel: idMapel, denganAppBar: true),
-              )),
+              onSelected: (v) {
+                final nav = Navigator.of(context);
+                if (v == 'kalender') {
+                  final m = Sesi.instance.mapel.where((x) => teks(x['idMapel']) == idMapel).firstOrNull;
+                  nav.push(MaterialPageRoute(
+                    builder: (_) => KalenderStafScreen(idRombel: teks(m?['idRombel']).isEmpty ? null : teks(m?['idRombel']), idMapel: idMapel, denganAppBar: true),
+                  ));
+                } else {
+                  nav.push(MaterialPageRoute(builder: (_) => WebMenu(judul: namaMapel, tab: 'tabLihat', idMapel: idMapel, denganAppBar: true)));
+                }
+              },
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'web', child: ListTile(leading: Icon(Icons.public), title: Text('Kurikulum, RPP & soal (web)'))),
+                PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
+                PopupMenuItem(value: 'web', child: ListTile(leading: Icon(Icons.public), title: Text('Kurikulum & RPP (web)'))),
               ],
             ),
           ],
@@ -86,7 +103,7 @@ class MapelDetailScreen extends StatelessWidget {
           ),
         ),
         body: TabBarView(children: [
-          _TabKonten(idMapel: idMapel),
+          _TabKonten(idMapel: idMapel, judul: '$namaMapel · $namaRombel'),
           JadwalUjianTab(idMapel: idMapel),
           _TabAbsensi(idMapel: idMapel),
           _TabNilai(idMapel: idMapel),
@@ -100,8 +117,9 @@ class MapelDetailScreen extends StatelessWidget {
 // ───────────────────────────── KONTEN ─────────────────────────────
 
 class _TabKonten extends StatefulWidget {
-  const _TabKonten({required this.idMapel});
+  const _TabKonten({required this.idMapel, required this.judul});
   final String idMapel;
+  final String judul;
 
   @override
   State<_TabKonten> createState() => _TabKontenState();
@@ -302,6 +320,28 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
                     ),
                 ]),
               ),
+              Builder(builder: (_) {
+                final pending = semua.where((x) => x['boleh'] == true && teks(x['status']) == 'Draft' && !(teks(x['jenis']) == 'Ujian' && x['terjadwal'] == true)).toList();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Wrap(spacing: 8, runSpacing: 4, children: [
+                    if (pending.length > 1)
+                      FilledButton.tonalIcon(
+                        onPressed: () => _status(pending.map((x) => teks(x['id'])).toList(), 'Aktif'),
+                        icon: const Icon(Icons.done_all_rounded, size: 18),
+                        label: Text('Post semua yang pending (${pending.length})'),
+                      ),
+                    if (semua.isNotEmpty)
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          if (await hapusSerentak(context, widget.idMapel, widget.judul)) _muatUlang();
+                        },
+                        icon: const Icon(Icons.delete_sweep_rounded, size: 18),
+                        label: const Text('Hapus Serentak'),
+                      ),
+                  ]),
+                );
+              }),
               if (list.isEmpty) const Kosong(pesan: 'Belum ada konten. Ketuk "Tambah" untuk membuat materi, diskusi, atau ujian.', ikon: Icons.library_add_rounded),
               for (final s in urutSesi) ...[
                 JudulBagian(s, aksi: s == kini ? Lencana('Berjalan', warna: Colors.green) : null),

@@ -4,7 +4,7 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
-import 'web_menu.dart';
+import 'mapel_detail.dart';
 
 /// Daftar diskusi yang jawabannya belum dinilai.
 class BelumDinilaiScreen extends StatelessWidget {
@@ -26,12 +26,23 @@ class BelumDinilaiScreen extends StatelessWidget {
               child: ListTile(
                 leading: IkonBulat(Icons.rate_review_rounded, warna: Gaya.warnaMenu('nilai'), ukuran: 42, sudut: 14),
                 title: Text('${angka(d['total'])} jawaban belum dinilai', style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: const Text('Ketuk satu diskusi untuk menilai di versi web.'),
+                subtitle: const Text('Ketuk satu diskusi untuk membaca dan menilai tanggapan.'),
               ),
             ),
             if (perTutor.isNotEmpty) ...[
               const JudulBagian('Per tutor'),
-              Card(child: Padding(padding: const EdgeInsets.all(12), child: NilaiJson(perTutor))),
+              Card(
+                child: Column(children: [
+                  for (final t in perTutor)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.person_rounded),
+                      title: Text(teks(t['nama'])),
+                      subtitle: Text('${angka(t['diskusi'])} diskusi'),
+                      trailing: Lencana('${angka(t['belum'])} belum', warna: cs.error),
+                    ),
+                ]),
+              ),
             ],
             const JudulBagian('Diskusi'),
             if (diskusi.isEmpty) const Kosong(pesan: 'Semua jawaban diskusi sudah dinilai.', ikon: Icons.task_alt),
@@ -48,9 +59,16 @@ class BelumDinilaiScreen extends StatelessWidget {
                     if (teks(g['terlama']).isNotEmpty) 'terlama ${teks(g['terlama'])}',
                   ].join(' · ')),
                   trailing: Lencana('${angka(g['belum'])}', warna: cs.error),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => WebMenu(judul: teks(g['judul'], 'Nilai diskusi'), tab: 'tabLihat', idMapel: teks(g['idMapel']), denganAppBar: true),
-                  )),
+                  onTap: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => DiskusiScreen(
+                        idMapel: teks(g['idMapel']),
+                        item: {'id': teks(g['idMateri']), 'judul': teks(g['judul'], 'Diskusi'), 'jenis': 'Diskusi'},
+                        bolehNilai: g['milikSaya'] == true,
+                      ),
+                    ));
+                    segarkan();
+                  },
                 ),
               ),
           ],

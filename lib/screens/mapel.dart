@@ -4,6 +4,7 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'admin_lain.dart';
 import 'mapel_detail.dart';
 
 /// Daftar mata pelajaran yang diampu (tutor) atau semua mapel aktif (admin), dikelompokkan per rombel.
@@ -39,7 +40,31 @@ class _MapelScreenState extends State<MapelScreen> {
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari mapel atau kelas'),
               onChanged: (v) => setState(() => _cari = v),
             ),
-            if (mapel.isEmpty) const Kosong(pesan: 'Belum ada mata pelajaran yang Anda ampu. Hubungi admin untuk didaftarkan.'),
+            if (mapel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KesiapanScreen())),
+                  icon: const Icon(Icons.fact_check_rounded),
+                  label: const Text('Cek Kesiapan Rombel'),
+                ),
+              ),
+            if (mapel.isEmpty && daftar(Sesi.instance.profil['pengajuan']).isNotEmpty)
+              Card(
+                margin: const EdgeInsets.only(top: 14),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Pengajuan mata pelajaran Anda menunggu persetujuan admin', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    const Text('Mapel akan muncul di sini setelah admin menyetujui. Tarik ke bawah untuk memuat ulang.'),
+                    const SizedBox(height: 8),
+                    for (final x in daftar(Sesi.instance.profil['pengajuan']).map(peta)) Text('• ${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}'),
+                  ]),
+                ),
+              )
+            else if (mapel.isEmpty)
+              const Kosong(pesan: 'Belum ada mata pelajaran yang Anda ampu. Hubungi admin untuk didaftarkan.'),
             for (final e in grup.entries) ...[
               JudulBagian(e.key, sub: '${e.value.length} mapel'),
               Card(

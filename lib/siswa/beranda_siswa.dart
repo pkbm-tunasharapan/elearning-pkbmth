@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../config.dart';
+import '../kalender.dart';
+import '../ruang.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'mapel_siswa.dart';
@@ -118,6 +120,30 @@ class BerandaSiswa extends StatelessWidget {
               ]),
             ),
             Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(children: [
+                Expanded(
+                  child: _Pintasan(
+                    ikon: Icons.forum_rounded,
+                    warna: const Color(0xFF2F9E8F),
+                    judul: 'Chatroom',
+                    sub: 'Teman satu rombel',
+                    onTap: () => bukaChatSiswa(Navigator.of(context), 'ROMBEL'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _Pintasan(
+                    ikon: Icons.calendar_month_rounded,
+                    warna: const Color(0xFF7C3AED),
+                    judul: 'Kalender',
+                    sub: 'Jadwal sesi & ujian',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama))),
+                  ),
+                ),
+              ]),
+            ),
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Text('Mata pelajaran', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             ),
@@ -162,6 +188,41 @@ class BerandaSiswa extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(20),
               child: Center(child: Text('Versi $kVersi', style: tt.bodySmall?.copyWith(color: cs.outline))),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _Pintasan extends StatelessWidget {
+  const _Pintasan({required this.ikon, required this.warna, required this.judul, required this.sub, required this.onTap});
+  final IconData ikon;
+  final Color warna;
+  final String judul;
+  final String sub;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Gaya.radius),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: cs.surfaceContainerLowest, borderRadius: BorderRadius.circular(Gaya.radius), boxShadow: Gaya.bayangan(context)),
+          child: Row(children: [
+            IkonBulat(ikon, warna: warna, ukuran: 40, sudut: 12),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(judul, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
+              ]),
             ),
           ]),
         ),

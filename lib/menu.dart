@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'kalender.dart';
+import 'ruang.dart';
+import 'screens/admin_lain.dart';
 import 'screens/belum_dinilai.dart';
 import 'screens/ganda.dart';
 import 'screens/kelola_mapel.dart';
@@ -50,12 +53,13 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'ta', judul: 'Tahun Ajaran', ikon: Icons.event_note_outlined, peran: _admin, native: () => const TahunAjaranScreen()),
   MenuApp(id: 'log', judul: 'Log Aktivitas', ikon: Icons.receipt_long_outlined, peran: _admin, native: () => const LogScreen()),
   MenuApp(id: 'reset', judul: 'Reset Data', ikon: Icons.cleaning_services_outlined, peran: _admin, native: () => const ResetScreen()),
+  MenuApp(id: 'kalender', judul: 'Kalender Akademik', ikon: Icons.calendar_month_outlined, peran: _pimpinan, native: () => const KalenderStafScreen()),
+  MenuApp(id: 'ruangStaf', judul: 'Ruang Staf', ikon: Icons.forum_outlined, peran: _semua, native: () => const RuangStafScreen()),
+  MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, native: () => const PengajuanTutorScreen()),
+  MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, native: () => const PengaturanAiScreen()),
+  MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
   // Menu berikut masih dibuka lewat versi web di dalam aplikasi (dibuat native bertahap).
-  const MenuApp(id: 'kalender', judul: 'Kalender Akademik', ikon: Icons.calendar_month_outlined, peran: _pimpinan, tabWeb: 'tabKalender'),
-  const MenuApp(id: 'ruangStaf', judul: 'Ruang Staf', ikon: Icons.forum_outlined, peran: _semua, tabWeb: 'tabStaf'),
-  const MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, tabWeb: 'Pengajuan Tutor'),
   const MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, tabWeb: 'CP'),
-  const MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, tabWeb: 'tabAi'),
 ];
 
 List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran)).toList();

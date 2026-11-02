@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import '../ruang.dart';
 import 'sesi_siswa.dart';
 
 SesiSiswa get _s => SesiSiswa.instance;
@@ -88,6 +89,13 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
           Text(widget.namaMapel, overflow: TextOverflow.ellipsis),
           if (widget.tutor.isNotEmpty) Text('Tutor: ${widget.tutor}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: cs.onSurfaceVariant)),
         ]),
+        actions: [
+          IconButton(
+            tooltip: 'Obrolan mapel',
+            onPressed: () => bukaChatSiswa(Navigator.of(context), 'MAPEL:${widget.idMapel}'),
+            icon: const Icon(Icons.chat_rounded),
+          ),
+        ],
       ),
       body: Muatan<List<dynamic>>(
         key: ValueKey(_versi),
