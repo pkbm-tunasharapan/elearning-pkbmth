@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../session.dart';
+import '../theme.dart';
 import '../widgets.dart';
 import 'web_menu.dart';
 
@@ -18,12 +19,12 @@ class BelumDinilaiScreen extends StatelessWidget {
         final perTutor = daftar(d['perTutor']).map(peta).toList();
         final cs = Theme.of(context).colorScheme;
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             Card(
               color: angka(d['total']) > 0 ? cs.errorContainer : cs.primaryContainer,
               child: ListTile(
-                leading: const Icon(Icons.rate_review_outlined),
+                leading: IkonBulat(Icons.rate_review_rounded, warna: Gaya.warnaMenu('nilai'), ukuran: 42, sudut: 14),
                 title: Text('${angka(d['total'])} jawaban belum dinilai', style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: const Text('Ketuk satu diskusi untuk menilai di versi web.'),
               ),

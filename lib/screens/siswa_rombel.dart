@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../session.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 /// Daftar siswa per rombel (admin: semua rombel; tutor: rombel yang diampu).
@@ -24,7 +25,7 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
         final q = _cari.toLowerCase();
         final total = rombel.fold<int>(0, (n, r) => n + daftar(r['siswa']).length);
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             TextField(
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari nama siswa'),
@@ -44,7 +45,8 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                   margin: const EdgeInsets.symmetric(vertical: 5),
                   child: ExpansionTile(
                     initiallyExpanded: q.isNotEmpty,
-                    title: Text(teks(r['namaRombel']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    leading: IkonBulat(Icons.groups_rounded, warna: Gaya.warnaMenu(teks(r['namaRombel'])), ukuran: 42, sudut: 14),
+                    title: Text(teks(r['namaRombel']), style: const TextStyle(fontWeight: FontWeight.w800)),
                     subtitle: Text('${siswa.length} siswa · $terdaftar sudah daftar mandiri'),
                     childrenPadding: const EdgeInsets.only(bottom: 8),
                     children: [
@@ -56,7 +58,11 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                       for (final s in siswa)
                         ListTile(
                           dense: true,
-                          leading: CircleAvatar(radius: 16, child: Text(teks(s['nama'], '?')[0])),
+                          leading: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Gaya.warnaMenu(teks(s['nama'])).withValues(alpha: 0.15),
+                            child: Text(teks(s['nama'], '?')[0].toUpperCase(), style: TextStyle(color: Gaya.warnaMenu(teks(s['nama'])), fontWeight: FontWeight.w800)),
+                          ),
                           title: Text(teks(s['nama'])),
                           subtitle: Text([
                             if (teks(s['lahir']).isNotEmpty) 'lahir ${teks(s['lahir'])}',

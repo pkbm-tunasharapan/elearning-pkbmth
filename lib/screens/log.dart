@@ -24,7 +24,7 @@ class _LogScreenState extends State<LogScreen> {
         final orang = daftar(d['orang']).map(peta).toList();
         final riwayat = daftar(d['riwayat']).map(peta).toList();
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             DropdownButtonFormField<String>(
               initialValue: _kunci,

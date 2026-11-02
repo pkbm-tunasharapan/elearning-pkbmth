@@ -16,7 +16,7 @@ class ProgresScreen extends StatelessWidget {
         final rombel = daftar(d['rombel']).map(peta).toList();
         final kini = peta(d['kini']);
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             Card(
               child: Padding(
@@ -71,7 +71,7 @@ class ProgresKelasScreen extends StatelessWidget {
         bangun: (context, d, segarkan) {
           final mapel = daftar(d['mapel']);
           return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               if (d['ringkas'] != null)
                 Card(child: Padding(padding: const EdgeInsets.all(14), child: NilaiJson(d['ringkas']))),

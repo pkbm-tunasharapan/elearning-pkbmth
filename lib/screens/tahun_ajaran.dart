@@ -149,7 +149,7 @@ class _PengaturanState extends State<_Pengaturan> {
     return RefreshIndicator(
       onRefresh: _muat,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           Card(
             color: cs.primaryContainer,
@@ -336,7 +336,7 @@ class _TahunBaruState extends State<_TahunBaru> {
     ];
     final nilaiSah = pilihan.map((e) => e.value).toSet();
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
         Card(
           child: Padding(

@@ -32,7 +32,7 @@ class _MapelScreenState extends State<MapelScreen> {
           grup.putIfAbsent(teks(m['namaRombel'], 'Tanpa rombel'), () => []).add(m);
         }
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             TextField(
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari mapel atau kelas'),
@@ -45,7 +45,7 @@ class _MapelScreenState extends State<MapelScreen> {
                 child: Column(children: [
                   for (final m in e.value)
                     ListTile(
-                      leading: const Icon(Icons.menu_book_outlined),
+                      leading: const IkonBulat(Icons.menu_book_rounded, ukuran: 42, sudut: 14),
                       title: Text(teks(m['namaMapel'])),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(

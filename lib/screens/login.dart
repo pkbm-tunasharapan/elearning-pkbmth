@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../config.dart';
 import '../session.dart';
+import '../theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -57,87 +59,167 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [cs.primary, cs.tertiary]),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(22)),
-                    child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 40),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('Belajar Mandiri', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
-                  const Text('$kNamaSekolah · Tutor & Admin', style: TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 24),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: AutofillGroup(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                          TextField(
-                            controller: _nama,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.username],
-                            decoration: const InputDecoration(labelText: 'Nama', hintText: 'Nama sesuai yang didaftarkan admin', prefixIcon: Icon(Icons.person_outline)),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _kode,
-                            obscureText: !_lihat,
-                            autofillHints: const [AutofillHints.password],
-                            onSubmitted: (_) => _masuk(),
-                            decoration: InputDecoration(
-                              labelText: 'Kode Akses',
-                              prefixIcon: const Icon(Icons.key_outlined),
-                              suffixIcon: IconButton(onPressed: () => setState(() => _lihat = !_lihat), icon: Icon(_lihat ? Icons.visibility_off : Icons.visibility)),
-                            ),
-                          ),
-                          if (_galat != null) ...[
-                            const SizedBox(height: 12),
-                            Text(_galat!, style: TextStyle(color: cs.error)),
-                          ],
-                          const SizedBox(height: 18),
-                          FilledButton(
-                            onPressed: _sibuk ? null : _masuk,
-                            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                            child: _sibuk ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)) : const Text('Masuk'),
-                          ),
-                          const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: () => launchUrl(
-                              Uri.parse(kIsWeb ? '$kWebUrl?halaman=staf' : '$kWebUrl?halaman=staf&appsso=1'),
-                              mode: LaunchMode.externalApplication,
-                            ),
-                            icon: const Icon(Icons.account_circle_outlined),
-                            label: const Text('Masuk dengan Google'),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            kIsWeb
-                                ? 'Kode akses diberikan oleh admin. Login Google di versi web membuka halaman staf web.'
-                                : 'Masuk dengan Google: browser terbuka, ketuk "Masuk dengan Google", pilih akun SIM SETARA, lalu ketuk "Kembali ke aplikasi BM Staf".',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ]),
+    final tt = Theme.of(context).textTheme;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(gradient: Gaya.gradasi),
+          child: Stack(children: [
+            // Lingkaran dekoratif lembut
+            Positioned(top: -70, right: -50, child: _Gelembung(200, 0.12)),
+            Positioned(top: 140, left: -60, child: _Gelembung(140, 0.08)),
+            Positioned(bottom: -90, right: -40, child: _Gelembung(240, 0.10)),
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(children: [
+                      Container(
+                        width: 84,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
+                        ),
+                        child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 44),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Text('Belajar Mandiri', style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Text('$kNamaSekolah · Ruang Staf', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
+                      const SizedBox(height: 28),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerLowest,
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 30, offset: const Offset(0, 12))],
+                        ),
+                        child: AutofillGroup(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                            Text('Selamat datang 👋', style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            Text('Masuk untuk mengelola kelas dan materi.', style: TextStyle(color: cs.onSurfaceVariant)),
+                            const SizedBox(height: 20),
+                            _TombolGoogle(onPressed: _sibuk ? null : _masukGoogle),
+                            const SizedBox(height: 18),
+                            Row(children: [
+                              const Expanded(child: Divider()),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text('atau dengan kode akses', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                              ),
+                              const Expanded(child: Divider()),
+                            ]),
+                            const SizedBox(height: 18),
+                            TextField(
+                              controller: _nama,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.username],
+                              decoration: const InputDecoration(hintText: 'Nama lengkap', prefixIcon: Icon(Icons.person_rounded)),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _kode,
+                              obscureText: !_lihat,
+                              autofillHints: const [AutofillHints.password],
+                              onSubmitted: (_) => _masuk(),
+                              decoration: InputDecoration(
+                                hintText: 'Kode akses',
+                                prefixIcon: const Icon(Icons.key_rounded),
+                                suffixIcon: IconButton(onPressed: () => setState(() => _lihat = !_lihat), icon: Icon(_lihat ? Icons.visibility_off_rounded : Icons.visibility_rounded)),
+                              ),
+                            ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 200),
+                              child: _galat == null
+                                  ? const SizedBox(width: double.infinity)
+                                  : Container(
+                                      margin: const EdgeInsets.only(top: 12),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(color: cs.errorContainer, borderRadius: BorderRadius.circular(14)),
+                                      child: Row(children: [
+                                        Icon(Icons.info_rounded, color: cs.onErrorContainer, size: 20),
+                                        const SizedBox(width: 10),
+                                        Expanded(child: Text(_galat!, style: TextStyle(color: cs.onErrorContainer))),
+                                      ]),
+                                    ),
+                            ),
+                            const SizedBox(height: 18),
+                            FilledButton(
+                              onPressed: _sibuk ? null : _masuk,
+                              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+                              child: _sibuk
+                                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
+                                  : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Masuk'), SizedBox(width: 8), Icon(Icons.arrow_forward_rounded, size: 20)]),
+                            ),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        kIsWeb
+                            ? 'Kode akses diberikan oleh admin.'
+                            : 'Masuk dengan Google membuka browser. Setelah memilih akun, ketuk "Kembali ke aplikasi BM Staf".',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
+                      ),
+                    ]),
                   ),
-                ]),
+                ),
               ),
             ),
-          ),
+          ]),
         ),
       ),
+    );
+  }
+
+  void _masukGoogle() {
+    launchUrl(
+      Uri.parse(kIsWeb ? '$kWebUrl?halaman=staf' : '$kWebUrl?halaman=staf&appsso=1'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+}
+
+class _Gelembung extends StatelessWidget {
+  const _Gelembung(this.ukuran, this.alfa);
+  final double ukuran;
+  final double alfa;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: ukuran,
+        height: ukuran,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: alfa)),
+      );
+}
+
+class _TombolGoogle extends StatelessWidget {
+  const _TombolGoogle({required this.onPressed});
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white, boxShadow: [BoxShadow(color: Color(0x22000000), blurRadius: 3)]),
+          child: const Text('G', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF4285F4), fontSize: 15)),
+        ),
+        const SizedBox(width: 12),
+        const Text('Masuk dengan Google'),
+      ]),
     );
   }
 }

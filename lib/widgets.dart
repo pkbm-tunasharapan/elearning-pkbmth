@@ -54,16 +54,19 @@ class PesanGalat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(28),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
-          const SizedBox(height: 12),
-          Text(pesan, textAlign: TextAlign.center),
+          IkonBulat(Icons.cloud_off_rounded, warna: cs.error, ukuran: 72),
+          const SizedBox(height: 16),
+          Text('Ups, ada kendala', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(pesan, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
           if (ulangi != null) ...[
-            const SizedBox(height: 16),
-            FilledButton.tonalIcon(onPressed: ulangi, icon: const Icon(Icons.refresh), label: const Text('Coba lagi')),
+            const SizedBox(height: 18),
+            FilledButton.tonalIcon(onPressed: ulangi, icon: const Icon(Icons.refresh_rounded), label: const Text('Coba lagi')),
           ],
         ]),
       ),
@@ -72,19 +75,45 @@ class PesanGalat extends StatelessWidget {
 }
 
 class Kosong extends StatelessWidget {
-  const Kosong({super.key, required this.pesan, this.ikon = Icons.inbox_outlined});
+  const Kosong({super.key, required this.pesan, this.ikon = Icons.inbox_rounded});
   final String pesan;
   final IconData ikon;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 44, horizontal: 24),
       child: Column(children: [
-        Icon(ikon, size: 48, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(height: 12),
-        Text(pesan, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.outline)),
+        IkonBulat(ikon, warna: cs.primary, ukuran: 76),
+        const SizedBox(height: 14),
+        Text(pesan, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
       ]),
+    );
+  }
+}
+
+/// Ikon di dalam lingkaran pastel (gaya modern-lembut).
+class IkonBulat extends StatelessWidget {
+  const IkonBulat(this.ikon, {super.key, this.warna, this.ukuran = 44, this.sudut});
+  final IconData ikon;
+  final Color? warna;
+  final double ukuran;
+  /// null = lingkaran; diisi = kotak membulat.
+  final double? sudut;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = warna ?? Theme.of(context).colorScheme.primary;
+    return Container(
+      width: ukuran,
+      height: ukuran,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.12),
+        shape: sudut == null ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: sudut == null ? null : BorderRadius.circular(sudut!),
+      ),
+      child: Icon(ikon, color: c, size: ukuran * 0.5),
     );
   }
 }
@@ -98,7 +127,7 @@ class Lencana extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = warna ?? Theme.of(context).colorScheme.primary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: c.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(99)),
       child: Text(label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: c)),
     );
@@ -114,11 +143,11 @@ class JudulBagian extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(4, 20, 4, 10),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(judul, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(judul, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             if (sub != null) Padding(padding: const EdgeInsets.only(top: 2), child: Text(sub!, style: Theme.of(context).textTheme.bodySmall)),
           ]),
         ),

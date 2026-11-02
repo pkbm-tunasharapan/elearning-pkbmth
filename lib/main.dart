@@ -8,6 +8,7 @@ import 'config.dart';
 import 'screens/home.dart';
 import 'screens/login.dart';
 import 'session.dart';
+import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,30 +61,45 @@ class _AplikasiStafState extends State<AplikasiStaf> {
 
   @override
   Widget build(BuildContext context) {
-    const benih = Color(0xFF4B2FD0);
     return MaterialApp(
       scaffoldMessengerKey: _kunciPesan,
       title: kNamaAplikasi,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: benih),
-        inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-        cardTheme: const CardThemeData(margin: EdgeInsets.zero),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: benih, brightness: Brightness.dark),
-        inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-        cardTheme: const CardThemeData(margin: EdgeInsets.zero),
-      ),
+      theme: Gaya.tema(Brightness.light),
+      darkTheme: Gaya.tema(Brightness.dark),
       home: ListenableBuilder(
         listenable: Sesi.instance,
         builder: (context, _) {
           final s = Sesi.instance;
-          if (!s.siap) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          if (!s.siap) return const _Pembuka();
           return s.masuk ? const HomeScreen() : const LoginScreen();
         },
+      ),
+    );
+  }
+}
+
+/// Layar pembuka singkat saat sesi dimuat.
+class _Pembuka extends StatelessWidget {
+  const _Pembuka();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(gradient: Gaya.gradasi),
+        child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(28)),
+              child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 44),
+            ),
+            const SizedBox(height: 18),
+            const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.6)),
+          ]),
+        ),
       ),
     );
   }

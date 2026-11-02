@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../session.dart';
+import '../theme.dart';
 import '../widgets.dart';
 
 /// Kelola mata pelajaran per kelas (admin): tambah, ubah nama/status, sinkron & tarik dari SIM SETARA.
@@ -102,7 +103,7 @@ class _KelolaMapelScreenState extends State<KelolaMapelScreen> {
         return Scaffold(
           floatingActionButton: FloatingActionButton.extended(onPressed: () => _ubah(null, rombel), icon: const Icon(Icons.add), label: const Text('Tambah Mapel')),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
             children: [
               Wrap(spacing: 8, runSpacing: 8, children: [
                 FilledButton.tonalIcon(onPressed: _sinkron, icon: const Icon(Icons.sync), label: const Text('Sinkron SIM SETARA')),
@@ -126,6 +127,7 @@ class _KelolaMapelScreenState extends State<KelolaMapelScreen> {
                   child: Column(children: [
                     for (final m in e.value)
                       ListTile(
+                        leading: IkonBulat(Icons.menu_book_rounded, warna: Gaya.warnaMenu(teks(m['namaMapel'])), ukuran: 40, sudut: 12),
                         title: Text(teks(m['namaMapel'])),
                         subtitle: Text([
                           teks(m['tutor']).isEmpty ? 'Belum ada tutor' : 'Tutor: ${teks(m['tutor'])}',

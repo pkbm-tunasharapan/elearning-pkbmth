@@ -71,7 +71,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
           final list = semua.where((p) => q.isEmpty || '${teks(p['nama'])} ${teks(p['peran'])}'.toLowerCase().contains(q)).toList();
           final cs = Theme.of(context).colorScheme;
           return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
             children: [
               TextField(
                 decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari nama atau peran'),

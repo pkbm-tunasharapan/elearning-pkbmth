@@ -34,7 +34,7 @@ class _ResetScreenState extends State<ResetScreen> {
         }
         final totalPilih = bersih.where((x) => _pilih.contains(teks(x['nama']))).fold<num>(0, (n, x) => n + angka(x['baris']));
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             Card(
               color: cs.errorContainer,

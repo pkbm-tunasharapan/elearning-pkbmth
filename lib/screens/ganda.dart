@@ -62,7 +62,7 @@ class _GandaScreenState extends State<GandaScreen> {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
         _kartuSinkron(context),
         const SizedBox(height: 12),

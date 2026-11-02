@@ -38,7 +38,7 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
         final url = teks(peta(d[1])['daftar']);
         final dibuka = rombel.where((r) => r['terbuka'] == true).length;
         return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             Card(
               child: Padding(
