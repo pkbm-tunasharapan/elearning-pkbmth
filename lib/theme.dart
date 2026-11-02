@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Warna & gaya "modern-lembut" BM Staf.
+/// Warna & gaya "modern-lembut" E-Course TH.
 class Gaya {
   static const benih = Color(0xFF6C4CE0);
   static const ungu = Color(0xFF6C4CE0);

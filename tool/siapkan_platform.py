@@ -2,7 +2,7 @@
 import json, pathlib, re, shutil
 
 akar = pathlib.Path(__file__).resolve().parent.parent
-NAMA = 'BM Staf'
+NAMA = 'E-Course TH'
 
 man = akar / 'android/app/src/main/AndroidManifest.xml'
 s = man.read_text()
@@ -26,12 +26,12 @@ man.write_text(s)
 idx = akar / 'web/index.html'
 if idx.exists():
     h = idx.read_text()
-    h = re.sub(r'<title>.*?</title>', '<title>Belajar Mandiri Staf</title>', h, flags=re.S)
+    h = re.sub(r'<title>.*?</title>', '<title>E-Course TH</title>', h, flags=re.S)
     idx.write_text(h)
 mf = akar / 'web/manifest.json'
 if mf.exists():
     d = json.loads(mf.read_text())
-    d.update({'name': 'Belajar Mandiri Staf', 'short_name': NAMA, 'background_color': '#4B2FD0', 'theme_color': '#4B2FD0'})
+    d.update({'name': 'E-Course TH', 'short_name': NAMA, 'background_color': '#4B2FD0', 'theme_color': '#4B2FD0'})
     mf.write_text(json.dumps(d, indent=2))
 
 # test bawaan `flutter create` merujuk MyApp yang tidak ada di proyek ini
@@ -45,4 +45,16 @@ if kunci.exists():
     tujuan.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(kunci, tujuan / 'debug.keystore')
     print('Kunci tanda tangan tetap dipasang.')
+# Ikon aplikasi (logo E-Course TH) bila sudah disiapkan di tool/ikon/.
+ikon = akar / 'tool/ikon'
+if ikon.exists():
+    for f in (ikon / 'android').glob('mipmap-*/*.png'):
+        t = akar / 'android/app/src/main/res' / f.parent.name / f.name
+        t.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(f, t)
+    for f in (ikon / 'web').glob('**/*.png'):
+        t = akar / 'web' / f.relative_to(ikon / 'web')
+        t.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(f, t)
+    print('Ikon aplikasi dipasang.')
 print('Platform siap.')

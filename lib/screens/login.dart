@@ -78,17 +78,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: Column(children: [
                       Container(
-                        width: 84,
-                        height: 84,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
-                        ),
-                        child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 44),
+                        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 8))]),
+                        child: Image.asset('assets/logo.png', width: 104, height: 104),
                       ),
                       const SizedBox(height: 16),
-                      Text('Belajar Mandiri', style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                      Text('E-Course TH', style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 4),
                       Text('$kNamaSekolah · Ruang Staf', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
                       const SizedBox(height: 28),
@@ -164,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text(
                         kIsWeb
                             ? 'Kode akses diberikan oleh admin.'
-                            : 'Masuk dengan Google membuka browser. Setelah memilih akun, ketuk "Kembali ke aplikasi BM Staf".',
+                            : 'Masuk dengan Google membuka browser. Setelah memilih akun, ketuk "Kembali ke aplikasi E-Course TH".',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
                       ),

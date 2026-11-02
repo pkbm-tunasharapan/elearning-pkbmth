@@ -90,12 +90,7 @@ class _Pembuka extends StatelessWidget {
         decoration: const BoxDecoration(gradient: Gaya.gradasi),
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(28)),
-              child: const Icon(Icons.auto_stories_rounded, color: Colors.white, size: 44),
-            ),
+            Image.asset('assets/logo.png', width: 112, height: 112),
             const SizedBox(height: 18),
             const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.6)),
           ]),

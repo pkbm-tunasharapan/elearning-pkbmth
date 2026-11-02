@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 4, 16, 0),
-          child: Text('BM Staf versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
+          child: Text('E-Course TH versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
         ),
         const SizedBox(height: 12),
       ],

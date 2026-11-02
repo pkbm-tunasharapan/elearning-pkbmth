@@ -6,8 +6,8 @@ const String kApiUrl =
 /// Halaman staf versi web (dipakai untuk menu yang belum dibuat native).
 const String kWebUrl = kApiUrl;
 
-const String kNamaAplikasi = 'Belajar Mandiri Staf';
+const String kNamaAplikasi = 'E-Course TH';
 const String kNamaSekolah = 'PKBM Tunas Harapan';
 
 /// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
-const String kVersi = '1.4.0';
+const String kVersi = '1.4.1';
