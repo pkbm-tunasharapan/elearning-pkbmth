@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../api.dart';
 import '../config.dart';
 import '../menu.dart';
 import '../profil.dart';
@@ -122,11 +123,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    return Scaffold(
+    return PopScope(
+      canPop: _aktif == 'beranda',
+      onPopInvokedWithResult: (sudah, _) {
+        if (!sudah && _aktif != 'beranda') _pilih('beranda');
+      },
+      child: Scaffold(
       key: _kunciScaffold,
       appBar: m == null
           ? null
           : AppBar(
+              automaticallyImplyLeading: false,
+              leading: lebar ? null : IconButton(tooltip: 'Beranda', icon: const Icon(Icons.arrow_back_rounded), onPressed: () => _pilih('beranda')),
               titleSpacing: lebar ? 20 : 0,
               title: Row(children: [
                 IkonBulat(m.ikon, warna: Gaya.warnaMenu(m.id), ukuran: 36, sudut: 12),
@@ -164,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 
@@ -228,6 +237,12 @@ class Beranda extends StatelessWidget {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     TeksSapaan(style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13.5)),
                     Text(s.nama, maxLines: 1, overflow: TextOverflow.ellipsis, style: tt.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+                      child: Text(s.peran, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
                   ]),
                 ),
               ]),
@@ -247,11 +262,11 @@ class Beranda extends StatelessWidget {
                 ),
                 child: IntrinsicHeight(
                   child: Row(children: [
-                    _Ringkas(ikon: Icons.badge_rounded, warna: Gaya.warnaMenu('pengguna'), nilai: s.peran, label: 'Peran'),
+                    _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: '${s.jumlahMapel}', label: 'Mapel', onTap: () => onPilih('mapelSaya')),
                     const VerticalDivider(width: 1),
-                    _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: '${s.mapel.length}', label: 'Mapel'),
+                    _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: '${s.jumlahRombel}', label: 'Rombel', onTap: () => onPilih('siswaRombel')),
                     const VerticalDivider(width: 1),
-                    _Ringkas(ikon: Icons.apps_rounded, warna: Gaya.warnaMenu('nilai'), nilai: '${menu.length}', label: 'Menu'),
+                    _RingkasBelumDinilai(onTap: () => onPilih('nilai')),
                   ]),
                 ),
               ),
@@ -311,21 +326,70 @@ class Beranda extends StatelessWidget {
 }
 
 class _Ringkas extends StatelessWidget {
-  const _Ringkas({required this.ikon, required this.warna, required this.nilai, required this.label});
+  const _Ringkas({required this.ikon, required this.warna, required this.nilai, required this.label, this.onTap});
   final IconData ikon;
   final Color warna;
   final String nilai;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Column(children: [
-        IkonBulat(ikon, warna: warna, ukuran: 36),
-        const SizedBox(height: 8),
-        Text(nilai, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-        Text(label, style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ]),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(children: [
+            IkonBulat(ikon, warna: warna, ukuran: 36),
+            const SizedBox(height: 8),
+            Text(nilai, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Jumlah jawaban siswa yang belum dinilai (diambil dari server saat beranda dibuka).
+class _RingkasBelumDinilai extends StatefulWidget {
+  const _RingkasBelumDinilai({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  State<_RingkasBelumDinilai> createState() => _RingkasBelumDinilaiState();
+}
+
+class _RingkasBelumDinilaiState extends State<_RingkasBelumDinilai> {
+  static int? _terakhir;
+  int? _n = _terakhir;
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future<void> _muat() async {
+    try {
+      final d = peta(await Api.instance('waStafBelumDinilai', [Sesi.instance.token]));
+      final n = angka(d['total']).toInt();
+      _terakhir = n;
+      if (mounted) setState(() => _n = n);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = _n;
+    return _Ringkas(
+      ikon: Icons.rate_review_rounded,
+      warna: n != null && n > 0 ? Theme.of(context).colorScheme.error : Gaya.warnaMenu('nilai'),
+      nilai: n == null ? '…' : '$n',
+      label: 'Belum dinilai',
+      onTap: widget.onTap,
     );
   }
 }

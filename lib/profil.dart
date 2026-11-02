@@ -299,7 +299,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         if (teks(d['terdaftar']).isNotEmpty) (Icons.event_available_rounded, 'Terdaftar', teks(d['terdaftar'])),
       ] else ...[
         (Icons.verified_user_rounded, 'Peran', teks(d['peran'], Sesi.instance.peran)),
-        (Icons.menu_book_rounded, 'Mata pelajaran', '${Sesi.instance.mapel.length} mapel'),
+        (Icons.menu_book_rounded, 'Mata pelajaran', '${Sesi.instance.jumlahMapel} mapel · ${Sesi.instance.jumlahRombel} rombel'),
       ],
     ];
     return ListView(padding: EdgeInsets.zero, children: [

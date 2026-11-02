@@ -21,6 +21,12 @@ class Sesi extends ChangeNotifier {
   bool get isPimpinan => peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum';
   bool get isTutor => peran == 'Tutor';
   List<Map<String, dynamic>> get mapel => daftar(profil['mapel']).map(peta).toList();
+
+  /// Jumlah mapel berdasarkan NAMA (mapel bernama sama di beberapa rombel dihitung satu).
+  int get jumlahMapel => mapel.map((m) => teks(m['namaMapel']).trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ')).where((n) => n.isNotEmpty).toSet().length;
+
+  /// Jumlah rombel yang dicakup oleh mapel-mapel di atas.
+  int get jumlahRombel => mapel.map((m) => teks(m['idRombel'], teks(m['namaRombel']))).where((n) => n.isNotEmpty).toSet().length;
   bool get masuk => token != null && profil.isNotEmpty;
 
   Future<void> muat() async {
