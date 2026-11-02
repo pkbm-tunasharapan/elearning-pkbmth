@@ -89,4 +89,10 @@ if kunci.exists():
     }""", 1)
             gro.write_text(g)
         print('Gradle (groovy) memakai kunci tetap.')
+# Halaman statis tambahan untuk situs web (mis. kebijakan privasi untuk layar izin Google).
+halaman = akar / 'tool/web'
+if halaman.exists() and (akar / 'web').exists():
+    for f in halaman.glob('*.html'):
+        shutil.copyfile(f, akar / 'web' / f.name)
+    print('Halaman web tambahan dipasang.')
 print('Platform siap.')

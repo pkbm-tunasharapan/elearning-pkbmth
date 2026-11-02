@@ -73,6 +73,21 @@ class Sesi extends ChangeNotifier {
     return null;
   }
 
+  /// Masuk dengan ID token Google yang didapat langsung di aplikasi (tanpa halaman web).
+  Future<String?> masukGoogle(String idToken) async {
+    final r = peta(await Api.instance('waStafMasukGoogle', [idToken]));
+    if (r['sukses'] != true || teks(r['token']).isEmpty) {
+      return teks(r['pesan'], 'Login Google gagal. Coba lagi.');
+    }
+    token = teks(r['token']);
+    profil = peta(await Api.instance('waStafProfil', [token]));
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kunciToken, token!);
+    pesanKeluar = null;
+    notifyListeners();
+    return null;
+  }
+
   Future<void> segarkanProfil() async {
     if (token == null) return;
     profil = peta(await Api.instance('waStafProfil', [token]));

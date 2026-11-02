@@ -10,4 +10,9 @@ const String kNamaAplikasi = 'E-Course TH';
 const String kNamaSekolah = 'PKBM Tunas Harapan';
 
 /// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
-const String kVersi = '1.8.1';
+const String kVersi = '1.8.2';
+
+/// Client ID OAuth jenis "Web application" (proyek Google Cloud Master Classroom Control).
+/// Dipakai sebagai serverClientId agar Google memberi ID token yang dapat diperiksa server.
+/// Klien Android (paket + SHA-1 kunci tanda tangan) terdaftar di proyek yang sama.
+const String kGoogleServerClientId = '375397226722-ljic4gfj1c0iv8oskjheh5mii88lii5p.apps.googleusercontent.com';

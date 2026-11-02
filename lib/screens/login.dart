@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
@@ -239,11 +240,53 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_nama.text.isNotEmpty && _kode.text.isNotEmpty) _masuk();
   }
 
-  void _masukGoogle() {
-    launchUrl(
-      Uri.parse(kIsWeb ? '$kWebUrl?halaman=staf' : '$kWebUrl?halaman=staf&appsso=1'),
-      mode: LaunchMode.externalApplication,
-    );
+  static bool _gsiSiap = false;
+
+  Future<void> _masukGoogle() async {
+    if (kIsWeb) {
+      // Versi web (browser) tetap memakai halaman login Google bawaan web.
+      launchUrl(Uri.parse('$kWebUrl?halaman=staf'), mode: LaunchMode.externalApplication);
+      return;
+    }
+    setState(() {
+      _sibuk = true;
+      _galat = null;
+    });
+    try {
+      final gs = GoogleSignIn.instance;
+      if (!_gsiSiap) {
+        await gs.initialize(serverClientId: kGoogleServerClientId);
+        _gsiSiap = true;
+      }
+      // Selalu tampilkan pemilih akun (jangan otomatis memakai akun terakhir).
+      try {
+        await gs.signOut();
+      } catch (_) {}
+      final akun = await gs.authenticate(scopeHint: const ['email']);
+      final idToken = akun.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        if (mounted) setState(() => _galat = 'Google tidak memberikan data masuk. Coba lagi.');
+        return;
+      }
+      final g = await Sesi.instance.masukGoogle(idToken);
+      if (mounted && g != null) setState(() => _galat = g);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return;
+      if (mounted) {
+        setState(() => _galat = e.code == GoogleSignInExceptionCode.clientConfigurationError || e.code == GoogleSignInExceptionCode.providerConfigurationError
+            ? 'Login Google belum siap di perangkat ini. Pastikan Layanan Google Play aktif, atau masuk dengan kode akses.'
+            : 'Login Google gagal (${e.description ?? e.code.name}).');
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _galat = e.ramah);
+    } catch (e) {
+      if (mounted) setState(() => _galat = 'Login Google gagal: $e');
+    } finally {
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {}
+      if (mounted) setState(() => _sibuk = false);
+    }
   }
 }
 
