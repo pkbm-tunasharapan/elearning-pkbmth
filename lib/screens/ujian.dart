@@ -293,7 +293,12 @@ class _FormJadwalState extends State<_FormJadwal> {
           OutlinedButton.icon(
             onPressed: () async {
               final w = await pilihWaktu(context, mulai: _dariIso(teks(k['mulaiIso'])), akhir: _dariIso(teks(k['selesaiIso'])), judul: 'Tanggal ujian');
-              if (w != null) setState(() => (_tgl, _jamMulai) = w);
+              if (w != null) {
+                setState(() {
+                  _tgl = w.$1;
+                  _jamMulai = w.$2;
+                });
+              }
             },
             icon: const Icon(Icons.calendar_month_rounded),
             label: Text(_tgl == null ? 'Pilih tanggal & jam' : '$_tgl pukul $_jamMulai'),
