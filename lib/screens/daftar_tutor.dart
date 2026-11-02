@@ -43,14 +43,60 @@ class _DaftarTutorScreenState extends State<DaftarTutorScreen> {
     super.dispose();
   }
 
+  final _kodeUndangan = TextEditingController();
+
   Future<void> _muat() async {
     try {
-      final r = peta(await Api.instance('waDaftarTutorInfo'));
-      if (mounted) setState(() => _info = r);
+      final r = peta(await Api.instance('waDaftarTutorStatus'));
+      if (mounted) setState(() => _info = {'terbuka': r['terbuka'] == true});
     } on ApiException catch (e) {
       if (mounted) setState(() => _galatInfo = e.ramah);
     }
   }
+
+  Future<void> _cekKode() async {
+    final k = _kodeUndangan.text.trim().toUpperCase();
+    if (k.length < 4) return _tampil('Masukkan kode undangan dari admin.');
+    setState(() {
+      _sibuk = true;
+      _pesan = null;
+    });
+    try {
+      final r = peta(await Api.instance('waDaftarTutorCek', [k]));
+      if (!mounted) return;
+      if (r['sah'] != true) return _tampil(teks(r['pesan'], 'Kode undangan salah.'));
+      setState(() => _info = {'terbuka': true, 'kode': k, 'paket': r['paket']});
+    } on ApiException catch (e) {
+      if (mounted) _tampil(e.ramah);
+    } finally {
+      if (mounted) setState(() => _sibuk = false);
+    }
+  }
+
+  Widget _langkahKode() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Icon(Icons.mark_email_read_rounded, size: 64, color: Color(0xFF4B2FD0)),
+        const SizedBox(height: 10),
+        const Text('Masukkan kode undangan', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        Text('Pendaftaran tutor hanya untuk calon tutor yang diundang. Kode undangan 6 huruf/angka diberikan oleh admin PKBM.',
+            textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _kodeUndangan,
+          textAlign: TextAlign.center,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 10,
+          style: const TextStyle(fontSize: 24, letterSpacing: 6, fontWeight: FontWeight.w800),
+          onSubmitted: (_) => _cekKode(),
+          decoration: const InputDecoration(labelText: 'Kode undangan', counterText: ''),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+          onPressed: _sibuk ? null : _cekKode,
+          child: _sibuk ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Lanjut'),
+        ),
+      ]);
 
   void _tampil(String t, {bool info = false}) => setState(() {
         _pesan = t;
@@ -74,7 +120,8 @@ class _DaftarTutorScreenState extends State<DaftarTutorScreen> {
     if (_pilih.isEmpty) return _tampil('Centang minimal satu mata pelajaran yang Anda ampu.');
     setState(() => _sibuk = true);
     try {
-      final h = peta(await Api.instance('waDaftarTutorMulai', [
+      final h = peta(await Api.instance('waDaftarTutorMulaiUndangan', [
+        teks(_info!['kode']),
         {'nama': _nama.text.trim(), 'email': _email.text.trim(), 'mapel': _pilih.toList()}
       ]));
       if (!mounted) return;
@@ -111,7 +158,7 @@ class _DaftarTutorScreenState extends State<DaftarTutorScreen> {
     if (kode.length != 6) return _tampil('Kode verifikasi terdiri dari 6 angka.');
     setState(() => _sibuk = true);
     try {
-      final h = peta(await Api.instance('waDaftarTutorVerifikasi', [_sesi, kode]));
+      final h = peta(await Api.instance('waDaftarTutorVerifikasiUndangan', [_sesi, kode]));
       if (!mounted) return;
       if (h['sukses'] != true) {
         _tampil(teks(h['pesan'], 'Verifikasi gagal.'));
@@ -255,6 +302,8 @@ class _DaftarTutorScreenState extends State<DaftarTutorScreen> {
       isi = const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()));
     } else if (_info!['terbuka'] != true && _langkah == 1) {
       isi = const Kosong(pesan: 'Pendaftaran tutor sedang ditutup. Hubungi admin.', ikon: Icons.lock_outline_rounded);
+    } else if (_langkah == 1 && teks(_info!['kode']).isEmpty) {
+      isi = _langkahKode();
     } else {
       isi = _langkah == 1 ? _langkah1() : (_langkah == 2 ? _langkah2() : _langkah3());
     }

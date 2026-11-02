@@ -203,10 +203,10 @@ class _PengajuanTutorScreenState extends State<PengajuanTutorScreen> {
         _cek.clear();
       });
 
-  Future<void> _buka(bool buka) async {
-    final r = await jalankan(context, () => Api.instance('waAdminTutorBuka', [_t, buka]));
+  Future<void> _atur(Map<String, dynamic> opsi, String pesan) async {
+    final r = await jalankan(context, () => Api.instance('waAdminTutorUndanganAtur', [_t, opsi]));
     if (!r.ok || !mounted) return;
-    kabar(context, buka ? 'Pendaftaran tutor dibuka.' : 'Pendaftaran tutor ditutup.');
+    kabar(context, pesan);
     _muatUlang();
   }
 
@@ -304,48 +304,68 @@ class _PengajuanTutorScreenState extends State<PengajuanTutorScreen> {
   Widget build(BuildContext context) {
     return Muatan<Map<String, dynamic>>(
       key: ValueKey(_v),
-      muat: () async => peta(await Api.instance('waAdminTutorPengajuan', [_t])),
+      muat: () async {
+        final h = await Future.wait([Api.instance('waAdminTutorPengajuan', [_t]), Api.instance('waAdminTutorUndangan', [_t])]);
+        return {...peta(h[0]), 'undangan': peta(h[1])};
+      },
       bangun: (context, d, _) {
         final cs = Theme.of(context).colorScheme;
-        final buka = d['terbuka'] == true;
+        final und = peta(d['undangan']);
+        final buka = und['terbuka'] == true;
+        final kode = teks(und['kode']);
         final tutor = daftar(d['tutor']).map(peta).toList();
         final riwayat = daftar(d['riwayat']).map(peta).toList();
-        final tautan = teks(d['tautanDaftar']);
         return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
-                  const Expanded(child: Text('Pendaftaran Tutor Mandiri', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+                  const Expanded(child: Text('Pendaftaran Tutor dengan Kode Undangan', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
                   Lencana(buka ? 'DIBUKA' : 'DITUTUP', warna: buka ? Colors.green : cs.error),
                 ]),
                 const SizedBox(height: 4),
-                Text('Tutor mendaftar sendiri dan mencentang mata pelajaran yang diampu sebagai pengajuan; mapel baru aktif setelah Anda menyetujuinya.',
-                    style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-                const SizedBox(height: 10),
-                buka
-                    ? OutlinedButton(onPressed: () => _buka(false), child: const Text('Tutup pendaftaran'))
-                    : FilledButton(onPressed: () => _buka(true), child: const Text('Buka pendaftaran')),
-                if (tautan.isNotEmpty) ...[
+                Text(
+                  'Calon tutor mendaftar di aplikasi (halaman masuk → Tutor / Staf → "Daftar dengan kode undangan"), wajib memasukkan kode undangan di bawah, '
+                  'lalu mencentang mapel yang diampu sebagai pengajuan. Mapel baru aktif setelah Anda menyetujuinya. Tombol daftar tidak tampil saat pendaftaran ditutup, '
+                  'dan siswa tidak bisa mendaftar tanpa kode.',
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
+                ),
+                if (buka && kode.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text('Tautan untuk dibagikan ke calon tutor (hanya bisa dipakai saat pendaftaran DIBUKA):', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                  const Text('Kode undangan (bagikan hanya ke calon tutor):', style: TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(12)),
-                    child: SelectableText(tautan, style: const TextStyle(fontSize: 12.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(14)),
+                    child: SelectableText(kode, textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 6, color: cs.onPrimaryContainer)),
                   ),
                   const SizedBox(height: 6),
-                  TextButton.icon(
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: tautan));
-                      if (context.mounted) kabar(context, 'Tautan disalin.');
-                    },
-                    icon: const Icon(Icons.copy_rounded),
-                    label: const Text('Salin tautan'),
-                  ),
+                  Wrap(spacing: 8, children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(
+                            text: 'Undangan menjadi tutor PKBM Tunas Harapan.\nBuka aplikasi E-Course TH → Tutor / Staf → "Daftar dengan kode undangan".\nKode undangan: $kode'));
+                        if (context.mounted) kabar(context, 'Pesan undangan disalin. Tempel di WhatsApp ke calon tutor.');
+                      },
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('Salin pesan undangan'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        if (await konfirmasi(context, 'Ganti kode undangan?', 'Kode lama ($kode) langsung tidak berlaku. Calon tutor yang belum mendaftar perlu kode baru.', ya: 'Ganti')) {
+                          _atur({'kodeBaru': true}, 'Kode undangan diganti.');
+                        }
+                      },
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Ganti kode'),
+                    ),
+                  ]),
                 ],
+                const SizedBox(height: 10),
+                buka
+                    ? OutlinedButton(onPressed: () => _atur({'buka': false}, 'Pendaftaran tutor ditutup.'), child: const Text('Tutup pendaftaran'))
+                    : FilledButton(onPressed: () => _atur({'buka': true}, 'Pendaftaran tutor dibuka. Bagikan kode undangan ke calon tutor.'), child: const Text('Buka pendaftaran & buat kode')),
               ]),
             ),
           ),

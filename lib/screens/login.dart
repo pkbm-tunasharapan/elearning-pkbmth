@@ -26,10 +26,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _siswa = true;
   String? _galat;
 
+  bool _tutorBuka = false;
+
   @override
   void initState() {
     super.initState();
     _galat = Sesi.instance.pesanKeluar;
+    // Tombol daftar tutor hanya muncul bila admin sedang membuka pendaftaran dengan kode undangan.
+    Api.instance('waDaftarTutorStatus').then((r) {
+      if (mounted) setState(() => _tutorBuka = peta(r)['terbuka'] == true);
+    }).catchError((_) {});
   }
 
   @override
@@ -180,12 +186,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
                                   : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Masuk'), SizedBox(width: 8), Icon(Icons.arrow_forward_rounded, size: 20)]),
                             ),
-                            const SizedBox(height: 10),
-                            TextButton.icon(
-                              onPressed: _sibuk ? null : (_siswa ? _daftar : _daftarTutor),
-                              icon: const Icon(Icons.person_add_alt_1_rounded),
-                              label: Text(_siswa ? 'Belum punya akun? Daftar siswa baru' : 'Calon tutor? Daftar sebagai tutor'),
-                            ),
+                            if (_siswa || _tutorBuka) ...[
+                              const SizedBox(height: 10),
+                              TextButton.icon(
+                                onPressed: _sibuk ? null : (_siswa ? _daftar : _daftarTutor),
+                                icon: const Icon(Icons.person_add_alt_1_rounded),
+                                label: Text(_siswa ? 'Belum punya akun? Daftar siswa baru' : 'Calon tutor? Daftar dengan kode undangan'),
+                              ),
+                            ],
                           ]),
                         ),
                       ),
