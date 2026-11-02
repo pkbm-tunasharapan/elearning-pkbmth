@@ -1,0 +1,78 @@
+name: Build Aplikasi Staf (APK + Web)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Siapkan folder Android & Web
+        run: |
+          flutter create --platforms=android,web --org id.pkbmtunasharapan --project-name elearning_staf .
+          python3 tool/siapkan_platform.py
+
+      - name: Unduh paket
+        run: flutter pub get
+
+      - name: Periksa kode (tidak menggagalkan build)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Build Web
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - name: Simpan APK (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bm-staf-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Rilis APK (mudah diunduh dari HP)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: BM Staf build ${{ github.run_number }}
+          body: APK aplikasi staf Belajar Mandiri. Unduh app-release.apk lalu pasang di HP Android.
+          files: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Siapkan web untuk GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  web:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
