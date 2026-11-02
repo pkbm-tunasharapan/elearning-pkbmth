@@ -36,4 +36,13 @@ if mf.exists():
 
 # test bawaan `flutter create` merujuk MyApp yang tidak ada di proyek ini
 shutil.rmtree(akar / 'test', ignore_errors=True)
+# Kunci tanda tangan TETAP: semua build memakai kunci yang sama supaya APK baru bisa
+# memperbarui (menimpa) APK lama di HP. Tanpa ini tiap build GitHub memakai kunci acak
+# dan Android menolak pembaruan ("Aplikasi tidak terinstal").
+kunci = akar / 'tool/debug.keystore'
+if kunci.exists():
+    tujuan = pathlib.Path.home() / '.android'
+    tujuan.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(kunci, tujuan / 'debug.keystore')
+    print('Kunci tanda tangan tetap dipasang.')
 print('Platform siap.')
