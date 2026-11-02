@@ -4,6 +4,7 @@ import 'kalender.dart';
 import 'ruang.dart';
 import 'screens/admin_lain.dart';
 import 'screens/belum_dinilai.dart';
+import 'screens/dokumen_rpp.dart';
 import 'screens/kerangka.dart';
 import 'screens/ganda.dart';
 import 'screens/kelola_mapel.dart';
@@ -40,10 +41,14 @@ class MenuApp {
 const _admin = {'Admin'};
 const _pimpinan = {'Admin', 'Kepala Sekolah', 'Koordinator Kurikulum'};
 const _semua = {'Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum'};
+const _pengampu = {'Admin', 'Tutor'};
+const _lihatSemua = {'Kepala Sekolah', 'Koordinator Kurikulum'};
 
 final List<MenuApp> semuaMenu = [
   MenuApp(id: 'pengguna', judul: 'Kelola Tutor & Enrollment', ikon: Icons.groups_outlined, peran: _admin, native: () => const PenggunaScreen(), utama: true),
-  MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: _semua, native: () => const MapelScreen(), utama: true),
+  MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: _pengampu, native: () => const MapelScreen(), utama: true),
+  MenuApp(id: 'rpp', judul: 'Dokumen RPP', ikon: Icons.description_outlined, peran: _lihatSemua, native: () => const DokumenRppScreen(), utama: true),
+  MenuApp(id: 'rppSemua', judul: 'Dokumen RPP', ikon: Icons.description_outlined, peran: _pengampu, native: () => const DokumenRppScreen()),
   MenuApp(id: 'progres', judul: 'Progres Kelas', ikon: Icons.insights_outlined, peran: _pimpinan, native: () => const ProgresScreen(), utama: true),
   MenuApp(id: 'nilai', judul: 'Belum Dinilai', ikon: Icons.rate_review_outlined, peran: _semua, native: () => const BelumDinilaiScreen(), utama: true),
   MenuApp(id: 'kotakUjian', judul: 'Kotak Ujian', ikon: Icons.assignment_turned_in_outlined, peran: _semua, native: () => const KotakUjianScreen()),

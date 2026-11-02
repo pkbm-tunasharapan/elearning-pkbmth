@@ -1,7 +1,7 @@
 name: elearning_staf
 description: Aplikasi Staf Belajar Mandiri PKBM Tunas Harapan (admin, tutor, kepala sekolah).
 publish_to: 'none'
-version: 1.8.4+16
+version: 1.8.5+17
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

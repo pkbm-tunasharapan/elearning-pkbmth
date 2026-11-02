@@ -8,6 +8,7 @@ import '../profil.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'dokumen_rpp.dart';
 
 /// Kerangka aplikasi: beranda bergradasi + navigasi bawah + laci menu.
 class HomeScreen extends StatefulWidget {
@@ -177,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   static String _labelPendek(String s) {
-    const peta = {'Kelola Tutor & Enrollment': 'Pengguna', 'Mata Pelajaran': 'Mapel', 'Progres Kelas': 'Progres', 'Belum Dinilai': 'Nilai'};
+    const peta = {'Kelola Tutor & Enrollment': 'Pengguna', 'Mata Pelajaran': 'Mapel', 'Progres Kelas': 'Progres', 'Belum Dinilai': 'Nilai', 'Dokumen RPP': 'RPP'};
     return peta[s] ?? s;
   }
 }
@@ -262,9 +263,13 @@ class Beranda extends StatelessWidget {
                 ),
                 child: IntrinsicHeight(
                   child: Row(children: [
-                    _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: '${s.jumlahMapel}', label: 'Mapel', onTap: () => onPilih('mapelSaya')),
-                    const VerticalDivider(width: 1),
-                    _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: '${s.jumlahRombel}', label: 'Rombel', onTap: () => onPilih('siswaRombel')),
+                    if (s.peran == 'Kepala Sekolah' || s.peran == 'Koordinator Kurikulum')
+                      _RingkasSemuaMapel(onPilih: onPilih)
+                    else ...[
+                      _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: '${s.jumlahMapel}', label: 'Mapel', onTap: () => onPilih('mapelSaya')),
+                      const VerticalDivider(width: 1),
+                      _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: '${s.jumlahRombel}', label: 'Rombel', onTap: () => onPilih('siswaRombel')),
+                    ],
                     const VerticalDivider(width: 1),
                     _RingkasBelumDinilai(onTap: () => onPilih('nilai')),
                   ]),
@@ -462,6 +467,54 @@ class _KartuMenu extends StatelessWidget {
             ),
           ]),
         ),
+      ),
+    );
+  }
+}
+
+/// Ringkasan untuk Kepala Sekolah / Koordinator Kurikulum: seluruh mapel & rombel aktif.
+class _RingkasSemuaMapel extends StatefulWidget {
+  const _RingkasSemuaMapel({required this.onPilih});
+  final void Function(String id) onPilih;
+
+  @override
+  State<_RingkasSemuaMapel> createState() => _RingkasSemuaMapelState();
+}
+
+class _RingkasSemuaMapelState extends State<_RingkasSemuaMapel> {
+  static List<int>? _terakhir;
+  List<int>? _n = _terakhir;
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future<void> _muat() async {
+    try {
+      final m = await muatMapelRpp();
+      String k(String x) => x.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      final n = [
+        m.map((x) => k(teks(x['namaMapel']))).where((x) => x.isNotEmpty).toSet().length,
+        m.map((x) => teks(x['idRombel'])).where((x) => x.isNotEmpty).toSet().length,
+      ];
+      _terakhir = n;
+      if (mounted) setState(() => _n = n);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = _n;
+    return Expanded(
+      flex: 2,
+      child: IntrinsicHeight(
+        child: Row(children: [
+          _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: n == null ? '…' : '${n[0]}', label: 'Mapel', onTap: () => widget.onPilih('rpp')),
+          const VerticalDivider(width: 1),
+          _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: n == null ? '…' : '${n[1]}', label: 'Rombel', onTap: () => widget.onPilih('siswaRombel')),
+        ]),
       ),
     );
   }
