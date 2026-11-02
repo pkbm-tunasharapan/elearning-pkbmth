@@ -4,19 +4,12 @@ import 'package:flutter/services.dart';
 import '../api.dart';
 import '../config.dart';
 import '../kalender.dart';
+import '../profil.dart';
 import '../ruang.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'mapel_siswa.dart';
 import 'sesi_siswa.dart';
-
-String _sapaan() {
-  final j = DateTime.now().hour;
-  if (j < 11) return 'Selamat pagi';
-  if (j < 15) return 'Selamat siang';
-  if (j < 18) return 'Selamat sore';
-  return 'Selamat malam';
-}
 
 const _ikonMapel = <String, IconData>{
   'matematika': Icons.calculate_rounded,
@@ -50,31 +43,9 @@ IconData ikonMapel(String nama) {
 }
 
 /// Beranda siswa: sapaan, kelas, dan daftar mata pelajaran.
-class BerandaSiswa extends StatelessWidget {
-  const BerandaSiswa({super.key});
-
-  Future<void> _aturKode(BuildContext context) async {
-    final c = TextEditingController(text: SesiSiswa.instance.kodeAkses);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (d) => AlertDialog(
-        title: const Text('Kode akses ujian'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Kode akses diberikan tutor dan diperlukan saat ujian (UTS/UAS). Disimpan di HP ini agar tidak perlu diketik ulang.'),
-          const SizedBox(height: 12),
-          TextField(controller: c, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses')),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Simpan')),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await SesiSiswa.instance.simpanKode(c.text);
-      if (context.mounted) kabar(context, 'Kode akses disimpan.');
-    }
-  }
+class _BerandaIsi extends StatelessWidget {
+  const _BerandaIsi({this.onProfil});
+  final VoidCallback? onProfil;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +59,10 @@ class BerandaSiswa extends StatelessWidget {
       child: Scaffold(
         body: RefreshIndicator(
           edgeOffset: atas,
-          onRefresh: () => s.muat(),
+          onRefresh: () async {
+            await s.muat();
+            await ProfilAkun.instance.pastikan(paksa: true);
+          },
           child: ListView(padding: EdgeInsets.zero, children: [
             Container(
               padding: EdgeInsets.fromLTRB(20, atas + 12, 8, 28),
@@ -98,19 +72,22 @@ class BerandaSiswa extends StatelessWidget {
                   Image.asset('assets/logo.png', width: 36, height: 36),
                   const SizedBox(width: 10),
                   const Text('E-Course TH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                  const Spacer(),
-                  IconButton(tooltip: 'Kode akses ujian', onPressed: () => _aturKode(context), icon: const Icon(Icons.vpn_key_rounded, color: Colors.white)),
-                  IconButton(
-                    tooltip: 'Keluar',
-                    onPressed: () async {
-                      if (await konfirmasi(context, 'Keluar', 'Keluar dari akun ini?', ya: 'Keluar')) await s.keluar();
-                    },
-                    icon: const Icon(Icons.logout_rounded, color: Colors.white),
-                  ),
                 ]),
                 const SizedBox(height: 18),
-                Text('${_sapaan()},', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
-                Text(s.nama, style: tt.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2)),
+                    child: AvatarAkun(radius: 26, onTap: onProfil),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      TeksSapaan(style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
+                      Text(s.nama, maxLines: 2, overflow: TextOverflow.ellipsis, style: tt.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                ]),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -226,6 +203,132 @@ class _Pintasan extends StatelessWidget {
             ),
           ]),
         ),
+      ),
+    );
+  }
+}
+
+Future<void> aturKodeAkses(BuildContext context) async {
+  final c = TextEditingController(text: SesiSiswa.instance.kodeAkses);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: const Text('Kode akses ujian'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Kode akses diberikan tutor dan diperlukan saat ujian (UTS/UAS). Disimpan di HP ini agar tidak perlu diketik ulang.'),
+        const SizedBox(height: 12),
+        TextField(controller: c, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Simpan')),
+      ],
+    ),
+  );
+  if (ok == true) {
+    await SesiSiswa.instance.simpanKode(c.text);
+    if (context.mounted) kabar(context, 'Kode akses disimpan.');
+  }
+}
+
+/// Kerangka siswa: navigasi bawah Menu (kiri) · Chatroom · Beranda (tengah) · Kalender · Profil.
+class BerandaSiswa extends StatefulWidget {
+  const BerandaSiswa({super.key});
+
+  @override
+  State<BerandaSiswa> createState() => _BerandaSiswaState();
+}
+
+class _BerandaSiswaState extends State<BerandaSiswa> {
+  int _i = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    ProfilAkun.instance.pastikan();
+  }
+
+  Future<void> _keluar() async {
+    if (await konfirmasi(context, 'Keluar', 'Keluar dari akun ini?', ya: 'Keluar')) {
+      ProfilAkun.instance.kosongkan();
+      await SesiSiswa.instance.keluar();
+    }
+  }
+
+  void _menu() {
+    final s = SesiSiswa.instance;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const AvatarAkun(radius: 20, terang: false),
+            title: Text(s.nama, style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text(s.namaRombel),
+          ),
+          const Divider(),
+          ListTile(leading: const Icon(Icons.home_rounded), title: const Text('Beranda'), onTap: () {
+            Navigator.pop(c);
+            setState(() => _i = 2);
+          }),
+          ListTile(leading: const Icon(Icons.forum_rounded), title: const Text('Chatroom rombel'), onTap: () {
+            Navigator.pop(c);
+            bukaChatSiswa(Navigator.of(context), 'ROMBEL');
+          }),
+          ListTile(leading: const Icon(Icons.calendar_month_rounded), title: const Text('Kalender akademik'), onTap: () {
+            Navigator.pop(c);
+            setState(() => _i = 3);
+          }),
+          ListTile(leading: const Icon(Icons.vpn_key_rounded), title: const Text('Kode akses ujian'), onTap: () {
+            Navigator.pop(c);
+            aturKodeAkses(context);
+          }),
+          ListTile(leading: const Icon(Icons.account_circle_rounded), title: const Text('Profil saya'), onTap: () {
+            Navigator.pop(c);
+            setState(() => _i = 4);
+          }),
+          ListTile(
+            leading: Icon(Icons.logout_rounded, color: Theme.of(context).colorScheme.error),
+            title: Text('Keluar', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            onTap: () {
+              Navigator.pop(c);
+              _keluar();
+            },
+          ),
+          Padding(padding: const EdgeInsets.all(8), child: Text('Versi $kVersi', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.outline))),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = SesiSiswa.instance;
+    final Widget isi = switch (_i) {
+      3 => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama),
+      4 => ProfilScreen(denganAppBar: false, onKeluar: _keluar),
+      _ => _BerandaIsi(onProfil: () => setState(() => _i = 4)),
+    };
+    return Scaffold(
+      body: AnimatedSwitcher(duration: const Duration(milliseconds: 220), child: KeyedSubtree(key: ValueKey(_i == 0 || _i == 1 ? 2 : _i), child: isi)),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _i,
+        onDestinationSelected: (i) {
+          if (i == 0) return _menu();
+          if (i == 1) {
+            bukaChatSiswa(Navigator.of(context), 'ROMBEL');
+            return;
+          }
+          setState(() => _i = i);
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'Menu'),
+          NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Chatroom'),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Beranda'),
+          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month_rounded), label: 'Kalender'),
+          NavigationDestination(icon: Icon(Icons.account_circle_outlined), selectedIcon: Icon(Icons.account_circle_rounded), label: 'Profil'),
+        ],
       ),
     );
   }

@@ -3,24 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../config.dart';
 import '../menu.dart';
+import '../profil.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
-import 'web_menu.dart';
-
-String _sapaan() {
-  final j = DateTime.now().hour;
-  if (j < 11) return 'Selamat pagi';
-  if (j < 15) return 'Selamat siang';
-  if (j < 18) return 'Selamat sore';
-  return 'Selamat malam';
-}
-
-String _inisial(String nama) {
-  final b = nama.trim().split(RegExp(r'\s+')).where((x) => x.isNotEmpty).toList();
-  if (b.isEmpty || b.first == '-') return '?';
-  return (b.first[0] + (b.length > 1 ? b[1][0] : '')).toUpperCase();
-}
 
 /// Kerangka aplikasi: beranda bergradasi + navigasi bawah + laci menu.
 class HomeScreen extends StatefulWidget {
@@ -37,6 +23,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<MenuApp> get _menu => menuUntuk(Sesi.instance);
   List<MenuApp> get _utama => _menu.where((m) => m.utama).take(3).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    ProfilAkun.instance.pastikan();
+  }
 
   MenuApp? get _menuAktif {
     for (final m in _menu) {
@@ -57,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final s = Sesi.instance;
     final cs = Theme.of(context).colorScheme;
     return NavigationDrawer(
-      selectedIndex: _aktif == 'beranda' ? 0 : (_menu.indexWhere((x) => x.id == _aktif) + 1),
+      selectedIndex: _aktif == 'beranda' ? 0 : (_aktif == 'profil' ? null : (_menu.indexWhere((x) => x.id == _aktif) + 1)),
       onDestinationSelected: (i) {
         if (!lebar) _kunciScaffold.currentState?.closeDrawer();
         _pilih(i == 0 ? 'beranda' : _menu[i - 1].id);
@@ -68,11 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
           child: Row(children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: Colors.white.withValues(alpha: 0.25),
-              child: Text(_inisial(s.nama), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-            ),
+            AvatarAkun(radius: 24, onTap: () {
+              if (!lebar) _kunciScaffold.currentState?.closeDrawer();
+              _pilih('profil');
+            }),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -107,11 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final m = _menuAktif;
     final utama = _utama;
-    var idxBawah = 0;
-    if (_aktif != 'beranda') {
-      final i = utama.indexWhere((x) => x.id == _aktif);
-      idxBawah = i >= 0 ? i + 1 : utama.length + 1;
-    }
+    // Navigasi bawah: Menu (kiri) · menu utama 1 · Beranda (tengah) · menu utama 2 · Profil
+    final kiri = utama.isNotEmpty ? utama[0] : null;
+    final kanan = utama.length > 1 ? utama[1] : null;
+    final tujuan = <String>['menu', if (kiri != null) kiri.id, 'beranda', if (kanan != null) kanan.id, 'profil'];
+    var idxBawah = tujuan.indexOf(_aktif);
+    if (idxBawah < 0) idxBawah = 0;
     final lebar = MediaQuery.of(context).size.width >= 900;
     final laci = _laci(lebar);
 
@@ -124,7 +116,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: KeyedSubtree(
         key: ValueKey('$_aktif$_muatUlang'),
-        child: m == null ? Beranda(onPilih: _pilih, onMenu: () => _kunciScaffold.currentState?.openDrawer(), onKeluar: _keluar, lebar: lebar) : m.halaman(),
+        child: _aktif == 'profil'
+            ? ProfilScreen(denganAppBar: false, onKeluar: _keluar)
+            : (m == null ? Beranda(onPilih: _pilih, onKeluar: _keluar, lebar: lebar) : m.halaman()),
       ),
     );
 
@@ -152,20 +146,21 @@ class _HomeScreenState extends State<HomeScreen> {
           : DecoratedBox(
               decoration: BoxDecoration(boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, -4))]),
               child: NavigationBar(
-                selectedIndex: idxBawah.clamp(0, utama.length + 1).toInt(),
+                selectedIndex: idxBawah,
                 onDestinationSelected: (i) {
-                  if (i == 0) {
-                    _pilih('beranda');
-                  } else if (i <= utama.length) {
-                    _pilih(utama[i - 1].id);
-                  } else {
+                  final t = tujuan[i];
+                  if (t == 'menu') {
                     _kunciScaffold.currentState?.openDrawer();
+                  } else {
+                    _pilih(t);
                   }
                 },
                 destinations: [
-                  const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Beranda'),
-                  for (final x in utama) NavigationDestination(icon: Icon(x.ikon), label: _labelPendek(x.judul)),
                   const NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'Menu'),
+                  if (kiri != null) NavigationDestination(icon: Icon(kiri.ikon), label: _labelPendek(kiri.judul)),
+                  const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Beranda'),
+                  if (kanan != null) NavigationDestination(icon: Icon(kanan.ikon), label: _labelPendek(kanan.judul)),
+                  const NavigationDestination(icon: Icon(Icons.account_circle_outlined), selectedIcon: Icon(Icons.account_circle_rounded), label: 'Profil'),
                 ],
               ),
             ),
@@ -180,9 +175,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
 /// Beranda: header bergradasi, ringkasan, menu cepat, dan semua menu.
 class Beranda extends StatelessWidget {
-  const Beranda({super.key, required this.onPilih, required this.onMenu, required this.onKeluar, this.lebar = false});
+  const Beranda({super.key, required this.onPilih, required this.onKeluar, this.lebar = false});
   final void Function(String id) onPilih;
-  final VoidCallback onMenu;
   final VoidCallback onKeluar;
   final bool lebar;
 
@@ -199,7 +193,10 @@ class Beranda extends StatelessWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: RefreshIndicator(
-      onRefresh: () => s.segarkanProfil(),
+      onRefresh: () async {
+        await s.segarkanProfil();
+        await ProfilAkun.instance.pastikan(paksa: true);
+      },
       edgeOffset: atas,
       child: ListView(
         padding: EdgeInsets.zero,
@@ -213,8 +210,9 @@ class Beranda extends StatelessWidget {
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                if (!lebar)
-                  IconButton(onPressed: onMenu, icon: const Icon(Icons.menu_rounded, color: Colors.white), tooltip: 'Menu'),
+                Image.asset('assets/logo.png', width: 30, height: 30),
+                const SizedBox(width: 8),
+                const Text('E-Course TH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 const Spacer(),
                 IconButton(onPressed: onKeluar, icon: const Icon(Icons.logout_rounded, color: Colors.white), tooltip: 'Keluar'),
               ]),
@@ -223,16 +221,12 @@ class Beranda extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2)),
-                  child: CircleAvatar(
-                    radius: 26,
-                    backgroundColor: Colors.white.withValues(alpha: 0.25),
-                    child: Text(_inisial(s.nama), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
-                  ),
+                  child: AvatarAkun(radius: 26, onTap: () => onPilih('profil')),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${_sapaan()},', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13.5)),
+                    TeksSapaan(style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13.5)),
                     Text(s.nama, maxLines: 1, overflow: TextOverflow.ellipsis, style: tt.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                   ]),
                 ),
@@ -407,14 +401,4 @@ class _KartuMenu extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Dipakai menu Mapel: membuka satu mata pelajaran di versi web (materi, kurikulum, ujian, dst.).
-class MapelWebScreen extends StatelessWidget {
-  const MapelWebScreen({super.key, required this.judul, required this.idMapel});
-  final String judul;
-  final String idMapel;
-
-  @override
-  Widget build(BuildContext context) => WebMenu(judul: judul, tab: 'tabLihat', idMapel: idMapel, denganAppBar: true);
 }

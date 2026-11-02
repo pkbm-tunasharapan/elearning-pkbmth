@@ -7,6 +7,7 @@ import '../api.dart';
 import '../config.dart';
 import '../session.dart';
 import '../siswa/daftar_siswa.dart';
+import 'daftar_tutor.dart';
 import '../siswa/sesi_siswa.dart';
 import '../theme.dart';
 
@@ -179,14 +180,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
                                   : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Masuk'), SizedBox(width: 8), Icon(Icons.arrow_forward_rounded, size: 20)]),
                             ),
-                            if (_siswa) ...[
-                              const SizedBox(height: 10),
-                              TextButton.icon(
-                                onPressed: _sibuk ? null : _daftar,
-                                icon: const Icon(Icons.person_add_alt_1_rounded),
-                                label: const Text('Belum punya akun? Daftar siswa baru'),
-                              ),
-                            ],
+                            const SizedBox(height: 10),
+                            TextButton.icon(
+                              onPressed: _sibuk ? null : (_siswa ? _daftar : _daftarTutor),
+                              icon: const Icon(Icons.person_add_alt_1_rounded),
+                              label: Text(_siswa ? 'Belum punya akun? Daftar siswa baru' : 'Calon tutor? Daftar sebagai tutor'),
+                            ),
                           ]),
                         ),
                       ),
@@ -219,6 +218,17 @@ class _LoginScreenState extends State<LoginScreen> {
       _galat = null;
     });
     if (_nama.text.isNotEmpty && _kode.text.length == 8) _masuk();
+  }
+
+  Future<void> _daftarTutor() async {
+    final r = await Navigator.of(context).push<Map<String, String>>(MaterialPageRoute(builder: (_) => const DaftarTutorScreen()));
+    if (r == null || !mounted) return;
+    setState(() {
+      _nama.text = r['nama'] ?? '';
+      _kode.text = r['kode'] ?? '';
+      _galat = null;
+    });
+    if (_nama.text.isNotEmpty && _kode.text.isNotEmpty) _masuk();
   }
 
   void _masukGoogle() {

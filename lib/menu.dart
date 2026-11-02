@@ -4,6 +4,7 @@ import 'kalender.dart';
 import 'ruang.dart';
 import 'screens/admin_lain.dart';
 import 'screens/belum_dinilai.dart';
+import 'screens/kerangka.dart';
 import 'screens/ganda.dart';
 import 'screens/kelola_mapel.dart';
 import 'screens/log.dart';
@@ -58,8 +59,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, native: () => const PengajuanTutorScreen()),
   MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, native: () => const PengaturanAiScreen()),
   MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
-  // Menu berikut masih dibuka lewat versi web di dalam aplikasi (dibuat native bertahap).
-  const MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, tabWeb: 'CP'),
+  MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, native: () => const KerangkaScreen()),
 ];
 
 List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran)).toList();

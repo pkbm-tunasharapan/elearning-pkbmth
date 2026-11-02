@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api.dart';
+import '../berkas.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -392,6 +393,61 @@ class _KesiapanScreenState extends State<KesiapanScreen> {
     ['rpp', 'RPP'],
   ];
 
+  Map<String, dynamic>? _r;
+
+  static const _cssLaporan = '.kc-kop{text-align:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:10px}'
+      '.kc-sekolah{font-size:14pt;font-weight:700;letter-spacing:.5px}.kc-judul{font-size:12pt;font-weight:700;margin-top:2px}.kc-sub{font-size:9pt;margin-top:2px}'
+      'table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #444;padding:3px 4px;font-size:8.5pt;text-align:center;vertical-align:top}'
+      'th.kiri,td.kiri{text-align:left}th{background:#e5e7eb}tr{page-break-inside:avoid}thead{display:table-header-group}'
+      'h3{font-size:10.5pt;margin:12px 0 4px;font-weight:700}.lap-ring{font-size:10pt;margin:4px 0}'
+      '.cp-pil{display:inline-block;border-radius:999px;padding:1px 7px;font-weight:700;font-size:8pt;border:1px solid;white-space:nowrap}'
+      '.pil-siap{background:#dcfce7;border-color:#16a34a}.pil-hampir{background:#fef3c7;border-color:#d97706}.pil-belum{background:#fee2e2;border-color:#dc2626}'
+      '.lap-cat{font-size:8.5pt;margin-top:8px}.cp-ok{color:#166534}.cp-mid{color:#b45309}.cp-no{color:#b91c1c}';
+
+  String _htmlLaporan(Map<String, dynamic> r) {
+    const lbl = {'siap': 'Siap', 'hampir': 'Hampir siap', 'belum': 'Belum siap'};
+    final rombel = daftar(r['rombel']).map(peta).toList();
+    final hit = {'siap': 0, 'hampir': 0, 'belum': 0};
+    for (final g in rombel) {
+      final st = teks(g['status']);
+      if (hit.containsKey(st)) hit[st] = hit[st]! + 1;
+    }
+    String kelas(int ok, int total) => ok >= total ? 'cp-ok' : (ok == 0 ? 'cp-no' : 'cp-mid');
+    final o = StringBuffer();
+    o.write('<div class="kc-kop"><div class="kc-sekolah">PKBM TUNAS HARAPAN</div><div class="kc-judul">LAPORAN KESIAPAN ROMBEL</div>'
+        '<div class="kc-sub">Kesiapan memulai e-learning · Dicetak ${tanggalIni()}</div></div>');
+    o.write('<div class="lap-ring"><b>${hit['siap']} dari ${rombel.length} kelas siap</b> · ${hit['hampir']} hampir siap · ${hit['belum']} belum siap.</div>');
+    o.write('<div class="lap-cat">Angka pada tabel adalah jumlah mata pelajaran yang sudah lengkap dari seluruh mapel di kelas itu. Target ${escHtml(r['targetSesi'])} sesi per mapel (${escHtml(r['perSemester'])} sesi per semester).</div>');
+    o.write('<table><thead><tr><th class="kiri">Kelas</th><th>Mapel siap</th>');
+    for (final k in _kolom) {
+      o.write('<th>${k[1]}</th>');
+    }
+    o.write('<th>Status</th></tr></thead><tbody>');
+    for (final g in rombel) {
+      final j = angka(g['jumlah']);
+      o.write('<tr><td class="kiri"><b>${escHtml(g['namaRombel'])}</b></td><td class="${kelas(angka(g['siap']), j)}"><b>${angka(g['siap'])}/$j</b></td>');
+      for (final k in _kolom) {
+        final c = peta(peta(g['komponen'])[k[0]]);
+        o.write('<td class="${kelas(angka(c['ok']), j)}"><b>${angka(c['ok'])}/$j</b></td>');
+      }
+      final st = teks(g['status']);
+      o.write('<td><span class="cp-pil pil-$st ${st == 'siap' ? 'cp-ok' : (st == 'hampir' ? 'cp-mid' : 'cp-no')}">${lbl[st] ?? st} ${angka(g['persen'])}%</span></td></tr>');
+    }
+    o.write('</tbody></table>');
+    final baris = <String>[];
+    for (final g in rombel) {
+      for (final k in _kolom) {
+        final kurang = daftar(peta(peta(g['komponen'])[k[0]])['kurang']);
+        if (kurang.isNotEmpty) baris.add('<tr><td class="kiri">${escHtml(g['namaRombel'])}</td><td class="kiri">${k[1]}</td><td class="kiri">${kurang.map(escHtml).join('; ')}</td></tr>');
+      }
+    }
+    o.write('<h3>Rincian yang belum lengkap</h3>');
+    o.write(baris.isNotEmpty
+        ? '<table><thead><tr><th class="kiri" style="width:22%">Kelas</th><th class="kiri" style="width:14%">Komponen</th><th class="kiri">Mapel yang belum lengkap (terisi/target)</th></tr></thead><tbody>${baris.join()}</tbody></table>'
+        : '<div class="lap-cat">Seluruh kelas sudah lengkap.</div>');
+    return o.toString();
+  }
+
   Color _w(int ok, int total) => ok >= total ? const Color(0xFF16A34A) : (ok == 0 ? const Color(0xFFDC2626) : const Color(0xFFD97706));
 
   void _bukaKelas(Map<String, dynamic> g) {
@@ -421,9 +477,24 @@ class _KesiapanScreenState extends State<KesiapanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Kesiapan Kelas')),
+      appBar: AppBar(
+        title: const Text('Kesiapan Kelas'),
+        actions: [
+          IconButton(
+            tooltip: 'Cetak laporan (PDF)',
+            onPressed: _r == null
+                ? null
+                : () => htmlKePdf(context, nama: 'Laporan_Kesiapan_Rombel_${tanggalBerkas()}.pdf', args: [_t, dokumenA4(_htmlLaporan(_r!), _cssLaporan)]),
+            icon: const Icon(Icons.print_rounded),
+          ),
+        ],
+      ),
       body: Muatan<Map<String, dynamic>>(
-        muat: () async => peta(await Api.instance('waStafKesiapanSemua', [_t], const Duration(seconds: 240))),
+        muat: () async {
+          final r = peta(await Api.instance('waStafKesiapanSemua', [_t], const Duration(seconds: 240)));
+          if (mounted) setState(() => _r = r);
+          return r;
+        },
         bangun: (context, r, _) {
           final cs = Theme.of(context).colorScheme;
           final rombel = daftar(r['rombel']).map(peta).toList();

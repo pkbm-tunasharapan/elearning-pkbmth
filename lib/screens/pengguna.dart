@@ -51,9 +51,26 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
     if (hasil == null || !mounted) return;
     final r = await jalankan(context, () => Api.instance('waAdminSetEnrollment', [Sesi.instance.token, teks(p['id']), hasil.toList()]), teksProses: 'Menyimpan enrollment...');
     if (r.ok) {
-      if (mounted) kabar(context, 'Enrollment ${teks(p['nama'])} disimpan (${hasil.length} mapel).');
+      if (mounted) {
+        final nama = mapel.where((m) => hasil.contains(teks(m['idMapel']))).map((m) => _kunciMapel(teks(m['namaMapel']))).toSet();
+        kabar(context, 'Enrollment ${teks(p['nama'])} disimpan (${nama.length} mapel, ${hasil.length} rombel).');
+      }
       _muatUlang();
     }
+  }
+
+  /// Mapel dengan nama sama dihitung satu, lalu disebut jumlah rombelnya (mis. Bahasa Indonesia · 9 rombel).
+  String _ringkasAmpu(Map<String, dynamic> p, List<Map<String, dynamic>> mapel, List<Map<String, dynamic>> enr) {
+    final ids = enr.where((e) => teks(e['idPengguna']) == teks(p['id'])).map((e) => teks(e['idMapel'])).toSet();
+    final grup = <String, ({String nama, int n})>{};
+    for (final m in mapel.where((m) => ids.contains(teks(m['idMapel'])))) {
+      final k = _kunciMapel(teks(m['namaMapel']));
+      final g = grup[k];
+      grup[k] = (nama: g?.nama ?? teks(m['namaMapel']), n: (g?.n ?? 0) + 1);
+    }
+    if (grup.isEmpty) return angka(p['jumlahMapel']) > 0 ? 'Mengampu ${angka(p['jumlahMapel'])} mapel' : 'Belum di-enroll ke mapel mana pun';
+    final urut = grup.values.toList()..sort((a, b) => a.nama.compareTo(b.nama));
+    return 'Mengampu ${urut.length} mapel: ${urut.map((g) => '${g.nama} (${g.n} rombel)').join(', ')}';
   }
 
   @override
@@ -93,7 +110,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                       const SizedBox(height: 4),
                       Text(
                         teks(p['peran']) == 'Tutor'
-                            ? (angka(p['jumlahMapel']) > 0 ? 'Mengampu ${angka(p['jumlahMapel'])} mapel' : 'Belum di-enroll ke mapel mana pun')
+                            ? _ringkasAmpu(p, mapel, enr)
                             : (teks(p['peran']) == 'Admin' ? 'Akses penuh' : 'Pemantauan'),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
@@ -189,32 +206,63 @@ class _PilihMapel extends StatefulWidget {
   State<_PilihMapel> createState() => _PilihMapelState();
 }
 
+String _kunciMapel(String n) => n.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
 class _PilihMapelState extends State<_PilihMapel> {
   late final Set<String> _pilih = {...widget.awal};
+  String _cari = '';
 
   @override
   Widget build(BuildContext context) {
-    final urut = [...widget.mapel]..sort((a, b) => '${teks(a['namaRombel'])}|${teks(a['namaMapel'])}'.compareTo('${teks(b['namaRombel'])}|${teks(b['namaMapel'])}'));
-    String? rombelLalu;
-    final isi = <Widget>[];
-    for (final m in urut) {
-      final r = teks(m['namaRombel'], 'Tanpa rombel');
-      if (r != rombelLalu) {
-        isi.add(JudulBagian(r));
-        rombelLalu = r;
-      }
-      final id = teks(m['idMapel']);
-      isi.add(CheckboxListTile(
-        value: _pilih.contains(id),
-        title: Text(teks(m['namaMapel'])),
-        onChanged: (v) => setState(() => v == true ? _pilih.add(id) : _pilih.remove(id)),
-      ));
+    final cs = Theme.of(context).colorScheme;
+    // kelompokkan per nama mapel: satu mapel, banyak rombel
+    final grup = <String, List<Map<String, dynamic>>>{};
+    for (final m in widget.mapel) {
+      grup.putIfAbsent(_kunciMapel(teks(m['namaMapel'])), () => []).add(m);
     }
+    final kunci = grup.keys.toList()..sort((a, b) => teks(grup[a]!.first['namaMapel']).compareTo(teks(grup[b]!.first['namaMapel'])));
+    final q = _cari.toLowerCase().trim();
+    final jumlahNama = kunci.where((k) => grup[k]!.any((m) => _pilih.contains(teks(m['idMapel'])))).length;
     return Scaffold(
       appBar: AppBar(title: Text('Mapel ${widget.nama}'), actions: [
-        TextButton(onPressed: () => Navigator.pop(context, _pilih), child: Text('Simpan (${_pilih.length})')),
+        TextButton(onPressed: () => Navigator.pop(context, _pilih), child: Text('Simpan ($jumlahNama mapel)')),
       ]),
-      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: isi),
+      body: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 24), children: [
+        TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari mata pelajaran'), onChanged: (v) => setState(() => _cari = v)),
+        const SizedBox(height: 6),
+        Text('${kunci.length} mata pelajaran · ${_pilih.length} rombel dipilih. Mapel dengan nama sama dihitung satu; centang rombel yang diampu.',
+            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        for (final k in kunci)
+          if (q.isEmpty || k.contains(q))
+            Builder(builder: (_) {
+              final daftarM = [...grup[k]!]..sort((a, b) => teks(a['namaRombel']).compareTo(teks(b['namaRombel'])));
+              final ids = daftarM.map((m) => teks(m['idMapel'])).toList();
+              final n = ids.where(_pilih.contains).length;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ExpansionTile(
+                  shape: const Border(),
+                  leading: Checkbox(
+                    tristate: true,
+                    value: n == 0 ? false : (n == ids.length ? true : null),
+                    onChanged: (_) => setState(() => n == ids.length ? _pilih.removeAll(ids) : _pilih.addAll(ids)),
+                  ),
+                  title: Text(teks(daftarM.first['namaMapel']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text('${ids.length} rombel${n > 0 ? ' · $n diampu' : ''}'),
+                  children: [
+                    for (final m in daftarM)
+                      CheckboxListTile(
+                        dense: true,
+                        value: _pilih.contains(teks(m['idMapel'])),
+                        title: Text(teks(m['namaRombel'], 'Tanpa rombel')),
+                        onChanged: (v) => setState(() => v == true ? _pilih.add(teks(m['idMapel'])) : _pilih.remove(teks(m['idMapel']))),
+                      ),
+                  ],
+                ),
+              );
+            }),
+      ]),
     );
   }
 }

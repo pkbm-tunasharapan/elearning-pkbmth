@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'config.dart';
 import 'notif.dart';
+import 'profil.dart';
 import 'ruang.dart';
 import 'screens/mapel_detail.dart';
 import 'siswa/mapel_siswa.dart';
@@ -77,6 +78,7 @@ class _AplikasiStafState extends State<AplikasiStaf> {
   bool? _notifJalan;
 
   void _aturNotif() {
+    ProfilAkun.instance.pastikan();
     final masuk = Sesi.instance.masuk || SesiSiswa.instance.masuk;
     if (masuk == _notifJalan) return;
     _notifJalan = masuk;

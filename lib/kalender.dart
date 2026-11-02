@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'berkas.dart';
 import 'session.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -42,10 +43,11 @@ const _wUas = Color(0xFFDC2626);
 
 /// Tampilan kalender akademik (sama dengan kalGambar_ di web): daftar sesi per semester dan kisi bulanan.
 class KalenderView extends StatefulWidget {
-  const KalenderView({super.key, required this.data, this.idMapelAwal = '', this.muatUlang});
+  const KalenderView({super.key, required this.data, this.idMapelAwal = '', this.muatUlang, this.bisaCetak = false});
   final Map<String, dynamic> data;
   final String idMapelAwal;
   final Future<void> Function()? muatUlang;
+  final bool bisaCetak;
 
   @override
   State<KalenderView> createState() => _KalenderViewState();
@@ -96,6 +98,40 @@ class _KalenderViewState extends State<KalenderView> {
           return {'mapel': teks(m['namaMapel']), 'tutor': daftar(m['tutor']).join(', '), 'bagian': bag, 'ujian': c['ujian'] == null ? null : peta(c['ujian'])};
         }(),
     ];
+  }
+
+  static const _cssCetak = '.kc-kop{text-align:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}.kc-sekolah{font-size:13pt;font-weight:700}'
+      '.kc-judul{font-size:11pt;font-weight:700}.kc-sub{font-size:9pt}table{border-collapse:collapse;width:100%}'
+      'th,td{border:1px solid #444;padding:3px 4px;font-size:8pt;vertical-align:top;text-align:left}th{background:#e5e7eb}tr{page-break-inside:avoid}'
+      'thead{display:table-header-group}.uj{font-weight:700;color:#b45309}.br{background:#dcfce7}.uts{background:#ede9fe}.uas{background:#fee2e2}.kc-hal{page-break-after:always}.kc-hal:last-child{page-break-after:auto}';
+
+  String _htmlCetak() {
+    final mapel = _mapelDipakai;
+    final o = StringBuffer();
+    final jmlSmt = _sesi.fold<int>(0, (a, s) => angka(s['smt']) > a ? angka(s['smt']) : a);
+    for (var smt = 1; smt <= jmlSmt; smt++) {
+      o.write('<div class="kc-hal"><div class="kc-kop"><div class="kc-sekolah">${escHtml(teks(peta(d['sekolah'])['nama'], 'PKBM TUNAS HARAPAN').toUpperCase())}</div>'
+          '<div class="kc-judul">KALENDER AKADEMIK · ${escHtml(d['namaRombel'])}${teks(d['tahunAjaran']).isNotEmpty ? ' · ${escHtml(d['tahunAjaran'])}' : ''}</div>'
+          '<div class="kc-sub">Semester $smt · Dicetak ${tanggalIni()}</div></div>');
+      o.write('<table><thead><tr><th style="width:11%">Sesi</th><th style="width:13%">Tanggal</th>');
+      for (final m in mapel) {
+        o.write('<th>${escHtml(m['namaMapel'])}</th>');
+      }
+      o.write('</tr></thead><tbody>');
+      for (final s in _sesi.where((s) => angka(s['smt']) == smt)) {
+        final jenis = teks(s['jenis'], 'Biasa');
+        final kls = jenis == 'UTS' ? 'uts' : (jenis == 'UAS' ? 'uas' : (teks(s['status']) == 'berjalan' ? 'br' : ''));
+        o.write('<tr class="$kls"><td><b>Sesi ${angka(s['n'])}</b>${jenis != 'Biasa' ? '<br>$jenis' : ''}</td><td>${escHtml(_rentang(s))}</td>');
+        for (final r in _baris(s)) {
+          final u = r['ujian'] as Map<String, dynamic>?;
+          final bag = r['bagian'] as List<String>;
+          o.write('<td>${u != null ? '<div class="uj">${escHtml('${teks(u['jenis'])}: ${_ujianTeks(u)}')}</div>' : ''}${bag.map((b) => '<div>${escHtml(b)}</div>').join()}</td>');
+        }
+        o.write('</tr>');
+      }
+      o.write('</tbody></table></div>');
+    }
+    return o.toString();
   }
 
   Widget _chip(String t, Color w) => Container(
@@ -293,6 +329,12 @@ class _KalenderViewState extends State<KalenderView> {
             onSelectionChanged: (v) => setState(() => _bulanan = v.first),
           ),
         ),
+        if (widget.bisaCetak)
+          IconButton(
+            tooltip: 'Cetak / PDF',
+            onPressed: () => htmlKePdf(context, nama: 'Kalender_Akademik_${tanggalBerkas()}.pdf', args: [Sesi.instance.token, dokumenA4(_htmlCetak(), _cssCetak, lanskap: true)]),
+            icon: const Icon(Icons.print_rounded),
+          ),
         if (widget.muatUlang != null) IconButton(tooltip: 'Ambil data terbaru', onPressed: widget.muatUlang, icon: const Icon(Icons.refresh_rounded)),
       ]),
       const SizedBox(height: 10),
@@ -407,6 +449,7 @@ class _KalenderStafScreenState extends State<KalenderStafScreen> {
       },
       bangun: (c, d, _) => KalenderView(
         data: d,
+        bisaCetak: true,
         idMapelAwal: widget.idMapel,
         muatUlang: () async => setState(() {
           _segar = true;

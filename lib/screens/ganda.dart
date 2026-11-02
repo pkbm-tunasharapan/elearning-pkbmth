@@ -64,6 +64,8 @@ class _GandaScreenState extends State<GandaScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
+        const _KartuSinkronOtomatis(),
+        const SizedBox(height: 12),
         _kartuSinkron(context),
         const SizedBox(height: 12),
         _GandaDaftar(key: ValueKey(_versiGanda), onBerubah: () => setState(() => _versiGanda++)),
@@ -364,6 +366,62 @@ class _GabungScreenState extends State<_GabungScreen> {
           ),
         ),
       ]),
+    );
+  }
+}
+
+/// Sinkron otomatis SIM SETARA tiap 15 menit (pengganti menjalankan pasangSinkronOtomatis di editor).
+class _KartuSinkronOtomatis extends StatefulWidget {
+  const _KartuSinkronOtomatis();
+
+  @override
+  State<_KartuSinkronOtomatis> createState() => _KartuSinkronOtomatisState();
+}
+
+class _KartuSinkronOtomatisState extends State<_KartuSinkronOtomatis> {
+  bool? _aktif;
+  bool _sibuk = false;
+  String? _galat;
+
+  @override
+  void initState() {
+    super.initState();
+    _muat();
+  }
+
+  Future<void> _muat() async {
+    try {
+      final r = peta(await Api.instance('waAdminSinkronOtomatis', [Sesi.instance.token]));
+      if (mounted) setState(() => _aktif = r['aktif'] == true);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _galat = e.ramah);
+    }
+  }
+
+  Future<void> _atur(bool v) async {
+    setState(() => _sibuk = true);
+    try {
+      final r = peta(await Api.instance('waAdminSinkronOtomatisAtur', [Sesi.instance.token, v]));
+      if (!mounted) return;
+      setState(() => _aktif = r['aktif'] == true);
+      kabar(context, _aktif == true ? 'Sinkron otomatis aktif (tiap 15 menit).' : 'Sinkron otomatis dimatikan.');
+    } on ApiException catch (e) {
+      if (mounted) kabar(context, e.ramah, galat: true);
+    } finally {
+      if (mounted) setState(() => _sibuk = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: SwitchListTile(
+        secondary: const Icon(Icons.autorenew_rounded),
+        title: const Text('Sinkron otomatis SIM SETARA', style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(_galat ?? (_aktif == null ? 'Memeriksa...' : (_aktif! ? 'Aktif: data rombel, mapel, tutor, dan siswa disinkronkan tiap 15 menit.' : 'Mati: sinkron hanya saat tombol "Sinkron sekarang" ditekan.'))),
+        value: _aktif ?? false,
+        onChanged: _aktif == null || _sibuk ? null : _atur,
+      ),
     );
   }
 }

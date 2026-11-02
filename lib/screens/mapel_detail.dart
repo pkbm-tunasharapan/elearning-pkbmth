@@ -11,7 +11,9 @@ import 'ujian.dart';
 import '../kalender.dart';
 import '../ruang.dart';
 import 'admin_lain.dart';
-import 'web_menu.dart';
+import 'buat_otomatis.dart';
+import 'kurikulum.dart';
+import 'rpp.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -56,7 +58,7 @@ class MapelDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 7,
       child: Scaffold(
         appBar: AppBar(
           titleSpacing: 0,
@@ -75,18 +77,13 @@ class MapelDetailScreen extends StatelessWidget {
               icon: const Icon(Icons.more_vert_rounded),
               onSelected: (v) {
                 final nav = Navigator.of(context);
-                if (v == 'kalender') {
-                  final m = Sesi.instance.mapel.where((x) => teks(x['idMapel']) == idMapel).firstOrNull;
-                  nav.push(MaterialPageRoute(
-                    builder: (_) => KalenderStafScreen(idRombel: teks(m?['idRombel']).isEmpty ? null : teks(m?['idRombel']), idMapel: idMapel, denganAppBar: true),
-                  ));
-                } else {
-                  nav.push(MaterialPageRoute(builder: (_) => WebMenu(judul: namaMapel, tab: 'tabLihat', idMapel: idMapel, denganAppBar: true)));
-                }
+                final m = Sesi.instance.mapel.where((x) => teks(x['idMapel']) == idMapel).firstOrNull;
+                nav.push(MaterialPageRoute(
+                  builder: (_) => KalenderStafScreen(idRombel: teks(m?['idRombel']).isEmpty ? null : teks(m?['idRombel']), idMapel: idMapel, denganAppBar: true),
+                ));
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
-                PopupMenuItem(value: 'web', child: ListTile(leading: Icon(Icons.public), title: Text('Kurikulum & RPP (web)'))),
               ],
             ),
           ],
@@ -97,17 +94,19 @@ class MapelDetailScreen extends StatelessWidget {
               child: TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: [Tab(text: 'Konten'), Tab(text: 'Jadwal Ujian'), Tab(text: 'Absensi'), Tab(text: 'Nilai'), Tab(text: 'Siswa')],
+                tabs: [Tab(text: 'Konten'), Tab(text: 'Kurikulum'), Tab(text: 'Jadwal Ujian'), Tab(text: 'Absensi'), Tab(text: 'Nilai'), Tab(text: 'Siswa'), Tab(text: 'RPP')],
               ),
             ),
           ),
         ),
         body: TabBarView(children: [
           _TabKonten(idMapel: idMapel, judul: '$namaMapel · $namaRombel'),
+          KurikulumTab(idMapel: idMapel, judul: '$namaMapel · $namaRombel'),
           JadwalUjianTab(idMapel: idMapel),
           _TabAbsensi(idMapel: idMapel),
           _TabNilai(idMapel: idMapel),
           _TabSiswa(idMapel: idMapel),
+          RppTab(idMapel: idMapel),
         ]),
       ),
     );
@@ -325,6 +324,16 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Wrap(spacing: 8, runSpacing: 4, children: [
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(
+                          builder: (_) => BuatOtomatisScreen(idMapel: widget.idMapel, judul: widget.judul, paket: paket),
+                        ));
+                        if (ok == true) _muatUlang();
+                      },
+                      icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                      label: const Text('Upload PDF & Buat Otomatis'),
+                    ),
                     if (pending.length > 1)
                       FilledButton.tonalIcon(
                         onPressed: () => _status(pending.map((x) => teks(x['id'])).toList(), 'Aktif'),
