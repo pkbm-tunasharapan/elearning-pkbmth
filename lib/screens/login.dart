@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../config.dart';
 import '../session.dart';
+import '../siswa/sesi_siswa.dart';
 import '../theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _kode = TextEditingController();
   bool _sibuk = false;
   bool _lihat = false;
+  bool _siswa = true;
   String? _galat;
 
   @override
@@ -37,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _masuk() async {
     if (_nama.text.trim().isEmpty || _kode.text.trim().isEmpty) {
-      setState(() => _galat = 'Isi nama dan kode akses.');
+      setState(() => _galat = _siswa ? 'Isi nama dan kata sandi.' : 'Isi nama dan kode akses.');
       return;
     }
     setState(() {
@@ -45,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _galat = null;
     });
     try {
-      final g = await Sesi.instance.masukKode(_nama.text, _kode.text);
+      final g = _siswa ? await SesiSiswa.instance.masukSiswa(_nama.text, _kode.text) : await Sesi.instance.masukKode(_nama.text, _kode.text);
       if (mounted && g != null) setState(() => _galat = g);
     } on ApiException catch (e) {
       if (mounted) setState(() => _galat = e.ramah);
@@ -99,22 +101,36 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: 4),
                             Text('Masuk untuk mengelola kelas dan materi.', style: TextStyle(color: cs.onSurfaceVariant)),
                             const SizedBox(height: 20),
+                            SegmentedButton<bool>(
+                              segments: const [
+                                ButtonSegment(value: true, label: Text('Siswa'), icon: Icon(Icons.school_rounded)),
+                                ButtonSegment(value: false, label: Text('Tutor / Staf'), icon: Icon(Icons.badge_rounded)),
+                              ],
+                              selected: {_siswa},
+                              onSelectionChanged: (v) => setState(() {
+                                _siswa = v.first;
+                                _galat = null;
+                              }),
+                            ),
+                            const SizedBox(height: 18),
+                            if (!_siswa) ...[
                             _TombolGoogle(onPressed: _sibuk ? null : _masukGoogle),
-                            const SizedBox(height: 18),
-                            Row(children: [
-                              const Expanded(child: Divider()),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text('atau dengan kode akses', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-                              ),
-                              const Expanded(child: Divider()),
-                            ]),
-                            const SizedBox(height: 18),
+                              const SizedBox(height: 18),
+                              Row(children: [
+                                const Expanded(child: Divider()),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text('atau dengan kode akses', style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                                ),
+                                const Expanded(child: Divider()),
+                              ]),
+                              const SizedBox(height: 18),
+                            ],
                             TextField(
                               controller: _nama,
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.username],
-                              decoration: const InputDecoration(hintText: 'Nama lengkap', prefixIcon: Icon(Icons.person_rounded)),
+                              decoration: InputDecoration(hintText: _siswa ? 'Nama lengkap (sesuai data sekolah)' : 'Nama lengkap', prefixIcon: const Icon(Icons.person_rounded)),
                             ),
                             const SizedBox(height: 12),
                             TextField(
@@ -123,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               autofillHints: const [AutofillHints.password],
                               onSubmitted: (_) => _masuk(),
                               decoration: InputDecoration(
-                                hintText: 'Kode akses',
+                                hintText: _siswa ? 'Kata sandi (TH-ddmmyyyy)' : 'Kode akses',
                                 prefixIcon: const Icon(Icons.key_rounded),
                                 suffixIcon: IconButton(onPressed: () => setState(() => _lihat = !_lihat), icon: Icon(_lihat ? Icons.visibility_off_rounded : Icons.visibility_rounded)),
                               ),

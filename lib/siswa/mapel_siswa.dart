@@ -1,0 +1,791 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../api.dart';
+import '../theme.dart';
+import '../widgets.dart';
+import 'sesi_siswa.dart';
+
+SesiSiswa get _s => SesiSiswa.instance;
+
+String _teksHtml(String s) => s
+    .replaceAll(RegExp(r'<br\s*/?>|</p>|</div>|</li>|</h\d>', caseSensitive: false), '\n')
+    .replaceAll(RegExp(r'<li[^>]*>', caseSensitive: false), '• ')
+    .replaceAll(RegExp(r'<[^>]+>'), '')
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+    .trim();
+
+IconData _ikon(String j) => switch (j) {
+      'Diskusi' => Icons.forum_rounded,
+      'Ujian' => Icons.quiz_rounded,
+      'Absensi' => Icons.how_to_reg_rounded,
+      _ => Icons.article_rounded,
+    };
+
+Color _warna(String j) => switch (j) {
+      'Diskusi' => const Color(0xFF2F9E8F),
+      'Ujian' => const Color(0xFFE9A23B),
+      'Absensi' => const Color(0xFFE0789B),
+      _ => const Color(0xFF3B82F6),
+    };
+
+Future<void> _buka(String url) async {
+  if (url.isEmpty) return;
+  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+}
+
+/// Isi satu mata pelajaran untuk siswa, dikelompokkan per sesi.
+class MapelSiswaScreen extends StatefulWidget {
+  const MapelSiswaScreen({super.key, required this.idMapel, required this.namaMapel, this.tutor = ''});
+  final String idMapel;
+  final String namaMapel;
+  final String tutor;
+
+  @override
+  State<MapelSiswaScreen> createState() => _MapelSiswaScreenState();
+}
+
+class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
+  int _versi = 0;
+
+  void _muatUlang() => setState(() => _versi++);
+
+  Future<void> _buka(Map<String, dynamic> item, Map<String, dynamic> riwayat) async {
+    final jenis = teks(item['jenis']);
+    final rw = riwayat[teks(item['id'])] == null ? null : peta(riwayat[teks(item['id'])]);
+    Widget layar;
+    if (jenis == 'Diskusi') {
+      layar = DiskusiSiswaScreen(idMapel: widget.idMapel, item: item, riwayat: rw);
+    } else if (jenis == 'Ujian') {
+      layar = UjianSiswaScreen(idMapel: widget.idMapel, item: item);
+    } else if (jenis == 'Absensi') {
+      layar = AbsensiSiswaScreen(idMapel: widget.idMapel, item: item, riwayat: rw);
+    } else {
+      layar = MateriSiswaScreen(idMapel: widget.idMapel, item: item);
+    }
+    final ubah = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => layar));
+    if (ubah == true) _muatUlang();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.namaMapel, overflow: TextOverflow.ellipsis),
+          if (widget.tutor.isNotEmpty) Text('Tutor: ${widget.tutor}', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: cs.onSurfaceVariant)),
+        ]),
+      ),
+      body: Muatan<List<dynamic>>(
+        key: ValueKey(_versi),
+        muat: () => Future.wait([
+          Api.instance('waGetMateri', [widget.idMapel]),
+          Api.instance('waGetRiwayatJawaban', [widget.idMapel, _s.nama]),
+        ]),
+        bangun: (context, d, _) {
+          final items = daftar(d[0]).map(peta).toList();
+          final riwayat = peta(d[1]);
+          final grup = <String, List<Map<String, dynamic>>>{};
+          for (final x in items) {
+            grup.putIfAbsent(teks(x['sesi'], 'Sesi 1'), () => []).add(x);
+          }
+          final sesi = grup.keys.toList();
+          final selesai = items.where((x) => riwayat[teks(x['id'])] != null).length;
+          final tugas = items.where((x) => teks(x['jenis']) != 'Materi').length;
+          return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
+            if (items.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
+                child: Row(children: [
+                  const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 34),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Progres belajar', style: TextStyle(color: Colors.white70)),
+                      Text('$selesai dari $tugas tugas selesai', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+                    ]),
+                  ),
+                ]),
+              ),
+            if (items.isEmpty) const Kosong(pesan: 'Belum ada materi untuk mata pelajaran ini.', ikon: Icons.menu_book_outlined),
+            for (final sn in sesi) ...[
+              JudulBagian(sn),
+              Card(
+                child: Column(children: [
+                  for (final x in grup[sn]!)
+                    Builder(builder: (context) {
+                      final j = teks(x['jenis']);
+                      final rw = riwayat[teks(x['id'])] == null ? null : peta(riwayat[teks(x['id'])]);
+                      final nilai = rw == null ? '' : teks(rw['nilai']);
+                      return ListTile(
+                        onTap: () => _buka(x, riwayat),
+                        leading: IkonBulat(_ikon(j), warna: _warna(j), ukuran: 42, sudut: 14),
+                        title: Text(teks(x['judul']), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        subtitle: Text([j, if (teks(x['batasWaktu']).isNotEmpty) 'batas ${teks(x['batasWaktu'])}'].join(' · ')),
+                        trailing: rw == null
+                            ? (j == 'Materi' ? const Icon(Icons.chevron_right_rounded) : Lencana('Belum', warna: cs.outline))
+                            : (nilai.isNotEmpty ? Lencana('Nilai $nilai', warna: Colors.green) : const Lencana('Selesai', warna: Colors.green)),
+                      );
+                    }),
+                ]),
+              ),
+            ],
+          ]);
+        },
+      ),
+    );
+  }
+}
+
+// ───────────────────────── MATERI ─────────────────────────
+
+class MateriSiswaScreen extends StatefulWidget {
+  const MateriSiswaScreen({super.key, required this.idMapel, required this.item});
+  final String idMapel;
+  final Map<String, dynamic> item;
+
+  @override
+  State<MateriSiswaScreen> createState() => _MateriSiswaScreenState();
+}
+
+class _MateriSiswaScreenState extends State<MateriSiswaScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Catat bahwa siswa membuka materi (untuk laporan "siapa yang sudah membaca").
+    Api.instance('waTandaiBaca', [_s.idRombel, widget.idMapel, _s.nama, teks(widget.item['id'])]).catchError((_) => null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final it = widget.item;
+    final yt = teks(it['youtube']);
+    final file = teks(it['file']);
+    return Scaffold(
+      appBar: AppBar(title: Text(teks(it['judul']), overflow: TextOverflow.ellipsis)),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
+        Text(teks(it['judul']), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(teks(it['sesi']), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 16),
+        if (yt.isNotEmpty || file.isNotEmpty)
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (yt.isNotEmpty) FilledButton.icon(onPressed: () => _buka(yt), icon: const Icon(Icons.smart_display_rounded), label: const Text('Tonton video')),
+            if (file.isNotEmpty) OutlinedButton.icon(onPressed: () => _buka(file), icon: const Icon(Icons.description_rounded), label: const Text('Buka file')),
+          ]),
+        if (teks(it['konten']).isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: SelectableText(_teksHtml(teks(it['konten'])), style: const TextStyle(height: 1.55, fontSize: 15)))),
+        ],
+      ]),
+    );
+  }
+}
+
+// ───────────────────────── DISKUSI ─────────────────────────
+
+class DiskusiSiswaScreen extends StatefulWidget {
+  const DiskusiSiswaScreen({super.key, required this.idMapel, required this.item, this.riwayat});
+  final String idMapel;
+  final Map<String, dynamic> item;
+  final Map<String, dynamic>? riwayat;
+
+  @override
+  State<DiskusiSiswaScreen> createState() => _DiskusiSiswaScreenState();
+}
+
+class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
+  final _jawab = TextEditingController();
+  bool _sibuk = false;
+  bool _berubah = false;
+
+  String get _idMateri => teks(widget.item['id']);
+  bool get _sudahDinilai => teks(widget.riwayat?['nilai']).isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.riwayat != null) {
+      _jawab.text = teks(widget.riwayat?['jawaban']);
+    } else {
+      Api.instance('waGetDraftDiskusi', [_s.idRombel, widget.idMapel, _idMateri, _s.nama]).then((r) {
+        final d = peta(r);
+        if (mounted && d['ada'] == true && _jawab.text.isEmpty) setState(() => _jawab.text = teks(d['teks']));
+      }).catchError((_) {});
+    }
+  }
+
+  Map<String, dynamic> get _dasar => {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'idMateri': _idMateri, 'nama': _s.nama};
+
+  Future<void> _draft() async {
+    final r = await jalankan(context, () => Api.instance('waSimpanDraftDiskusi', [{..._dasar, 'teks': _jawab.text}]), teksProses: 'Menyimpan draft...');
+    if (r.ok && mounted) {
+      final d = peta(r.data);
+      kabar(context, d['sukses'] == true ? 'Draft tersimpan.' : teks(d['pesan']), galat: d['sukses'] != true);
+    }
+  }
+
+  Future<void> _kirim() async {
+    if (_jawab.text.trim().isEmpty) {
+      kabar(context, 'Tulis tanggapan Anda dulu.', galat: true);
+      return;
+    }
+    setState(() => _sibuk = true);
+    try {
+      final d = peta(await Api.instance('waSubmitJawaban', [{..._dasar, 'jawaban': _jawab.text}]));
+      if (!mounted) return;
+      if (d['sukses'] == true) {
+        _berubah = true;
+        kabar(context, teks(d['pesan'], 'Tanggapan terkirim.'));
+        Navigator.pop(context, true);
+      } else {
+        kabar(context, teks(d['pesan'], 'Gagal mengirim.'), galat: true);
+      }
+    } on ApiException catch (e) {
+      if (mounted) kabar(context, e.ramah, galat: true);
+    } finally {
+      if (mounted) setState(() => _sibuk = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final rw = widget.riwayat;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {},
+      child: Scaffold(
+        appBar: AppBar(title: Text(teks(widget.item['judul']), overflow: TextOverflow.ellipsis)),
+        body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  IkonBulat(Icons.forum_rounded, warna: _warna('Diskusi'), ukuran: 34, sudut: 10),
+                  const SizedBox(width: 10),
+                  const Text('Pertanyaan diskusi', style: TextStyle(fontWeight: FontWeight.w800)),
+                ]),
+                const SizedBox(height: 10),
+                SelectableText(_teksHtml(teks(widget.item['konten'])), style: const TextStyle(height: 1.5)),
+                if (teks(widget.item['batasWaktu']).isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Batas: ${teks(widget.item['batasWaktu'])}', style: TextStyle(fontSize: 12.5, color: cs.error)),
+                ],
+              ]),
+            ),
+          ),
+          if (_sudahDinilai)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Nilai: ${teks(rw?['nilai'])}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Colors.green)),
+                if (teks(rw?['komentar']).isNotEmpty) Text('"${teks(rw?['komentar'])}"', style: const TextStyle(fontStyle: FontStyle.italic)),
+                if (teks(rw?['penilai']).isNotEmpty) Text('— ${teks(rw?['penilai'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              ]),
+            ),
+          const SizedBox(height: 14),
+          Text(rw == null ? 'Tanggapan Anda' : 'Tanggapan Anda (terkirim ${teks(rw['waktu'])})', style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _jawab,
+            minLines: 6,
+            maxLines: 16,
+            readOnly: _sudahDinilai,
+            decoration: InputDecoration(hintText: _sudahDinilai ? '' : 'Tulis pendapat Anda dengan kalimat sendiri...', alignLabelWithHint: true),
+          ),
+          if (!_sudahDinilai) ...[
+            const SizedBox(height: 12),
+            Row(children: [
+              if (rw == null) Expanded(child: OutlinedButton.icon(onPressed: _sibuk ? null : _draft, icon: const Icon(Icons.save_outlined), label: const Text('Simpan draft'))),
+              if (rw == null) const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _sibuk ? null : _kirim,
+                  icon: _sibuk ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
+                  label: Text(rw == null ? 'Kirim' : 'Perbarui'),
+                ),
+              ),
+            ]),
+          ],
+          if (_berubah) const SizedBox.shrink(),
+        ]),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── ABSENSI ─────────────────────────
+
+class AbsensiSiswaScreen extends StatefulWidget {
+  const AbsensiSiswaScreen({super.key, required this.idMapel, required this.item, this.riwayat});
+  final String idMapel;
+  final Map<String, dynamic> item;
+  final Map<String, dynamic>? riwayat;
+
+  @override
+  State<AbsensiSiswaScreen> createState() => _AbsensiSiswaScreenState();
+}
+
+class _AbsensiSiswaScreenState extends State<AbsensiSiswaScreen> {
+  String? _pesan;
+  bool _hadir = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hadir = widget.riwayat != null;
+  }
+
+  Future<void> _isi() async {
+    final r = await jalankan(context, () => Api.instance('waAbsenIsi', [
+          {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'nama': _s.nama, 'idMateri': teks(widget.item['id'])}
+        ]), teksProses: 'Mencatat kehadiran...');
+    if (!r.ok || !mounted) return;
+    final d = peta(r.data);
+    setState(() {
+      _pesan = teks(d['pesan']);
+      _hadir = d['sukses'] == true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: Text(teks(widget.item['judul'], 'Absensi'))),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            IkonBulat(_hadir ? Icons.verified_rounded : Icons.how_to_reg_rounded, warna: _hadir ? Colors.green : _warna('Absensi'), ukuran: 96),
+            const SizedBox(height: 18),
+            Text(_hadir ? 'Kehadiran tercatat' : 'Isi absensi sesi ini', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(teks(widget.item['sesi']), style: TextStyle(color: cs.onSurfaceVariant)),
+            if (_pesan != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_pesan!, textAlign: TextAlign.center)),
+            if (widget.riwayat != null && _pesan == null)
+              Padding(padding: const EdgeInsets.only(top: 12), child: Text('Tercatat ${teks(widget.riwayat?['waktu'])}', textAlign: TextAlign.center)),
+            const SizedBox(height: 24),
+            if (!_hadir)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size(220, 54)),
+                onPressed: _isi,
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Saya hadir'),
+              )
+            else
+              OutlinedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Kembali')),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ───────────────────────── UJIAN ─────────────────────────
+
+class UjianSiswaScreen extends StatefulWidget {
+  const UjianSiswaScreen({super.key, required this.idMapel, required this.item});
+  final String idMapel;
+  final Map<String, dynamic> item;
+
+  @override
+  State<UjianSiswaScreen> createState() => _UjianSiswaScreenState();
+}
+
+class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
+  int _versi = 0;
+  bool _berubah = false;
+
+  String get _idUjian => teks(widget.item['id']);
+
+  Future<String?> _mintaKode() async {
+    final c = TextEditingController(text: _s.kodeAkses);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Kode akses ujian'),
+        content: TextField(controller: c, autofocus: true, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses dari tutor')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Mulai')),
+        ],
+      ),
+    );
+    if (ok != true || c.text.trim().isEmpty) return null;
+    await _s.simpanKode(c.text);
+    return _s.kodeAkses;
+  }
+
+  Future<void> _mulai() async {
+    final kode = await _mintaKode();
+    if (kode == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode]), teksProses: 'Menyiapkan soal...');
+    if (!r.ok || !mounted) return;
+    final d = peta(r.data);
+    if (d['sukses'] != true) {
+      kabar(context, teks(d['pesan'], 'Ujian belum bisa dimulai.'), galat: true);
+      return;
+    }
+    final hasil = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => KerjakanUjianScreen(idMapel: widget.idMapel, idUjian: _idUjian, judul: teks(widget.item['judul']), kode: kode, data: d),
+    ));
+    _berubah = true;
+    if (hasil != null && mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Ujian selesai'),
+          content: Text(hasil['sukses'] == true
+              ? 'Nilai Anda: ${teks(hasil['nilaiTotal'])} dari ${teks(hasil['nilaiMaks'], '100')}\n${teks(hasil['jumlahBenar'])} dari ${teks(hasil['totalSoal'])} soal benar.'
+              : teks(hasil['pesan'], 'Jawaban belum terkirim.')),
+          actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('OK'))],
+        ),
+      );
+    }
+    if (mounted) setState(() => _versi++);
+  }
+
+  Future<void> _ajukan(String jenis) async {
+    final c = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('Ajukan $jenis'),
+        content: TextField(controller: c, maxLines: 3, decoration: const InputDecoration(labelText: 'Alasan')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Kirim')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waUjianAjukan', [_s.idRombel, _s.nama, _idUjian, c.text]), teksProses: 'Mengirim pengajuan...');
+    if (r.ok && mounted) {
+      kabar(context, 'Pengajuan ${teks(peta(r.data)['jenis']).toLowerCase()} dikirim ke tutor.');
+      setState(() => _versi++);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.pop(context, _berubah);
+      },
+      child: Scaffold(
+        appBar: AppBar(title: Text(teks(widget.item['judul']), overflow: TextOverflow.ellipsis)),
+        body: Muatan<Map<String, dynamic>>(
+          key: ValueKey(_versi),
+          muat: () async => peta(await Api.instance('waStatusUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama])),
+          bangun: (context, d, _) {
+            final uj = peta(d['uj']);
+            final selesai = d['selesai'] == true;
+            final tombol = teks(uj['tombol']);
+            final info = [teks(uj['pesan']), teks(uj['teks']), teks(uj['info']), teks(d['pesan'])].where((x) => x.isNotEmpty).toSet().join('\n');
+            return ListView(padding: const EdgeInsets.all(20), children: [
+              Center(child: IkonBulat(Icons.quiz_rounded, warna: _warna('Ujian'), ukuran: 92)),
+              const SizedBox(height: 16),
+              Text(teks(widget.item['judul']), textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Text(
+                [
+                  if (angka(d['jumlahSoal'] ?? widget.item['jumlahSoal']) > 0) '${angka(d['jumlahSoal'] ?? widget.item['jumlahSoal'])} soal',
+                  if (angka(widget.item['durasiMenit']) > 0) '${angka(widget.item['durasiMenit'])} menit',
+                ].join(' · '),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 20),
+              if (selesai || d['nilaiTotal'] != null)
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
+                  child: Column(children: [
+                    const Text('Nilai Anda', style: TextStyle(color: Colors.white70)),
+                    Text('${d['nilaiTotal'] ?? '-'}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 40)),
+                    Text('dari ${d['nilaiMaks'] ?? 100}', style: const TextStyle(color: Colors.white70)),
+                  ]),
+                ),
+              if (info.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Text(info, textAlign: TextAlign.center)),
+              const SizedBox(height: 20),
+              if (!selesai && (uj.isEmpty || uj['bolehMulai'] == true || uj['berlangsung'] == true))
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+                  onPressed: _mulai,
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: Text(uj['berlangsung'] == true ? 'Lanjutkan ujian' : 'Mulai ujian'),
+                ),
+              if (tombol.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                  onPressed: () => _ajukan(tombol.startsWith('remedial') ? 'remedial' : 'susulan'),
+                  icon: const Icon(Icons.assignment_late_rounded),
+                  label: Text(tombol.startsWith('remedial') ? 'Ajukan remedial' : 'Ajukan susulan'),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFE9A23B).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+                child: const Row(children: [
+                  Icon(Icons.info_rounded, color: Color(0xFFE9A23B)),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Selama ujian jangan keluar dari aplikasi. Berpindah aplikasi dicatat dan bisa mengunci ujian.', style: TextStyle(fontSize: 12.5))),
+                ]),
+              ),
+            ]);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Layar mengerjakan ujian: soal pilihan ganda, penghitung waktu, deteksi keluar aplikasi.
+class KerjakanUjianScreen extends StatefulWidget {
+  const KerjakanUjianScreen({super.key, required this.idMapel, required this.idUjian, required this.judul, required this.kode, required this.data});
+  final String idMapel;
+  final String idUjian;
+  final String judul;
+  final String kode;
+  final Map<String, dynamic> data;
+
+  @override
+  State<KerjakanUjianScreen> createState() => _KerjakanUjianScreenState();
+}
+
+class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsBindingObserver {
+  late final List<Map<String, dynamic>> _soal = daftar(widget.data['soal']).map(peta).toList();
+  final Map<String, String> _jawab = {};
+  final _halaman = PageController();
+  int _idx = 0;
+  Timer? _jam;
+  int _sisaDetik = -1;
+  bool _kirim = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final durasi = angka(widget.data['durasiMenit']);
+    final mulai = angka(widget.data['waktuMulaiMs']);
+    if (durasi > 0) {
+      final akhir = (mulai > 0 ? mulai : DateTime.now().millisecondsSinceEpoch) + durasi * 60000;
+      _hitung(akhir);
+      _jam = Timer.periodic(const Duration(seconds: 1), (_) => _hitung(akhir));
+    }
+  }
+
+  void _hitung(int akhirMs) {
+    final s = ((akhirMs - DateTime.now().millisecondsSinceEpoch) / 1000).floor();
+    if (!mounted) return;
+    setState(() => _sisaDetik = s < 0 ? 0 : s);
+    if (s <= 0 && !_kirim) _kirimJawaban(otomatis: true);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _jam?.cancel();
+    _halaman.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused && !_kirim) {
+      Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode]).then((r) {
+        final d = peta(r);
+        if (!mounted) return;
+        if (d['terkunci'] == true) {
+          _kirim = true;
+          Navigator.pop(context, {'sukses': false, 'pesan': 'Ujian terkunci karena Anda keluar dari aplikasi terlalu sering. Hubungi tutor.'});
+        } else if (angka(d['percobaan']) > 0) {
+          kabar(context, 'Peringatan: Anda keluar dari aplikasi (${angka(d['percobaan'])}/${angka(d['batasPercobaan'])}).', galat: true);
+        }
+      }).catchError((_) {});
+    }
+  }
+
+  Future<void> _kirimJawaban({bool otomatis = false}) async {
+    if (_kirim) return;
+    if (!otomatis) {
+      final kosong = _soal.length - _jawab.length;
+      final ok = await konfirmasi(context, 'Kirim jawaban?', kosong > 0 ? 'Masih ada $kosong soal belum dijawab. Tetap kirim?' : 'Jawaban tidak bisa diubah setelah dikirim.', ya: 'Kirim');
+      if (!ok || !mounted) return;
+    }
+    _kirim = true;
+    _jam?.cancel();
+    final r = await jalankan(context, () => Api.instance('waSubmitUjian', [
+          {
+            'idUjian': widget.idUjian,
+            'idRombel': SesiSiswa.instance.idRombel,
+            'idMapel': widget.idMapel,
+            'nama': SesiSiswa.instance.nama,
+            'kodeAkses': widget.kode,
+            'jawaban': _jawab,
+          }
+        ]), teksProses: 'Mengirim jawaban...');
+    if (!mounted) return;
+    if (r.ok) {
+      Navigator.pop(context, peta(r.data));
+    } else {
+      _kirim = false;
+    }
+  }
+
+  String get _waktu {
+    if (_sisaDetik < 0) return '';
+    final m = _sisaDetik ~/ 60, d = _sisaDetik % 60;
+    return '${m.toString().padLeft(2, '0')}:${d.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await konfirmasi(context, 'Keluar dari ujian?', 'Jawaban belum terkirim. Anda bisa melanjutkan nanti selama waktu masih ada.', ya: 'Keluar') && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.judul, overflow: TextOverflow.ellipsis),
+          actions: [
+            if (_waktu.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: (_sisaDetik < 300 ? cs.error : cs.primary).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(99)),
+                child: Row(children: [
+                  Icon(Icons.timer_rounded, size: 18, color: _sisaDetik < 300 ? cs.error : cs.primary),
+                  const SizedBox(width: 4),
+                  Text(_waktu, style: TextStyle(fontWeight: FontWeight.w800, color: _sisaDetik < 300 ? cs.error : cs.primary)),
+                ]),
+              ),
+          ],
+        ),
+        body: Column(children: [
+          SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: _soal.length,
+              separatorBuilder: (context, i) => const SizedBox(width: 6),
+              itemBuilder: (context, i) {
+                final dijawab = _jawab.containsKey(teks(_soal[i]['id']));
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _halaman.animateToPage(i, duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                  child: Container(
+                    width: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: i == _idx ? cs.primary : (dijawab ? cs.primary.withValues(alpha: 0.15) : cs.surfaceContainerLowest),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: i == _idx ? cs.primary : cs.outlineVariant),
+                    ),
+                    child: Text('${i + 1}', style: TextStyle(fontWeight: FontWeight.w800, color: i == _idx ? cs.onPrimary : null)),
+                  ),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: PageView.builder(
+              controller: _halaman,
+              itemCount: _soal.length,
+              onPageChanged: (i) => setState(() => _idx = i),
+              itemBuilder: (context, i) {
+                final s = _soal[i];
+                final id = teks(s['id']);
+                final opsi = peta(s['opsi']);
+                return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
+                  Text('Soal ${i + 1} dari ${_soal.length}', style: TextStyle(color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 8),
+                  Text(_teksHtml(teks(s['pertanyaan'])), style: const TextStyle(fontSize: 16.5, height: 1.5, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 16),
+                  for (final e in opsi.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Material(
+                        color: _jawab[id] == e.key ? cs.primary.withValues(alpha: 0.12) : cs.surfaceContainerLowest,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: _jawab[id] == e.key ? cs.primary : cs.outlineVariant, width: _jawab[id] == e.key ? 2 : 1)),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => setState(() => _jawab[id] = e.key),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              CircleAvatar(
+                                radius: 14,
+                                backgroundColor: _jawab[id] == e.key ? cs.primary : cs.surfaceContainerHighest,
+                                child: Text(e.key, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _jawab[id] == e.key ? cs.onPrimary : cs.onSurface)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(_teksHtml('${e.value}'), style: const TextStyle(fontSize: 15, height: 1.4))),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]);
+              },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Row(children: [
+                if (_idx > 0)
+                  OutlinedButton.icon(
+                    onPressed: () => _halaman.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    label: const Text('Sebelumnya'),
+                  ),
+                const Spacer(),
+                if (_idx < _soal.length - 1)
+                  FilledButton.icon(
+                    onPressed: () => _halaman.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    label: const Text('Berikutnya'),
+                  )
+                else
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: Colors.green),
+                    onPressed: _kirim ? null : () => _kirimJawaban(),
+                    icon: const Icon(Icons.send_rounded),
+                    label: Text('Kirim (${_jawab.length}/${_soal.length})'),
+                  ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}

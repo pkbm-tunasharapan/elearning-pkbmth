@@ -8,11 +8,14 @@ import 'config.dart';
 import 'screens/home.dart';
 import 'screens/login.dart';
 import 'session.dart';
+import 'siswa/beranda_siswa.dart';
+import 'siswa/sesi_siswa.dart';
 import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   Sesi.instance.muat();
+  SesiSiswa.instance.muat();
   runApp(const AplikasiStaf());
 }
 
@@ -68,10 +71,12 @@ class _AplikasiStafState extends State<AplikasiStaf> {
       theme: Gaya.tema(Brightness.light),
       darkTheme: Gaya.tema(Brightness.dark),
       home: ListenableBuilder(
-        listenable: Sesi.instance,
+        listenable: Listenable.merge([Sesi.instance, SesiSiswa.instance]),
         builder: (context, _) {
           final s = Sesi.instance;
-          if (!s.siap) return const _Pembuka();
+          final ss = SesiSiswa.instance;
+          if (!s.siap || !ss.siap) return const _Pembuka();
+          if (ss.masuk) return const BerandaSiswa();
           return s.masuk ? const HomeScreen() : const LoginScreen();
         },
       ),
