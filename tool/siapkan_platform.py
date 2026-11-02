@@ -9,6 +9,18 @@ s = man.read_text()
 if 'android.permission.INTERNET' not in s:
     s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
 s = re.sub(r'android:label="[^"]*"', f'android:label="{NAMA}"', s, count=1)
+if 'android:scheme="bmstaf"' not in s:
+    filt = (
+        '\n            <intent-filter>\n'
+        '                <action android:name="android.intent.action.VIEW"/>\n'
+        '                <category android:name="android.intent.category.DEFAULT"/>\n'
+        '                <category android:name="android.intent.category.BROWSABLE"/>\n'
+        '                <data android:scheme="bmstaf" android:host="sso"/>\n'
+        '            </intent-filter>\n'
+        '            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>'
+    )
+    i = s.find('</intent-filter>')
+    s = s[:i + len('</intent-filter>')] + filt + s[i + len('</intent-filter>'):]
 man.write_text(s)
 
 idx = akar / 'web/index.html'

@@ -58,6 +58,21 @@ class Sesi extends ChangeNotifier {
     return null;
   }
 
+  /// Masuk dengan tiket SSO Google (dari halaman web, diteruskan ke aplikasi lewat bmstaf://sso?tiket=...).
+  Future<String?> masukSso(String tiket) async {
+    final r = peta(await Api.instance('waStafMasukSso', [tiket]));
+    if (r['sukses'] != true || teks(r['token']).isEmpty) {
+      return teks(r['pesan'], 'Login Google gagal. Coba lagi.');
+    }
+    token = teks(r['token']);
+    profil = peta(await Api.instance('waStafProfil', [token]));
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kunciToken, token!);
+    pesanKeluar = null;
+    notifyListeners();
+    return null;
+  }
+
   Future<void> segarkanProfil() async {
     if (token == null) return;
     profil = peta(await Api.instance('waStafProfil', [token]));

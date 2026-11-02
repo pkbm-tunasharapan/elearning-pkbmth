@@ -1,5 +1,30 @@
 <!-- ==== DEEP LINK APLIKASI FLUTTER (mulai) ==== -->
 <script>
+// Login Google dari aplikasi BM Staf: halaman dibuka dengan ?appsso=1 di browser HP, lalu setelah login Google
+// tiket SSO tidak dipakai di halaman ini, melainkan diserahkan ke aplikasi lewat tautan bmstaf://sso?tiket=...
+function bmTandaiAppSso_() {
+  var card = document.querySelector('#layarLogin .card');
+  if (!card) return;
+  var info = document.createElement('div');
+  info.className = 'pesan info';
+  info.style.display = 'block';
+  info.textContent = 'Masuk dari aplikasi BM Staf: ketuk "Masuk dengan Google", pilih akun Anda, lalu ketuk "Kembali ke aplikasi".';
+  card.insertBefore(info, card.firstChild);
+}
+function bmKembaliKeApp_(tiket) {
+  var card = document.querySelector('#layarLogin .card') || document.body;
+  while (card.firstChild) card.removeChild(card.firstChild);
+  var j = document.createElement('h3'); j.textContent = 'Login Google berhasil';
+  var p = document.createElement('p'); p.textContent = 'Ketuk tombol di bawah untuk kembali ke aplikasi BM Staf.';
+  var a = document.createElement('a');
+  a.className = 'btn blok'; a.target = '_top';
+  a.href = 'bmstaf://sso?tiket=' + encodeURIComponent(tiket);
+  a.textContent = 'Kembali ke aplikasi BM Staf';
+  a.style.cssText = 'display:block;text-align:center;text-decoration:none;margin-top:12px';
+  card.appendChild(j); card.appendChild(p); card.appendChild(a);
+}
+</script>
+<script>
 // Dipakai aplikasi Flutter: ?halaman=staf&t=TOKEN&tab=tabX|Teks menu&mapel=ID_MAPEL
 // Token dari aplikasi disimpan ke sesi halaman ini, lalu tab/mapel yang diminta dibuka.
 (function () {
@@ -7,6 +32,7 @@
     if (!window.google || !google.script || !google.script.url) return;
     google.script.url.getLocation(function (loc) {
       var p = (loc && loc.parameter) || {};
+      if (p.appsso) { try { localStorage.setItem('bmAppSso', '1'); } catch (e) {} bmTandaiAppSso_(); return; }
       if (!p.t) return;
       try { simpanToken(p.t); } catch (e) {}
       try { S.token = p.t; } catch (e) {}

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -113,13 +114,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
                           OutlinedButton.icon(
-                            onPressed: () => launchUrl(Uri.parse('$kWebUrl?halaman=staf'), mode: LaunchMode.externalApplication),
-                            icon: const Icon(Icons.public),
-                            label: const Text('Masuk dengan Google (versi web)'),
+                            onPressed: () => launchUrl(
+                              Uri.parse(kIsWeb ? '$kWebUrl?halaman=staf' : '$kWebUrl?halaman=staf&appsso=1'),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                            icon: const Icon(Icons.account_circle_outlined),
+                            label: const Text('Masuk dengan Google'),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Kode akses diberikan oleh admin. Akun Google SIM SETARA saat ini hanya bisa dipakai di versi web.',
+                            kIsWeb
+                                ? 'Kode akses diberikan oleh admin. Login Google di versi web membuka halaman staf web.'
+                                : 'Masuk dengan Google: browser terbuka, ketuk "Masuk dengan Google", pilih akun SIM SETARA, lalu ketuk "Kembali ke aplikasi BM Staf".',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ]),
