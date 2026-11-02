@@ -165,7 +165,6 @@ class Gaya {
       dividerTheme: DividerThemeData(color: gelap ? Colors.white10 : const Color(0xFFEDEAF6), space: 1),
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
         TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
       }),
     );
   }
