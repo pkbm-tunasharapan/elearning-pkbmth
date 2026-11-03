@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   static String _labelPendek(String s) {
-    const peta = {'Kelola Tutor & Enrollment': 'Pengguna', 'Mata Pelajaran': 'Mapel', 'Progres Kelas': 'Progres', 'Belum Dinilai': 'Nilai', 'Dokumen RPP': 'RPP', 'Absensi Warga Belajar': 'Absensi', 'Laporan Kehadiran': 'Laporan', 'Persetujuan Kehadiran KS': 'Persetujuan', 'Absen Tutor': 'Absen Tutor'};
+    const peta = {'Kelola Tutor & Enrollment': 'Pengguna', 'Mata Pelajaran': 'Mapel', 'Progres Kelas': 'Progres', 'Belum Dinilai': 'Nilai', 'Dokumen RPP': 'RPP', 'Absensi Warga Belajar': 'Absensi', 'Laporan Kehadiran': 'Laporan', 'Persetujuan Kehadiran KS': 'Persetujuan', 'Absen Tutor': 'Absen Tutor', 'Saldo Honor': 'Honor', 'Rekap Honor': 'Honor'};
     return peta[s] ?? s;
   }
 }
