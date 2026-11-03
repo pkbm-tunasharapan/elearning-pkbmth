@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../agenda.dart';
 import '../api.dart';
 import '../config.dart';
 import '../kalender.dart';
@@ -61,6 +62,7 @@ class _BerandaIsi extends StatelessWidget {
         body: RefreshIndicator(
           edgeOffset: atas,
           onRefresh: () async {
+            AgendaBeranda.segarkan();
             await s.muat();
             await ProfilAkun.instance.pastikan(paksa: true);
           },
@@ -133,6 +135,21 @@ class _BerandaIsi extends StatelessWidget {
                   ),
                 ),
               ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+              child: Text('Agenda & informasi', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: AgendaBeranda(
+                kunci: 'siswa-${s.idRombel}-${s.nama}',
+                muat: (paksa) => Api.instance('waSiswaBeranda', [s.token, paksa], const Duration(minutes: 2)),
+                onPilih: (m) {
+                  if (m == 'kalender') Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama)));
+                },
+                bolehMenu: const {'kalender'},
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),

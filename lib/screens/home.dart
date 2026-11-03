@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../agenda.dart';
+
 import '../api.dart';
 import '../config.dart';
 import '../menu.dart';
@@ -216,6 +218,7 @@ class Beranda extends StatelessWidget {
       value: SystemUiOverlayStyle.light,
       child: RefreshIndicator(
       onRefresh: () async {
+        AgendaBeranda.segarkan();
         await s.segarkanProfil();
         await ProfilAkun.instance.pastikan(paksa: true);
       },
@@ -322,20 +325,19 @@ class Beranda extends StatelessWidget {
                   ),
                   const SizedBox(height: 22),
                 ],
-                Text('Semua menu', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                Text('Agenda & informasi', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 10),
-                LayoutBuilder(builder: (context, c) {
-                  final kolom = c.maxWidth >= 700 ? 4 : 3;
-                  return GridView.count(
-                    crossAxisCount: kolom,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.92,
-                    children: [for (final x in lain) _KartuMenu(menu: x, onTap: () => onPilih(x.id))],
-                  );
-                }),
+                AgendaBeranda(
+                  kunci: 'staf-${s.peran}',
+                  muat: (paksa) => Api.instance('waStafBeranda', [s.token, paksa], const Duration(minutes: 2)),
+                  onPilih: onPilih,
+                  bolehMenu: {for (final m in menu) m.id},
+                ),
+                if (lain.isNotEmpty)
+                  Align(
+                    alignment: Alignment.center,
+                    child: TextButton.icon(onPressed: () => _semuaMenuLembar(context, lain, onPilih), icon: const Icon(Icons.apps_rounded), label: Text('Semua menu (${lain.length})')),
+                  ),
                 const SizedBox(height: 14),
                 Center(child: Text('Versi $kVersi', style: tt.bodySmall?.copyWith(color: cs.outline))),
                 if (lain.any((x) => !x.isNative)) ...[
@@ -354,6 +356,34 @@ class Beranda extends StatelessWidget {
       ),
     );
   }
+}
+
+void _semuaMenuLembar(BuildContext context, List<MenuApp> lain, void Function(String id) onPilih) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (c) => SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * 0.8),
+        child: GridView.count(
+          crossAxisCount: MediaQuery.of(c).size.width >= 700 ? 4 : 3,
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.92,
+          children: [
+            for (final x in lain)
+              _KartuMenu(menu: x, onTap: () {
+                Navigator.pop(c);
+                onPilih(x.id);
+              }),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _Ringkas extends StatelessWidget {
