@@ -7,6 +7,7 @@ import 'absensi/atur.dart';
 import 'absensi/laporan.dart';
 import 'honor/honor.dart';
 import 'jadwal/jadwal.dart';
+import 'nilai/nilai.dart';
 import 'kalender.dart';
 import 'ruang.dart';
 import 'screens/admin_lain.dart';
@@ -64,6 +65,10 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'jadwal', judul: 'Jadwal', ikon: Icons.event_note_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const JadwalScreen(), utama: true),
   MenuApp(id: 'usulanJadwal', judul: 'Usulan Jadwal', ikon: Icons.edit_calendar_outlined, peran: {'Admin', 'Kepala Sekolah', 'Tutor'}, native: () => const UsulanJadwalScreen()),
   MenuApp(id: 'aturJadwal', judul: 'Pengaturan Jadwal', ikon: Icons.schedule_rounded, peran: {'Admin'}, native: () => const AturJadwalScreen()),
+  MenuApp(id: 'nilaiRapor', judul: 'Nilai & Rapor', ikon: Icons.grading_rounded, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const NilaiRaporScreen()),
+  MenuApp(id: 'asesmen', judul: 'Asesmen Tatap Muka', ikon: Icons.assignment_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const AsesmenScreen()),
+  MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
+  MenuApp(id: 'aturNilai', judul: 'Aturan Nilai', ikon: Icons.rule_rounded, peran: {'Admin'}, native: () => const AturNilaiScreen()),
   MenuApp(id: 'honorSaya', judul: 'Saldo Honor', ikon: Icons.account_balance_wallet_outlined, peran: {'Tutor'}, native: () => const HonorSayaScreen(), utama: true),
   MenuApp(id: 'rekapHonor', judul: 'Rekap Honor', ikon: Icons.payments_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah'}, native: () => const RekapHonorScreen(), utama: true),
   MenuApp(id: 'aturHonor', judul: 'Aturan Honor', ikon: Icons.tune_rounded, peran: {'Admin'}, native: () => const AturanHonorScreen()),

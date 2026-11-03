@@ -274,6 +274,19 @@ Future<void> bagikanWord(BuildContext context, String html, String nama) async {
   }
 }
 
+/// Mengirim tabel HTML sebagai berkas Excel (.xls) lewat menu Bagikan.
+Future<void> bagikanExcel(BuildContext context, String html, String nama) async {
+  if (kIsWeb) {
+    kabar(context, 'Unduh Excel hanya tersedia di aplikasi Android.', galat: true);
+    return;
+  }
+  final path = await _simpan([0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama);
+  final r = await OpenFilex.open(path, type: 'application/vnd.ms-excel');
+  if (r.type != ResultType.done) {
+    await SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: 'application/vnd.ms-excel')], title: nama));
+  }
+}
+
 /// Membuat PDF dari HTML lewat server (waStafHtmlPdf atau fungsi lain) lalu membukanya.
 Future<void> htmlKePdf(BuildContext context, {required String nama, String fn = 'waStafHtmlPdf', required List<dynamic> args}) async {
   final r = await jalankan(context, () => Api.instance(fn, args, const Duration(minutes: 3)), teksProses: 'Membuat PDF...');
