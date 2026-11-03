@@ -60,8 +60,27 @@ class NilaiRaporScreen extends StatefulWidget {
   State<NilaiRaporScreen> createState() => _NilaiRaporScreenState();
 }
 
+/// Daftar semester untuk dipilih: semester berjalan lalu 3 semester sebelumnya.
+List<Map<String, String>> daftarSemester(Map<String, dynamic> kini) {
+  final m = RegExp(r'(\d{4})\s*/\s*(\d{4})').firstMatch(teks(kini['tahun']));
+  var y1 = m == null ? DateTime.now().year : int.parse(m.group(1)!);
+  var genap = teks(kini['semester']) == 'Genap';
+  final out = <Map<String, String>>[];
+  for (var i = 0; i < 4; i++) {
+    out.add({'tahun': '$y1/${y1 + 1}', 'semester': genap ? 'Genap' : 'Ganjil'});
+    if (genap) {
+      genap = false;
+    } else {
+      genap = true;
+      y1--;
+    }
+  }
+  return out;
+}
+
 class _NilaiRaporScreenState extends State<NilaiRaporScreen> {
   String _cari = '';
+  Map<String, String>? _per; // null = semester berjalan
 
   @override
   Widget build(BuildContext context) {
@@ -69,8 +88,12 @@ class _NilaiRaporScreenState extends State<NilaiRaporScreen> {
       muat: () async => peta(await Api.instance('waStafNilaiKelas', [_t])),
       bangun: (context, d, segarkan) {
         final kelas = daftar(d['kelas']).map(peta).where((k) => _cari.isEmpty || '${teks(k['namaRombel'])} ${teks(k['namaMapel'])}'.toLowerCase().contains(_cari)).toList();
+        final rapor = daftar(d['rombelRapor']).map(peta).toList();
         final peran = peta(d['peran']);
         final at = peta(d['aturan']);
+        final semester = daftarSemester(peta(d['periode']));
+        final pilihan = _per ?? semester.first;
+        final kini = _per == null || (_per!['tahun'] == semester.first['tahun'] && _per!['semester'] == semester.first['semester']);
         final rombel = <String, List<Map<String, dynamic>>>{};
         for (final k in kelas) {
           rombel.putIfAbsent(teks(k['idRombel']), () => []).add(k);
@@ -80,23 +103,37 @@ class _NilaiRaporScreenState extends State<NilaiRaporScreen> {
         return RefreshIndicator(
           onRefresh: segarkan,
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_periodeTeks(peta(d['periode'])), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text('Nilai akhir = Diskusi ${nilT(b['diskusi'])}% · UTS ${nilT(b['uts'])}% · UAS ${nilT(b['uas'])}% · KKM ${nilT(at['kkm'])}'),
-                  Text('Syarat ujian: kehadiran ≥ ${nilT(at['syaratHadir'])}%${at['blokir'] == true ? ' (diblokir, kecuali dispensasi KS)' : ' (peringatan saja)'}', style: const TextStyle(fontSize: 12.5)),
+            DropdownButtonFormField<int>(
+              initialValue: semester.indexWhere((x) => x['tahun'] == pilihan['tahun'] && x['semester'] == pilihan['semester']).clamp(0, semester.length - 1).toInt(),
+              decoration: const InputDecoration(labelText: 'Semester', prefixIcon: Icon(Icons.date_range_rounded)),
+              items: [for (var i = 0; i < semester.length; i++) DropdownMenuItem(value: i, child: Text('${semester[i]['semester']} ${semester[i]['tahun']}${i == 0 ? ' (berjalan)' : ''}'))],
+              onChanged: (i) => setState(() => _per = i == null || i == 0 ? null : semester[i]),
+            ),
+            const SizedBox(height: 6),
+            Text('Nilai akhir = Diskusi ${nilT(b['diskusi'])}% · UTS ${nilT(b['uts'])}% · UAS ${nilT(b['uas'])}% · KKM ${nilT(at['kkm'])} · syarat hadir ≥ ${nilT(at['syaratHadir'])}%', style: const TextStyle(fontSize: 12.5)),
+            if (rapor.isNotEmpty) ...[
+              JudulBagian('Rapor', sub: peran['tutor'] == true ? 'Rombel yang Anda walikan' : 'Semua mapel per rombel'),
+              Card(
+                child: Column(children: [
+                  for (final r in rapor)
+                    ListTile(
+                      leading: const Icon(Icons.assignment_ind_rounded, color: Gaya.ungu),
+                      title: Text('Rapor ${teks(r['nama'])}'),
+                      subtitle: Text(namaProgram(teks(r['program']))),
+                      trailing: peran['kartu'] == true
+                          ? IconButton(tooltip: 'Kartu peserta ujian', icon: const Icon(Icons.badge_outlined), onPressed: () => cetakKartuPeserta(context, teks(r['id'])))
+                          : const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RaporRombelScreen(idRombel: teks(r['id']), nama: teks(r['nama']), per: _per))),
+                    ),
                 ]),
               ),
-            ),
-            const SizedBox(height: 8),
+            ],
+            JudulBagian('Leger nilai mapel', sub: peran['tutor'] == true ? 'Mapel yang Anda ampu' : 'Semua mapel'),
             TextField(
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Cari rombel atau mapel', isDense: true),
               onChanged: (v) => setState(() => _cari = v.trim().toLowerCase()),
             ),
-            if (ids.isEmpty) const Kosong(pesan: 'Belum ada kelas yang dapat Anda lihat.', ikon: Icons.grading_rounded),
+            if (ids.isEmpty) const Kosong(pesan: 'Belum ada mapel yang Anda ampu.', ikon: Icons.grading_rounded),
             for (final id in ids) ...[
               JudulBagian(teks(rombel[id]!.first['namaRombel']), sub: namaProgram(teks(rombel[id]!.first['program']))),
               Card(
@@ -108,21 +145,7 @@ class _NilaiRaporScreenState extends State<NilaiRaporScreen> {
                       title: Text(teks(k['namaMapel'])),
                       subtitle: teks(k['namaTutor']).isEmpty ? null : Text(teks(k['namaTutor'])),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RekapNilaiScreen(kelas: k, peran: peran))),
-                    ),
-                  if (peran['lihatSemua'] == true || peran['kartu'] == true || peran['tutor'] == true)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                      child: Wrap(spacing: 8, runSpacing: 6, children: [
-                        if (peran['lihatSemua'] == true || peran['tutor'] == true)
-                          OutlinedButton.icon(
-                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LegerScreen(idRombel: id, nama: teks(rombel[id]!.first['namaRombel']), bolehRapor: peran['lihatSemua'] == true))),
-                            icon: const Icon(Icons.table_chart_outlined, size: 18),
-                            label: Text(peran['lihatSemua'] == true ? 'Leger & Rapor' : 'Leger'),
-                          ),
-                        if (peran['kartu'] == true)
-                          OutlinedButton.icon(onPressed: () => cetakKartuPeserta(context, id), icon: const Icon(Icons.badge_outlined, size: 18), label: const Text('Kartu peserta')),
-                      ]),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RekapNilaiScreen(kelas: k, peran: peran, per: kini ? null : _per))),
                     ),
                 ]),
               ),
@@ -137,9 +160,10 @@ class _NilaiRaporScreenState extends State<NilaiRaporScreen> {
 // ───────────────────────── rekap nilai per kelas ─────────────────────────
 
 class RekapNilaiScreen extends StatefulWidget {
-  const RekapNilaiScreen({super.key, required this.kelas, required this.peran});
+  const RekapNilaiScreen({super.key, required this.kelas, required this.peran, this.per});
   final Map<String, dynamic> kelas;
   final Map<String, dynamic> peran;
+  final Map<String, String>? per;
 
   @override
   State<RekapNilaiScreen> createState() => _RekapNilaiScreenState();
@@ -147,6 +171,19 @@ class RekapNilaiScreen extends StatefulWidget {
 
 class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
   int _v = 0;
+  Map<String, dynamic>? _data;
+
+  Future<void> _ekspor(bool excel) async {
+    final d = _data;
+    if (d == null) return kabar(context, 'Tunggu data selesai dimuat.');
+    final k = widget.kelas;
+    final nama = 'Leger_${teks(k['namaMapel'])}_${teks(k['namaRombel'])}'.replaceAll(RegExp(r'[^A-Za-z0-9_]+'), '_');
+    if (excel) {
+      await bagikanExcel(context, legerMapelHtml(d, excel: true), '$nama.xls');
+    } else {
+      await htmlKePdf(context, nama: '$nama.pdf', args: [_t, legerMapelHtml(d)]);
+    }
+  }
 
   Future<void> _input(Map<String, dynamic> d, String jenis) async {
     final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => InputNilaiScreen(data: d, jenis: jenis)));
@@ -212,10 +249,17 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
   Widget build(BuildContext context) {
     final k = widget.kelas;
     return Scaffold(
-      appBar: AppBar(title: Text('${teks(k['namaMapel'])} · ${teks(k['namaRombel'])}')),
+      appBar: AppBar(title: Text('Leger ${teks(k['namaMapel'])} · ${teks(k['namaRombel'])}'), actions: [
+        IconButton(tooltip: 'PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: () => _ekspor(false)),
+        IconButton(tooltip: 'Excel', icon: const Icon(Icons.grid_on_rounded), onPressed: () => _ekspor(true)),
+      ]),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey(_v),
-        muat: () async => peta(await Api.instance('waStafNilaiRekap', [_t, {'idRombel': teks(k['idRombel']), 'kodeMapel': teks(k['kodeMapel'])}])),
+        muat: () async {
+          final d = peta(await Api.instance('waStafNilaiRekap', [_t, {'idRombel': teks(k['idRombel']), 'kodeMapel': teks(k['kodeMapel']), ...?widget.per}]));
+          _data = d;
+          return d;
+        },
         bangun: (context, d, segarkan) {
           final wb = daftar(d['wb']).map(peta).toList();
           final at = peta(d['aturan']);
@@ -229,7 +273,7 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
                 const Padding(padding: EdgeInsets.only(top: 6), child: Text('Mapel ini belum terhubung ke e-Learning, jadi nilai diskusi dan ujian online belum terbaca.', style: TextStyle(fontSize: 12.5))),
               if (kurang > 0)
                 Padding(padding: const EdgeInsets.only(top: 6), child: Text('$kurang warga belajar belum memenuhi syarat kehadiran ${nilT(at['syaratHadir'])}%.', style: TextStyle(color: cs.error, fontSize: 12.5))),
-              if (d['bolehInput'] == true) ...[
+              if (d['bolehInput'] == true && widget.per == null) ...[
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(child: FilledButton.tonalIcon(onPressed: () => _input(d, 'UTS'), icon: const Icon(Icons.edit_note_rounded), label: const Text('Input UTS'))),
@@ -373,30 +417,31 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 
 // ───────────────────────── leger & rapor ─────────────────────────
 
-class LegerScreen extends StatelessWidget {
-  const LegerScreen({super.key, required this.idRombel, required this.nama, required this.bolehRapor});
+class RaporRombelScreen extends StatelessWidget {
+  const RaporRombelScreen({super.key, required this.idRombel, required this.nama, this.per});
   final String idRombel;
   final String nama;
-  final bool bolehRapor;
+  final Map<String, String>? per;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Leger $nama')),
+      appBar: AppBar(title: Text('Rapor $nama')),
       body: Muatan<Map<String, dynamic>>(
-        muat: () async => peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel}], const Duration(minutes: 3))),
+        muat: () async => peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel, ...?per}], const Duration(minutes: 3))),
         bangun: (context, d, _) {
           final mapel = daftar(d['mapel']).map(peta).toList();
           final wb = daftar(d['wb']).map(peta).toList();
           final at = peta(d['aturan']);
+          final wali = teks(peta(d['wali'])['nama']);
           return ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 32), children: [
             Text('${_periodeTeks(peta(d['periode']))} · ${namaProgram(teks(peta(d['rombel'])['program']))} · KKM ${nilT(at['kkm'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text('Wali kelas: ${wali.isEmpty ? 'belum ditetapkan' : wali}', style: const TextStyle(fontSize: 12.5)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 6, children: [
-              FilledButton.tonalIcon(onPressed: () => htmlKePdf(context, nama: 'Leger_${nama}_${tanggalBerkas()}.pdf', args: [_t, legerHtml(d)]), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('PDF')),
-              FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Leger_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Excel')),
-              if (bolehRapor)
-                FilledButton.icon(onPressed: () => htmlKePdf(context, nama: 'Rapor_${nama}_${tanggalBerkas()}.pdf', args: [_t, raporHtml(d, wb)]), icon: const Icon(Icons.print_rounded), label: const Text('Rapor semua WB')),
+              FilledButton.icon(onPressed: () => htmlKePdf(context, nama: 'Rapor_${nama}_${tanggalBerkas()}.pdf', args: [_t, raporHtml(d, wb)]), icon: const Icon(Icons.print_rounded), label: const Text('Cetak rapor semua')),
+              FilledButton.tonalIcon(onPressed: () => htmlKePdf(context, nama: 'Rekap_Nilai_${nama}_${tanggalBerkas()}.pdf', args: [_t, legerHtml(d)]), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Rekap PDF')),
+              FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Rekap_Nilai_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Rekap Excel')),
             ]),
             const SizedBox(height: 10),
             Card(
@@ -417,7 +462,7 @@ class LegerScreen extends StatelessWidget {
                   rows: [
                     for (final w in wb)
                       DataRow(
-                        onSelectChanged: bolehRapor ? (_) => htmlKePdf(context, nama: 'Rapor_${teks(w['nama'])}.pdf', args: [_t, raporHtml(d, [w])]) : null,
+                        onSelectChanged: (_) => htmlKePdf(context, nama: 'Rapor_${teks(w['nama'])}.pdf', args: [_t, raporHtml(d, [w])]),
                         cells: [
                           DataCell(SizedBox(width: 150, child: Text(teks(w['nama']), overflow: TextOverflow.ellipsis))),
                           for (final m in mapel)
@@ -431,7 +476,7 @@ class LegerScreen extends StatelessWidget {
                 ),
               ),
             ),
-            if (bolehRapor) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Ketuk baris untuk mencetak rapor satu warga belajar.', style: TextStyle(fontSize: 11.5))),
+            const Padding(padding: EdgeInsets.only(top: 6), child: Text('Ketuk baris untuk mencetak rapor satu warga belajar.', style: TextStyle(fontSize: 11.5))),
           ]);
         },
       ),
@@ -480,6 +525,32 @@ String legerHtml(Map<String, dynamic> d, {bool excel = false}) {
   return dokumenA4(b.toString(), _cssDok, lanskap: true);
 }
 
+/// Leger satu mapel (untuk tutor pengampu): komponen nilai tiap warga belajar.
+String legerMapelHtml(Map<String, dynamic> d, {bool excel = false}) {
+  final k = peta(d['kelas']);
+  final per = peta(d['periode']);
+  final at = peta(d['aturan']);
+  final bb = peta(at['bobot']);
+  final wb = daftar(d['wb']).map(peta).toList();
+  final b = StringBuffer();
+  if (!excel) b.write('<h2>LEGER NILAI ${escHtml(teks(k['namaMapel']).toUpperCase())}</h2>');
+  b.write('<p>Rombel ${escHtml(teks(k['namaRombel']))} · ${escHtml(namaProgram(teks(k['program'])))} · ${escHtml(_periodeTeks(per))}<br>'
+      'Tutor: ${escHtml(teks(k['namaTutor'], '-'))} · Bobot Diskusi ${nilT(bb['diskusi'])}%, UTS ${nilT(bb['uts'])}%, UAS ${nilT(bb['uas'])}% · KKM ${nilT(at['kkm'])}</p>');
+  b.write('<table><tr><th>No</th><th>NISN</th><th>Nama</th><th>Hadir</th><th>Diskusi</th><th>UTS</th><th>UAS</th><th>Nilai Akhir</th><th>Predikat</th><th>Keterangan</th></tr>');
+  var i = 0;
+  for (final w in wb) {
+    i++;
+    final ket = w['akhir'] == null ? 'Belum ada nilai' : (w['lengkap'] != true ? 'Sementara' : (w['tuntas'] == true ? 'Tuntas' : 'Belum tuntas'));
+    b.write('<tr><td class="c">$i</td><td>${excel ? '&#39;' : ''}${escHtml(teks(w['nisn']))}</td><td>${escHtml(teks(w['nama']))}</td>'
+        '<td class="c">${w['persen'] == null ? '–' : '${nilT(w['persen'])}%'}</td><td class="c">${nilT(w['diskusi'])}</td><td class="c">${nilT(peta(w['uts'])['nilai'])}</td>'
+        '<td class="c">${nilT(peta(w['uas'])['nilai'])}</td><td class="c"><b>${nilT(w['akhir'])}</b></td><td class="c">${escHtml(teks(w['predikat']))}</td><td>${escHtml(ket)}</td></tr>');
+  }
+  b.write('</table>');
+  if (excel) return '<html><head><meta charset="utf-8"></head><body>$b</body></html>';
+  b.write('<table class="ttd"><tr><td></td><td>${tanggalIni()}<br>Tutor Mata Pelajaran<br><br><br><br><b><u>${escHtml(teks(k['namaTutor'], '..............................'))}</u></b></td></tr></table>');
+  return dokumenA4(b.toString(), _cssDok);
+}
+
 String _deskripsi(String nama, String p) => switch (p) {
       'A' => 'Menunjukkan penguasaan kompetensi $nama dengan sangat baik.',
       'B' => 'Menunjukkan penguasaan kompetensi $nama dengan baik.',
@@ -514,8 +585,9 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs) {
     b.write('<tr><td colspan="3" class="c"><b>Rata-rata</b></td><td class="c"><b>${nilT(w['rata'])}</b></td><td colspan="2">Peringkat ${w['peringkat'] ?? '–'} dari ${daftar(d['wb']).length}</td></tr></table><br>');
     b.write('<table style="width:55%"><tr><th colspan="2">Ketidakhadiran tatap muka</th></tr><tr><td>Sakit</td><td class="c">${angka(h['Sakit'])} hari</td></tr>'
         '<tr><td>Izin</td><td class="c">${angka(h['Izin'])} hari</td></tr><tr><td>Tanpa keterangan</td><td class="c">${angka(h['Alpa'])} hari</td></tr></table>');
-    b.write('<table class="ttd"><tr><td>Mengetahui,<br>Orang Tua/Wali<br><br><br><br>(..............................)</td>'
-        '<td>${escHtml(kota)}${kota.isEmpty ? '' : ', '}${tanggalIni()}<br>Kepala ${escHtml(teks(l['nama'], 'PKBM'))}<br><br><br><br><b><u>${escHtml(teks(l['kepala']))}</u></b></td></tr></table></div>');
+    b.write('<table class="ttd"><tr><td>Orang Tua/Wali<br><br><br><br><br>(..............................)</td>'
+        '<td>${escHtml(kota)}${kota.isEmpty ? '' : ', '}${tanggalIni()}<br>Wali Kelas<br><br><br><br><b><u>${escHtml(teks(peta(d['wali'])['nama'], '..............................'))}</u></b></td></tr>'
+        '<tr><td colspan="2" style="padding-top:14px">Mengetahui,<br>Kepala ${escHtml(teks(l['nama'], 'PKBM'))}<br><br><br><br><b><u>${escHtml(teks(l['kepala']))}</u></b></td></tr></table></div>');
   }
   return dokumenA4(b.toString(), _cssDok);
 }
@@ -607,6 +679,26 @@ class _AsesmenScreenState extends State<AsesmenScreen> {
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
               Text('Asesmen tatap muka (kertas) · ${_periodeTeks(peta(d['periode']))}', style: const TextStyle(fontWeight: FontWeight.w700)),
               const Text('Ujian online tetap dijadwalkan tutor di menu mapel. Di sini untuk ujian di sekretariat: jadwal, ruang, pengawas dan presensi peserta (pindai kartu).', style: TextStyle(fontSize: 12.5)),
+              if (d['kartu'] == true && daftar(d['rombel']).isNotEmpty)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      final rb = daftar(d['rombel']).map(peta).toList();
+                      final id = await showModalBottomSheet<String>(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (c) => SafeArea(child: ListView(shrinkWrap: true, children: [
+                          const ListTile(title: Text('Cetak kartu peserta untuk rombel', style: TextStyle(fontWeight: FontWeight.w800))),
+                          for (final r in rb) ListTile(title: Text(teks(r['nama'])), onTap: () => Navigator.pop(c, teks(r['id']))),
+                        ])),
+                      );
+                      if (id != null && context.mounted) await cetakKartuPeserta(context, id);
+                    },
+                    icon: const Icon(Icons.badge_outlined),
+                    label: const Text('Cetak kartu peserta ujian'),
+                  ),
+                ),
               const SizedBox(height: 8),
               if (as.isEmpty) Kosong(pesan: kelola ? 'Belum ada asesmen. Ketuk "Tambah asesmen".' : 'Belum ada asesmen tatap muka.', ikon: Icons.assignment_outlined),
               for (final a in as)
@@ -958,5 +1050,68 @@ class _AturNilaiScreenState extends State<AturNilaiScreen> {
         child: const Text('Simpan'),
       ),
     ]);
+  }
+}
+
+// ───────────────────────── wali kelas ─────────────────────────
+
+class WaliKelasScreen extends StatefulWidget {
+  const WaliKelasScreen({super.key});
+
+  @override
+  State<WaliKelasScreen> createState() => _WaliKelasScreenState();
+}
+
+class _WaliKelasScreenState extends State<WaliKelasScreen> {
+  int _v = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Muatan<Map<String, dynamic>>(
+      key: ValueKey(_v),
+      muat: () async => peta(await Api.instance('waStafWaliDaftar', [_t])),
+      bangun: (context, d, segarkan) {
+        final rb = daftar(d['rombel']).map(peta).toList();
+        final tutor = daftar(d['tutor']).map(peta).toList();
+        return RefreshIndicator(
+          onRefresh: segarkan,
+          child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
+            const Text('Wali kelas dapat membuka dan mencetak rapor rombelnya. Tutor biasa hanya melihat leger mapel yang diampu.', style: TextStyle(fontSize: 12.5)),
+            const SizedBox(height: 8),
+            if (rb.isEmpty) const Kosong(pesan: 'Belum ada rombel aktif.'),
+            for (final r in rb)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${teks(r['nama'])} · ${namaProgram(teks(r['program']))}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: teks(r['idWali']),
+                      decoration: const InputDecoration(labelText: 'Wali kelas', isDense: true),
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('— belum ditetapkan —')),
+                        for (final t in tutor) DropdownMenuItem(value: teks(t['id']), child: Text(teks(t['nama']))),
+                        if (teks(r['idWali']).isNotEmpty && !tutor.any((t) => teks(t['id']) == teks(r['idWali'])))
+                          DropdownMenuItem(value: teks(r['idWali']), child: Text(teks(r['namaWali'], teks(r['idWali'])))),
+                      ],
+                      onChanged: (v) async {
+                        final res = await jalankan(context, () => Api.instance('waStafWaliSimpan', [_t, teks(r['id']), v ?? '']), teksProses: 'Menyimpan...');
+                        if (!mounted) return;
+                        if (res.ok) {
+                          kabar(context, 'Wali kelas ${teks(r['nama'])} tersimpan.');
+                        } else {
+                          setState(() => _v++);
+                        }
+                      },
+                    ),
+                  ]),
+                ),
+              ),
+          ]),
+        );
+      },
+    );
   }
 }
