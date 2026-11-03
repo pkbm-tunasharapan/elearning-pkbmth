@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   static String _labelPendek(String s) {
-    const peta = {'Kelola Tutor & Enrollment': 'Pengguna', 'Mata Pelajaran': 'Mapel', 'Progres Kelas': 'Progres', 'Belum Dinilai': 'Nilai', 'Dokumen RPP': 'RPP'};
+    const peta = {'Kelola Tutor & Enrollment': 'Pengguna', 'Mata Pelajaran': 'Mapel', 'Progres Kelas': 'Progres', 'Belum Dinilai': 'Nilai', 'Dokumen RPP': 'RPP', 'Absensi Warga Belajar': 'Absensi', 'Laporan Kehadiran': 'Laporan', 'Persetujuan Kehadiran KS': 'Persetujuan', 'Absen Tutor': 'Absen Tutor'};
     return peta[s] ?? s;
   }
 }
@@ -276,15 +276,24 @@ class Beranda extends StatelessWidget {
                 ),
                 child: IntrinsicHeight(
                   child: Row(children: [
-                    if (s.peran == 'Kepala Sekolah' || s.peran == 'Koordinator Kurikulum')
-                      _RingkasSemuaMapel(onPilih: onPilih)
-                    else ...[
-                      _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: '${s.jumlahMapel}', label: 'Mapel', onTap: () => onPilih('mapelSaya')),
+                    if (s.peran == 'Front Office') ...[
+                      _Ringkas(ikon: Icons.badge_rounded, warna: Gaya.warnaMenu('absenTutor'), nilai: 'Darurat', label: 'Absen tutor', onTap: () => onPilih('absenTutor')),
                       const VerticalDivider(width: 1),
-                      _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: '${s.jumlahRombel}', label: 'Rombel', onTap: () => onPilih('siswaRombel')),
+                      _Ringkas(ikon: Icons.summarize_rounded, warna: Gaya.warnaMenu('laporanHadir'), nilai: 'Lihat', label: 'Laporan kehadiran', onTap: () => onPilih('laporanHadir')),
+                    ] else ...[
+                      if (s.hanyaLihat)
+                        _RingkasSemuaMapel(onPilih: onPilih)
+                      else ...[
+                        _Ringkas(ikon: Icons.menu_book_rounded, warna: Gaya.warnaMenu('mapelSaya'), nilai: '${s.jumlahMapel}', label: 'Mapel', onTap: () => onPilih('mapelSaya')),
+                        const VerticalDivider(width: 1),
+                        _Ringkas(ikon: Icons.groups_2_rounded, warna: Gaya.warnaMenu('siswaRombel'), nilai: '${s.jumlahRombel}', label: 'Rombel', onTap: () => onPilih('siswaRombel')),
+                      ],
+                      const VerticalDivider(width: 1),
+                      if (s.peran == 'Superadmin')
+                        _Ringkas(ikon: Icons.fact_check_rounded, warna: Gaya.warnaMenu('persetujuanKs'), nilai: 'Cek', label: 'Persetujuan KS', onTap: () => onPilih('persetujuanKs'))
+                      else
+                        _RingkasBelumDinilai(onTap: () => onPilih('nilai')),
                     ],
-                    const VerticalDivider(width: 1),
-                    _RingkasBelumDinilai(onTap: () => onPilih('nilai')),
                   ]),
                 ),
               ),

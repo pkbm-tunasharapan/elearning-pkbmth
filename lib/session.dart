@@ -20,7 +20,7 @@ class Sesi extends ChangeNotifier {
   bool get isAdmin => peran == 'Admin';
 
   /// Kepala Sekolah / Koordinator Kurikulum: melihat semua mapel tanpa mengubah.
-  bool get hanyaLihat => peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum';
+  bool get hanyaLihat => peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum' || peran == 'Superadmin';
   bool get isPimpinan => peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum';
   bool get isTutor => peran == 'Tutor';
   List<Map<String, dynamic>> get mapel => daftar(profil['mapel']).map(peta).toList();

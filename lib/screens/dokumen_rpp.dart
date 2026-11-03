@@ -25,7 +25,7 @@ class _DokumenRppScreenState extends State<DokumenRppScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pimpinan = Sesi.instance.peran == 'Kepala Sekolah' || Sesi.instance.peran == 'Koordinator Kurikulum';
+    final pimpinan = Sesi.instance.hanyaLihat;
     return Muatan<List<Map<String, dynamic>>>(
       muat: muatMapelRpp,
       bangun: (context, mapel, segarkan) {

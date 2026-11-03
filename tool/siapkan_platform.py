@@ -8,6 +8,9 @@ man = akar / 'android/app/src/main/AndroidManifest.xml'
 s = man.read_text()
 if 'android.permission.INTERNET' not in s:
     s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
+for izin in ['CAMERA', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION']:
+    if 'android.permission.' + izin not in s:
+        s = s.replace('<application', '<uses-permission android:name="android.permission.' + izin + '"/>\n    <application', 1)
 s = re.sub(r'android:label="[^"]*"', f'android:label="{NAMA}"', s, count=1)
 if 'android:scheme="bmstaf"' not in s:
     filt = (
