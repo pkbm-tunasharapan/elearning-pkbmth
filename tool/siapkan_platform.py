@@ -43,7 +43,20 @@ shutil.rmtree(akar / 'test', ignore_errors=True)
 # memperbarui (menimpa) APK lama di HP. Tanpa ini tiap build GitHub memakai kunci acak
 # dan Android menolak pembaruan ("Aplikasi tidak terinstal").
 kunci = akar / 'tool/debug.keystore'
-if kunci.exists():
+# Kunci RILIS privat (dari GitHub Secret KUNCI_RILIS_B64/_SANDI/_ALIAS). Bila ada, dipakai
+# menggantikan kunci debug publik; file-nya hanya dibuat saat build dan tidak masuk repo.
+import os, base64
+RILIS = os.environ.get('KUNCI_RILIS_B64', '').strip()
+if RILIS:
+    kunci = akar / 'android/rilis.jks'
+    kunci.parent.mkdir(parents=True, exist_ok=True)
+    kunci.write_bytes(base64.b64decode(RILIS))
+    SANDI = os.environ.get('KUNCI_RILIS_SANDI', '')
+    ALIAS = os.environ.get('KUNCI_RILIS_ALIAS', 'thecourse')
+    print('Kunci rilis privat dipakai.')
+else:
+    SANDI, ALIAS = 'android', 'androiddebugkey'
+if kunci.exists() and not RILIS:
     tujuan = pathlib.Path.home() / '.android'
     tujuan.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(kunci, tujuan / 'debug.keystore')
@@ -66,30 +79,32 @@ gro = akar / 'android/app/build.gradle'
 if kunci.exists():
     if kts.exists():
         g = kts.read_text()
-        if 'tool/debug.keystore' not in g:
+        if 'signingConfigs {' not in g:
+            berkas = '../rilis.jks' if RILIS else '../../tool/debug.keystore'
             g = g.replace('android {', """android {
     signingConfigs {
         getByName("debug") {
-            storeFile = file("../../tool/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = file("%s")
+            storePassword = "%s"
+            keyAlias = "%s"
+            keyPassword = "%s"
         }
-    }""", 1)
+    }""" % (berkas, SANDI, ALIAS, SANDI), 1)
             kts.write_text(g)
         print('Gradle (kts) memakai kunci tetap.')
     elif gro.exists():
         g = gro.read_text()
-        if 'tool/debug.keystore' not in g:
+        if 'signingConfigs {' not in g:
+            berkas = '../rilis.jks' if RILIS else '../../tool/debug.keystore'
             g = g.replace('android {', """android {
     signingConfigs {
         debug {
-            storeFile file('../../tool/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            storeFile file('%s')
+            storePassword '%s'
+            keyAlias '%s'
+            keyPassword '%s'
         }
-    }""", 1)
+    }""" % (berkas, SANDI, ALIAS, SANDI), 1)
             gro.write_text(g)
         print('Gradle (groovy) memakai kunci tetap.')
 # Halaman statis tambahan untuk situs web (mis. kebijakan privasi untuk layar izin Google).
