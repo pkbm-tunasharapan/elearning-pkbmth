@@ -48,13 +48,14 @@ class _AbsenTutorScreenState extends State<AbsenTutorScreen> {
             Text('${teks(tutor['id'])} · ${tglIndo(teks(d['tanggal']))}', style: TextStyle(color: Theme.of(c).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 10),
             if (kelas.isEmpty) const Text('Tutor ini belum terdaftar mengampu mapel di rombel mana pun.'),
-            if (kelas.isNotEmpty) const Text('Pilih kelas yang diajar sekarang:', style: TextStyle(fontWeight: FontWeight.w700)),
+            if (kelas.isNotEmpty) Text('Pilih kelas yang diajar sekarang (${teks(d['hari'])}):', style: const TextStyle(fontWeight: FontWeight.w700)),
             for (final k in kelas)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(k['hadir'] == true ? Icons.check_circle_rounded : Icons.class_rounded, color: k['hadir'] == true ? Colors.green : Gaya.ungu),
-                title: Text('${teks(k['namaMapel'])}'),
-                subtitle: Text('Rombel ${teks(k['namaRombel'])}${k['hadir'] == true ? ' · sudah tercatat hadir' : ''}'),
+                leading: Icon(k['hadir'] == true ? Icons.check_circle_rounded : (k['terjadwal'] == true ? Icons.event_available_rounded : Icons.event_busy_rounded),
+                    color: k['hadir'] == true ? Colors.green : (k['terjadwal'] == true ? Gaya.ungu : Theme.of(c).colorScheme.outline)),
+                title: Text(teks(k['namaMapel'])),
+                subtitle: Text('Rombel ${teks(k['namaRombel'])}${k['terjadwal'] == true ? ' · terjadwal ${teks(k['jam'])}' : ' · tidak terjadwal hari ini'}${k['hadir'] == true ? ' · sudah tercatat hadir' : ''}'),
                 onTap: k['hadir'] == true ? null : () => Navigator.pop(c, k),
               ),
           ]),
@@ -63,6 +64,7 @@ class _AbsenTutorScreenState extends State<AbsenTutorScreen> {
     );
     if (pilih == null || !mounted) return;
     String kodeDarurat = '';
+    String alasanLuar = '';
     if (_fo) {
       final k = await mintaTeks(context, 'Kode approval darurat', label: 'Kode dari Kepala Sekolah untuk ${teks(tutor['nama'])}', huruf: true);
       if (k == null || k.isEmpty || !mounted) return;
@@ -72,9 +74,9 @@ class _AbsenTutorScreenState extends State<AbsenTutorScreen> {
       try {
         final x = peta(await Api.instance('waStafAbsenTutorCatat', [
           _t,
-          {'idTutor': teks(tutor['id']), 'idRombel': teks(pilih['idRombel']), 'kodeMapel': teks(pilih['kodeMapel']), 'kodeDarurat': kodeDarurat, 'kodeBuka': _kodeBuka}
+          {'idTutor': teks(tutor['id']), 'idRombel': teks(pilih['idRombel']), 'kodeMapel': teks(pilih['kodeMapel']), 'kodeDarurat': kodeDarurat, 'kodeBuka': _kodeBuka, 'alasanLuarJadwal': alasanLuar}
         ]));
-        final pesan = x['sudah'] == true ? teks(x['pesan']) : '${teks(x['nama'])} hadir · ${teks(pilih['namaMapel'])} ${teks(pilih['namaRombel'])}${x['darurat'] == true ? ' (darurat)' : ''}';
+        final pesan = x['sudah'] == true ? teks(x['pesan']) : '${teks(x['nama'])} hadir · ${teks(pilih['namaMapel'])} ${teks(pilih['namaRombel'])}${x['darurat'] == true ? ' (darurat)' : ''}${x['luarJadwal'] == true ? ' (luar jadwal)' : ''}';
         if (mounted) {
           kabar(context, pesan);
           setState(() => _riwayat.insert(0, pesan));
@@ -82,6 +84,16 @@ class _AbsenTutorScreenState extends State<AbsenTutorScreen> {
         return;
       } on ApiException catch (e) {
         if (!mounted) return;
+        if (e.pesan.contains('LUAR_JADWAL')) {
+          final a = await mintaTeks(context, 'Di luar jadwal', label: 'Alasan absen di luar jadwal (mis. jadwal pengganti)');
+          if (a == null || !mounted) return;
+          if (a.trim().length < 5) {
+            kabar(context, 'Alasan minimal 5 huruf.', galat: true);
+            return;
+          }
+          alasanLuar = a.trim();
+          continue;
+        }
         if (e.pesan.contains('Kode Buka')) {
           final k = await mintaTeks(context, 'Di luar jam absensi', label: 'Kode Buka dari admin', huruf: true);
           if (k == null || k.isEmpty) return;

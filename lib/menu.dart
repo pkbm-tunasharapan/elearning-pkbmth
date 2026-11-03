@@ -6,6 +6,7 @@ import 'absensi/absen_wb.dart';
 import 'absensi/atur.dart';
 import 'absensi/laporan.dart';
 import 'honor/honor.dart';
+import 'jadwal/jadwal.dart';
 import 'kalender.dart';
 import 'ruang.dart';
 import 'screens/admin_lain.dart';
@@ -60,6 +61,9 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'absenSaya', judul: 'Absen Saya', ikon: Icons.camera_front_outlined, peran: {'Kepala Sekolah'}, native: () => const AbsenSayaScreen(), utama: true),
   MenuApp(id: 'persetujuanKs', judul: 'Persetujuan Kehadiran KS', ikon: Icons.fact_check_outlined, peran: {'Superadmin'}, native: () => const PersetujuanKsScreen(), utama: true),
   MenuApp(id: 'laporanHadir', judul: 'Laporan Kehadiran', ikon: Icons.summarize_outlined, peran: _lapHadir, native: () => const LaporanHadirScreen(), utama: true),
+  MenuApp(id: 'jadwal', judul: 'Jadwal', ikon: Icons.event_note_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const JadwalScreen(), utama: true),
+  MenuApp(id: 'usulanJadwal', judul: 'Usulan Jadwal', ikon: Icons.edit_calendar_outlined, peran: {'Admin', 'Kepala Sekolah', 'Tutor'}, native: () => const UsulanJadwalScreen()),
+  MenuApp(id: 'aturJadwal', judul: 'Pengaturan Jadwal', ikon: Icons.schedule_rounded, peran: {'Admin'}, native: () => const AturJadwalScreen()),
   MenuApp(id: 'honorSaya', judul: 'Saldo Honor', ikon: Icons.account_balance_wallet_outlined, peran: {'Tutor'}, native: () => const HonorSayaScreen(), utama: true),
   MenuApp(id: 'rekapHonor', judul: 'Rekap Honor', ikon: Icons.payments_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah'}, native: () => const RekapHonorScreen(), utama: true),
   MenuApp(id: 'aturHonor', judul: 'Aturan Honor', ikon: Icons.tune_rounded, peran: {'Admin'}, native: () => const AturanHonorScreen()),
