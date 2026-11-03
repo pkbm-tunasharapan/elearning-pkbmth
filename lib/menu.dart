@@ -6,6 +6,7 @@ import 'absensi/absen_wb.dart';
 import 'absensi/atur.dart';
 import 'absensi/laporan.dart';
 import 'honor/honor.dart';
+import 'induk/induk.dart';
 import 'jadwal/jadwal.dart';
 import 'keuangan/keuangan.dart';
 import 'nilai/nilai.dart';
@@ -72,6 +73,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
   MenuApp(id: 'aturNilai', judul: 'Aturan Nilai', ikon: Icons.rule_rounded, peran: {'Admin'}, native: () => const AturNilaiScreen()),
   MenuApp(id: 'honorSaya', judul: 'Saldo Honor', ikon: Icons.account_balance_wallet_outlined, peran: {'Tutor'}, native: () => const HonorSayaScreen(), utama: true),
+  MenuApp(id: 'dataInduk', judul: 'Data Induk', ikon: Icons.storage_rounded, peran: {'Admin', 'Superadmin', 'Kepala Sekolah'}, native: () => const DataIndukScreen()),
   MenuApp(id: 'keuangan', judul: 'Keuangan', ikon: Icons.account_balance_outlined, peran: {'Admin', 'Bendahara', 'Superadmin', 'Kepala Sekolah'}, native: () => const KeuanganScreen(), utama: true),
   MenuApp(id: 'rekapHonor', judul: 'Rekap Honor', ikon: Icons.payments_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Bendahara'}, native: () => const RekapHonorScreen(), utama: true),
   MenuApp(id: 'aturHonor', judul: 'Aturan Honor', ikon: Icons.tune_rounded, peran: {'Admin'}, native: () => const AturanHonorScreen()),
