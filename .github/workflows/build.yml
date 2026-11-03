@@ -31,6 +31,10 @@ jobs:
           cache: true
 
       - name: Siapkan folder Android & Web
+        env:
+          KUNCI_RILIS_B64: ${{ secrets.KUNCI_RILIS_B64 }}
+          KUNCI_RILIS_SANDI: ${{ secrets.KUNCI_RILIS_SANDI }}
+          KUNCI_RILIS_ALIAS: ${{ secrets.KUNCI_RILIS_ALIAS }}
         run: |
           flutter create --platforms=android,web --org id.pkbmtunasharapan --project-name elearning_staf .
           python3 tool/siapkan_platform.py
