@@ -261,6 +261,32 @@ Future<void> bukaPdfB64(BuildContext context, String b64, String nama) async {
   }
 }
 
+/// Membuka PDF yang dibuat di HP (bytes) dengan penampil PDF; bila gagal, lewat menu Bagikan.
+Future<void> bukaPdfBytes(BuildContext context, List<int> bytes, String nama) async {
+  if (kIsWeb) {
+    kabar(context, 'Unduh PDF hanya tersedia di aplikasi Android.', galat: true);
+    return;
+  }
+  final path = await _simpan(bytes, nama);
+  final r = await OpenFilex.open(path, type: 'application/pdf');
+  if (r.type != ResultType.done && context.mounted) {
+    await SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: 'application/pdf')], title: nama));
+  }
+}
+
+/// Mengirim satu atau beberapa gambar PNG lewat menu Bagikan (simpan ke Galeri/Drive, WhatsApp, dll.).
+Future<void> bagikanPng(BuildContext context, List<({List<int> bytes, String nama})> gambar, {String judul = 'Gambar'}) async {
+  if (kIsWeb) {
+    kabar(context, 'Bagikan gambar hanya tersedia di aplikasi Android.', galat: true);
+    return;
+  }
+  final files = <XFile>[];
+  for (final g in gambar) {
+    files.add(XFile(await _simpan(g.bytes, g.nama), mimeType: 'image/png'));
+  }
+  await SharePlus.instance.share(ShareParams(files: files, title: judul));
+}
+
 /// Mengirim dokumen Word (.doc HTML) lewat menu Bagikan (simpan ke Drive, WhatsApp, dll.).
 Future<void> bagikanWord(BuildContext context, String html, String nama) async {
   if (kIsWeb) {

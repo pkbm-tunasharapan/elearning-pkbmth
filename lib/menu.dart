@@ -29,6 +29,7 @@ import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
 import 'session.dart';
+import 'siswa/kartu_qr_massal.dart';
 
 /// Satu menu aplikasi. Bila [native] null, menu dibuka lewat versi web staf
 /// (sudah mobile-friendly) di dalam aplikasi, langsung ke tab [tabWeb].
@@ -86,6 +87,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'kotakUjian', judul: 'Kotak Ujian', ikon: Icons.assignment_turned_in_outlined, peran: _semua, native: () => const KotakUjianScreen()),
   MenuApp(id: 'siswaRombel', judul: 'Siswa per Rombel', ikon: Icons.school_outlined, peran: _semua, native: () => const SiswaRombelScreen()),
   MenuApp(id: 'kelolaMapel', judul: 'Kelola Mata Pelajaran', ikon: Icons.library_books_outlined, peran: _admin, native: () => const KelolaMapelScreen()),
+  MenuApp(id: 'kartuQr', judul: 'Kartu QR Siswa (ID Card)', ikon: Icons.qr_code_2_rounded, peran: _admin, native: () => const KartuQrMassalScreen()),
   MenuApp(id: 'daftar', judul: 'Pendaftaran Siswa', ikon: Icons.how_to_reg_outlined, peran: _admin, native: () => const PendaftaranScreen()),
   MenuApp(id: 'ganda', judul: 'Sinkron & Data Ganda', ikon: Icons.sync_alt, peran: _admin, native: () => const GandaScreen()),
   MenuApp(id: 'ta', judul: 'Tahun Ajaran', ikon: Icons.event_note_outlined, peran: _admin, native: () => const TahunAjaranScreen()),

@@ -57,6 +57,7 @@ class BelumDinilaiScreen extends StatelessWidget {
                     '${angka(g['belum'])} belum dari ${angka(g['jawaban'])} jawaban',
                     if (daftar(g['siswa']).isNotEmpty) daftar(g['siswa']).join(', '),
                     if (teks(g['terlama']).isNotEmpty) 'terlama ${teks(g['terlama'])}',
+                    if (g['tanpaPengampu'] == true) 'Belum ada tutor pengampu — Anda dapat menilai',
                   ].join(' · ')),
                   trailing: Lencana('${angka(g['belum'])}', warna: cs.error),
                   onTap: () async {
