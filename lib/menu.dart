@@ -106,3 +106,60 @@ final List<MenuApp> semuaMenu = [
 ];
 
 List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran)).toList();
+
+// ───────────────────────── pengelompokan & pencarian menu ─────────────────────────
+
+/// Urutan grup menu di laci, beranda, dan pencarian.
+const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kalender', 'Warga Belajar', 'Keuangan & Honor', 'Pengguna & Komunikasi', 'Sistem'];
+
+const _grupMenu = <String, String>{
+  'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
+  'progres': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
+  'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor',
+  'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
+  'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
+  'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
+  'dataInduk': 'Warga Belajar', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
+  'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
+  'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
+  'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'maintenance': 'Sistem',
+};
+
+/// Kata kunci tambahan agar pencarian menemukan menu dengan istilah sehari-hari.
+const _kataKunci = <String, String>{
+  'nilaiRapor': 'raport leger cetak cover biodata kenaikan kelulusan naik kelas lulus',
+  'absensi': 'presensi hadir qr scan datang pulang izin sakit alpa',
+  'dataInduk': 'siswa warga belajar wb nisn nik',
+  'imporDapodik': 'import excel xlsx dapodik biodata',
+  'kartuQr': 'id card kartu siswa cetak',
+  'keuangan': 'kas uang spp pembayaran',
+  'rekapHonor': 'gaji bayar tutor',
+  'pengguna': 'akun tutor enroll staf',
+  'ruangStaf': 'chat obrolan pesan',
+  'jadwal': 'jam pelajaran roster',
+  'nilai': 'diskusi tugas koreksi',
+  'kotakUjian': 'ujian soal pts pas',
+  'pemeliharaan': 'versi update apk rilis galat',
+};
+
+String grupMenu(MenuApp m) => _grupMenu[m.id] ?? 'Lainnya';
+
+/// Menu dikelompokkan sesuai [urutanGrup] (grup kosong dilewati).
+List<MapEntry<String, List<MenuApp>>> kelompokkanMenu(List<MenuApp> menu) {
+  final peta = <String, List<MenuApp>>{};
+  for (final m in menu) {
+    (peta[grupMenu(m)] ??= []).add(m);
+  }
+  final urut = [...urutanGrup, ...peta.keys.where((g) => !urutanGrup.contains(g))];
+  return [for (final g in urut) if (peta[g] != null) MapEntry(g, peta[g]!)];
+}
+
+/// Pencarian sederhana tanpa membedakan huruf besar/kecil; semua kata harus cocok.
+List<MenuApp> cariMenu(List<MenuApp> menu, String q) {
+  final kata = q.toLowerCase().split(RegExp(r'\s+')).where((k) => k.isNotEmpty).toList();
+  if (kata.isEmpty) return menu;
+  return menu.where((m) {
+    final t = '${m.judul} ${grupMenu(m)} ${_kataKunci[m.id] ?? ''}'.toLowerCase();
+    return kata.every(t.contains);
+  }).toList();
+}

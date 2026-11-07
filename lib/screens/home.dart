@@ -11,6 +11,8 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import '../ulang_tahun.dart';
+import '../cari_menu.dart';
+import '../dasbor.dart';
 import 'dokumen_rpp.dart';
 import '../siswa/kartu_siswa.dart';
 
@@ -27,7 +29,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _aktif = 'beranda';
   int _muatUlang = 0;
 
-  List<MenuApp> get _menu => menuUntuk(Sesi.instance);
+  List<MenuApp> get _menu => [for (final g in kelompokkanMenu(menuUntuk(Sesi.instance))) ...g.value];
+
+  void _cari() => bukaCariMenu(context, _menu, _pilih);
   List<MenuApp> get _utama => _menu.where((m) => m.utama).take(3).toList();
 
   @override
@@ -80,12 +84,46 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ]),
         ),
-        const NavigationDrawerDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: Text('Beranda')),
-        for (final x in _menu)
-          NavigationDrawerDestination(
-            icon: Icon(x.ikon, color: Gaya.warnaMenu(x.id)),
-            label: Text(x.isNative ? x.judul : '${x.judul}  🌐'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Material(
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                if (!lebar) _kunciScaffold.currentState?.closeDrawer();
+                _cari();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(children: [
+                  Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('Cari menu…', style: TextStyle(color: cs.onSurfaceVariant))),
+                  if (lebar)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant), borderRadius: BorderRadius.circular(6)),
+                      child: Text('Ctrl K', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                    ),
+                ]),
+              ),
+            ),
           ),
+        ),
+        const NavigationDrawerDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: Text('Beranda')),
+        for (final g in kelompokkanMenu(_menu)) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 14, 16, 6),
+            child: Text(g.key.toUpperCase(), style: TextStyle(fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w800, color: cs.outline)),
+          ),
+          for (final x in g.value)
+            NavigationDrawerDestination(
+              icon: Icon(x.ikon, color: Gaya.warnaMenu(x.id)),
+              label: Text(x.judul, overflow: TextOverflow.ellipsis),
+            ),
+        ],
         const Padding(padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8), child: Divider()),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -135,11 +173,18 @@ class _HomeScreenState extends State<HomeScreen> {
         key: ValueKey('$_aktif$_muatUlang'),
         child: _aktif == 'profil'
             ? ProfilScreen(denganAppBar: false, onKeluar: _keluar)
-            : (m == null ? Beranda(onPilih: _pilih, onKeluar: _keluar, lebar: lebar) : m.halaman()),
+            : (m == null ? Beranda(onPilih: _pilih, onKeluar: _keluar, onCari: _cari, lebar: lebar) : m.halaman()),
       ),
     );
 
-    return PopScope(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): _cari,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true): _cari,
+      },
+      child: Focus(
+      autofocus: true,
+      child: PopScope(
       canPop: _aktif == 'beranda',
       onPopInvokedWithResult: (sudah, _) {
         if (!sudah && _aktif != 'beranda') _pilih('beranda');
@@ -158,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(child: Text(m.judul, overflow: TextOverflow.ellipsis)),
               ]),
               actions: [
+                IconButton(tooltip: 'Cari menu (Ctrl+K)', icon: const Icon(Icons.search_rounded), onPressed: _cari),
                 if (!m.isNative)
                   IconButton(tooltip: 'Muat ulang', icon: const Icon(Icons.refresh_rounded), onPressed: () => setState(() => _muatUlang++)),
                 const SizedBox(width: 4),
@@ -189,6 +235,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
       ),
+      ),
+      ),
     );
   }
 
@@ -200,9 +248,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
 /// Beranda: header bergradasi, ringkasan, menu cepat, dan semua menu.
 class Beranda extends StatelessWidget {
-  const Beranda({super.key, required this.onPilih, required this.onKeluar, this.lebar = false});
+  const Beranda({super.key, required this.onPilih, required this.onKeluar, this.onCari, this.lebar = false});
   final void Function(String id) onPilih;
   final VoidCallback onKeluar;
+  final VoidCallback? onCari;
   final bool lebar;
 
   @override
@@ -240,6 +289,7 @@ class Beranda extends StatelessWidget {
                 const SizedBox(width: 8),
                 const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 const Spacer(),
+                if (onCari != null) IconButton(onPressed: onCari, icon: const Icon(Icons.search_rounded, color: Colors.white), tooltip: 'Cari menu'),
                 IconButton(onPressed: () => bukaKartuStaf(context), icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 28), tooltip: 'Kartu tutor (QR)'),
                 IconButton(onPressed: onKeluar, icon: const Icon(Icons.logout_rounded, color: Colors.white), tooltip: 'Keluar'),
               ]),
@@ -312,6 +362,7 @@ class Beranda extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (DasborLembaga.boleh(s.peran)) DasborLembaga(onPilih: onPilih, lebar: lebar),
                 const KartuUlangTahun(padding: EdgeInsets.only(bottom: 14)),
                 if (cepat.isNotEmpty) ...[
                   Text('Akses cepat', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
@@ -368,21 +419,25 @@ void _semuaMenuLembar(BuildContext context, List<MenuApp> lain, void Function(St
     builder: (c) => SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * 0.8),
-        child: GridView.count(
-          crossAxisCount: MediaQuery.of(c).size.width >= 700 ? 4 : 3,
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.92,
-          children: [
-            for (final x in lain)
-              _KartuMenu(menu: x, onTap: () {
-                Navigator.pop(c);
-                onPilih(x.id);
-              }),
+        child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [
+          for (final g in kelompokkanMenu(lain)) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+              child: Text(g.key, style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            Wrap(spacing: 12, runSpacing: 12, children: [
+              for (final x in g.value)
+                SizedBox(
+                  width: 104,
+                  height: 112,
+                  child: _KartuMenu(menu: x, onTap: () {
+                    Navigator.pop(c);
+                    onPilih(x.id);
+                  }),
+                ),
+            ]),
           ],
-        ),
+        ]),
       ),
     ),
   );

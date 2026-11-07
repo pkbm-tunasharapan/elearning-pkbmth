@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../config.dart';
@@ -11,6 +10,7 @@ import '../siswa/daftar_siswa.dart';
 import 'daftar_tutor.dart';
 import '../siswa/sesi_siswa.dart';
 import '../theme.dart';
+import '../masuk/google_web_stub.dart' if (dart.library.js_interop) '../masuk/google_web.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -131,7 +131,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 18),
                             if (!_siswa) ...[
-                            _TombolGoogle(onPressed: _sibuk ? null : _masukGoogle),
+                            if (kIsWeb)
+                              tombolGoogleWeb(
+                                clientId: kGoogleServerClientId,
+                                onIdToken: _masukGoogleToken,
+                                onGalat: (p) {
+                                  if (mounted) setState(() => _galat = p);
+                                },
+                              )
+                            else
+                              _TombolGoogle(onPressed: _sibuk ? null : _masukGoogle),
                               const SizedBox(height: 18),
                               Row(children: [
                                 const Expanded(child: Divider()),
@@ -203,9 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 18),
                       if (!_siswa)
                       Text(
-                        kIsWeb
-                            ? 'Kode akses diberikan oleh admin.'
-                            : 'Masuk dengan Google memakai akun Google yang terdaftar di SIM SETARA. Kode akses diberikan oleh admin.',
+                        'Masuk dengan Google memakai akun Google yang terdaftar di SIM SETARA. Kode akses diberikan oleh admin.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
                       ),
@@ -244,12 +251,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static bool _gsiSiap = false;
 
-  Future<void> _masukGoogle() async {
-    if (kIsWeb) {
-      // Versi web (browser) tetap memakai halaman login Google bawaan web.
-      launchUrl(Uri.parse('$kWebUrl?halaman=staf'), mode: LaunchMode.externalApplication);
-      return;
+  /// Versi web: ID token dari tombol Google Identity Services langsung diperiksa server.
+  Future<void> _masukGoogleToken(String idToken) async {
+    if (_sibuk) return;
+    setState(() {
+      _sibuk = true;
+      _galat = null;
+    });
+    try {
+      final g = await Sesi.instance.masukGoogle(idToken);
+      if (mounted && g != null) setState(() => _galat = g);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _galat = e.ramah);
+    } catch (e) {
+      if (mounted) setState(() => _galat = 'Login Google gagal: $e');
+    } finally {
+      if (mounted) setState(() => _sibuk = false);
     }
+  }
+
+  Future<void> _masukGoogle() async {
     setState(() {
       _sibuk = true;
       _galat = null;
