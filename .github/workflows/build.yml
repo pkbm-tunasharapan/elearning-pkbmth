@@ -42,11 +42,16 @@ jobs:
       - name: Unduh paket
         run: flutter pub get
 
-      - name: Periksa kode (tidak menggagalkan build)
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      - name: Periksa kode (galat menggagalkan build)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Baca versi aplikasi
+        id: versi
+        run: echo "versi=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')" >> "$GITHUB_OUTPUT"
+
+      # APK per arsitektur: jauh lebih kecil dari APK universal (di bawah batas 50 MB untuk rilis otomatis ke Drive).
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
 
       - name: Build Web
         run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
@@ -55,15 +60,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bm-staf-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-*-release.apk
 
       - name: Rilis APK (mudah diunduh dari HP)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: BM Staf build ${{ github.run_number }}
-          body: APK aplikasi staf Belajar Mandiri. Unduh app-release.apk lalu pasang di HP Android.
-          files: build/app/outputs/flutter-apk/app-release.apk
+          name: TH.E-Course v${{ steps.versi.outputs.versi }} (build ${{ github.run_number }})
+          body: APK TH.E-Course v${{ steps.versi.outputs.versi }}. Untuk hampir semua HP pakai app-arm64-v8a-release.apk; HP lama (32-bit) pakai app-armeabi-v7a-release.apk.
+          files: build/app/outputs/flutter-apk/app-*-release.apk
 
       - name: Siapkan web untuk GitHub Pages
         uses: actions/upload-pages-artifact@v3
