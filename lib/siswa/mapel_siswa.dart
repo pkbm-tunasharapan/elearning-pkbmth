@@ -183,6 +183,8 @@ class MateriSiswaScreen extends StatefulWidget {
 }
 
 class _MateriSiswaScreenState extends State<MateriSiswaScreen> {
+  late final Future<dynamic> _media = Api.instance('waMediaAjarSiswa', [_s.nama, _s.idRombel, widget.idMapel, teks(widget.item['id'])]).catchError((_) => null);
+
   @override
   void initState() {
     super.initState();
@@ -211,6 +213,43 @@ class _MateriSiswaScreenState extends State<MateriSiswaScreen> {
           const SizedBox(height: 16),
           Card(child: Padding(padding: const EdgeInsets.all(16), child: SelectableText(_teksHtml(teks(it['konten'])), style: const TextStyle(height: 1.55, fontSize: 15)))),
         ],
+        FutureBuilder<dynamic>(
+          future: _media,
+          builder: (context, snap) {
+            final media = daftar(peta(snap.data)['media']).map(peta).toList();
+            if (media.isEmpty) return const SizedBox.shrink();
+            final cs = Theme.of(context).colorScheme;
+            return Card(
+              margin: const EdgeInsets.only(top: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.auto_awesome_rounded, color: cs.primary),
+                    const SizedBox(width: 8),
+                    const Text('Media ajar', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('Unduh untuk belajar dengan cara yang lebih menarik.', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final m in media)
+                      FilledButton.tonalIcon(
+                        onPressed: () => _buka(teks(m['url'])),
+                        icon: Icon(switch (teks(m['jenis'])) {
+                          'mindmap' => Icons.account_tree_rounded,
+                          'infografis' => Icons.insert_chart_rounded,
+                          'lks' => Icons.edit_note_rounded,
+                          _ => Icons.summarize_rounded,
+                        }),
+                        label: Text('${teks(m['label'])} (PDF)'),
+                      ),
+                  ]),
+                ]),
+              ),
+            );
+          },
+        ),
       ]),
     );
   }

@@ -19,6 +19,8 @@ import 'screens/dokumen_rpp.dart';
 import 'screens/kerangka.dart';
 import 'screens/ganda.dart';
 import 'screens/kelola_mapel.dart';
+import 'screens/kinerja.dart';
+import 'screens/oto_nilai.dart';
 import 'screens/log.dart';
 import 'screens/mapel.dart';
 import 'screens/pendaftaran.dart';
@@ -74,6 +76,8 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'waliKelas', judul: 'Wali Kelas', ikon: Icons.supervisor_account_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const WaliKelasScreen()),
   MenuApp(id: 'asesmen', judul: 'Asesmen Tatap Muka', ikon: Icons.assignment_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const AsesmenScreen()),
   MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
+  MenuApp(id: 'otoNilai', judul: 'Penilaian Otomatis', ikon: Icons.auto_fix_high_rounded, peran: {'Admin', 'Superadmin'}, native: () => const OtoNilaiScreen()),
+  MenuApp(id: 'kinerja', judul: 'Kinerja Tutor', ikon: Icons.leaderboard_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const KinerjaTutorScreen()),
   MenuApp(id: 'aturNilai', judul: 'Aturan Nilai', ikon: Icons.rule_rounded, peran: {'Admin'}, native: () => const AturNilaiScreen()),
   MenuApp(id: 'honorSaya', judul: 'Saldo Honor', ikon: Icons.account_balance_wallet_outlined, peran: {'Tutor'}, native: () => const HonorSayaScreen(), utama: true),
   MenuApp(id: 'dataInduk', judul: 'Data Induk', ikon: Icons.storage_rounded, peran: {'Admin', 'Superadmin', 'Kepala Sekolah'}, native: () => const DataIndukScreen()),
@@ -115,7 +119,7 @@ const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kale
 const _grupMenu = <String, String>{
   'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
   'progres': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
-  'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor',
+  'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
   'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
@@ -140,6 +144,8 @@ const _kataKunci = <String, String>{
   'nilai': 'diskusi tugas koreksi',
   'kotakUjian': 'ujian soal pts pas',
   'pemeliharaan': 'versi update apk rilis galat',
+  'otoNilai': 'ajaib otomatis selesaikan penilaian belum dinilai kkm',
+  'kinerja': 'poin minus penilaian kinerja tutor terlambat',
 };
 
 String grupMenu(MenuApp m) => _grupMenu[m.id] ?? 'Lainnya';

@@ -14,6 +14,7 @@ import 'admin_lain.dart';
 import 'buat_otomatis.dart';
 import 'kurikulum.dart';
 import 'rpp.dart';
+import 'media_ajar.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -77,14 +78,20 @@ class MapelDetailScreen extends StatelessWidget {
               tooltip: 'Lainnya',
               icon: const Icon(Icons.more_vert_rounded),
               onSelected: (v) {
+                if (v == 'media') {
+                  buatMediaAjarMassal(context, idMapel);
+                  return;
+                }
                 final nav = Navigator.of(context);
                 final m = Sesi.instance.mapel.where((x) => teks(x['idMapel']) == idMapel).firstOrNull;
                 nav.push(MaterialPageRoute(
                   builder: (_) => KalenderStafScreen(idRombel: teks(m?['idRombel']).isEmpty ? null : teks(m?['idRombel']), idMapel: idMapel, denganAppBar: true),
                 ));
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
+                if (!lihat)
+                  const PopupMenuItem(value: 'media', child: ListTile(leading: Icon(Icons.auto_awesome_rounded), title: Text('Media ajar AI untuk semua materi'))),
               ],
             ),
           ],
@@ -194,6 +201,15 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
           ),
           const Divider(),
           if (boleh) ListTile(leading: const Icon(Icons.edit_rounded), title: const Text('Ubah'), onTap: () { Navigator.pop(c); _ubah(item, sesi); }),
+          if (jenis == 'Materi')
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_rounded),
+              title: const Text('Media ajar (AI): mindmap, infografis, ringkasan, LKS'),
+              onTap: () {
+                Navigator.pop(c);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => MediaAjarScreen(idMapel: widget.idMapel, item: item)));
+              },
+            ),
           if (jenis == 'Materi')
             ListTile(
               leading: const Icon(Icons.visibility_rounded),
@@ -617,6 +633,7 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
   final Map<String, TextEditingController> _skor = {};
   final Map<String, TextEditingController> _kom = {};
   final Map<String, Map<String, dynamic>> _ai = {};
+  Map<String, dynamic> _catatan = {};
   bool _setuju = false;
   bool _aiJalan = false;
   String _aiPesan = '';
@@ -639,6 +656,11 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
         _kom[s] ??= TextEditingController(text: teks(j['komentar']));
       }
       if (mounted) setState(() => _d = d);
+      // Keterangan internal penilaian otomatis (hanya KS, Admin, pengampu; tidak pernah dikirim ke siswa).
+      try {
+        final c = peta(peta(await Api.instance('waStafCatatanNilai', [_t, widget.idMapel, _idMateri]))['catatan']);
+        if (mounted) setState(() => _catatan = {for (final e in c.entries) _kunciNama(e.key): e.value});
+      } catch (_) {}
     } on ApiException catch (e) {
       if (mounted) setState(() => _galat = e.ramah);
     }
@@ -768,6 +790,7 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
                           komentar: _kom[teks(j['siswa'])]!,
                           ai: _ai[teks(j['siswa'])],
                           bolehNilai: widget.bolehNilai,
+                          catatan: _catatan[_kunciNama(teks(j['siswa']))] == null ? null : peta(_catatan[_kunciNama(teks(j['siswa']))]),
                         ),
                       if (daftar(d['belum']).isNotEmpty) ...[
                         JudulBagian('Belum menanggapi', sub: '${daftar(d['belum']).length} siswa'),
@@ -780,8 +803,11 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
   }
 }
 
+String _kunciNama(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
 class _KartuJawaban extends StatelessWidget {
-  const _KartuJawaban({required this.j, required this.skor, required this.komentar, required this.ai, required this.bolehNilai});
+  const _KartuJawaban({required this.j, required this.skor, required this.komentar, required this.ai, required this.bolehNilai, this.catatan});
+  final Map<String, dynamic>? catatan;
   final Map<String, dynamic> j;
   final TextEditingController skor;
   final TextEditingController komentar;
@@ -813,6 +839,21 @@ class _KartuJawaban extends StatelessWidget {
           ]),
           const SizedBox(height: 10),
           Text(htmlKeTeks(teks(j['jawaban']))),
+          if (catatan != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: const Color(0x1FE9A23B), borderRadius: BorderRadius.circular(12)),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.lock_clock_rounded, size: 16, color: Color(0xFFB7791F)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Catatan internal (tidak terlihat siswa): ${teks(catatan!['keterangan'])} · ${teks(catatan!['waktu'])}',
+                      style: const TextStyle(fontSize: 12.5)),
+                ),
+              ]),
+            ),
+          ],
           if (ai != null) ...[
             const SizedBox(height: 10),
             Container(
