@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../berkas.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -15,6 +16,18 @@ class SiswaRombelScreen extends StatefulWidget {
 
 class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
   String _cari = '';
+
+  void _ekspor(BuildContext context, String judul, List<Map<String, dynamic>> rombel, String q) {
+    final baris = <List<String>>[];
+    for (final r in rombel) {
+      var no = 0;
+      for (final x in daftar(r['siswa']).map(peta).where((s) => q.isEmpty || teks(s['nama']).toLowerCase().contains(q))) {
+        no++;
+        baris.add(['$no', teks(r['namaRombel']), teks(x['nama']), teks(x['lahir']), teks(x['kontak']), teks(x['daftar'])]);
+      }
+    }
+    pilihEkspor(context, judul: judul, kepala: const ['No', 'Rombel', 'Nama', 'Tanggal lahir', 'Kontak', 'Daftar mandiri'], baris: baris, sub: 'Dicetak ${tanggalIni()}');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +44,14 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari nama siswa'),
               onChanged: (v) => setState(() => _cari = v),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text('${rombel.length} rombel · $total siswa', style: Theme.of(context).textTheme.bodySmall),
-            ),
+            Row(children: [
+              Expanded(child: Text('${rombel.length} rombel · $total siswa', style: Theme.of(context).textTheme.bodySmall)),
+              TextButton.icon(
+                onPressed: () => _ekspor(context, 'Daftar Siswa Semua Rombel', rombel, q),
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: const Text('Ekspor semua'),
+              ),
+            ]),
             if (rombel.isEmpty) const Kosong(pesan: 'Belum ada rombel.'),
             for (final r in rombel)
               Builder(builder: (context) {
@@ -50,6 +67,17 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                     subtitle: Text('${siswa.length} siswa · $terdaftar sudah daftar mandiri'),
                     childrenPadding: const EdgeInsets.only(bottom: 8),
                     children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: TextButton.icon(
+                            onPressed: () => _ekspor(context, 'Daftar Siswa ${teks(r['namaRombel'])}', [r], q),
+                            icon: const Icon(Icons.download_rounded, size: 18),
+                            label: const Text('Ekspor rombel ini'),
+                          ),
+                        ),
+                      ),
                       if (daftar(r['mapel']).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),

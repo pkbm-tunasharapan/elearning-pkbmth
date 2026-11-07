@@ -406,3 +406,56 @@ class DaftarLangkah extends StatelessWidget {
     ]);
   }
 }
+
+// ───────────────────────── ekspor tabel (Excel / PDF), APK & web ─────────────────────────
+
+/// Tabel HTML sederhana untuk Excel (.xls) atau PDF.
+String tabelHtml(String judul, List<String> kepala, List<List<String>> baris, {String sub = '', bool excel = false}) {
+  final b = StringBuffer();
+  if (!excel) {
+    b.write('<h3 style="margin:0 0 2mm">${escHtml(judul)}</h3>');
+    if (sub.isNotEmpty) b.write('<div style="font-size:9pt;margin-bottom:3mm">${escHtml(sub)}</div>');
+  }
+  b.write('<table border="1" style="border-collapse:collapse;width:100%"><tr>');
+  for (final k in kepala) {
+    b.write('<th style="background:#ece8f7;padding:3px 5px;font-size:9pt">${escHtml(k)}</th>');
+  }
+  b.write('</tr>');
+  for (final r in baris) {
+    b.write('<tr>');
+    for (final c in r) {
+      b.write('<td style="padding:2px 5px;font-size:9pt;mso-number-format:\'\\@\'">${escHtml(c)}</td>');
+    }
+    b.write('</tr>');
+  }
+  b.write('</table>');
+  if (excel) {
+    return '<html><head><meta charset="utf-8"></head><body>'
+        '<table><tr><td><b>${escHtml(judul)}</b></td></tr>${sub.isEmpty ? '' : '<tr><td>${escHtml(sub)}</td></tr>'}</table>$b</body></html>';
+  }
+  return b.toString();
+}
+
+/// Lembar pilihan "Ekspor Excel / PDF" lalu unduh/buka berkasnya.
+Future<void> pilihEkspor(BuildContext context, {required String judul, required List<String> kepala, required List<List<String>> baris, String sub = ''}) async {
+  if (baris.isEmpty) return kabar(context, 'Tidak ada data untuk diekspor.');
+  final p = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (c) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Text('Ekspor ${baris.length} baris', style: const TextStyle(fontWeight: FontWeight.w800))),
+        ListTile(leading: const Icon(Icons.grid_on_rounded, color: Color(0xFF1D7044)), title: const Text('Excel (.xls)'), onTap: () => Navigator.pop(c, 'xls')),
+        ListTile(leading: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFC62828)), title: const Text('PDF'), onTap: () => Navigator.pop(c, 'pdf')),
+        const SizedBox(height: 8),
+      ]),
+    ),
+  );
+  if (p == null || !context.mounted) return;
+  final nama = '${judul.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}_${tanggalBerkas()}';
+  if (p == 'xls') {
+    await bagikanExcel(context, tabelHtml(judul, kepala, baris, sub: sub, excel: true), '$nama.xls');
+  } else {
+    await htmlKePdf(context, nama: '$nama.pdf', args: [Sesi.instance.token, dokumenA4(tabelHtml(judul, kepala, baris, sub: sub), '', lanskap: kepala.length > 6)]);
+  }
+}

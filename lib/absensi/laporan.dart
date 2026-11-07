@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
 import 'absen_ks.dart';
@@ -69,7 +70,61 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
           muat: () async => peta(await Api.instance('waStafLaporanHadir', [_t, {'dari': _dari, 'sampai': _sampai}], const Duration(seconds: 180))),
           bangun: (context, d, _) {
             final syarat = angka(d['syaratPersen'], 80);
-            switch (tabs[_tab]) {
+            final isi = _isiTab(context, d, tabs[_tab], syarat, cs);
+            return Stack(children: [
+              isi,
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.small(
+                  heroTag: 'eksporHadir',
+                  tooltip: 'Ekspor Excel / PDF',
+                  onPressed: () => _ekspor(context, d, tabs[_tab]),
+                  child: const Icon(Icons.download_rounded),
+                ),
+              ),
+            ]);
+          },
+        ),
+      ),
+    ]);
+  }
+
+  void _ekspor(BuildContext context, Map<String, dynamic> d, String tab) {
+    final sub = 'Periode ${tglIndo(_dari)} – ${tglIndo(_sampai)}';
+    switch (tab) {
+      case 'Tutor':
+        final t = daftar(d['tutor']).map(peta).toList();
+        pilihEkspor(context, judul: 'Kehadiran Tutor', sub: sub, kepala: const ['No', 'Nama', 'Hadir', 'Sesi', 'Absen darurat'], baris: [
+          for (var i = 0; i < t.length; i++) ['${i + 1}', teks(t[i]['nama']), '${t[i]['hadir']}', '${t[i]['sesi']}', '${angka(t[i]['darurat'])}'],
+        ]);
+      case 'Warga Belajar':
+        final b = <List<String>>[];
+        for (final r in daftar(d['rombel']).map(peta)) {
+          for (final w in daftar(r['wb']).map(peta)) {
+            b.add([teks(r['nama']), teks(w['nama']), '${w['hadir']}', '${w['izin']}', '${w['sakit']}', '${w['alpa']}', w['persen'] == null ? '-' : '${w['persen']}%']);
+          }
+        }
+        pilihEkspor(context, judul: 'Kehadiran Warga Belajar', sub: sub, kepala: const ['Rombel', 'Nama', 'Hadir', 'Izin', 'Sakit', 'Alpa', 'Persentase'], baris: b);
+      case 'Sesi':
+        final s = daftar(d['sesi']).map(peta).toList();
+        pilihEkspor(context, judul: 'Sesi Pembelajaran', sub: sub, kepala: const ['Tanggal', 'Mapel', 'Rombel', 'Kegiatan', 'Tutor', 'Kehadiran tutor'], baris: [
+          for (final x in s)
+            [
+              tglIndo(teks(x['tanggal'])), teks(x['mapel']), teks(x['rombel']), teks(x['kegiatan']), teks(x['tutor']),
+              teks(x['kegiatan']) != 'Tatap Muka' ? '-' : (x['tutorHadir'] == true ? '${x['darurat'] == true ? 'Darurat' : 'Hadir'} ${teks(x['jam'])}' : 'Belum'),
+            ],
+        ]);
+      default:
+        final k = daftar(d['ks']).map(peta).toList();
+        pilihEkspor(context, judul: 'Kehadiran Kepala Sekolah', sub: sub, kepala: const ['Tanggal', 'Nama', 'Status', 'Jam', 'Keterangan'], baris: [
+          for (final x in k) [tglIndo(teks(x['tanggal'])), teks(x['nama']), teks(x['status']), teks(x['jam'], teks(x['masuk'])), teks(x['keterangan'], teks(x['ket']))],
+        ]);
+    }
+  }
+
+  Widget _isiTab(BuildContext context, Map<String, dynamic> d, String tab, int syarat, ColorScheme cs) {
+            switch (tab) {
               case 'Tutor':
                 final t = daftar(d['tutor']).map(peta).toList();
                 return ListView(padding: const EdgeInsets.all(16), children: [
@@ -144,9 +199,5 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
                   for (final x in k) KartuPresensiKs(x: x, tampilNama: true),
                 ]);
             }
-          },
-        ),
-      ),
-    ]);
   }
 }

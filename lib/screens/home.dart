@@ -55,98 +55,130 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  static const _ikonGrup = <String, IconData>{
+    'Pembelajaran': Icons.auto_stories_rounded,
+    'Nilai & Rapor': Icons.grading_rounded,
+    'Kehadiran': Icons.how_to_reg_rounded,
+    'Jadwal & Kalender': Icons.calendar_month_rounded,
+    'Warga Belajar': Icons.school_rounded,
+    'Keuangan & Honor': Icons.account_balance_wallet_rounded,
+    'Pengguna & Komunikasi': Icons.forum_rounded,
+    'Sistem': Icons.settings_suggest_rounded,
+  };
+
   Widget _laci(bool lebar) {
     final s = Sesi.instance;
     final cs = Theme.of(context).colorScheme;
-    return NavigationDrawer(
-      selectedIndex: _aktif == 'beranda' ? 0 : (_aktif == 'profil' ? null : (_menu.indexWhere((x) => x.id == _aktif) + 1)),
-      onDestinationSelected: (i) {
-        if (!lebar) _kunciScaffold.currentState?.closeDrawer();
-        _pilih(i == 0 ? 'beranda' : _menu[i - 1].id);
-      },
-      children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
-          child: Row(children: [
-            AvatarAkun(radius: 24, onTap: () {
-              if (!lebar) _kunciScaffold.currentState?.closeDrawer();
-              _pilih('profil');
-            }),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(s.nama, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15), overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(s.peran, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5)),
+    void tutup() {
+      if (!lebar) _kunciScaffold.currentState?.closeDrawer();
+    }
+
+    void buka(String id) {
+      tutup();
+      _pilih(id);
+    }
+
+    Widget item({required Widget ikon, required String judul, required bool aktif, required VoidCallback onTap}) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
+          child: ListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -1),
+            selected: aktif,
+            selectedTileColor: cs.primary.withValues(alpha: 0.12),
+            leading: ikon,
+            title: Text(judul, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: aktif ? FontWeight.w800 : FontWeight.w600)),
+            onTap: onTap,
+          ),
+        );
+
+    final isi = ListView(padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 8, bottom: 12), children: [
+      Container(
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
+        child: Row(children: [
+          AvatarAkun(radius: 24, onTap: () => buka('profil')),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(s.nama, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15), overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(s.peran, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5)),
+            ]),
+          ),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+        child: Material(
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              tutup();
+              _cari();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(children: [
+                Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Cari menu…', style: TextStyle(color: cs.onSurfaceVariant))),
+                if (lebar)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant), borderRadius: BorderRadius.circular(6)),
+                    child: Text('Ctrl K', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                  ),
               ]),
             ),
-          ]),
+          ),
         ),
+      ),
+      item(ikon: Icon(_aktif == 'beranda' ? Icons.home_rounded : Icons.home_outlined), judul: 'Beranda', aktif: _aktif == 'beranda', onTap: () => buka('beranda')),
+      for (final g in kelompokkanMenu(_menu))
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Material(
-            color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () {
-                if (!lebar) _kunciScaffold.currentState?.closeDrawer();
-                _cari();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(children: [
-                  Icon(Icons.search_rounded, size: 20, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text('Cari menu…', style: TextStyle(color: cs.onSurfaceVariant))),
-                  if (lebar)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant), borderRadius: BorderRadius.circular(6)),
-                      child: Text('Ctrl K', style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
-                    ),
-                ]),
-              ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: PageStorageKey('grupLaci-${g.key}'),
+              initiallyExpanded: lebar || g.value.any((x) => x.id == _aktif),
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -2),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+              childrenPadding: EdgeInsets.zero,
+              leading: Icon(_ikonGrup[g.key] ?? Icons.folder_rounded, size: 20, color: g.value.any((x) => x.id == _aktif) ? cs.primary : cs.onSurfaceVariant),
+              title: Text(g.key, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: g.value.any((x) => x.id == _aktif) ? cs.primary : null)),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('${g.value.length}', style: TextStyle(fontSize: 11.5, color: cs.outline)),
+                const SizedBox(width: 4),
+                const Icon(Icons.expand_more_rounded, size: 20),
+              ]),
+              children: [
+                for (final x in g.value)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: item(ikon: Icon(x.ikon, color: Gaya.warnaMenu(x.id), size: 22), judul: x.judul, aktif: x.id == _aktif, onTap: () => buka(x.id)),
+                  ),
+              ],
             ),
           ),
         ),
-        const NavigationDrawerDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: Text('Beranda')),
-        for (final g in kelompokkanMenu(_menu)) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(28, 14, 16, 6),
-            child: Text(g.key.toUpperCase(), style: TextStyle(fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w800, color: cs.outline)),
-          ),
-          for (final x in g.value)
-            NavigationDrawerDestination(
-              icon: Icon(x.ikon, color: Gaya.warnaMenu(x.id)),
-              label: Text(x.judul, overflow: TextOverflow.ellipsis),
-            ),
-        ],
-        const Padding(padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8), child: Divider()),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: ListTile(
-            leading: const Icon(Icons.qr_code_2_rounded),
-            title: const Text('Kartu tutor (QR)'),
-            onTap: () {
-              if (!lebar) _kunciScaffold.currentState?.closeDrawer();
-              bukaKartuStaf(context);
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: ListTile(leading: Icon(Icons.logout_rounded, color: cs.error), title: Text('Keluar', style: TextStyle(color: cs.error)), onTap: _keluar),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 4, 16, 0),
-          child: Text('TH.E-Course versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
-        ),
-        const SizedBox(height: 12),
-      ],
-    );
+      const Padding(padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8), child: Divider()),
+      item(ikon: const Icon(Icons.qr_code_2_rounded), judul: 'Kartu tutor (QR)', aktif: false, onTap: () {
+        tutup();
+        bukaKartuStaf(context);
+      }),
+      item(ikon: Icon(Icons.logout_rounded, color: cs.error), judul: 'Keluar', aktif: false, onTap: _keluar),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(28, 4, 16, 0),
+        child: Text('TH.E-Course versi $kVersi', style: TextStyle(fontSize: 12, color: cs.outline)),
+      ),
+    ]);
+    final latar = Theme.of(context).navigationDrawerTheme.backgroundColor ?? cs.surfaceContainerLowest;
+    return lebar ? Material(color: latar, child: isi) : Drawer(backgroundColor: latar, child: isi);
   }
 
   @override

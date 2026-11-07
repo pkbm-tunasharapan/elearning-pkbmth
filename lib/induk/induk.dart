@@ -89,20 +89,13 @@ class _TabelIndukScreenState extends State<TabelIndukScreen> {
 
   // ───── ekspor ─────
   void _ekspor(Map<String, dynamic> d, List<Map<String, dynamic>> kolom, List<Map<String, dynamic>> baris) {
-    final b = StringBuffer('<html><head><meta charset="utf-8"></head><body><table border="1"><tr>');
-    for (final k in kolom) {
-      b.write('<th style="background:#ece8f7">${escHtml(teks(k['label'], teks(k['nama'])))}</th>');
-    }
-    b.write('</tr>');
-    for (final r in baris) {
-      b.write('<tr>');
-      for (final k in kolom) {
-        b.write('<td style="mso-number-format:\'\\@\'">${escHtml(_tampil(d, k, r[teks(k['nama'])]))}</td>');
-      }
-      b.write('</tr>');
-    }
-    b.write('</table></body></html>');
-    bagikanExcel(context, b.toString(), '${widget.judul.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}_${tanggalBerkas()}.xls');
+    pilihEkspor(
+      context,
+      judul: 'Data ${widget.judul}',
+      sub: 'Dicetak ${tanggalIni()}',
+      kepala: [for (final k in kolom) teks(k['label'], teks(k['nama']))],
+      baris: [for (final r in baris) [for (final k in kolom) _tampil(d, k, r[teks(k['nama'])])]],
+    );
   }
 
   // ───── aksi massal ─────
@@ -223,7 +216,7 @@ class _TabelIndukScreenState extends State<TabelIndukScreen> {
             const SizedBox(height: 6),
             Row(children: [
               Expanded(child: Text('${baris.length} data${_filter.isNotEmpty || _cari.isNotEmpty ? ' (tersaring)' : ''}', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant))),
-              TextButton.icon(onPressed: baris.isEmpty ? null : () => _ekspor(d, kolom, baris), icon: const Icon(Icons.grid_on_rounded, size: 18), label: const Text('Ekspor Excel')),
+              TextButton.icon(onPressed: baris.isEmpty ? null : () => _ekspor(d, kolom, baris), icon: const Icon(Icons.grid_on_rounded, size: 18), label: const Text('Ekspor')),
             ]),
           ]),
         );
