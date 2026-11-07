@@ -129,7 +129,7 @@ class Api {
   }
 
   Future<dynamic> call(String fn, [List<dynamic> args = const [], Duration batas = const Duration(seconds: 120)]) async {
-    final body = jsonEncode({'fn': fn, 'args': args});
+    final body = jsonEncode({'fn': fn, 'args': args, 'v': kVersi, 'pf': kIsWeb ? 'web' : 'android'});
     final uri = Uri.parse(kApiUrl);
     http.Response res;
     try {

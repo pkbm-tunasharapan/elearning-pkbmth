@@ -27,6 +27,7 @@ function doPost(e) {
       globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__DINAS = false;
       var hasilFn = globalThis[fn].apply(null, args);
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
+      if (typeof updLama_ === 'function') hasilFn = updLama_(fn, args, hasilFn, body);
       out = { ok: true, data: hasilFn };
     }
   } catch (err) {

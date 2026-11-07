@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unduh TH.E-Course</title>
+<style>
+  :root { --ungu: #4B2FD0; --teks: #1F1A3D; --abu: #5b5872; --latar: #F5F3FF; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--teks); background: var(--latar); }
+  main { max-width: 560px; margin: 0 auto; padding: 28px 16px 40px; }
+  .kartu { background: #fff; border-radius: 20px; padding: 22px 18px; box-shadow: 0 6px 24px rgba(75, 47, 208, .10); }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--abu); margin: 0 0 18px; }
+  a.tombol { display: block; text-align: center; background: var(--ungu); color: #fff; text-decoration: none; font-weight: 800;
+    font-size: 18px; padding: 16px; border-radius: 14px; margin: 10px 0; }
+  a.kedua { background: #fff; color: var(--ungu); border: 2px solid var(--ungu); font-size: 15px; padding: 12px; }
+  ol { padding-left: 20px; line-height: 1.6; }
+  .catatan { font-size: 13px; color: var(--abu); margin-top: 14px; }
+  .versi { font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <div class="kartu">
+    <h1>TH.E-Course</h1>
+    <p class="sub">Aplikasi e-learning PKBM Tunas Harapan · versi terbaru <span class="versi" id="versi">(memuat…)</span></p>
+    <a class="tombol" id="utama" href="https://github.com/pkbm-tunasharapan/elearning-pkbmth/releases/latest/download/app-arm64-v8a-release.apk">Unduh APK</a>
+    <a class="tombol kedua" href="https://github.com/pkbm-tunasharapan/elearning-pkbmth/releases/latest/download/app-armeabi-v7a-release.apk">HP lama (32-bit)? Unduh versi ini</a>
+    <h3>Cara memasang</h3>
+    <ol>
+      <li>Ketuk <b>Unduh APK</b> dan tunggu sampai selesai.</li>
+      <li>Buka berkas yang diunduh (dari notifikasi atau folder <i>Download</i>).</li>
+      <li>Bila diminta, izinkan <b>“Instal aplikasi dari sumber ini”</b> untuk Chrome.</li>
+      <li>Ketuk <b>Perbarui / Instal</b>. Aplikasi lama tertimpa; akun dan data tetap aman.</li>
+    </ol>
+    <p class="catatan">Bila muncul “Aplikasi tidak terinstal”, coba unduh versi HP lama (32-bit). Setelah terpasang, aplikasi akan memberi tahu sendiri setiap ada versi baru.</p>
+  </div>
+</main>
+<script>
+  fetch('https://api.github.com/repos/pkbm-tunasharapan/elearning-pkbmth/releases/latest')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var el = document.getElementById('versi');
+      if (!d) { el.textContent = ''; return; }
+      var m = /v(\d+\.\d+\.\d+)/.exec(d.name || '');
+      el.textContent = m ? m[1] : (d.tag_name || '');
+    })
+    .catch(function () { document.getElementById('versi').textContent = ''; });
+</script>
+</body>
+</html>
