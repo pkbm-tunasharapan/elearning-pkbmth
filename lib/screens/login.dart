@@ -87,24 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
             const Positioned(top: 140, left: -60, child: _Gelembung(140, 0.08)),
             const Positioned(bottom: -90, right: -40, child: _Gelembung(240, 0.10)),
             SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Column(children: [
-                      Container(
-                        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 8))]),
-                        child: Image.asset('assets/logo.png', width: 104, height: 104),
-                      ),
-                      const SizedBox(height: 16),
-                      Text('PKBM TUNAS HARAPAN',
-                          textAlign: TextAlign.center,
-                          style: tt.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-                      const SizedBox(height: 2),
-                      Text('E-Course', textAlign: TextAlign.center, style: tt.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 28),
-                      Container(
+              child: LayoutBuilder(builder: (context, batas) {
+                final lebar = batas.maxWidth >= 860;
+                final kartu = Container(
                         padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
                         decoration: BoxDecoration(
                           color: cs.surfaceContainerLowest,
@@ -208,18 +193,88 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ]),
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      if (!_siswa)
-                      Text(
+                      );
+                final catatan = _siswa
+                    ? const SizedBox.shrink()
+                    : Text(
                         'Masuk dengan Google memakai akun Google yang terdaftar di SIM SETARA. Kode akses diberikan oleh admin.',
-                        textAlign: TextAlign.center,
+                        textAlign: lebar ? TextAlign.left : TextAlign.center,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
+                      );
+                final logo = Container(
+                  decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 8))]),
+                  child: Image.asset('assets/logo.png', width: lebar ? 150 : 104, height: lebar ? 150 : 104),
+                );
+                if (lebar) {
+                  // Layar lebar (laptop/web): identitas di kiri, form di kanan — tanpa perlu menggulir.
+                  return Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1040),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 48),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                                logo,
+                                const SizedBox(height: 24),
+                                Text('PKBM TUNAS HARAPAN', style: tt.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+                                Text('E-Course', style: tt.displaySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 12),
+                                Text('Belajar, berdiskusi, ujian, absensi, dan rapor dalam satu aplikasi.',
+                                    style: tt.titleMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9), height: 1.4)),
+                                const SizedBox(height: 22),
+                                for (final f in const [
+                                  (Icons.menu_book_rounded, 'Materi, tugas & diskusi per mapel'),
+                                  (Icons.qr_code_scanner_rounded, 'Absensi QR datang & pulang'),
+                                  (Icons.grading_rounded, 'Nilai, rapor & cover siap cetak'),
+                                ])
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Row(children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(7),
+                                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(10)),
+                                        child: Icon(f.$1, color: Colors.white, size: 18),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(f.$2, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                    ]),
+                                  ),
+                                const SizedBox(height: 14),
+                                catatan,
+                              ]),
+                            ),
+                          ),
+                          SizedBox(width: 420, child: kartu),
+                        ]),
                       ),
-                    ]),
+                    ),
+                  );
+                }
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Column(children: [
+                        logo,
+                        const SizedBox(height: 16),
+                        Text('PKBM TUNAS HARAPAN',
+                            textAlign: TextAlign.center,
+                            style: tt.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                        const SizedBox(height: 2),
+                        Text('E-Course', textAlign: TextAlign.center, style: tt.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 28),
+                        kartu,
+                        const SizedBox(height: 18),
+                        catatan,
+                      ]),
+                    ),
                   ),
-                ),
-              ),
+                );
+              }),
             ),
           ]),
         ),
