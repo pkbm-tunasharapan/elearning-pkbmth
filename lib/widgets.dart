@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'api.dart';
 
@@ -39,7 +40,8 @@ class _MuatanState<T> extends State<Muatan<T>> {
           return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
         }
         if (s.hasError) {
-          return PesanGalat(pesan: s.error is ApiException ? (s.error as ApiException).ramah : '${s.error}', ulangi: _segarkan);
+          final e = keGalat(s.error!);
+          return PesanGalat(pesan: e.ramah, kode: e.kodeLengkap, judul: e.judul, ulangi: _segarkan);
         }
         return RefreshIndicator(onRefresh: _segarkan, child: widget.bangun(context, s.data as T, _segarkan));
       },
@@ -48,9 +50,11 @@ class _MuatanState<T> extends State<Muatan<T>> {
 }
 
 class PesanGalat extends StatelessWidget {
-  const PesanGalat({super.key, required this.pesan, this.ulangi});
+  const PesanGalat({super.key, required this.pesan, this.ulangi, this.kode = '', this.judul = 'Ups, ada kendala'});
   final String pesan;
   final VoidCallback? ulangi;
+  final String kode;
+  final String judul;
 
   @override
   Widget build(BuildContext context) {
@@ -61,9 +65,10 @@ class PesanGalat extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           IkonBulat(Icons.cloud_off_rounded, warna: cs.error, ukuran: 72),
           const SizedBox(height: 16),
-          Text('Ups, ada kendala', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          Text(judul, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           Text(pesan, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
+          if (kode.isNotEmpty) ...[const SizedBox(height: 12), KodeGalat(kode)],
           if (ulangi != null) ...[
             const SizedBox(height: 18),
             FilledButton.tonalIcon(onPressed: ulangi, icon: const Icon(Icons.refresh_rounded), label: const Text('Coba lagi')),
@@ -229,6 +234,10 @@ Future<bool> konfirmasi(BuildContext context, String judul, String isi, {String 
 }
 
 void kabar(BuildContext context, String pesan, {bool galat = false}) {
+  if (galat) {
+    tampilGalat(context, ApiException(pesan, kode: 'E300'));
+    return;
+  }
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
@@ -261,8 +270,103 @@ Future<Hasil<T>> jalankan<T>(BuildContext context, Future<T> Function() aksi, {S
   } catch (e) {
     if (context.mounted) {
       Navigator.of(context, rootNavigator: true).pop();
-      kabar(context, e is ApiException ? e.ramah : '$e', galat: true);
+      tampilGalat(context, e);
     }
     return Hasil<T>(false);
   }
+}
+
+
+// ───────────────────────── galat: kode & modal ─────────────────────────
+
+/// Pelapor galat aplikasi (non-API) ke log admin; dipasang di pemeliharaan/sistem.dart.
+void Function(ApiException e)? pelaporGalatAplikasi;
+
+/// Mengubah galat apa pun menjadi ApiException berkode (galat aplikasi = E900 dan dicatat ke log).
+ApiException keGalat(Object e) {
+  if (e is ApiException) return e;
+  final g = ApiException('Terjadi kesalahan pada aplikasi.', kode: 'E900', detail: '$e');
+  pelaporGalatAplikasi?.call(g);
+  return g;
+}
+
+/// Lencana kode galat yang bisa disalin.
+class KodeGalat extends StatelessWidget {
+  const KodeGalat(this.kode, {super.key});
+  final String kode;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.errorContainer.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () async {
+          await Clipboard.setData(ClipboardData(text: kode));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text('Kode $kode disalin.'), behavior: SnackBarBehavior.floating));
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('Kode: ', style: TextStyle(fontSize: 12.5, color: cs.onErrorContainer)),
+            SelectableText(kode, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.6, fontFamily: 'monospace', color: cs.onErrorContainer)),
+            const SizedBox(width: 6),
+            Icon(Icons.copy_rounded, size: 15, color: cs.onErrorContainer),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Modal galat seragam: pesan ramah + kode galat untuk dilaporkan ke admin.
+Future<void> tampilGalat(BuildContext context, Object galat, {VoidCallback? ulangi}) {
+  final e = keGalat(galat);
+  final cs = Theme.of(context).colorScheme;
+  final info = e.kode == 'E210' || e.kode == 'E300';
+  return showDialog<void>(
+    context: context,
+    builder: (c) => AlertDialog(
+      icon: Icon(
+        switch (e.kode) {
+          'E101' || 'E102' => Icons.wifi_off_rounded,
+          'E201' => Icons.lock_clock_rounded,
+          'E202' => Icons.construction_rounded,
+          'E210' || 'E300' => Icons.info_outline_rounded,
+          _ => Icons.error_outline_rounded,
+        },
+        color: info ? cs.primary : cs.error,
+        size: 40,
+      ),
+      title: Text(e.judul, textAlign: TextAlign.center),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(e.ramah, textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        KodeGalat(e.kodeLengkap),
+        if (!info) ...[
+          const SizedBox(height: 8),
+          Text('Bila masalah berulang, sampaikan kode ini kepada admin.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+        ],
+      ]),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup')),
+        if (ulangi != null && e.bisaDiulang)
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(c);
+              ulangi();
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Coba lagi'),
+          ),
+      ],
+    ),
+  );
 }

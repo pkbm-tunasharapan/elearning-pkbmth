@@ -15,21 +15,25 @@ String? get _t => Sesi.instance.token;
 int _terlapor = 0;
 final Set<String> _sudahDilapor = {};
 
-/// Mengirim galat aplikasi ke tab "Log Galat" di server. Paling banyak 5 laporan per sesi
-/// aplikasi dan setiap galat yang sama hanya dikirim sekali, supaya tidak membebani server.
-Future<void> laporGalat(Object galat, StackTrace? jejak, {String layar = ''}) async {
-  final pesan = '$galat';
-  if (galat is ApiException || _terlapor >= 5 || !_sudahDilapor.add(pesan)) return;
+String get _pengguna => Sesi.instance.masuk ? '${Sesi.instance.nama} (${Sesi.instance.peran})' : (SesiSiswa.instance.masuk ? 'Siswa ${SesiSiswa.instance.nama}' : '');
+
+/// Mengirim galat berkode ke tab "Log Galat" di server. Pesan diawali kode kejadian, mis. "[E101-K3Q9ZA]",
+/// sehingga admin bisa mencari kode yang disampaikan pengguna. Paling banyak 8 laporan per sesi aplikasi,
+/// dan galat yang sama hanya dikirim sekali.
+Future<void> laporGalatKode(ApiException e) async {
+  if (e.fn == 'waStafLaporGalat') return;
+  final kunci = '${e.kode}|${e.fn}|${e.pesan}';
+  if (_terlapor >= 8 || !_sudahDilapor.add(kunci)) return;
   _terlapor++;
-  final pengguna = Sesi.instance.masuk ? '${Sesi.instance.nama} (${Sesi.instance.peran})' : (SesiSiswa.instance.masuk ? 'Siswa' : '');
+  final pesan = '[${e.kodeLengkap}] ${e.pesan}';
   try {
     await Api.instance('waStafLaporGalat', [
       {
         'pesan': pesan.length > 500 ? pesan.substring(0, 500) : pesan,
-        'stack': '${jejak ?? ''}'.split('\n').take(15).join('\n'),
-        'layar': layar,
-        'versi': kVersi,
-        'pengguna': pengguna,
+        'stack': e.detail.length > 1500 ? e.detail.substring(0, 1500) : e.detail,
+        'layar': e.fn.isEmpty ? 'aplikasi' : (e.fn.startsWith('wa') ? 'api:${e.fn}' : e.fn),
+        'versi': '$kVersi${kIsWeb ? ' web' : ''}',
+        'pengguna': _pengguna,
       }
     ], const Duration(seconds: 20));
   } catch (_) {
@@ -37,8 +41,28 @@ Future<void> laporGalat(Object galat, StackTrace? jejak, {String layar = ''}) as
   }
 }
 
-/// Dipanggil sekali di main(): semua galat yang tidak tertangani dikirim ke server.
+/// Galat Dart/Flutter yang tidak tertangani → E900 berkode.
+Future<void> laporGalat(Object galat, StackTrace? jejak, {String layar = ''}) async {
+  if (galat is ApiException) return;
+  final st = '${jejak ?? ''}'.split('\n').take(15).join('\n');
+  await laporGalatKode(ApiException('$galat', kode: 'E900', detail: '$galat\n$st', fn: layar));
+}
+
+/// Dipanggil sekali di main(): semua galat dicatat dengan kode, dan tampilan yang gagal dibuat
+/// diganti kotak ramah berisi kode (bukan layar abu-abu/merah).
 void pasangPelaporGalat() {
+  Api.instance.onGalat = laporGalatKode;
+  pelaporGalatAplikasi = laporGalatKode;
+  ErrorWidget.builder = (d) {
+    final e = ApiException('Bagian tampilan gagal dibuat: ${d.exceptionAsString()}', kode: 'E901', detail: '${d.exception}\n${d.stack}', fn: d.library ?? 'tampilan');
+    laporGalatKode(e);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFFFFF1F1), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFF2B8B5))),
+      child: Text('Bagian ini gagal ditampilkan. Kode: ${e.kodeLengkap}', textDirection: TextDirection.ltr, style: const TextStyle(color: Color(0xFF8C1D18), fontSize: 13)),
+    );
+  };
   final bawaan = FlutterError.onError;
   FlutterError.onError = (d) {
     bawaan?.call(d);
@@ -210,6 +234,7 @@ class _LogGalat extends StatefulWidget {
 }
 
 class _LogGalatState extends State<_LogGalat> {
+  String _cari = '';
   int _v = 0;
 
   Future<void> _bersihkan() async {
@@ -226,7 +251,8 @@ class _LogGalatState extends State<_LogGalat> {
       muat: () async => peta(await Api.instance('waAdminLogGalat', [_t, 200])),
       bangun: (context, d, segarkan) {
         final cs = Theme.of(context).colorScheme;
-        final baris = daftar(d['baris']).map(peta).toList();
+        final q = _cari.trim().toUpperCase();
+        final baris = daftar(d['baris']).map(peta).where((b) => q.isEmpty || '${b['pesan']} ${b['fungsi']} ${b['pengguna']} ${b['detail']}'.toUpperCase().contains(q)).toList();
         return RefreshIndicator(
           onRefresh: segarkan,
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
@@ -234,7 +260,15 @@ class _LogGalatState extends State<_LogGalat> {
               Expanded(child: Text('${angka(d['total'])} catatan (200 terbaru ditampilkan)', style: TextStyle(color: cs.onSurfaceVariant))),
               if (baris.isNotEmpty) TextButton.icon(onPressed: _bersihkan, icon: const Icon(Icons.delete_sweep_rounded), label: const Text('Bersihkan')),
             ]),
-            if (baris.isEmpty) const Kosong(pesan: 'Belum ada galat tercatat.', ikon: Icons.verified_rounded),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 6),
+              child: TextField(
+                decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Cari kode galat dari pengguna, mis. E101-K3Q9ZA', isDense: true),
+                onChanged: (v) => setState(() => _cari = v),
+              ),
+            ),
+            Text('Kode: E1xx koneksi · E2xx server · E3xx peringatan · E9xx aplikasi', style: TextStyle(fontSize: 11.5, color: cs.outline)),
+            if (baris.isEmpty) Kosong(pesan: q.isEmpty ? 'Belum ada galat tercatat.' : 'Kode "$q" tidak ditemukan.', ikon: Icons.verified_rounded),
             for (final b in baris)
               Card(
                 margin: const EdgeInsets.symmetric(vertical: 4),
