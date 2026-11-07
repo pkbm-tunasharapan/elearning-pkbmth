@@ -138,7 +138,15 @@ class _JadwalScreenState extends State<JadwalScreen> {
   }
 }
 
+String _namaJenjang(String p) {
+  final m = RegExp(r'([ABC])\s*$', caseSensitive: false).firstMatch(p.trim());
+  return m != null ? 'Paket ${m.group(1)!.toUpperCase()}' : (p.trim().isEmpty ? 'Lainnya' : p.trim());
+}
+
+const _namaBulanJ = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
 /// Form tambah/ubah pemetaan (Admin & Kepala Sekolah).
+/// Urutan: tutor → mapel yang diampu → rombel (per jenjang atau per rombel) → hari → sesi → berulang/satu tanggal.
 class FormPemetaan extends StatefulWidget {
   const FormPemetaan({super.key, required this.data, this.x});
   final Map<String, dynamic> data;
@@ -149,17 +157,49 @@ class FormPemetaan extends StatefulWidget {
 }
 
 class _FormPemetaanState extends State<FormPemetaan> {
-  String? _kelas;
   String? _tutor;
-  String _hari = 'Senin';
+  String? _mapel;
+  bool _semuaMapel = false;
+  bool _perJenjang = false;
+  final Set<String> _jenjang = {};
+  final Set<String> _rombel = {};
+  String _hari = 'Sabtu';
   String? _slot;
+  bool _berulang = true;
+  String _periode = 'ini'; // ini | depan | custom
+  int _tahun = DateTime.now().year;
+  int _bulanDari = DateTime.now().month;
+  int _bulanSampai = 12;
+  String _tanggal = tglIso(DateTime.now());
+  // mode ubah (satu jadwal)
   late String _dari;
   String _sampai = '';
 
-  List<Map<String, dynamic>> get _daftarKelas => unikKelas(daftar(widget.data['kelas']).map(peta));
+  bool get _ubah => widget.x != null;
+  List<Map<String, dynamic>> get _kelas => unikKelas(daftar(widget.data['kelas']).map(peta));
   List<Map<String, dynamic>> get _daftarTutor => daftar(widget.data['tutor']).map(peta).toList();
   List<Map<String, dynamic>> get _slotList => daftar(peta(widget.data['aturan'])['slot']).map(peta).toList();
-  String _kk(Map<String, dynamic> k) => '${teks(k['idRombel'])}|${teks(k['kodeMapel'])}';
+
+  /// Kelas (rombel·mapel) yang diampu tutor terpilih; bila "semua mapel", seluruh kelas.
+  List<Map<String, dynamic>> get _kelasTutor => _kelas.where((k) => _semuaMapel || teks(k['idTutor']) == _tutor).toList();
+
+  List<(String, String)> get _mapelList {
+    final m = <String, String>{};
+    for (final k in _kelasTutor) {
+      m[teks(k['kodeMapel'])] = teks(k['namaMapel']);
+    }
+    final l = m.entries.map((e) => (e.key, e.value)).toList()..sort((a, b) => a.$2.compareTo(b.$2));
+    return l;
+  }
+
+  List<Map<String, dynamic>> get _rombelList => _kelasTutor.where((k) => teks(k['kodeMapel']) == _mapel).toList()
+    ..sort((a, b) => teks(a['namaRombel']).compareTo(teks(b['namaRombel'])));
+
+  List<String> get _jenjangList => {for (final k in _rombelList) _namaJenjang(teks(k['program']))}.toList()..sort();
+
+  Set<String> get _rombelTerpilih => _perJenjang
+      ? {for (final k in _rombelList) if (_jenjang.contains(_namaJenjang(teks(k['program'])))) teks(k['idRombel'])}
+      : _rombel.where((r) => _rombelList.any((k) => teks(k['idRombel']) == r)).toSet();
 
   @override
   void initState() {
@@ -167,87 +207,278 @@ class _FormPemetaanState extends State<FormPemetaan> {
     final x = widget.x;
     _dari = tglIso(DateTime.now());
     if (x != null) {
-      _kelas = '${teks(x['idRombel'])}|${teks(x['kodeMapel'])}';
       _tutor = teks(x['idTutor']);
-      _hari = teks(x['hari'], 'Senin');
+      _mapel = teks(x['kodeMapel']);
+      _rombel.add(teks(x['idRombel']));
+      _hari = teks(x['hari'], 'Sabtu');
       _slot = _slotList.where((s) => teks(s['nama']) == teks(x['slot'])).map((s) => teks(s['id'])).firstOrNull;
       _dari = teks(x['dari'], _dari);
       _sampai = teks(x['sampai']);
+      if (!_kelasTutor.any((k) => teks(k['kodeMapel']) == _mapel && teks(k['idRombel']) == teks(x['idRombel']))) _semuaMapel = true;
     }
     _slot ??= _slotList.isEmpty ? null : teks(_slotList.first['id']);
   }
 
+  (String, String) _rentang() {
+    final n = DateTime.now();
+    String akhirBulan(int y, int m) => tglIso(DateTime(y, m + 1, 0));
+    switch (_periode) {
+      case 'ini':
+        return (tglIso(DateTime(n.year, n.month, 1)), akhirBulan(n.year, n.month));
+      case 'depan':
+        final d = DateTime(n.year, n.month + 1, 1);
+        return (tglIso(d), akhirBulan(d.year, d.month));
+      default:
+        return (tglIso(DateTime(_tahun, _bulanDari, 1)), akhirBulan(_tahun, _bulanSampai));
+    }
+  }
+
+  String _hariDari(String iso) => hariMinggu[DateTime.parse(iso).weekday - 1];
+
   Future<void> _simpan() async {
-    if (_kelas == null || _slot == null) return kabar(context, 'Pilih kelas dan slot sesi.', galat: true);
-    final p = _kelas!.split('|');
-    final r = await jalankan(context, () => Api.instance('waStafPemetaanSimpan', [
+    if (_tutor == null || _mapel == null || _slot == null) return kabar(context, 'Pilih tutor, mapel, dan sesi.', galat: true);
+    final rombel = _rombelTerpilih;
+    if (rombel.isEmpty) return kabar(context, 'Pilih minimal satu rombel.', galat: true);
+    if (_ubah) {
+      final r = await jalankan(context, () => Api.instance('waStafPemetaanSimpan', [
+            _t,
+            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai}
+          ]), teksProses: 'Menyimpan & memeriksa bentrok...');
+      if (r.ok && mounted) {
+        kabar(context, 'Jadwal tersimpan.');
+        Navigator.pop(context, true);
+      }
+      return;
+    }
+    if (_berulang && _periode == 'custom' && _bulanSampai < _bulanDari) return kabar(context, 'Bulan akhir tidak boleh sebelum bulan awal.', galat: true);
+    final rg = _rentang();
+    final r = await jalankan(context, () => Api.instance('waStafPemetaanSimpanBanyak', [
           _t,
-          {if (widget.x != null) 'id': teks(widget.x!['id']), 'idRombel': p[0], 'kodeMapel': p[1], 'idTutor': _tutor ?? '', 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai}
-        ]), teksProses: 'Menyimpan & memeriksa bentrok...');
+          {
+            'idTutor': _tutor,
+            'kodeMapel': _mapel,
+            'rombel': rombel.toList(),
+            'hari': _hari,
+            'slot': _slot,
+            'tunggal': !_berulang,
+            'dari': _berulang ? rg.$1 : _tanggal,
+            'sampai': _berulang ? rg.$2 : _tanggal,
+          }
+        ]), teksProses: 'Menyimpan ${rombel.length} jadwal & memeriksa bentrok...');
     if (r.ok && mounted) {
-      kabar(context, 'Jadwal tersimpan.');
+      final d = peta(r.data);
+      kabar(context, '${d['jumlah']} jadwal tersimpan (${teks(d['hari'])}, ${tglIndo(teks(d['dari']))} – ${tglIndo(teks(d['sampai']))}).');
       Navigator.pop(context, true);
     }
   }
 
-  Future<void> _pilihTgl(bool mulai) async {
+  Future<void> _pilihTgl(void Function(String) set, String awal) async {
     final n = DateTime.now();
-    final d = await showDatePicker(context: context, firstDate: DateTime(n.year - 1), lastDate: DateTime(n.year + 2), initialDate: DateTime.tryParse(mulai ? _dari : (_sampai.isEmpty ? _dari : _sampai)) ?? n);
-    if (d != null) setState(() => mulai ? _dari = tglIso(d) : _sampai = tglIso(d));
+    final d = await showDatePicker(context: context, firstDate: DateTime(n.year - 1), lastDate: DateTime(n.year + 2), initialDate: DateTime.tryParse(awal) ?? n);
+    if (d != null) setState(() => set(tglIso(d)));
   }
 
   @override
   Widget build(BuildContext context) {
-    final kelas = _daftarKelas;
+    final cs = Theme.of(context).colorScheme;
     final tutor = _daftarTutor;
+    final mapel = _mapelList;
+    final rombel = _rombelList;
+    final jenjang = _jenjangList;
+    final terpilih = _rombelTerpilih;
+    final n = DateTime.now();
+    final rg = _rentang();
+    Widget langkah(String no, String judul) => Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 6),
+          child: Row(children: [
+            CircleAvatar(radius: 11, backgroundColor: Gaya.ungu, child: Text(no, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800))),
+            const SizedBox(width: 8),
+            Text(judul, style: const TextStyle(fontWeight: FontWeight.w800)),
+          ]),
+        );
     return Scaffold(
-      appBar: AppBar(title: Text(widget.x == null ? 'Tambah jadwal' : 'Ubah jadwal')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      appBar: AppBar(title: Text(_ubah ? 'Ubah jadwal' : 'Tambah jadwal')),
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 32), children: [
+        langkah('1', 'Tutor'),
         DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: kelas.any((k) => _kk(k) == _kelas) ? _kelas : null,
-          decoration: const InputDecoration(labelText: 'Rombel · Mapel'),
-          items: [for (final k in kelas) DropdownMenuItem(value: _kk(k), child: Text('${teks(k['namaRombel'])} · ${teks(k['namaMapel'])}', overflow: TextOverflow.ellipsis))],
-          onChanged: (v) => setState(() {
-            _kelas = v;
-            final k = kelas.firstWhere((x) => _kk(x) == v);
-            if (teks(k['idTutor']).isNotEmpty) _tutor = teks(k['idTutor']);
-          }),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: ValueKey('tutor|$_tutor'),
           isExpanded: true,
           initialValue: tutor.any((t) => teks(t['id']) == _tutor) ? _tutor : null,
-          decoration: const InputDecoration(labelText: 'Tutor pengajar'),
+          decoration: const InputDecoration(labelText: 'Pilih tutor'),
           items: [for (final t in tutor) DropdownMenuItem(value: teks(t['id']), child: Text(teks(t['nama'])))],
-          onChanged: (v) => setState(() => _tutor = v),
+          onChanged: (v) => setState(() {
+            _tutor = v;
+            _mapel = null;
+            _rombel.clear();
+            _jenjang.clear();
+          }),
         ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _hari,
-          decoration: const InputDecoration(labelText: 'Hari'),
-          items: [for (final h in hariMinggu) DropdownMenuItem(value: h, child: Text(h))],
-          onChanged: (v) => setState(() => _hari = v ?? _hari),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _slot,
-          decoration: const InputDecoration(labelText: 'Slot sesi'),
-          items: [for (final s in _slotList) DropdownMenuItem(value: teks(s['id']), child: Text('${teks(s['nama'])} (${teks(s['mulai'])}–${teks(s['selesai'])})'))],
-          onChanged: (v) => setState(() => _slot = v),
-        ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: OutlinedButton(onPressed: () => _pilihTgl(true), child: Text('Mulai ${tglIndo(_dari)}'))),
-          const SizedBox(width: 8),
-          Expanded(child: OutlinedButton(onPressed: () => _pilihTgl(false), child: Text(_sampai.isEmpty ? 'Sampai: tanpa batas' : 'Sampai ${tglIndo(_sampai)}'))),
-        ]),
-        if (_sampai.isNotEmpty) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => _sampai = ''), child: const Text('Tanpa batas'))),
-        const SizedBox(height: 20),
-        FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)), onPressed: _simpan, child: const Text('Simpan jadwal')),
-        const SizedBox(height: 8),
-        const Text('Jadwal yang bentrok (tutor atau rombel sama pada jam yang beririsan) otomatis ditolak.', style: TextStyle(fontSize: 12)),
+        if (_tutor != null) ...[
+          langkah('2', 'Mapel yang diampu'),
+          if (mapel.isEmpty)
+            Text('Tutor ini belum tercatat mengampu mapel apa pun. Aktifkan "Tampilkan semua mapel" bila perlu.', style: TextStyle(fontSize: 12.5, color: cs.error)),
+          if (mapel.isNotEmpty)
+            DropdownButtonFormField<String>(
+              key: ValueKey('mapel|$_tutor|$_semuaMapel'),
+              isExpanded: true,
+              initialValue: mapel.any((m) => m.$1 == _mapel) ? _mapel : null,
+              decoration: const InputDecoration(labelText: 'Pilih mapel'),
+              items: [for (final m in mapel) DropdownMenuItem(value: m.$1, child: Text(m.$2, overflow: TextOverflow.ellipsis))],
+              onChanged: (v) => setState(() {
+                _mapel = v;
+                _rombel.clear();
+                _jenjang.clear();
+              }),
+            ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: _semuaMapel,
+            onChanged: (v) => setState(() {
+              _semuaMapel = v;
+              _mapel = null;
+              _rombel.clear();
+              _jenjang.clear();
+            }),
+            title: const Text('Tampilkan semua mapel (tidak hanya yang diampu)'),
+          ),
+        ],
+        if (_mapel != null) ...[
+          langkah('3', 'Rombel'),
+          if (!_ubah)
+            SegmentedButton<bool>(
+              segments: const [ButtonSegment(value: true, label: Text('Per jenjang')), ButtonSegment(value: false, label: Text('Per rombel'))],
+              selected: {_perJenjang},
+              onSelectionChanged: (s) => setState(() => _perJenjang = s.first),
+            ),
+          const SizedBox(height: 8),
+          if (rombel.isEmpty) Text('Tidak ada rombel untuk mapel ini.', style: TextStyle(color: cs.error)),
+          if (_perJenjang && !_ubah)
+            Wrap(spacing: 8, runSpacing: 6, children: [
+              for (final j in jenjang)
+                FilterChip(
+                  label: Text('$j (${rombel.where((k) => _namaJenjang(teks(k['program'])) == j).length} rombel)'),
+                  selected: _jenjang.contains(j),
+                  onSelected: (v) => setState(() {
+                    if (v) {
+                      _jenjang.add(j);
+                    } else {
+                      _jenjang.remove(j);
+                    }
+                  }),
+                ),
+            ])
+          else
+            Wrap(spacing: 8, runSpacing: 6, children: [
+              for (final k in rombel)
+                FilterChip(
+                  label: Text(teks(k['namaRombel'])),
+                  selected: _rombel.contains(teks(k['idRombel'])),
+                  onSelected: (v) => setState(() {
+                    final id = teks(k['idRombel']);
+                    if (_ubah) _rombel.clear();
+                    if (v) {
+                      _rombel.add(id);
+                    } else {
+                      _rombel.remove(id);
+                    }
+                  }),
+                ),
+            ]),
+          if (terpilih.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('${terpilih.length} rombel dipilih: dijadwalkan sebagai kelas gabungan pada hari & sesi yang sama.',
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+            ),
+          langkah('4', 'Hari & sesi'),
+          if (_berulang || _ubah)
+            DropdownButtonFormField<String>(
+              initialValue: _hari,
+              decoration: const InputDecoration(labelText: 'Hari'),
+              items: [for (final h in hariMinggu) DropdownMenuItem(value: h, child: Text(h))],
+              onChanged: (v) => setState(() => _hari = v ?? _hari),
+            )
+          else
+            Text('Hari mengikuti tanggal: ${_hariDari(_tanggal)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _slot,
+            decoration: const InputDecoration(labelText: 'Sesi'),
+            items: [for (final s in _slotList) DropdownMenuItem(value: teks(s['id']), child: Text('${teks(s['nama'])} (${teks(s['mulai'])}–${teks(s['selesai'])})'))],
+            onChanged: (v) => setState(() => _slot = v),
+          ),
+          langkah('5', 'Periode'),
+          if (_ubah) ...[
+            Row(children: [
+              Expanded(child: OutlinedButton(onPressed: () => _pilihTgl((v) => _dari = v, _dari), child: Text('Mulai ${tglIndo(_dari)}'))),
+              const SizedBox(width: 8),
+              Expanded(child: OutlinedButton(onPressed: () => _pilihTgl((v) => _sampai = v, _sampai.isEmpty ? _dari : _sampai), child: Text(_sampai.isEmpty ? 'Sampai: tanpa batas' : 'Sampai ${tglIndo(_sampai)}'))),
+            ]),
+            if (_sampai.isNotEmpty) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => _sampai = ''), child: const Text('Tanpa batas'))),
+          ] else ...[
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _berulang,
+              onChanged: (v) => setState(() => _berulang = v ?? true),
+              title: const Text('Lakukan berulang (setiap minggu)'),
+              subtitle: Text(_berulang ? 'Setiap $_hari pada periode yang dipilih' : 'Hanya satu tanggal (mis. pertemuan pengganti)'),
+            ),
+            if (_berulang) ...[
+              Wrap(spacing: 8, runSpacing: 6, children: [
+                ChoiceChip(label: Text('Bulan ini (${_namaBulanJ[n.month - 1]})'), selected: _periode == 'ini', onSelected: (_) => setState(() => _periode = 'ini')),
+                ChoiceChip(label: Text('Bulan depan (${_namaBulanJ[DateTime(n.year, n.month + 1).month - 1]})'), selected: _periode == 'depan', onSelected: (_) => setState(() => _periode = 'depan')),
+                ChoiceChip(label: const Text('Pilih bulan'), selected: _periode == 'custom', onSelected: (_) => setState(() => _periode = 'custom')),
+              ]),
+              if (_periode == 'custom') ...[
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: _tahun,
+                      decoration: const InputDecoration(labelText: 'Tahun', isDense: true),
+                      items: [for (var y = n.year - 1; y <= n.year + 2; y++) DropdownMenuItem(value: y, child: Text('$y'))],
+                      onChanged: (v) => setState(() => _tahun = v ?? _tahun),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: _bulanDari,
+                      decoration: const InputDecoration(labelText: 'Dari bulan', isDense: true),
+                      items: [for (var b = 1; b <= 12; b++) DropdownMenuItem(value: b, child: Text(_namaBulanJ[b - 1]))],
+                      onChanged: (v) => setState(() => _bulanDari = v ?? _bulanDari),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: _bulanSampai,
+                      decoration: const InputDecoration(labelText: 'Sampai bulan', isDense: true),
+                      items: [for (var b = 1; b <= 12; b++) DropdownMenuItem(value: b, child: Text(_namaBulanJ[b - 1]))],
+                      onChanged: (v) => setState(() => _bulanSampai = v ?? _bulanSampai),
+                    ),
+                  ),
+                ]),
+              ],
+              const SizedBox(height: 6),
+              Text('Berlaku ${tglIndo(rg.$1)} – ${tglIndo(rg.$2)}', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+            ] else
+              OutlinedButton.icon(
+                onPressed: () => _pilihTgl((v) => _tanggal = v, _tanggal),
+                icon: const Icon(Icons.event_rounded),
+                label: Text('Tanggal ${_hariDari(_tanggal)}, ${tglIndo(_tanggal)}'),
+              ),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+            onPressed: _simpan,
+            child: Text(_ubah ? 'Simpan jadwal' : (terpilih.length > 1 ? 'Simpan ${terpilih.length} jadwal' : 'Simpan jadwal')),
+          ),
+          const SizedBox(height: 8),
+          const Text('Jadwal yang bentrok otomatis ditolak: rombel yang sama pada jam beririsan, atau tutor mengajar mapel lain pada jam yang sama. '
+              'Mapel yang sama untuk beberapa rombel di jam yang sama dianggap kelas gabungan.', style: TextStyle(fontSize: 12)),
+        ],
       ]),
     );
   }
