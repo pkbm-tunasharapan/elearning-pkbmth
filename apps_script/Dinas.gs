@@ -3,6 +3,9 @@
 // - HANYA MEMBACA. Setiap panggilan dari akun Dinas diperiksa di stafDariToken_ (lihat Peran.gs):
 //   fungsi yang tidak ada di DINAS.BACA ditolak di server, apa pun tombol yang tampil di aplikasi.
 // - Tidak termasuk pengaturan, data teknis, keuangan/honor, chat internal staf, dan soal ujian.
+// - 1.34.1: HANYA LIHAT kegiatan belajar mengajar (operasional KBM). Hal manajerial (data induk, kinerja tutor,
+//   presensi Kepala Sekolah, usulan/persetujuan, keuangan, kelengkapan data) tidak tersedia. Tanpa unduh/cetak/ekspor,
+//   tanpa fungsi AI yang menulis data, dan tanpa kewajiban absen (Dinas bukan bagian lembaga).
 // - Hanya lewat aplikasi TH.E-Course (Android/web GitHub Pages, pintu doPost); halaman web Apps Script lama ditolak.
 // - Di dalam fungsi baca yang diizinkan, akun Dinas diperlakukan setara pimpinan khusus-baca (Kepala Sekolah),
 //   lalu peran pada hasil dikembalikan menjadi "Dinas Pendidikan" (dinasRapikan_).
@@ -12,18 +15,24 @@ var DINAS = {
   BACA: {
     waStafProfil: true, waStafProfilAkun: true, waStafKeluar: true, waStafVersiApp: true, waStafBeranda: true,
     waStafDasbor: true, waStafUlangTahun: true,
-    waStafAbsenHarianKonteks: true, waStafAbsenHarianDaftar: true, waStafLaporanHadir: true, waStafKsPresensiDaftar: true,
+    waStafAbsenHarianKonteks: true, waStafAbsenHarianDaftar: true, waStafLaporanHadir: true,
     waStafAbsenKonteks: true, waStafAbsenWbDaftar: true,
     waStafJadwalHari: true, waStafKalender: true, waStafKalenderDaftar: true,
     waStafMateriLengkap: true, waStafSesiBaca: true, waStafSesiDiskusi: true,
-    waStafKurikulumBaca: true, waStafKurikulumBacaan: true, waStafKurikulumPeta: true, waStafKerangka: true,
-    waStafRppDaftarMapel: true, waStafRppBaca: true, waStafRppPdf: true, waStafRppCp: true,
+    waStafKurikulumBaca: true, waStafKerangka: true,
+    waStafRppDaftarMapel: true, waStafRppBaca: true,
     waStafMediaAjarDaftar: true, waStafCatatanNilai: true,
     waStafBelumDinilai: true, waStafNilaiKelas: true, waStafNilaiRekap: true, waStafNilaiAturan: true,
-    waStafLeger: true, waStafKenaikanDaftar: true, waStafBiodataRombel: true, waStafHtmlPdf: true, waStafWaliDaftar: true,
+    waStafLeger: true, waStafKenaikanDaftar: true, waStafWaliDaftar: true,
     waStafProgresDaftar: true, waStafProgresKelas: true, waStafKesiapanSemua: true,
-    waStafRombelSiswa: true, waStafIndukDaftar: true, waStafKinerjaTutor: true
+    waStafRombelSiswa: true,
+    // daftar pantauan (1.34.1): hanya membaca; tombol ubah dimatikan oleh dinasRapikan_
+    waStafPemetaanDaftar: true, waStafAsesmenDaftar: true, waStafAsesmenPeserta: true
   },
+  // Kartu beranda yang berisi tugas/aksi lembaga (absen, persetujuan, keuangan) tidak ditampilkan untuk Dinas.
+  MENU_KARTU_DILARANG: { dataInduk: true, kinerja: true, pengguna: true, absenSaya: true, absenTutor: true, usulanJadwal: true, persetujuanKs: true, keuangan: true, rekapHonor: true, honor: true, kodeDarurat: true, referral: true, referralAdmin: true },
+  // Penanda izin pada hasil API yang selalu dimatikan untuk Dinas.
+  POLA_IZIN: /^(boleh|bisa|dapat)[A-Z]?|^(kelola|tulis|kartu|presensi|admin|milikSaya)$/,
   TABEL_INDUK_DILARANG: { pengaturan: true }
 };
 
@@ -47,8 +56,27 @@ function dinasRapikan_(data) {
   if (data.peran === 'Kepala Sekolah') data.peran = DINAS.PERAN;
   if (data.saya && data.saya.peran === 'Kepala Sekolah') data.saya.peran = DINAS.PERAN;
   if (data.profil && data.profil.peran === 'Kepala Sekolah') data.profil.peran = DINAS.PERAN;
+  dinasMatikanIzin_(data, 0);
+  if (globalThis.__API_FN === 'waStafLaporanHadir') delete data.ks;
+  if (globalThis.__API_FN === 'waStafDasbor') ['tanpaNisn', 'tanpaNik', 'tanpaBiodata', 'tanpaRombel'].forEach(function(k) { delete data[k]; });
+  if (Array.isArray(data.kartu)) {
+    data.kartu = data.kartu.filter(function(k) {
+      return !(k && (DINAS.MENU_KARTU_DILARANG[k.menu] || /absen saya|persetujuan|tagihan|honor/i.test(String(k.judul || ''))));
+    });
+  }
   data.hanyaBaca = true;
   return data;
+}
+
+// Mematikan penanda izin (boleh*, bisa*, dapat*, kelola, tulis, ...) bernilai true pada objek hasil.
+// Isi larik (mis. daftar peserta dengan "boleh" = memenuhi syarat) tidak disentuh.
+function dinasMatikanIzin_(o, dalam) {
+  if (!o || typeof o !== 'object' || Array.isArray(o) || dalam > 2) return;
+  Object.keys(o).forEach(function(k) {
+    var v = o[k];
+    if (v === true && DINAS.POLA_IZIN.test(k)) o[k] = false;
+    else if (v && typeof v === 'object' && !Array.isArray(v)) dinasMatikanIzin_(v, dalam + 1);
+  });
 }
 
 // Jalankan sekali dari editor (Run): menambahkan "Dinas Pendidikan" ke pilihan peran pada sheet Pengguna.

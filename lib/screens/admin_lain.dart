@@ -500,7 +500,7 @@ class _KesiapanScreenState extends State<KesiapanScreen> {
       appBar: AppBar(
         title: const Text('Kesiapan Kelas'),
         actions: [
-          IconButton(
+          if (bolehUnduh) IconButton(
             tooltip: 'Cetak laporan (PDF)',
             onPressed: _r == null
                 ? null

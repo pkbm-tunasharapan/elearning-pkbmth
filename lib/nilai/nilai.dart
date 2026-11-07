@@ -251,8 +251,10 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
     final k = widget.kelas;
     return Scaffold(
       appBar: AppBar(title: Text('Leger ${teks(k['namaMapel'])} · ${teks(k['namaRombel'])}'), actions: [
-        IconButton(tooltip: 'PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: () => _ekspor(false)),
-        IconButton(tooltip: 'Excel', icon: const Icon(Icons.grid_on_rounded), onPressed: () => _ekspor(true)),
+        if (bolehUnduh) ...[
+          IconButton(tooltip: 'PDF', icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: () => _ekspor(false)),
+          IconButton(tooltip: 'Excel', icon: const Icon(Icons.grid_on_rounded), onPressed: () => _ekspor(true)),
+        ],
       ]),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey(_v),
@@ -420,6 +422,7 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 
 /// Pilihan cetak untuk satu warga belajar: rapor nilai atau cover & biodata.
 Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRombel, Map<String, dynamic> d, Map<String, dynamic> w) async {
+  if (!bolehUnduh) return;
   final nm = teks(w['nama']);
   final p = await showModalBottomSheet<String>(
     context: context,
@@ -474,10 +477,12 @@ class RaporRombelScreen extends StatelessWidget {
             Text('Wali kelas: ${wali.isEmpty ? 'belum ditetapkan' : wali}', style: const TextStyle(fontSize: 12.5)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 6, children: [
+              if (bolehUnduh) ...[
               FilledButton.icon(onPressed: () => htmlKePdf(context, nama: 'Rapor_${nama}_${tanggalBerkas()}.pdf', args: [_t, raporHtml(d, wb)]), icon: const Icon(Icons.print_rounded), label: const Text('Cetak rapor semua')),
               FilledButton.tonalIcon(onPressed: () => htmlKePdf(context, nama: 'Rekap_Nilai_${nama}_${tanggalBerkas()}.pdf', args: [_t, legerHtml(d)]), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Rekap PDF')),
               FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Rekap_Nilai_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Rekap Excel')),
               FilledButton.tonalIcon(onPressed: () => cetakCoverBiodata(context, idRombel: idRombel, namaRombel: nama), icon: const Icon(Icons.badge_outlined), label: const Text('Cover & biodata')),
+              ],
               if (d['kenaikan'] != null)
                 FilledButton.tonalIcon(
                   onPressed: () async {
@@ -801,7 +806,7 @@ class _KenaikanScreenState extends State<KenaikanScreen> {
           ]),
         ),
       ]),
-      floatingActionButton: _wb.isEmpty
+      floatingActionButton: _wb.isEmpty || Sesi.instance.isDinas
           ? null
           : FloatingActionButton.extended(onPressed: _simpan, icon: const Icon(Icons.save_rounded), label: const Text('Simpan')),
     );

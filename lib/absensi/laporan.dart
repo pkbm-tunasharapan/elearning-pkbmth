@@ -46,7 +46,7 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tutorSaja = Sesi.instance.peran == 'Tutor';
-    final tabs = ['Tutor', 'Warga Belajar', 'Sesi', if (!tutorSaja) 'Kepala Sekolah'];
+    final tabs = ['Tutor', 'Warga Belajar', 'Sesi', if (!tutorSaja && !Sesi.instance.isDinas) 'Kepala Sekolah'];
     if (_tab >= tabs.length) _tab = 0;
     return Column(children: [
       Container(
@@ -73,7 +73,7 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
             final isi = _isiTab(context, d, tabs[_tab], syarat, cs);
             return Stack(children: [
               isi,
-              Positioned(
+              if (bolehUnduh) Positioned(
                 right: 16,
                 bottom: 16,
                 child: FloatingActionButton.small(

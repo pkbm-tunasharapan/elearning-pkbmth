@@ -242,6 +242,15 @@ Future<dynamic> panggilAi(
 
 // ───────────────────────── simpan & buka berkas ─────────────────────────
 
+/// Akun Dinas Pendidikan hanya mengawasi: tidak boleh mengunduh, mencetak, membagikan, atau mengekspor berkas.
+bool get bolehUnduh => !Sesi.instance.isDinas;
+
+bool _tolakDinas(BuildContext context) {
+  if (bolehUnduh) return false;
+  if (context.mounted) kabar(context, 'Akun Dinas Pendidikan hanya dapat melihat. Unduh, cetak, dan ekspor tidak tersedia.', galat: true);
+  return true;
+}
+
 /// Web: unduh langsung lewat browser lalu beri kabar.
 Future<void> _unduhWeb(BuildContext context, List<int> bytes, String nama, String mime) async {
   await unduhBerkasWeb(bytes, nama, mime);
@@ -257,6 +266,7 @@ Future<String> _simpan(List<int> bytes, String nama) async {
 
 /// Membuka PDF (dari base64 server) dengan penampil PDF di HP. Tombol bagikan/simpan tersedia di sana.
 Future<void> bukaPdfB64(BuildContext context, String b64, String nama) async {
+  if (_tolakDinas(context)) return;
   if (kIsWeb) return _unduhWeb(context, base64Decode(b64), nama, 'application/pdf');
   final path = await _simpan(base64Decode(b64), nama);
   final r = await OpenFilex.open(path, type: 'application/pdf');
@@ -267,6 +277,7 @@ Future<void> bukaPdfB64(BuildContext context, String b64, String nama) async {
 
 /// Membuka PDF yang dibuat di HP (bytes) dengan penampil PDF; bila gagal, lewat menu Bagikan.
 Future<void> bukaPdfBytes(BuildContext context, List<int> bytes, String nama) async {
+  if (_tolakDinas(context)) return;
   if (kIsWeb) return _unduhWeb(context, bytes, nama, 'application/pdf');
   final path = await _simpan(bytes, nama);
   final r = await OpenFilex.open(path, type: 'application/pdf');
@@ -277,6 +288,7 @@ Future<void> bukaPdfBytes(BuildContext context, List<int> bytes, String nama) as
 
 /// Mengirim satu atau beberapa gambar PNG lewat menu Bagikan (simpan ke Galeri/Drive, WhatsApp, dll.).
 Future<void> bagikanPng(BuildContext context, List<({List<int> bytes, String nama})> gambar, {String judul = 'Gambar'}) async {
+  if (_tolakDinas(context)) return;
   if (kIsWeb) {
     for (final g in gambar) {
       await unduhBerkasWeb(g.bytes, g.nama, 'image/png');
@@ -295,6 +307,7 @@ Future<void> bagikanPng(BuildContext context, List<({List<int> bytes, String nam
 
 /// Mengirim dokumen Word (.doc HTML) lewat menu Bagikan (simpan ke Drive, WhatsApp, dll.).
 Future<void> bagikanWord(BuildContext context, String html, String nama) async {
+  if (_tolakDinas(context)) return;
   if (kIsWeb) return _unduhWeb(context, [0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama, 'application/msword');
   final path = await _simpan([0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama);
   final r = await OpenFilex.open(path, type: 'application/msword');
@@ -305,6 +318,7 @@ Future<void> bagikanWord(BuildContext context, String html, String nama) async {
 
 /// Mengirim tabel HTML sebagai berkas Excel (.xls) lewat menu Bagikan.
 Future<void> bagikanExcel(BuildContext context, String html, String nama) async {
+  if (_tolakDinas(context)) return;
   if (kIsWeb) return _unduhWeb(context, [0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama, 'application/vnd.ms-excel');
   final path = await _simpan([0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama);
   final r = await OpenFilex.open(path, type: 'application/vnd.ms-excel');
@@ -315,6 +329,7 @@ Future<void> bagikanExcel(BuildContext context, String html, String nama) async 
 
 /// Membuat PDF dari HTML lewat server (waStafHtmlPdf atau fungsi lain) lalu membukanya.
 Future<void> htmlKePdf(BuildContext context, {required String nama, String fn = 'waStafHtmlPdf', required List<dynamic> args}) async {
+  if (_tolakDinas(context)) return;
   final r = await jalankan(context, () => Api.instance(fn, args, const Duration(minutes: 3)), teksProses: 'Membuat PDF...');
   if (!r.ok || !context.mounted) return;
   await bukaPdfB64(context, teks(peta(r.data)['b64']), nama);
@@ -438,6 +453,7 @@ String tabelHtml(String judul, List<String> kepala, List<List<String>> baris, {S
 
 /// Lembar pilihan "Ekspor Excel / PDF" lalu unduh/buka berkasnya.
 Future<void> pilihEkspor(BuildContext context, {required String judul, required List<String> kepala, required List<List<String>> baris, String sub = ''}) async {
+  if (_tolakDinas(context)) return;
   if (baris.isEmpty) return kabar(context, 'Tidak ada data untuk diekspor.');
   final p = await showModalBottomSheet<String>(
     context: context,

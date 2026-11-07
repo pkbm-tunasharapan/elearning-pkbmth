@@ -310,9 +310,9 @@ class _RppTabState extends State<RppTab> with AutomaticKeepAliveClientMixin {
                       icon: const Icon(Icons.auto_awesome_rounded, size: 18),
                       label: Text('Susun RPP dengan AI (${_pilih.isNotEmpty ? '${_pilih.length} terpilih' : '$kosong sesi kosong'})'),
                     ),
-                  OutlinedButton(onPressed: () => setState(() => _pilih.addAll(rows.map(_kunci))), child: const Text('Pilih semua')),
-                  OutlinedButton(onPressed: () => setState(_pilih.clear), child: const Text('Kosongkan pilihan')),
-                  OutlinedButton.icon(
+                  if (bolehUnduh || ubah) OutlinedButton(onPressed: () => setState(() => _pilih.addAll(rows.map(_kunci))), child: const Text('Pilih semua')),
+                  if (bolehUnduh || ubah) OutlinedButton(onPressed: () => setState(_pilih.clear), child: const Text('Kosongkan pilihan')),
+                  if (bolehUnduh) OutlinedButton.icon(
                     onPressed: () {
                       final p = rows.where((x) => _pilih.contains(_kunci(x))).toList();
                       if (p.isEmpty) return kabar(context, 'Centang dulu sesi yang akan dicetak.');
@@ -358,9 +358,9 @@ class _RppTabState extends State<RppTab> with AutomaticKeepAliveClientMixin {
                         Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: Wrap(spacing: 6, runSpacing: 6, children: [
-                            OutlinedButton.icon(onPressed: () => _pdf(x), icon: const Icon(Icons.picture_as_pdf_rounded, size: 18), label: const Text('Lihat PDF')),
+                            if (bolehUnduh) OutlinedButton.icon(onPressed: () => _pdf(x), icon: const Icon(Icons.picture_as_pdf_rounded, size: 18), label: const Text('Lihat PDF')),
                             if (ubah) OutlinedButton(onPressed: () => _buka(UbahRppScreen(idMapel: widget.idMapel, x: x)), child: const Text('Ubah')),
-                            OutlinedButton.icon(onPressed: () => _word([x]), icon: const Icon(Icons.description_rounded, size: 18), label: const Text('Unduh Word')),
+                            if (bolehUnduh) OutlinedButton.icon(onPressed: () => _word([x]), icon: const Icon(Icons.description_rounded, size: 18), label: const Text('Unduh Word')),
                             if (ubah && siapAi)
                               IconButton.outlined(
                                 tooltip: 'Susun ulang dengan AI',

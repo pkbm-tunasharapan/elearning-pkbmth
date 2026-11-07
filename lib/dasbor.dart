@@ -135,7 +135,7 @@ class _DasborLembagaState extends State<DasborLembaga> {
               ]),
             ),
           ),
-        if (kurang.isNotEmpty) ...[
+        if (kurang.isNotEmpty && !Sesi.instance.isDinas) ...[
           const SizedBox(height: 10),
           Card(
             margin: EdgeInsets.zero,

@@ -216,7 +216,7 @@ class _TabelIndukScreenState extends State<TabelIndukScreen> {
             const SizedBox(height: 6),
             Row(children: [
               Expanded(child: Text('${baris.length} data${_filter.isNotEmpty || _cari.isNotEmpty ? ' (tersaring)' : ''}', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant))),
-              TextButton.icon(onPressed: baris.isEmpty ? null : () => _ekspor(d, kolom, baris), icon: const Icon(Icons.grid_on_rounded, size: 18), label: const Text('Ekspor')),
+              if (bolehUnduh) TextButton.icon(onPressed: baris.isEmpty ? null : () => _ekspor(d, kolom, baris), icon: const Icon(Icons.grid_on_rounded, size: 18), label: const Text('Ekspor')),
             ]),
           ]),
         );
@@ -232,7 +232,7 @@ class _TabelIndukScreenState extends State<TabelIndukScreen> {
                     child: Row(children: [
                       IconButton(tooltip: 'Batal pilih', onPressed: () => setState(_pilih.clear), icon: const Icon(Icons.close_rounded)),
                       Expanded(child: Text('${dipilih.length} dipilih', style: const TextStyle(fontWeight: FontWeight.w800))),
-                      TextButton.icon(onPressed: () => _ekspor(d, kolom, dipilih), icon: const Icon(Icons.download_rounded, size: 18), label: const Text('Ekspor')),
+                      if (bolehUnduh) TextButton.icon(onPressed: () => _ekspor(d, kolom, dipilih), icon: const Icon(Icons.download_rounded, size: 18), label: const Text('Ekspor')),
                       if (tulis) TextButton.icon(onPressed: () => _ubahMassal(d, kolom, dipilih), icon: const Icon(Icons.edit_note_rounded, size: 18), label: const Text('Ubah')),
                       if (tulis && d['bisaHapus'] == true)
                         TextButton.icon(

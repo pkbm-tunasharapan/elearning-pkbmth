@@ -329,7 +329,7 @@ class _KalenderViewState extends State<KalenderView> {
             onSelectionChanged: (v) => setState(() => _bulanan = v.first),
           ),
         ),
-        if (widget.bisaCetak)
+        if (widget.bisaCetak && bolehUnduh)
           IconButton(
             tooltip: 'Cetak / PDF',
             onPressed: () => htmlKePdf(context, nama: 'Kalender_Akademik_${tanggalBerkas()}.pdf', args: [Sesi.instance.token, dokumenA4(_htmlCetak(), _cssCetak, lanskap: true)]),

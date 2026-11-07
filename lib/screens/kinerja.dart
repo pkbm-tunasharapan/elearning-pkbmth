@@ -86,7 +86,7 @@ class _KinerjaTutorScreenState extends State<KinerjaTutorScreen> {
                     style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
                   ),
                 ),
-                TextButton.icon(onPressed: rekap.isEmpty ? null : () => _ekspor(d), icon: const Icon(Icons.download_rounded, size: 18), label: const Text('Ekspor')),
+                if (bolehUnduh) TextButton.icon(onPressed: rekap.isEmpty ? null : () => _ekspor(d), icon: const Icon(Icons.download_rounded, size: 18), label: const Text('Ekspor')),
               ]),
               if (rekap.isEmpty) const Kosong(pesan: 'Tidak ada catatan kinerja minus pada periode ini.', ikon: Icons.verified_rounded),
               if (rekap.isNotEmpty) ...[

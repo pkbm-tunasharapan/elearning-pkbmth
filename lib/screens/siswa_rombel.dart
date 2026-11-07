@@ -46,7 +46,7 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
             ),
             Row(children: [
               Expanded(child: Text('${rombel.length} rombel · $total siswa', style: Theme.of(context).textTheme.bodySmall)),
-              TextButton.icon(
+              if (bolehUnduh) TextButton.icon(
                 onPressed: () => _ekspor(context, 'Daftar Siswa Semua Rombel', rombel, q),
                 icon: const Icon(Icons.download_rounded, size: 18),
                 label: const Text('Ekspor semua'),
@@ -67,7 +67,7 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                     subtitle: Text('${siswa.length} siswa · $terdaftar sudah daftar mandiri'),
                     childrenPadding: const EdgeInsets.only(bottom: 8),
                     children: [
-                      Align(
+                      if (bolehUnduh) Align(
                         alignment: Alignment.centerRight,
                         child: Padding(
                           padding: const EdgeInsets.only(right: 8),

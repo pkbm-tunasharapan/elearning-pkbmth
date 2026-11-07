@@ -214,7 +214,7 @@ class _MediaAjarScreenState extends State<MediaAjarScreen> {
                     ),
                     Wrap(spacing: 6, runSpacing: 6, children: [
                       const SizedBox(width: 8),
-                      OutlinedButton.icon(onPressed: () => _pratinjau(m), icon: const Icon(Icons.picture_as_pdf_rounded, size: 18), label: const Text('Pratinjau')),
+                      if (bolehUnduh) OutlinedButton.icon(onPressed: () => _pratinjau(m), icon: const Icon(Icons.picture_as_pdf_rounded, size: 18), label: const Text('Pratinjau')),
                       if (boleh && teks(m['jenis']) != 'kunci')
                         teks(m['status']) == 'Terbit'
                             ? OutlinedButton.icon(onPressed: () => _terbit(m, false), icon: const Icon(Icons.unpublished_rounded, size: 18), label: const Text('Tarik'))
