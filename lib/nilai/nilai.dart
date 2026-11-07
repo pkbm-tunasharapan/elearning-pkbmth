@@ -10,6 +10,7 @@ import '../berkas.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'cover_rapor.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -417,19 +418,53 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 
 // ───────────────────────── leger & rapor ─────────────────────────
 
+/// Pilihan cetak untuk satu warga belajar: rapor nilai atau cover & biodata.
+Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRombel, Map<String, dynamic> d, Map<String, dynamic> w) async {
+  final nm = teks(w['nama']);
+  final p = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (c) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Text(nm, style: const TextStyle(fontWeight: FontWeight.w800))),
+        ListTile(leading: const Icon(Icons.print_rounded), title: const Text('Rapor nilai'), onTap: () => Navigator.pop(c, 'rapor')),
+        ListTile(leading: const Icon(Icons.badge_outlined), title: const Text('Cover & biodata'), onTap: () => Navigator.pop(c, 'cover')),
+        const SizedBox(height: 8),
+      ]),
+    ),
+  );
+  if (p == null || !context.mounted) return;
+  if (p == 'rapor') {
+    await htmlKePdf(context, nama: 'Rapor_$nm.pdf', args: [_t, raporHtml(d, [w])]);
+  } else {
+    await cetakCoverBiodata(context, idRombel: idRombel, namaRombel: namaRombel, idWb: teks(w['idWb']), nisn: teks(w['nisn']), namaWb: nm);
+  }
+}
+
 class RaporRombelScreen extends StatelessWidget {
   const RaporRombelScreen({super.key, required this.idRombel, required this.nama, this.per});
   final String idRombel;
   final String nama;
   final Map<String, String>? per;
 
+  void _pilihCetak(BuildContext context, Map<String, dynamic> d, Map<String, dynamic> w) => _pilihCetakWb(context, idRombel, nama, d, w);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Rapor $nama')),
       body: Muatan<Map<String, dynamic>>(
-        muat: () async => peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel, ...?per}], const Duration(minutes: 3))),
-        bangun: (context, d, _) {
+        muat: () async {
+          final d = peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel, ...?per}], const Duration(minutes: 3)));
+          final pr = peta(d['periode']);
+          if (teks(pr['semester']) == 'Genap') {
+            try {
+              d['kenaikan'] = peta(await Api.instance('waStafKenaikanDaftar', [_t, {'idRombel': idRombel, 'tahun': teks(pr['tahun'])}]));
+            } catch (_) {}
+          }
+          return d;
+        },
+        bangun: (context, d, segarkan) {
           final mapel = daftar(d['mapel']).map(peta).toList();
           final wb = daftar(d['wb']).map(peta).toList();
           final at = peta(d['aturan']);
@@ -442,6 +477,16 @@ class RaporRombelScreen extends StatelessWidget {
               FilledButton.icon(onPressed: () => htmlKePdf(context, nama: 'Rapor_${nama}_${tanggalBerkas()}.pdf', args: [_t, raporHtml(d, wb)]), icon: const Icon(Icons.print_rounded), label: const Text('Cetak rapor semua')),
               FilledButton.tonalIcon(onPressed: () => htmlKePdf(context, nama: 'Rekap_Nilai_${nama}_${tanggalBerkas()}.pdf', args: [_t, legerHtml(d)]), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Rekap PDF')),
               FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Rekap_Nilai_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Rekap Excel')),
+              FilledButton.tonalIcon(onPressed: () => cetakCoverBiodata(context, idRombel: idRombel, namaRombel: nama), icon: const Icon(Icons.badge_outlined), label: const Text('Cover & biodata')),
+              if (d['kenaikan'] != null)
+                FilledButton.tonalIcon(
+                  onPressed: () async {
+                    final ubah = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => KenaikanScreen(idRombel: idRombel, namaRombel: nama, leger: d)));
+                    if (ubah == true) await segarkan();
+                  },
+                  icon: Icon(peta(peta(d['kenaikan'])['info'])['akhir'] == true ? Icons.school_rounded : Icons.trending_up_rounded),
+                  label: Text(peta(peta(d['kenaikan'])['info'])['akhir'] == true ? 'Kelulusan' : 'Kenaikan kelas'),
+                ),
             ]),
             const SizedBox(height: 10),
             Card(
@@ -462,7 +507,7 @@ class RaporRombelScreen extends StatelessWidget {
                   rows: [
                     for (final w in wb)
                       DataRow(
-                        onSelectChanged: (_) => htmlKePdf(context, nama: 'Rapor_${teks(w['nama'])}.pdf', args: [_t, raporHtml(d, [w])]),
+                        onSelectChanged: (_) => _pilihCetak(context, d, w),
                         cells: [
                           DataCell(SizedBox(width: 150, child: Text(teks(w['nama']), overflow: TextOverflow.ellipsis))),
                           for (final m in mapel)
@@ -567,6 +612,7 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs) {
   final l = peta(d['lembaga']);
   final at = peta(d['aturan']);
   final kota = _kotaDari(teks(l['alamat']));
+  final kn = teks(per['semester']) == 'Genap' ? peta(d['kenaikan']) : <String, dynamic>{};
   final b = StringBuffer();
   for (final w in wbs) {
     final h = peta(w['kehadiran']);
@@ -585,11 +631,181 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs) {
     b.write('<tr><td colspan="3" class="c"><b>Rata-rata</b></td><td class="c"><b>${nilT(w['rata'])}</b></td><td colspan="2">Peringkat ${w['peringkat'] ?? '–'} dari ${daftar(d['wb']).length}</td></tr></table><br>');
     b.write('<table style="width:55%"><tr><th colspan="2">Ketidakhadiran tatap muka</th></tr><tr><td>Sakit</td><td class="c">${angka(h['Sakit'])} hari</td></tr>'
         '<tr><td>Izin</td><td class="c">${angka(h['Izin'])} hari</td></tr><tr><td>Tanpa keterangan</td><td class="c">${angka(h['Alpa'])} hari</td></tr></table>');
+    if (kn.isNotEmpty) b.write(_kotakKeputusan(peta(kn['info']), teks(peta(kn['keputusan'])[teks(w['idWb'])])));
     b.write('<table class="ttd"><tr><td>Orang Tua/Wali<br><br><br><br><br>(..............................)</td>'
         '<td>${escHtml(kota)}${kota.isEmpty ? '' : ', '}${tanggalIni()}<br>Wali Kelas<br><br><br><br><b><u>${escHtml(teks(peta(d['wali'])['nama'], '..............................'))}</u></b></td></tr>'
         '<tr><td colspan="2" style="padding-top:14px">Mengetahui,<br>Kepala ${escHtml(teks(l['nama'], 'PKBM'))}<br><br><br><br><b><u>${escHtml(teks(l['kepala']))}</u></b></td></tr></table></div>');
   }
   return dokumenA4(b.toString(), _cssDok);
+}
+
+const _angkaKata = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas', 'dua belas'];
+
+/// "Kelas 8 (delapan) - Tingkatan III"
+String teksKelas(dynamic kelas, dynamic tingkatRomawi) {
+  final k = angka(kelas);
+  if (k <= 0) return '.........';
+  final kata = k < _angkaKata.length ? ' (${_angkaKata[k]})' : '';
+  final t = teks(tingkatRomawi);
+  return 'kelas $k$kata${t.isEmpty ? '' : ' (Tingkatan $t)'}';
+}
+
+/// Kotak keputusan rapor semester Genap: naik/tinggal kelas, atau lulus/tidak lulus untuk kelas akhir.
+String _kotakKeputusan(Map<String, dynamic> info, String keputusan) {
+  final akhir = info['akhir'] == true;
+  final ini = teksKelas(info['kelas'], info['tingkatRomawi']);
+  final lanjut = teksKelas(info['kelasBerikut'], info['tingkatBerikutRomawi']);
+  final String isi;
+  if (akhir) {
+    isi = switch (keputusan) {
+      'Lulus' => '<b>LULUS</b>',
+      'Tidak Lulus' => '<b>TIDAK LULUS</b>',
+      _ => '<b>LULUS / TIDAK LULUS</b>*',
+    };
+  } else {
+    isi = switch (keputusan) {
+      'Naik' => '<b>NAIK</b> ke ${escHtml(lanjut)}',
+      'Tinggal' => '<b>TINGGAL</b> di ${escHtml(ini)}',
+      _ => '<b>NAIK</b> ke ${escHtml(lanjut)} / <b>TINGGAL</b> di ${escHtml(ini)}*',
+    };
+  }
+  final belum = keputusan.isEmpty;
+  return '<table style="width:100%;margin-top:8px"><tr><th style="text-align:left">Keputusan</th></tr><tr><td style="padding:6px 8px">'
+      'Berdasarkan pencapaian seluruh kompetensi, peserta didik dinyatakan:<br><span style="font-size:11.5pt">$isi</span>'
+      '${belum ? '<br><span style="font-size:8pt">*coret yang tidak perlu</span>' : ''}</td></tr></table>';
+}
+
+/// Wali kelas mencentang siapa yang naik kelas (kelas akhir: lulus). Yang tidak dicentang = tinggal / tidak lulus.
+class KenaikanScreen extends StatefulWidget {
+  const KenaikanScreen({super.key, required this.idRombel, required this.namaRombel, required this.leger});
+  final String idRombel;
+  final String namaRombel;
+  final Map<String, dynamic> leger;
+
+  @override
+  State<KenaikanScreen> createState() => _KenaikanScreenState();
+}
+
+class _KenaikanScreenState extends State<KenaikanScreen> {
+  late final Map<String, dynamic> _kn = peta(widget.leger['kenaikan']);
+  late final Map<String, dynamic> _info = peta(_kn['info']);
+  late final List<Map<String, dynamic>> _wb = daftar(widget.leger['wb']).map(peta).where((w) => teks(w['idWb']).isNotEmpty).toList()
+    ..sort((a, b) => teks(a['nama']).compareTo(teks(b['nama'])));
+  late final Set<String> _naik;
+  late final bool _baru;
+
+  bool get _akhir => _info['akhir'] == true;
+  String get _ya => _akhir ? 'Lulus' : 'Naik';
+
+  @override
+  void initState() {
+    super.initState();
+    final kep = peta(_kn['keputusan']);
+    _baru = kep.isEmpty;
+    // Belum pernah disimpan: semua dicentang dulu, wali kelas tinggal menghapus centang yang tidak naik.
+    _naik = {for (final w in _wb) if (_baru || teks(kep[teks(w['idWb'])]) == _ya) teks(w['idWb'])};
+  }
+
+  Future<void> _simpan() async {
+    final n = _naik.length, t = _wb.length - n;
+    final ok = await konfirmasi(
+      context,
+      _akhir ? 'Simpan kelulusan?' : 'Simpan kenaikan kelas?',
+      _akhir ? '$n lulus, $t tidak lulus.' : '$n naik ke ${teksKelas(_info['kelasBerikut'], _info['tingkatBerikutRomawi'])}, $t tinggal di ${teksKelas(_info['kelas'], _info['tingkatRomawi'])}.',
+      ya: 'Simpan',
+    );
+    if (!ok || !mounted) return;
+    final r = await jalankan(
+      context,
+      () => Api.instance('waStafKenaikanSimpan', [_t, {
+        'idRombel': widget.idRombel,
+        'tahun': teks(_kn['tahun']),
+        'daftar': [for (final w in _wb) {'idWb': teks(w['idWb']), 'nama': teks(w['nama']), 'naik': _naik.contains(teks(w['idWb']))}],
+      }]),
+      teksProses: 'Menyimpan...',
+    );
+    if (r.ok && mounted) {
+      kabar(context, 'Keputusan tersimpan. Rapor semester Genap kini mencetaknya.');
+      Navigator.pop(context, true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final semua = _naik.length == _wb.length;
+    return Scaffold(
+      appBar: AppBar(title: Text('${_akhir ? 'Kelulusan' : 'Kenaikan kelas'} ${widget.namaRombel}')),
+      body: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 100), children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Tahun pelajaran ${teks(_kn['tahun'])} · ${teksKelas(_info['kelas'], _info['tingkatRomawi'])}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(
+                _akhir
+                    ? 'Kelas akhir. Centang warga belajar yang LULUS; yang tidak dicentang dicetak TIDAK LULUS.'
+                    : 'Centang warga belajar yang NAIK ke ${teksKelas(_info['kelasBerikut'], _info['tingkatBerikutRomawi'])}; yang tidak dicentang dicetak TINGGAL di kelas.',
+                style: const TextStyle(fontSize: 12.5),
+              ),
+              if (angka(_info['kelas']) == 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Nama rombel tidak memuat kelas (mis. B8). Kelas di rapor dicetak bertitik.', style: TextStyle(fontSize: 12, color: cs.error)),
+                ),
+              if (_baru)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Belum pernah disimpan: semua dicentang sebagai awal.', style: TextStyle(fontSize: 12, color: cs.primary)),
+                )
+              else if (teks(_kn['oleh']).isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Terakhir disimpan oleh ${teks(_kn['oleh'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                ),
+            ]),
+          ),
+        ),
+        Row(children: [
+          Expanded(child: Text('$_ya: ${_naik.length} dari ${_wb.length}', style: const TextStyle(fontWeight: FontWeight.w700))),
+          TextButton.icon(
+            onPressed: () => setState(() {
+              if (semua) {
+                _naik.clear();
+              } else {
+                _naik.addAll(_wb.map((w) => teks(w['idWb'])));
+              }
+            }),
+            icon: Icon(semua ? Icons.remove_done_rounded : Icons.done_all_rounded),
+            label: Text(semua ? 'Hapus semua centang' : 'Centang semua'),
+          ),
+        ]),
+        if (_wb.isEmpty) const Kosong(pesan: 'Belum ada warga belajar di rombel ini.'),
+        Card(
+          child: Column(children: [
+            for (final w in _wb)
+              CheckboxListTile(
+                value: _naik.contains(teks(w['idWb'])),
+                onChanged: (v) => setState(() {
+                  if (v == true) {
+                    _naik.add(teks(w['idWb']));
+                  } else {
+                    _naik.remove(teks(w['idWb']));
+                  }
+                }),
+                title: Text(teks(w['nama']), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('Rata-rata ${nilT(w['rata'])} · ${_naik.contains(teks(w['idWb'])) ? _ya : (_akhir ? 'Tidak lulus' : 'Tinggal')}',
+                    style: TextStyle(fontSize: 12, color: _naik.contains(teks(w['idWb'])) ? null : cs.error)),
+              ),
+          ]),
+        ),
+      ]),
+      floatingActionButton: _wb.isEmpty
+          ? null
+          : FloatingActionButton.extended(onPressed: _simpan, icon: const Icon(Icons.save_rounded), label: const Text('Simpan')),
+    );
+  }
 }
 
 // ───────────────────────── kartu peserta ujian ─────────────────────────

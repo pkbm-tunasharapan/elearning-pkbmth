@@ -8,6 +8,7 @@ import '../kalender.dart';
 import '../profil.dart';
 import '../ruang.dart';
 import '../theme.dart';
+import '../ulang_tahun.dart';
 import '../widgets.dart';
 import 'kartu_siswa.dart';
 import 'mapel_siswa.dart';
@@ -112,6 +113,7 @@ class _BerandaIsi extends StatelessWidget {
                 ),
               ]),
             ),
+            const KartuUlangTahun(padding: EdgeInsets.fromLTRB(16, 16, 16, 0)),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Row(children: [

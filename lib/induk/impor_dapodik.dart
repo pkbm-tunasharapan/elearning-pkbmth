@@ -25,7 +25,7 @@ class _ImporDapodikScreenState extends State<ImporDapodikScreen> {
   Map<String, dynamic>? _p;
   Map<String, dynamic>? _hasil;
   String _namaFile = '';
-  bool _tambahBaru = true, _perbarui = true, _buatRombel = true, _sinkronEl = true, _nonaktif = false;
+  bool _tambahBaru = true, _perbarui = true, _buatRombel = true, _sinkronEl = true, _nonaktif = false, _biodata = true;
 
   Future<void> _pilih() async {
     final r = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['xlsx'], withData: true);
@@ -58,6 +58,7 @@ class _ImporDapodikScreenState extends State<ImporDapodikScreen> {
       if (_buatRombel && daftar(p['rombelBaru']).isNotEmpty) '${daftar(p['rombelBaru']).length} rombel baru dibuat',
       if (_nonaktif && angka(j['hilang']) > 0) '${angka(j['hilang'])} warga belajar DINONAKTIFKAN',
       if (_sinkronEl && angka(j['elearning']) > 0) '${angka(j['elearning'])} siswa e-learning disesuaikan',
+      if (_biodata) 'Biodata rapor (agama, alamat, orang tua/wali) disimpan',
     ];
     if (ringkas.isEmpty) return kabar(context, 'Tidak ada perubahan yang dipilih.');
     if (!await konfirmasi(context, 'Terapkan impor Dapodik?', '${ringkas.join('\n')}\n\nPerubahan langsung tersimpan di spreadsheet.', ya: 'Terapkan')) return;
@@ -67,7 +68,7 @@ class _ImporDapodikScreenState extends State<ImporDapodikScreen> {
       () async => peta(await Api.instance('waAdminDapodikTerapkan', [
             _t,
             teks(p['idPratinjau']),
-            {'tambahBaru': _tambahBaru, 'perbarui': _perbarui, 'buatRombel': _buatRombel, 'nonaktifkanHilang': _nonaktif, 'sinkronElearning': _sinkronEl}
+            {'tambahBaru': _tambahBaru, 'perbarui': _perbarui, 'buatRombel': _buatRombel, 'nonaktifkanHilang': _nonaktif, 'sinkronElearning': _sinkronEl, 'biodata': _biodata}
           ], const Duration(minutes: 6))),
       teksProses: 'Menerapkan perubahan...',
     );
@@ -132,6 +133,7 @@ class _ImporDapodikScreenState extends State<ImporDapodikScreen> {
         ),
         const JudulBagian('Yang diterapkan'),
         CheckboxListTile(contentPadding: EdgeInsets.zero, value: _tambahBaru, onChanged: (v) => setState(() => _tambahBaru = v ?? false), title: const Text('Tambahkan warga belajar baru')),
+        CheckboxListTile(contentPadding: EdgeInsets.zero, value: _biodata, onChanged: (v) => setState(() => _biodata = v ?? false), title: const Text('Simpan biodata untuk cover & halaman biodata rapor')),
         CheckboxListTile(contentPadding: EdgeInsets.zero, value: _perbarui, onChanged: (v) => setState(() => _perbarui = v ?? false), title: const Text('Perbarui data yang berubah (rombel, NISN, NIK, nama, dll.)')),
         if (daftar(p['rombelBaru']).isNotEmpty)
           CheckboxListTile(contentPadding: EdgeInsets.zero, value: _buatRombel, onChanged: (v) => setState(() => _buatRombel = v ?? false), title: const Text('Buat rombel yang belum ada')),
@@ -189,7 +191,7 @@ class _ImporDapodikScreenState extends State<ImporDapodikScreen> {
         leading: const Icon(Icons.task_alt_rounded),
         title: const Text('Impor selesai', style: TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text('${angka(h['ditambah'])} ditambahkan · ${angka(h['diperbarui'])} diperbarui · ${angka(h['dinonaktifkan'])} dinonaktifkan · '
-            '${angka(h['rombelDibuat'])} rombel baru · ${angka(h['elearning'])} siswa e-learning disesuaikan'),
+            '${angka(h['rombelDibuat'])} rombel baru · ${angka(h['elearning'])} siswa e-learning disesuaikan · ${angka(h['biodata'])} biodata'),
       ),
     );
   }

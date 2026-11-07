@@ -10,6 +10,7 @@ import '../profil.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import '../ulang_tahun.dart';
 import 'dokumen_rpp.dart';
 import '../siswa/kartu_siswa.dart';
 
@@ -311,6 +312,7 @@ class Beranda extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const KartuUlangTahun(padding: EdgeInsets.only(bottom: 14)),
                 if (cepat.isNotEmpty) ...[
                   Text('Akses cepat', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 10),

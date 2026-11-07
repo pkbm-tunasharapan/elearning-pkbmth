@@ -1,5 +1,5 @@
 // ============================================================================
-// IMPOR DAPODIK (aplikasi 1.18): pengganti fitur impor di aplikasi SIM SETARA.
+// IMPOR DAPODIK (aplikasi 1.18, biodata 1.21): pengganti fitur impor di aplikasi SIM SETARA.
 // Admin mengunggah file ekspor "Daftar Peserta Didik" (.xlsx) dari Dapodik.
 // 1. waAdminDapodikPratinjau : membaca file, membandingkan dengan tab WARGA BELAJAR & ROMBEL
 //                              (spreadsheet MENU), mengembalikan daftar perubahan. Tidak menulis apa pun.
@@ -79,6 +79,13 @@ function dpkPesertaDidik_(baris) {
     if (r.indexOf('NAMA') >= 0 && r.indexOf('NISN') >= 0) { hdr = i; r.forEach(function(x, j) { if (x && idx[x] === undefined) idx[x] = j; }); break; }
   }
   if (hdr < 0) throw new Error('Format file tidak dikenali: kolom "Nama" dan "NISN" tidak ditemukan. Gunakan file ekspor Daftar Peserta Didik dari Dapodik.');
+  // Header dua tingkat (mis. "Data Ayah" -> Nama/Pekerjaan): kunci "DATA AYAH|NAMA".
+  var sub = (baris[hdr + 1] || []).map(function(x) { return String(x).trim().toUpperCase(); }), atas = '';
+  for (var s2 = 0; s2 < Math.max(sub.length, baris[hdr].length); s2++) {
+    var a2 = String(baris[hdr][s2] || '').trim().toUpperCase();
+    if (a2) atas = a2;
+    if (sub[s2] && atas && idx[atas + '|' + sub[s2]] === undefined) idx[atas + '|' + sub[s2]] = s2;
+  }
   var col = function(n) { return idx[n] === undefined ? -1 : idx[n]; };
   var cRombel = col('ROMBEL SAAT INI');
   if (cRombel < 0) throw new Error('Kolom "Rombel Saat Ini" tidak ditemukan di file Dapodik.');
@@ -97,7 +104,13 @@ function dpkPesertaDidik_(baris) {
       tgl: dpkTgl_(ambil(r, 'TANGGAL LAHIR')),
       nik: ambil(r, 'NIK').replace(/\D/g, ''),
       hp: (ambil(r, 'HP') || ambil(r, 'TELEPON')).replace(/[^\d+]/g, ''),
-      rombel: ambil(r, 'ROMBEL SAAT INI').toUpperCase().replace(/\s+/g, '')
+      rombel: ambil(r, 'ROMBEL SAAT INI').toUpperCase().replace(/\s+/g, ''),
+      agama: ambil(r, 'AGAMA'), alamat: ambil(r, 'ALAMAT'), rt: ambil(r, 'RT'), rw: ambil(r, 'RW'), dusun: ambil(r, 'DUSUN'),
+      kelurahan: ambil(r, 'KELURAHAN'), kecamatan: ambil(r, 'KECAMATAN'), kodePos: ambil(r, 'KODE POS'),
+      anakKe: ambil(r, 'ANAK KE-BERAPA'), sekolahAsal: ambil(r, 'SEKOLAH ASAL'),
+      ayah: ambil(r, 'DATA AYAH|NAMA'), kerjaAyah: ambil(r, 'DATA AYAH|PEKERJAAN'),
+      ibu: ambil(r, 'DATA IBU|NAMA'), kerjaIbu: ambil(r, 'DATA IBU|PEKERJAAN'),
+      wali: ambil(r, 'DATA WALI|NAMA'), kerjaWali: ambil(r, 'DATA WALI|PEKERJAAN')
     });
   }
   if (!out.length) throw new Error('Tidak ada data peserta didik di file ini.');
@@ -115,6 +128,25 @@ function dpkTgl_(s) {
   var m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(s);
   if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
   return s;
+}
+
+// Indeks WARGA BELAJAR untuk mencocokkan baris Dapodik (NIK -> NISN -> nama + tanggal lahir).
+function dpkIndeks_(sim) {
+  var idx = { nik: {}, nisn: {}, namaTgl: {} };
+  sim.forEach(function(s) {
+    if (s.nik) (idx.nik[s.nik] = idx.nik[s.nik] || []).push(s);
+    if (s.nisn) (idx.nisn[s.nisn] = idx.nisn[s.nisn] || []).push(s);
+    var k = dpkNorm_(s.nama) + '|' + s.tgl;
+    (idx.namaTgl[k] = idx.namaTgl[k] || []).push(s);
+  });
+  return idx;
+}
+function dpkCari_(idx, p) {
+  var pilih = function(arr) {
+    if (!arr || !arr.length) return null;
+    return arr.filter(function(x) { return x.status === 'Aktif' || !x.status; })[0] || arr[0];
+  };
+  return pilih(p.nik && idx.nik[p.nik]) || pilih(p.nisn && idx.nisn[p.nisn]) || pilih(idx.namaTgl[dpkNorm_(p.nama) + '|' + p.tgl]);
 }
 
 function dpkNorm_(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
@@ -271,7 +303,7 @@ function waAdminDapodikPratinjau(token, b64, namaFile) {
   };
 }
 
-// opsi: {tambahBaru, perbarui, nonaktifkanHilang, buatRombel, sinkronElearning} (boolean)
+// opsi: {tambahBaru, perbarui, nonaktifkanHilang, buatRombel, sinkronElearning, biodata} (boolean; biodata bawaan true)
 function waAdminDapodikTerapkan(token, idPratinjau, opsi) {
   var p = wajibAdmin_(token);
   opsi = opsi || {};
@@ -280,7 +312,7 @@ function waAdminDapodikTerapkan(token, idPratinjau, opsi) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(30000);
   try {
-    var hasil = { rombelDibuat: 0, ditambah: 0, diperbarui: 0, dinonaktifkan: 0, elearning: 0 };
+    var hasil = { rombelDibuat: 0, ditambah: 0, diperbarui: 0, dinonaktifkan: 0, elearning: 0, biodata: 0 };
     var d = dpkDataSim_();
     // 0. pengaman: file tidak lengkap tidak boleh menonaktifkan banyak warga belajar (dicek sebelum menulis apa pun)
     if (opsi.nonaktifkanHilang === true) {
@@ -352,9 +384,11 @@ function waAdminDapodikTerapkan(token, idPratinjau, opsi) {
         hasil.elearning++;
       });
     }
+    // 6. biodata lengkap (agama, alamat, orang tua/wali) untuk halaman biodata rapor
+    if (opsi.biodata !== false && typeof bioSimpanDariDapodik_ === 'function') hasil.biodata = bioSimpanDariDapodik_(simpan.pd);
     try {
       catat_(p.peran, '', p.nama, 'Impor Dapodik', simpan.namaFile + ': +' + hasil.ditambah + ' baru, ' + hasil.diperbarui + ' diperbarui, ' +
-        hasil.dinonaktifkan + ' nonaktif, ' + hasil.rombelDibuat + ' rombel baru, ' + hasil.elearning + ' siswa e-learning', 'OK');
+        hasil.dinonaktifkan + ' nonaktif, ' + hasil.rombelDibuat + ' rombel baru, ' + hasil.elearning + ' siswa e-learning, ' + hasil.biodata + ' biodata', 'OK');
     } catch (e) {}
     return hasil;
   } finally {

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
+import 'ulang_tahun.dart';
 
 /// Pemberitahuan dalam aplikasi (sama dengan NotifChat/NotifNilai/NotifJawaban di web):
 /// diperiksa tiap 15 detik selama aplikasi terbuka.
@@ -39,6 +40,37 @@ class Notif with WidgetsBindingObserver {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _cek());
     Future.delayed(const Duration(seconds: 3), _cek);
+    Future.delayed(const Duration(seconds: 8), _cekUlangTahun);
+  }
+
+  /// Sekali sehari per akun: kabar siapa yang berulang tahun hari ini, dengan tombol untuk mengucapkan selamat.
+  Future<void> _cekUlangTahun() async {
+    final id = _identitas;
+    if (id.isEmpty) return;
+    try {
+      final h = await ambilUlangTahun();
+      final d = daftar(h['daftar']).map(peta).toList();
+      if (d.isEmpty || id != _identitas) return;
+      final sp = await SharedPreferences.getInstance();
+      final k = 'notifUlt|$id|${teks(h['tanggal'])}';
+      if (sp.getBool(k) == true) return;
+      await sp.setBool(k, true);
+      final saya = d.where((x) => x['sendiri'] == true).firstOrNull;
+      final lain = d.where((x) => x['sendiri'] != true).toList();
+      final nama = lain.take(3).map((x) => '${teks(x['nama'])} (${teks(x['rombel'])})').join(', ');
+      _snack(
+        ikon: Icons.cake_rounded,
+        teksUtama: saya != null ? 'Selamat ulang tahun, ${teks(saya['nama'])}!' : 'Ulang tahun hari ini',
+        teksKecil: lain.isEmpty
+            ? 'Semoga sehat dan sukses selalu.'
+            : '${saya != null ? 'Juga berulang tahun: ' : ''}$nama${lain.length > 3 ? ' dan ${lain.length - 3} lainnya' : ''}',
+        label: lain.isEmpty ? 'Lihat' : 'Ucapkan',
+        aksi: () {
+          final c = kunciNavigator.currentState?.context;
+          if (c != null) tampilkanUlangTahun(c, d);
+        },
+      );
+    } catch (_) {}
   }
 
   void henti() {
@@ -146,7 +178,7 @@ class Notif with WidgetsBindingObserver {
     }
   }
 
-  void _snack({required IconData ikon, required String teksUtama, required String teksKecil, VoidCallback? aksi}) {
+  void _snack({required IconData ikon, required String teksUtama, required String teksKecil, VoidCallback? aksi, String label = 'Buka'}) {
     final m = kunciPesan.currentState;
     if (m == null) return;
     m
@@ -164,7 +196,7 @@ class Notif with WidgetsBindingObserver {
             ]),
           ),
         ]),
-        action: aksi == null ? null : SnackBarAction(label: 'Buka', onPressed: aksi),
+        action: aksi == null ? null : SnackBarAction(label: label, onPressed: aksi),
       ));
   }
 }
