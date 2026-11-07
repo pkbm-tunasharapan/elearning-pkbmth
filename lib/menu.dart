@@ -28,6 +28,7 @@ import 'screens/siswa_rombel.dart';
 import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
+import 'pemeliharaan/sistem.dart';
 import 'session.dart';
 import 'siswa/kartu_qr_massal.dart';
 
@@ -97,6 +98,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'ruangStaf', judul: 'Ruang Staf', ikon: Icons.forum_outlined, peran: _semua, native: () => const RuangStafScreen()),
   MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, native: () => const PengajuanTutorScreen()),
   MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, native: () => const PengaturanAiScreen()),
+  MenuApp(id: 'pemeliharaan', judul: 'Pemeliharaan Sistem', ikon: Icons.health_and_safety_outlined, peran: _admin, native: () => const PemeliharaanScreen()),
   MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
   MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, native: () => const KerangkaScreen()),
 ];

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'config.dart';
 import 'notif.dart';
+import 'pemeliharaan/sistem.dart';
 import 'profil.dart';
 import 'ruang.dart';
 import 'screens/mapel_detail.dart';
@@ -20,6 +21,7 @@ import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  pasangPelaporGalat();
   Sesi.instance.muat();
   SesiSiswa.instance.muat();
   runApp(const AplikasiStaf());
@@ -69,6 +71,7 @@ class _AplikasiStafState extends State<AplikasiStaf> {
     Sesi.instance.addListener(_aturNotif);
     SesiSiswa.instance.addListener(_aturNotif);
     _aturNotif();
+    WidgetsBinding.instance.addPostFrameCallback((_) => cekVersiAplikasi(Notif.instance.kunciNavigator));
     if (!kIsWeb) {
       // Login Google: halaman web mengembalikan tiket lewat bmstaf://sso?tiket=...
       _langgananTautan = AppLinks().uriLinkStream.listen(_terimaTautan, onError: (_) {});
