@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'referral/referral.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
 import 'ulang_tahun.dart';
@@ -124,6 +125,8 @@ class Notif with WidgetsBindingObserver {
       }).toList();
       if (baru.isNotEmpty) _tampilChat(baru, siswa);
       if (nilai.isNotEmpty) _tampilNilai(nilai, siswa);
+      final rf = daftar(h['referral']).map(peta).where((r) => _terlihat.add('rf|${angka(r['waktu'])}')).toList();
+      if (rf.isNotEmpty) _tampilReferral(rf, siswa);
     } catch (_) {
     } finally {
       _jalan = false;
@@ -156,6 +159,20 @@ class Notif with WidgetsBindingObserver {
       teksUtama: '$judul · ${namaRuang(kunci, siswa: siswa)}',
       teksKecil: '${teks(p['nama'])}${peran != 'Siswa' ? ' ($peran)' : ''}: ${teks(p['pesan'])}',
       aksi: bukaRuang == null ? null : () => bukaRuang!(kunci),
+    );
+  }
+
+  void _tampilReferral(List<Map<String, dynamic>> rf, bool siswa) {
+    final x = rf.last;
+    _snack(
+      ikon: Icons.campaign_rounded,
+      teksUtama: rf.length > 1 ? '${rf.length} kabar referral' : teks(x['judul'], 'Kabar referral'),
+      teksKecil: teks(x['pesan']),
+      aksi: () {
+        final nav = kunciNavigator.currentState;
+        final token = siswa ? SesiSiswa.instance.token : (Sesi.instance.token ?? '');
+        nav?.push(MaterialPageRoute(builder: (_) => Scaffold(appBar: AppBar(title: const Text('Referral pendaftaran')), body: ReferralScreen(token: token))));
+      },
     );
   }
 

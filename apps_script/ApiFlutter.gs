@@ -19,7 +19,9 @@ function doPost(e) {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var fn = String(body.fn || '');
     var args = Array.isArray(body.args) ? body.args : [];
-    if (fn === 'ping') {
+    if (!fn && body && body.signature_key && typeof refWebhook_ === 'function') {
+      out = { ok: true, data: refWebhook_(body) };
+    } else if (fn === 'ping') {
       out = { ok: true, data: { versi: API_FLUTTER.VERSI, waktu: waktuSekarang_() } };
     } else {
       var boleh = (API_FLUTTER.POLA.test(fn) || API_FLUTTER.TAMBAHAN[fn] === true) && typeof globalThis[fn] === 'function';
@@ -28,6 +30,7 @@ function doPost(e) {
       var hasilFn = globalThis[fn].apply(null, args);
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
       if (typeof updLama_ === 'function') hasilFn = updLama_(fn, args, hasilFn, body);
+      if (typeof rfSisipNotif_ === 'function') hasilFn = rfSisipNotif_(fn, args, hasilFn);
       out = { ok: true, data: hasilFn };
     }
   } catch (err) {

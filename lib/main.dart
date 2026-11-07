@@ -9,6 +9,7 @@ import 'config.dart';
 import 'notif.dart';
 import 'pemeliharaan/sistem.dart';
 import 'profil.dart';
+import 'promosi.dart';
 import 'ruang.dart';
 import 'screens/mapel_detail.dart';
 import 'siswa/mapel_siswa.dart';
@@ -71,7 +72,11 @@ class _AplikasiStafState extends State<AplikasiStaf> {
     Sesi.instance.addListener(_aturNotif);
     SesiSiswa.instance.addListener(_aturNotif);
     _aturNotif();
-    WidgetsBinding.instance.addPostFrameCallback((_) => cekVersiAplikasi(Notif.instance.kunciNavigator));
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Urutan popup saat aplikasi dibuka: 1) promosi, 2) pembaruan aplikasi.
+      await tampilkanPromosi(Notif.instance.kunciNavigator);
+      await cekVersiAplikasi(Notif.instance.kunciNavigator);
+    });
     if (!kIsWeb) {
       // Login Google: halaman web mengembalikan tiket lewat bmstaf://sso?tiket=...
       _langgananTautan = AppLinks().uriLinkStream.listen(_terimaTautan, onError: (_) {});

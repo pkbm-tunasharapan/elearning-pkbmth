@@ -9,6 +9,8 @@ import 'honor/honor.dart';
 import 'induk/impor_dapodik.dart';
 import 'induk/induk.dart';
 import 'jadwal/jadwal.dart';
+import 'referral/referral.dart';
+import 'referral/referral_admin.dart';
 import 'ujian/ujian_terpusat.dart';
 import 'keuangan/keuangan.dart';
 import 'nilai/nilai.dart';
@@ -77,6 +79,9 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'waliKelas', judul: 'Wali Kelas', ikon: Icons.supervisor_account_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const WaliKelasScreen()),
   MenuApp(id: 'asesmen', judul: 'Asesmen Tatap Muka', ikon: Icons.assignment_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const AsesmenScreen()),
   MenuApp(id: 'ujianTerpusat', judul: 'Jadwal Ujian Tatap Muka', ikon: Icons.event_available_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const UjianTerpusatScreen()),
+  MenuApp(id: 'referral', judul: 'Referral Pendaftaran', ikon: Icons.campaign_outlined, peran: {'Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara'}, native: () => ReferralScreen(token: Sesi.instance.token ?? '')),
+  MenuApp(id: 'referralAdmin', judul: 'Kelola Referral & Pendaftaran', ikon: Icons.how_to_reg_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Front Office', 'Bendahara'}, native: () => const ReferralAdminScreen()),
+  MenuApp(id: 'promosi', judul: 'Popup Promosi', ikon: Icons.campaign_rounded, peran: {'Admin'}, native: () => const PromosiAdminScreen()),
   MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
   MenuApp(id: 'otoNilai', judul: 'Penilaian Otomatis', ikon: Icons.auto_fix_high_rounded, peran: {'Admin', 'Superadmin'}, native: () => const OtoNilaiScreen()),
   MenuApp(id: 'kinerja', judul: 'Kinerja Tutor', ikon: Icons.leaderboard_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Dinas Pendidikan'}, native: () => const KinerjaTutorScreen()),
@@ -125,7 +130,7 @@ const _grupMenu = <String, String>{
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
   'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
-  'dataInduk': 'Warga Belajar', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
+  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
   'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'maintenance': 'Sistem',
@@ -145,6 +150,9 @@ const _kataKunci = <String, String>{
   'jadwal': 'jam pelajaran roster',
   'nilai': 'diskusi tugas koreksi',
   'kotakUjian': 'ujian soal pts pas',
+  'referral': 'cashback promotor daftar siswa baru ajak teman saldo tarik',
+  'promosi': 'iklan banner popup pengumuman promo',
+  'referralAdmin': 'verifikasi pendaftaran berkas pembayaran penarikan cashback qris',
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',
   'otoNilai': 'ajaib otomatis selesaikan penilaian belum dinilai kkm',

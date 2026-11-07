@@ -6,6 +6,7 @@ import '../api.dart';
 import '../config.dart';
 import '../kalender.dart';
 import '../profil.dart';
+import '../referral/referral.dart';
 import '../ruang.dart';
 import '../theme.dart';
 import '../ulang_tahun.dart';
@@ -308,6 +309,11 @@ class _BerandaSiswaState extends State<BerandaSiswa> {
           ListTile(leading: const Icon(Icons.forum_rounded), title: const Text('Chatroom rombel'), onTap: () {
             Navigator.pop(c);
             bukaChatSiswa(Navigator.of(context), 'ROMBEL');
+          }),
+          ListTile(leading: const Icon(Icons.campaign_rounded), title: const Text('Referral: daftarkan teman'), onTap: () {
+            Navigator.pop(c);
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => Scaffold(appBar: AppBar(title: const Text('Referral pendaftaran')), body: ReferralScreen(token: SesiSiswa.instance.token))));
           }),
           ListTile(leading: const Icon(Icons.calendar_month_rounded), title: const Text('Kalender akademik'), onTap: () {
             Navigator.pop(c);
