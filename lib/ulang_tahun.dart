@@ -70,7 +70,7 @@ class _BarisUlangTahunState extends State<_BarisUlangTahun> {
       leading: const CircleAvatar(radius: 18, backgroundColor: Color(0x33E9A23B), child: Icon(Icons.cake_rounded, size: 18, color: Color(0xFFE9A23B))),
       title: Text(teks(x['nama']), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Text([teks(x['rombel']), if (usia > 0) '$usia tahun', if (sendiri) 'Ini Anda!'].join(' · ')),
-      trailing: sendiri
+      trailing: sendiri || Sesi.instance.isDinas
           ? null
           : x['bisaUcap'] != true
               ? const Tooltip(message: 'Chatroom rombel belum tersedia', child: Icon(Icons.chat_bubble_outline_rounded, size: 20))

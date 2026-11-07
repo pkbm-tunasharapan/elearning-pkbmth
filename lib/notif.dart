@@ -104,6 +104,7 @@ class Notif with WidgetsBindingObserver {
       var sejak = sp.getInt(kChat) ?? 0;
       final sejakNilai = sp.getInt(kNilai) ?? 0;
       final siswa = id.startsWith('siswa|');
+      if (!siswa && Sesi.instance.isDinas) return;
       // Pemeriksaan pertama hanya menandai titik awal (server tidak mengembalikan apa pun bila sejak = 0).
       final h = peta(siswa
           ? await Api.instance('waRuangCek', [SesiSiswa.instance.nama, SesiSiswa.instance.idRombel, sejak, sejakNilai])

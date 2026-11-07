@@ -8,7 +8,7 @@ man = akar / 'android/app/src/main/AndroidManifest.xml'
 s = man.read_text()
 if 'android.permission.INTERNET' not in s:
     s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
-for izin in ['CAMERA', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION']:
+for izin in ['CAMERA', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'MODIFY_AUDIO_SETTINGS']:
     if 'android.permission.' + izin not in s:
         s = s.replace('<application', '<uses-permission android:name="android.permission.' + izin + '"/>\n    <application', 1)
 s = re.sub(r'android:label="[^"]*"', f'android:label="{NAMA}"', s, count=1)
@@ -113,4 +113,17 @@ if halaman.exists() and (akar / 'web').exists():
     for f in halaman.glob('*.html'):
         shutil.copyfile(f, akar / 'web' / f.name)
     print('Halaman web tambahan dipasang.')
+# MainActivity dengan kanal alarm ujian (jalur suara ALARM, tetap berbunyi saat mode senyap).
+tmpl = akar / 'tool/android/MainActivity.kt'
+if tmpl.exists():
+    asli = [f for f in (akar / 'android/app/src/main').glob('**/MainActivity.kt')] + [f for f in (akar / 'android/app/src/main').glob('**/MainActivity.java')]
+    if asli:
+        teks_asli = asli[0].read_text()
+        m = re.search(r'^package\s+([\w.]+)', teks_asli, re.M)
+        paket = m.group(1) if m else 'id.pkbmtunasharapan.elearning_staf'
+        tujuan_kt = asli[0].with_suffix('.kt')
+        for f in asli:
+            f.unlink()
+        tujuan_kt.write_text(tmpl.read_text().replace('PAKET_APLIKASI', paket))
+        print('MainActivity (alarm ujian) dipasang: ' + paket)
 print('Platform siap.')

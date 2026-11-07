@@ -91,7 +91,7 @@ class MapelDetailScreen extends StatelessWidget {
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
                 if (!lihat)
-                  const PopupMenuItem(value: 'media', child: ListTile(leading: Icon(Icons.auto_awesome_rounded), title: Text('Media ajar AI untuk semua materi'))),
+                  const PopupMenuItem(value: 'media', child: ListTile(leading: Icon(Icons.edit_note_rounded), title: Text('LKPD untuk semua materi'))),
               ],
             ),
           ],
@@ -203,8 +203,8 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
           if (boleh) ListTile(leading: const Icon(Icons.edit_rounded), title: const Text('Ubah'), onTap: () { Navigator.pop(c); _ubah(item, sesi); }),
           if (jenis == 'Materi')
             ListTile(
-              leading: const Icon(Icons.auto_awesome_rounded),
-              title: const Text('Media ajar (AI): mindmap, infografis, ringkasan, LKS'),
+              leading: const Icon(Icons.collections_rounded),
+              title: const Text('Media ajar: mindmap, infografis, poster, LKPD'),
               onTap: () {
                 Navigator.pop(c);
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => MediaAjarScreen(idMapel: widget.idMapel, item: item)));

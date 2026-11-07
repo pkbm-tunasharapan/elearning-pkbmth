@@ -24,7 +24,10 @@ function doPost(e) {
     } else {
       var boleh = (API_FLUTTER.POLA.test(fn) || API_FLUTTER.TAMBAHAN[fn] === true) && typeof globalThis[fn] === 'function';
       if (!boleh) throw new Error('Fungsi tidak diizinkan: ' + fn);
-      out = { ok: true, data: globalThis[fn].apply(null, args) };
+      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__DINAS = false;
+      var hasilFn = globalThis[fn].apply(null, args);
+      if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
+      out = { ok: true, data: hasilFn };
     }
   } catch (err) {
     out = { ok: false, error: String((err && err.message) || err) };

@@ -27,7 +27,7 @@ class DataIndukScreen extends StatelessWidget {
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
       const Text('Kelola data master langsung dari aplikasi. Data yang dihapus hanya dinonaktifkan, tidak hilang.', style: TextStyle(fontSize: 12.5)),
       const SizedBox(height: 8),
-      for (final t in _tabel)
+      for (final t in _tabel.where((t) => !(Sesi.instance.isDinas && t.$1 == 'pengaturan')))
         Card(
           child: ListTile(
             leading: CircleAvatar(backgroundColor: Gaya.ungu.withValues(alpha: 0.12), child: Icon(t.$3, color: Gaya.ungu)),
@@ -173,7 +173,7 @@ class _TabelIndukScreenState extends State<TabelIndukScreen> {
         final idTampil = {for (final b in baris) teks(b['_id'])};
         _pilih.removeWhere((id) => !idTampil.contains(id));
         final dipilih = baris.where((b) => _pilih.contains(teks(b['_id']))).toList();
-        final tulis = d['tulis'] == true;
+        final tulis = d['tulis'] == true && !Sesi.instance.isDinas;
         final lebar = MediaQuery.of(context).size.width >= 800;
         final semuaDipilih = baris.isNotEmpty && dipilih.length == baris.length;
 
@@ -531,7 +531,7 @@ class _FormIndukState extends State<FormInduk> {
   Widget _field(Map<String, dynamic> k) {
     final n = teks(k['nama']);
     final lbl = '${teks(k['label'], n)}${k['wajib'] == true ? ' *' : ''}';
-    final ro = k['ro'] == true || widget.data['tulis'] != true || (n == teks(widget.data['kunci']) && !_baru);
+    final ro = k['ro'] == true || widget.data['tulis'] != true || Sesi.instance.isDinas || (n == teks(widget.data['kunci']) && !_baru);
     switch (teks(k['jenis'])) {
       case 'bool':
         return SwitchListTile(contentPadding: EdgeInsets.zero, value: _nilai[n] == true, onChanged: ro ? null : (v) => setState(() => _nilai[n] = v), title: Text(lbl));
@@ -578,7 +578,7 @@ class _FormIndukState extends State<FormInduk> {
 
   @override
   Widget build(BuildContext context) {
-    final tulis = widget.data['tulis'] == true;
+    final tulis = widget.data['tulis'] == true && !Sesi.instance.isDinas;
     final isi = ListView(padding: const EdgeInsets.all(16), children: [
       for (final k in _kolom)
         if (!(k['ro'] == true && _baru)) Padding(padding: const EdgeInsets.only(bottom: 12), child: _field(k)),

@@ -1,4 +1,8 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
@@ -8,16 +12,19 @@ import '../widgets.dart';
 
 String? get _t => Sesi.instance.token;
 
-const jenisMediaAjar = <(String, String, IconData, String)>[
-  ('mindmap', 'Mindmap', Icons.account_tree_rounded, 'Peta pikiran konsep inti dan cabang subtopik'),
-  ('infografis', 'Infografis', Icons.insert_chart_rounded, 'Poster 1 halaman: fakta kunci, poin utama, kesimpulan'),
-  ('ringkasan', 'Ringkasan', Icons.summarize_rounded, 'Ringkasan, poin penting, istilah, contoh'),
-  ('lks', 'Lembar Kerja', Icons.edit_note_rounded, '8 soal latihan + kunci terpisah untuk tutor'),
+/// (kode, label, ikon, keterangan, gambar?)
+const jenisMediaAjar = <(String, String, IconData, String, bool)>[
+  ('mindmap', 'Mindmap', Icons.account_tree_rounded, 'Peta pikiran bergambar: konsep inti dan cabang subtopik', true),
+  ('infografis', 'Infografis', Icons.insert_chart_rounded, 'Gambar 1 halaman: fakta kunci, poin utama, kesimpulan', true),
+  ('ringkasan', 'Poster Ringkasan', Icons.image_rounded, 'Poster bergambar: poin penting dan istilah kunci', true),
+  ('lks', 'LKPD', Icons.edit_note_rounded, 'Lembar Kerja Peserta Didik: 8 soal + kunci terpisah untuk tutor', false),
 ];
 
 IconData _ikon(String j) => j == 'kunci' ? Icons.key_rounded : jenisMediaAjar.firstWhere((x) => x.$1 == j, orElse: () => jenisMediaAjar.first).$3;
 
-/// Media ajar AI untuk satu materi (tutor pengampu & Admin): buat, pratinjau, terbitkan, hapus.
+const _urlGemini = 'https://gemini.google.com/app';
+
+/// Media ajar satu materi (tutor pengampu & Admin): gambar lewat prompt + unggah, LKPD otomatis; pratinjau, terbitkan, hapus.
 class MediaAjarScreen extends StatefulWidget {
   const MediaAjarScreen({super.key, required this.idMapel, required this.item});
   final String idMapel;
@@ -31,11 +38,91 @@ class _MediaAjarScreenState extends State<MediaAjarScreen> {
   int _v = 0;
   String get _idMateri => teks(widget.item['id']);
 
-  Future<void> _buat(String jenis, String label) async {
-    final r = await jalankan(context, () => Api.instance('waStafMediaAjarBuat', [_t, widget.idMapel, _idMateri, jenis], const Duration(minutes: 5)),
-        teksProses: 'Gemini menyusun $label & membuat PDF...');
+  Future<void> _buatLkpd() async {
+    final r = await jalankan(context, () => Api.instance('waStafMediaAjarBuat', [_t, widget.idMapel, _idMateri, 'lks'], const Duration(minutes: 5)),
+        teksProses: 'Menyusun LKPD & membuat PDF...');
     if (r.ok && mounted) {
-      kabar(context, '$label dibuat sebagai Draf. Pratinjau lalu terbitkan untuk siswa.');
+      kabar(context, 'LKPD dan kuncinya dibuat sebagai Draf. Pratinjau lalu terbitkan untuk siswa.');
+      setState(() => _v++);
+    }
+  }
+
+  Future<void> _prompt(String jenis, String label) async {
+    final r = await jalankan(context, () => Api.instance('waStafMediaAjarPrompt', [_t, widget.idMapel, _idMateri, jenis]), teksProses: 'Menyiapkan prompt...');
+    if (!r.ok || !mounted) return;
+    final prompt = teks(peta(r.data)['prompt']);
+    await Clipboard.setData(ClipboardData(text: prompt));
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('Prompt $label'),
+        content: SizedBox(
+          width: 560,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Prompt sudah disalin. Langkahnya:', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            const Text('1. Buka Gemini, tempel prompt, lalu kirim.\n'
+                '2. Periksa ejaan tulisan pada gambar. Bila ada yang salah, minta Gemini memperbaikinya.\n'
+                '3. Unduh gambarnya (PNG/JPG), lalu kembali ke sini dan tekan "Unggah hasil".'),
+            const SizedBox(height: 10),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Theme.of(c).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+                child: SingleChildScrollView(child: SelectableText(prompt, style: const TextStyle(fontSize: 12))),
+              ),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: prompt));
+              if (c.mounted) kabar(c, 'Prompt disalin.');
+            },
+            child: const Text('Salin lagi'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup')),
+          FilledButton.icon(
+            onPressed: () => launchUrl(Uri.parse(_urlGemini), mode: LaunchMode.externalApplication),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: const Text('Buka Gemini'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _unggah(String jenis, String label) async {
+    final p = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['png', 'jpg', 'jpeg', 'pdf'], withData: true);
+    final f = p?.files.firstOrNull;
+    if (f == null || f.bytes == null || !mounted) return;
+    final bytes = f.bytes!;
+    if (bytes.length > 9 * 1024 * 1024) {
+      kabar(context, 'Berkas terlalu besar (maks 9 MB).', galat: true);
+      return;
+    }
+    final ext = (f.extension ?? '').toLowerCase();
+    final mime = switch (ext) { 'png' => 'image/png', 'pdf' => 'application/pdf', _ => 'image/jpeg' };
+    var w = 0, h = 0;
+    if (mime != 'application/pdf') {
+      try {
+        final img = await decodeImageFromList(bytes);
+        w = img.width;
+        h = img.height;
+        img.dispose();
+      } catch (_) {
+        if (mounted) kabar(context, 'Gambar tidak dapat dibaca. Pastikan berkasnya PNG atau JPG.', galat: true);
+        return;
+      }
+    }
+    if (!mounted) return;
+    final b64 = base64Encode(bytes);
+    final r = await jalankan(context, () => Api.instance('waStafMediaAjarUnggah', [_t, widget.idMapel, _idMateri, jenis, b64, mime, w, h], const Duration(minutes: 3)),
+        teksProses: 'Mengunggah & membuat PDF $label...');
+    if (r.ok && mounted) {
+      kabar(context, '$label tersimpan sebagai Draf. Pratinjau lalu terbitkan untuk siswa.');
       setState(() => _v++);
     }
   }
@@ -69,29 +156,50 @@ class _MediaAjarScreenState extends State<MediaAjarScreen> {
         muat: () async => peta(await Api.instance('waStafMediaAjarDaftar', [_t, widget.idMapel, _idMateri])),
         bangun: (context, d, segarkan) {
           final media = daftar(d['media']).map(peta).toList();
-          final boleh = d['bolehBuat'] == true;
+          final boleh = d['bolehBuat'] == true && !Sesi.instance.isDinas;
           return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
-            Text('Gemini menyusun media dari teks materi ini, lalu PDF disimpan di Drive (folder per rombel · mapel · sesi). '
-                'Hasil berstatus Draf sampai Anda terbitkan.', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+            Text('Media disimpan sebagai PDF di Drive lembaga (folder per rombel · mapel · sesi) dengan kop dan catatan hak milik PKBM Tunas Harapan. '
+                'Status Draf sampai Anda terbitkan.', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
             if (boleh) ...[
-              const JudulBagian('Buat media baru'),
+              const JudulBagian('Media gambar', sub: 'Salin prompt → buat di Gemini → unggah hasilnya'),
               Card(
                 child: Column(children: [
-                  for (final j in jenisMediaAjar)
-                    ListTile(
-                      leading: Icon(j.$3, color: cs.primary),
-                      title: Text(j.$2, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text(j.$4),
-                      trailing: FilledButton.tonal(
-                        onPressed: () => _buat(j.$1, j.$2),
-                        child: Text(media.any((m) => teks(m['jenis']) == j.$1) ? 'Buat ulang' : 'Buat'),
-                      ),
+                  for (final j in jenisMediaAjar.where((j) => j.$5))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        ListTile(
+                          leading: Icon(j.$3, color: cs.primary),
+                          title: Text(j.$2, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text(j.$4),
+                          trailing: media.any((m) => teks(m['jenis']) == j.$1) ? const Lencana('Ada', warna: Colors.green) : null,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                          child: Wrap(spacing: 8, runSpacing: 6, children: [
+                            OutlinedButton.icon(onPressed: () => _prompt(j.$1, j.$2), icon: const Icon(Icons.content_copy_rounded, size: 18), label: const Text('Salin prompt')),
+                            FilledButton.tonalIcon(onPressed: () => _unggah(j.$1, j.$2), icon: const Icon(Icons.upload_rounded, size: 18), label: const Text('Unggah hasil')),
+                          ]),
+                        ),
+                      ]),
                     ),
                 ]),
               ),
+              const JudulBagian('Lembar kerja'),
+              Card(
+                child: ListTile(
+                  leading: Icon(Icons.edit_note_rounded, color: cs.primary),
+                  title: const Text('LKPD', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Disusun otomatis dari teks materi: 8 soal + kunci terpisah untuk tutor'),
+                  trailing: FilledButton.tonal(
+                    onPressed: _buatLkpd,
+                    child: Text(media.any((m) => teks(m['jenis']) == 'lks') ? 'Buat ulang' : 'Buat'),
+                  ),
+                ),
+              ),
             ],
             JudulBagian('Media materi ini', sub: '${media.length} file'),
-            if (media.isEmpty) const Kosong(pesan: 'Belum ada media ajar untuk materi ini.', ikon: Icons.auto_awesome_rounded),
+            if (media.isEmpty) const Kosong(pesan: 'Belum ada media ajar untuk materi ini.', ikon: Icons.collections_rounded),
             for (final m in media)
               Card(
                 child: Padding(
@@ -134,39 +242,30 @@ class _MediaAjarScreenState extends State<MediaAjarScreen> {
   }
 }
 
-/// Buat satu jenis media untuk semua materi di mapel yang belum punya (diproses bertahap).
+/// Buat LKPD untuk semua materi di mapel yang belum punya (diproses bertahap).
+/// Media gambar dibuat per materi (prompt + unggah) dari layar media ajar tiap materi.
 Future<void> buatMediaAjarMassal(BuildContext context, String idMapel) async {
-  final pilih = await showModalBottomSheet<(String, String)>(
-    context: context,
-    showDragHandle: true,
-    builder: (c) => SafeArea(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text('Buat media untuk semua materi yang belum punya', style: TextStyle(fontWeight: FontWeight.w800)),
-        ),
-        for (final j in jenisMediaAjar)
-          ListTile(leading: Icon(j.$3), title: Text(j.$2), subtitle: Text(j.$4), onTap: () => Navigator.pop(c, (j.$1, j.$2))),
-        const SizedBox(height: 8),
-      ]),
-    ),
-  );
-  if (pilih == null || !context.mounted) return;
+  if (!await konfirmasi(context, 'Buat LKPD untuk semua materi?',
+      'LKPD dan kuncinya disusun untuk setiap materi yang belum punya, sebagai Draf. Media gambar (mindmap, infografis, poster) dibuat per materi lewat menu Media ajar.',
+      ya: 'Buat')) {
+    return;
+  }
+  if (!context.mounted) return;
   var total = 0;
   final lewat = <String>[];
   final ok = await jalankan(context, () async {
     while (true) {
-      final r = peta(await Api.instance('waStafMediaAjarMassal', [_t, idMapel, pilih.$1], const Duration(minutes: 6)));
+      final r = peta(await Api.instance('waStafMediaAjarMassal', [_t, idMapel, 'lks'], const Duration(minutes: 6)));
       total += angka(r['dibuat']);
       lewat.addAll(daftar(r['lewat']).map(peta).map((x) => '${teks(x['judul'])}: ${teks(x['alasan'])}'));
       if (angka(r['sisa']) <= 0 || angka(r['dibuat']) == 0) break;
     }
     return total;
-  }, teksProses: 'Membuat ${pilih.$2} untuk semua materi... (bisa beberapa menit)');
+  }, teksProses: 'Menyusun LKPD untuk semua materi... (bisa beberapa menit)');
   if (!context.mounted) return;
   if (ok.ok) {
-    kabar(context, '$total ${pilih.$2} dibuat sebagai Draf${lewat.isEmpty ? '' : ' · ${lewat.length} materi dilewati (${lewat.first})'}. Buka tiap materi untuk pratinjau & terbitkan.');
+    kabar(context, '$total LKPD dibuat sebagai Draf${lewat.isEmpty ? '' : ' · ${lewat.length} materi dilewati (${lewat.first})'}. Buka tiap materi untuk pratinjau & terbitkan.');
   } else if (total > 0) {
-    kabar(context, '$total ${pilih.$2} sempat dibuat sebelum berhenti. Jalankan lagi nanti untuk melanjutkan.');
+    kabar(context, '$total LKPD sempat dibuat sebelum berhenti. Jalankan lagi nanti untuk melanjutkan.');
   }
 }

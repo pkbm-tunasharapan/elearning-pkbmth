@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../alarm_ujian.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -225,7 +227,7 @@ class _MateriSiswaScreenState extends State<MateriSiswaScreen> {
                 padding: const EdgeInsets.all(14),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(Icons.auto_awesome_rounded, color: cs.primary),
+                    Icon(Icons.collections_rounded, color: cs.primary),
                     const SizedBox(width: 8),
                     const Text('Media ajar', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   ]),
@@ -789,7 +791,12 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
       context: context,
       builder: (d) => AlertDialog(
         title: const Text('Kode akses ujian'),
-        content: TextField(controller: c, autofocus: true, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses dari tutor')),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: c, autofocus: true, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses dari tutor')),
+          const SizedBox(height: 12),
+          const Text('Selama ujian jangan keluar dari aplikasi. Setiap kali keluar, alarm akan berbunyi keras (juga saat ponsel senyap) dan tercatat sebagai pelanggaran.',
+              style: TextStyle(fontSize: 12.5)),
+        ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Batal')),
           FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Mulai')),
@@ -802,6 +809,19 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
   }
 
   Future<void> _mulai() async {
+    if (kIsWeb) {
+      await showDialog<void>(
+        context: context,
+        builder: (d) => AlertDialog(
+          icon: const Icon(Icons.phone_android_rounded, size: 36),
+          title: const Text('Ujian hanya lewat aplikasi Android'),
+          content: const Text('Demi kejujuran ujian, ujian hanya dapat dikerjakan melalui aplikasi TH.E-Course di ponsel Android. '
+              'Silakan buka aplikasi di ponsel Anda, lalu mulai ujian dari sana.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(d), child: const Text('Mengerti'))],
+        ),
+      );
+      return;
+    }
     final kode = await _mintaKode();
     if (kode == null || !mounted) return;
     final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode]), teksProses: 'Menyiapkan soal...');
@@ -975,6 +995,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    AlarmUjian.henti(segera: true);
     _jam?.cancel();
     _halaman.dispose();
     super.dispose();
@@ -982,7 +1003,12 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AlarmUjian.henti();
+      return;
+    }
     if (state == AppLifecycleState.paused && !_kirim) {
+      AlarmUjian.mulai();
       Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode]).then((r) {
         final d = peta(r);
         if (!mounted) return;

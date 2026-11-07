@@ -11,7 +11,7 @@ class DasborLembaga extends StatefulWidget {
   final void Function(String id) onPilih;
   final bool lebar;
 
-  static bool boleh(String peran) => const {'Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin'}.contains(peran);
+  static bool boleh(String peran) => const {'Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'}.contains(peran);
 
   @override
   State<DasborLembaga> createState() => _DasborLembagaState();
