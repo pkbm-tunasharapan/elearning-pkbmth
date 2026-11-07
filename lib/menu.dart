@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'absensi/absen_ks.dart';
 import 'absensi/absen_tutor.dart';
-import 'absensi/absen_wb.dart';
+import 'absensi/absen_harian.dart';
 import 'absensi/atur.dart';
 import 'absensi/laporan.dart';
 import 'honor/honor.dart';
@@ -62,7 +62,7 @@ const _lapHadir = {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikul
 final List<MenuApp> semuaMenu = [
   MenuApp(id: 'pengguna', judul: 'Kelola Tutor & Enrollment', ikon: Icons.groups_outlined, peran: _admin, native: () => const PenggunaScreen(), utama: true),
   MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: {..._semua, 'Superadmin'}, native: () => const MapelScreen(), utama: true),
-  MenuApp(id: 'absensi', judul: 'Absensi Warga Belajar', ikon: Icons.how_to_reg_outlined, peran: _absWb, native: () => const AbsensiWbScreen(), utama: true),
+  MenuApp(id: 'absensi', judul: 'Absensi Warga Belajar', ikon: Icons.how_to_reg_outlined, peran: _absWb, native: () => const AbsensiMenuScreen(), utama: true),
   MenuApp(id: 'absenTutor', judul: 'Absen Tutor', ikon: Icons.badge_outlined, peran: {'Kepala Sekolah', 'Front Office'}, native: () => const AbsenTutorScreen(), utama: true),
   MenuApp(id: 'absenSaya', judul: 'Absen Saya', ikon: Icons.camera_front_outlined, peran: {'Kepala Sekolah'}, native: () => const AbsenSayaScreen(), utama: true),
   MenuApp(id: 'persetujuanKs', judul: 'Persetujuan Kehadiran KS', ikon: Icons.fact_check_outlined, peran: {'Superadmin'}, native: () => const PersetujuanKsScreen(), utama: true),
