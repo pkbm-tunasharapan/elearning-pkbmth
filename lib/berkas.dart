@@ -14,6 +14,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'api.dart';
 import 'session.dart';
 import 'widgets.dart';
+import 'unduh/unduh_stub.dart' if (dart.library.js_interop) 'unduh/unduh_web.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -241,6 +242,12 @@ Future<dynamic> panggilAi(
 
 // ───────────────────────── simpan & buka berkas ─────────────────────────
 
+/// Web: unduh langsung lewat browser lalu beri kabar.
+Future<void> _unduhWeb(BuildContext context, List<int> bytes, String nama, String mime) async {
+  await unduhBerkasWeb(bytes, nama, mime);
+  if (context.mounted) kabar(context, '$nama diunduh ke folder Unduhan.');
+}
+
 Future<String> _simpan(List<int> bytes, String nama) async {
   final dir = await getTemporaryDirectory();
   final f = File('${dir.path}/$nama');
@@ -250,10 +257,7 @@ Future<String> _simpan(List<int> bytes, String nama) async {
 
 /// Membuka PDF (dari base64 server) dengan penampil PDF di HP. Tombol bagikan/simpan tersedia di sana.
 Future<void> bukaPdfB64(BuildContext context, String b64, String nama) async {
-  if (kIsWeb) {
-    kabar(context, 'Unduh PDF hanya tersedia di aplikasi Android.', galat: true);
-    return;
-  }
+  if (kIsWeb) return _unduhWeb(context, base64Decode(b64), nama, 'application/pdf');
   final path = await _simpan(base64Decode(b64), nama);
   final r = await OpenFilex.open(path, type: 'application/pdf');
   if (r.type != ResultType.done && context.mounted) {
@@ -263,10 +267,7 @@ Future<void> bukaPdfB64(BuildContext context, String b64, String nama) async {
 
 /// Membuka PDF yang dibuat di HP (bytes) dengan penampil PDF; bila gagal, lewat menu Bagikan.
 Future<void> bukaPdfBytes(BuildContext context, List<int> bytes, String nama) async {
-  if (kIsWeb) {
-    kabar(context, 'Unduh PDF hanya tersedia di aplikasi Android.', galat: true);
-    return;
-  }
+  if (kIsWeb) return _unduhWeb(context, bytes, nama, 'application/pdf');
   final path = await _simpan(bytes, nama);
   final r = await OpenFilex.open(path, type: 'application/pdf');
   if (r.type != ResultType.done && context.mounted) {
@@ -277,7 +278,12 @@ Future<void> bukaPdfBytes(BuildContext context, List<int> bytes, String nama) as
 /// Mengirim satu atau beberapa gambar PNG lewat menu Bagikan (simpan ke Galeri/Drive, WhatsApp, dll.).
 Future<void> bagikanPng(BuildContext context, List<({List<int> bytes, String nama})> gambar, {String judul = 'Gambar'}) async {
   if (kIsWeb) {
-    kabar(context, 'Bagikan gambar hanya tersedia di aplikasi Android.', galat: true);
+    for (final g in gambar) {
+      await unduhBerkasWeb(g.bytes, g.nama, 'image/png');
+      // jeda singkat agar browser tidak menolak unduhan beruntun
+      if (gambar.length > 1) await Future<void>.delayed(const Duration(milliseconds: 350));
+    }
+    if (context.mounted) kabar(context, gambar.length > 1 ? '${gambar.length} gambar diunduh ke folder Unduhan.' : '${gambar.first.nama} diunduh ke folder Unduhan.');
     return;
   }
   final files = <XFile>[];
@@ -289,10 +295,7 @@ Future<void> bagikanPng(BuildContext context, List<({List<int> bytes, String nam
 
 /// Mengirim dokumen Word (.doc HTML) lewat menu Bagikan (simpan ke Drive, WhatsApp, dll.).
 Future<void> bagikanWord(BuildContext context, String html, String nama) async {
-  if (kIsWeb) {
-    kabar(context, 'Unduh Word hanya tersedia di aplikasi Android.', galat: true);
-    return;
-  }
+  if (kIsWeb) return _unduhWeb(context, [0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama, 'application/msword');
   final path = await _simpan([0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama);
   final r = await OpenFilex.open(path, type: 'application/msword');
   if (r.type != ResultType.done) {
@@ -302,10 +305,7 @@ Future<void> bagikanWord(BuildContext context, String html, String nama) async {
 
 /// Mengirim tabel HTML sebagai berkas Excel (.xls) lewat menu Bagikan.
 Future<void> bagikanExcel(BuildContext context, String html, String nama) async {
-  if (kIsWeb) {
-    kabar(context, 'Unduh Excel hanya tersedia di aplikasi Android.', galat: true);
-    return;
-  }
+  if (kIsWeb) return _unduhWeb(context, [0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama, 'application/vnd.ms-excel');
   final path = await _simpan([0xEF, 0xBB, 0xBF, ...utf8.encode(html)], nama);
   final r = await OpenFilex.open(path, type: 'application/vnd.ms-excel');
   if (r.type != ResultType.done) {
