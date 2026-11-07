@@ -6,6 +6,7 @@ import 'absensi/absen_wb.dart';
 import 'absensi/atur.dart';
 import 'absensi/laporan.dart';
 import 'honor/honor.dart';
+import 'induk/impor_dapodik.dart';
 import 'induk/induk.dart';
 import 'jadwal/jadwal.dart';
 import 'keuangan/keuangan.dart';
@@ -88,6 +89,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'kotakUjian', judul: 'Kotak Ujian', ikon: Icons.assignment_turned_in_outlined, peran: _semua, native: () => const KotakUjianScreen()),
   MenuApp(id: 'siswaRombel', judul: 'Siswa per Rombel', ikon: Icons.school_outlined, peran: _semua, native: () => const SiswaRombelScreen()),
   MenuApp(id: 'kelolaMapel', judul: 'Kelola Mata Pelajaran', ikon: Icons.library_books_outlined, peran: _admin, native: () => const KelolaMapelScreen()),
+  MenuApp(id: 'imporDapodik', judul: 'Impor Dapodik', ikon: Icons.cloud_upload_outlined, peran: _admin, native: () => const ImporDapodikScreen()),
   MenuApp(id: 'kartuQr', judul: 'Kartu QR Siswa (ID Card)', ikon: Icons.qr_code_2_rounded, peran: _admin, native: () => const KartuQrMassalScreen()),
   MenuApp(id: 'daftar', judul: 'Pendaftaran Siswa', ikon: Icons.how_to_reg_outlined, peran: _admin, native: () => const PendaftaranScreen()),
   MenuApp(id: 'ganda', judul: 'Sinkron & Data Ganda', ikon: Icons.sync_alt, peran: _admin, native: () => const GandaScreen()),
