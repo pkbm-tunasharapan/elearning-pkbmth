@@ -9,6 +9,7 @@ import 'honor/honor.dart';
 import 'induk/impor_dapodik.dart';
 import 'induk/induk.dart';
 import 'jadwal/jadwal.dart';
+import 'ujian/ujian_terpusat.dart';
 import 'keuangan/keuangan.dart';
 import 'nilai/nilai.dart';
 import 'kalender.dart';
@@ -75,6 +76,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'nilaiRapor', judul: 'Nilai & Rapor', ikon: Icons.grading_rounded, peran: {'Admin', 'Kepala Sekolah', 'Tutor', 'Dinas Pendidikan'}, native: () => const NilaiRaporScreen()),
   MenuApp(id: 'waliKelas', judul: 'Wali Kelas', ikon: Icons.supervisor_account_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const WaliKelasScreen()),
   MenuApp(id: 'asesmen', judul: 'Asesmen Tatap Muka', ikon: Icons.assignment_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const AsesmenScreen()),
+  MenuApp(id: 'ujianTerpusat', judul: 'Jadwal Ujian Tatap Muka', ikon: Icons.event_available_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const UjianTerpusatScreen()),
   MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
   MenuApp(id: 'otoNilai', judul: 'Penilaian Otomatis', ikon: Icons.auto_fix_high_rounded, peran: {'Admin', 'Superadmin'}, native: () => const OtoNilaiScreen()),
   MenuApp(id: 'kinerja', judul: 'Kinerja Tutor', ikon: Icons.leaderboard_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Dinas Pendidikan'}, native: () => const KinerjaTutorScreen()),
@@ -118,7 +120,7 @@ const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kale
 
 const _grupMenu = <String, String>{
   'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
-  'progres': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
+  'progres': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
   'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
@@ -143,6 +145,7 @@ const _kataKunci = <String, String>{
   'jadwal': 'jam pelajaran roster',
   'nilai': 'diskusi tugas koreksi',
   'kotakUjian': 'ujian soal pts pas',
+  'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',
   'otoNilai': 'ajaib otomatis selesaikan penilaian belum dinilai kkm',
   'kinerja': 'poin minus penilaian kinerja tutor terlambat',
