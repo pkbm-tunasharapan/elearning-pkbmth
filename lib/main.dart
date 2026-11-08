@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'absensi/antrean_pindai.dart';
 import 'api.dart';
 import 'config.dart';
 import 'notif.dart';
@@ -76,6 +77,8 @@ class _AplikasiStafState extends State<AplikasiStaf> {
       // Urutan popup saat aplikasi dibuka: 1) promosi, 2) pembaruan aplikasi.
       await tampilkanPromosi(Notif.instance.kunciNavigator);
       await cekVersiAplikasi(Notif.instance.kunciNavigator);
+      // pindaian absensi yang belum terkirim (mis. aplikasi ditutup saat sinyal putus) dikirim ulang
+      if (Sesi.instance.token != null) AntreanPindai.harian.muat();
     });
     if (!kIsWeb) {
       // Login Google: halaman web mengembalikan tiket lewat bmstaf://sso?tiket=...

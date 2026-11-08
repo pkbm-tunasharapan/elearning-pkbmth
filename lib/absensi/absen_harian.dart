@@ -5,6 +5,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'absen_wb.dart';
+import 'antrean_pindai.dart';
 import 'umum.dart';
 
 String? get _t => Sesi.instance.token;
@@ -33,32 +34,60 @@ class AbsenHarianScreen extends StatefulWidget {
 class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
   String _tanggal = tglIso(DateTime.now());
   String _rombel = '';
-  String _kodeBuka = '';
   String _cari = '';
   int _v = 0;
+  final _antre = AntreanPindai.harian;
+  int _menungguLalu = 0;
 
-  Future<T> _denganKodeBuka<T>(Future<T> Function() aksi) async {
-    while (true) {
-      try {
-        return await aksi();
-      } on ApiException catch (e) {
-        if (!e.pesan.contains('Kode Buka') || !mounted) rethrow;
-        final k = await mintaTeks(context, 'Di luar jam absensi', label: 'Kode Buka dari admin', huruf: true);
-        if (k == null || k.isEmpty) rethrow;
-        _kodeBuka = k;
-      }
+  /// Daftar warga belajar terakhir yang dimuat, untuk mengenali kartu di HP tanpa menunggu server.
+  List<Map<String, dynamic>> _roster = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _antre.addListener(_antreBerubah);
+    _antre.muat();
+  }
+
+  @override
+  void dispose() {
+    _antre.removeListener(_antreBerubah);
+    super.dispose();
+  }
+
+  // Muat ulang daftar setelah antrean selesai terkirim agar status di layar sesuai server.
+  void _antreBerubah() {
+    final n = _antre.menunggu;
+    if (_menungguLalu > 0 && n == 0 && !_antre.mengirim && mounted) setState(() => _v++);
+    _menungguLalu = n;
+  }
+
+  Map<String, dynamic>? _kenali(String kode) {
+    final k = kode.trim().toLowerCase();
+    for (final s in _roster) {
+      if (teks(s['id']).toLowerCase() == k || (teks(s['nisn']).isNotEmpty && teks(s['nisn']).toLowerCase() == k) || teks(s['nama']).toLowerCase() == k) return s;
     }
+    return null;
+  }
+
+  String _jamKini() {
+    final n = DateTime.now();
+    return '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _pindai() async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PemindaiQr(
         judul: 'Absensi harian',
-        petunjuk: 'Scan kartu saat datang, scan lagi saat pulang. Semua rombel bisa dipindai di sini.',
-        onKode: (kode) async {
-          final d = peta(await _denganKodeBuka(() async => Api.instance('waStafAbsenHarianPindai', [_t, {'kode': kode, 'kodeBuka': _kodeBuka}])));
-          return teks(d['pesan']);
+        petunjuk: 'Scan kartu saat datang, scan lagi saat pulang. Pindaian langsung tercatat di HP dan dikirim otomatis.',
+        onKodeCepat: (kode) {
+          final s = _kenali(kode);
+          _antre.tambah(kode, nama: s == null ? '' : teks(s['nama']));
+          return s == null
+              ? 'Kartu dipindai ${_jamKini()}. Nama muncul setelah terkirim.'
+              : '${teks(s['nama'])} (${teks(s['rombel'])}) · ${_jamKini()}';
         },
+        bawah: PanelAntreanPindai(antrean: _antre),
       ),
     ));
     if (mounted) setState(() => _v++);
@@ -136,6 +165,7 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
               muat: () async => peta(await Api.instance('waStafAbsenHarianDaftar', [_t, {'tanggal': _tanggal, 'idRombel': _rombel}])),
               bangun: (context, d, segarkan) {
                 final semua = daftar(d['siswa']).map(peta).toList();
+                if (_rombel.isEmpty || _roster.isEmpty) _roster = semua;
                 final siswa = _cari.isEmpty ? semua : semua.where((s) => teks(s['nama']).toLowerCase().contains(_cari)).toList();
                 final jml = <String, int>{'Hadir': 0, 'Pulang': 0, 'Izin': 0, 'Sakit': 0, 'Alpa': 0, 'Belum': 0};
                 for (final s in semua) {
@@ -147,6 +177,7 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
                   RefreshIndicator(
                     onRefresh: segarkan,
                     child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
+                      if (hariIni) PanelAntreanPindai(antrean: _antre, ringkas: true),
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -209,6 +240,86 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
             ),
           ),
         ]);
+      },
+    );
+  }
+}
+
+
+/// Status antrean pindaian: jumlah menunggu, terkirim, gagal, dan permintaan Kode Buka.
+class PanelAntreanPindai extends StatelessWidget {
+  const PanelAntreanPindai({super.key, required this.antrean, this.ringkas = false});
+  final AntreanPindai antrean;
+
+  /// Ringkas: hanya tampil bila ada yang menunggu/gagal (dipakai di atas daftar).
+  final bool ringkas;
+
+  Future<void> _kodeBuka(BuildContext context) async {
+    final k = await mintaTeks(context, 'Di luar jam absensi', label: 'Kode Buka dari admin', huruf: true);
+    if (k != null && k.trim().isNotEmpty) antrean.pakaiKodeBuka(k.trim());
+  }
+
+  void _lihatGagal(BuildContext context) {
+    final g = antrean.daftar.where((p) => p.status == 'gagal').toList().reversed.toList();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [
+          const Text('Pindaian gagal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 4),
+          const Text('Catat manual dari daftar bila perlu.', style: TextStyle(fontSize: 12.5)),
+          for (final p in g) ListTile(dense: true, leading: const Icon(Icons.error_outline_rounded), title: Text(p.nama.isEmpty ? p.kode : p.nama), subtitle: Text(p.pesan)),
+          TextButton(onPressed: () { antrean.hapusSelesai(); Navigator.pop(c); }, child: const Text('Bersihkan catatan')),
+        ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: antrean,
+      builder: (context, _) {
+        final m = antrean.menunggu, g = antrean.gagal, k = antrean.perluKode, ok = antrean.terkirim;
+        if (ringkas && m == 0 && g == 0 && k == 0) return const SizedBox.shrink();
+        final terbaru = ringkas ? const <PindaianAntre>[] : antrean.terbaru(4);
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
+          decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(14)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              if (antrean.mengirim) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) else Icon(m > 0 ? Icons.cloud_upload_outlined : Icons.cloud_done_outlined, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  [if (m > 0) '$m menunggu dikirim', if (!ringkas) '$ok terkirim', if (g > 0) '$g gagal', if (k > 0) '$k perlu Kode Buka'].join(' · '),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+              if (g > 0) TextButton(onPressed: () => _lihatGagal(context), child: const Text('Lihat')),
+            ]),
+            if (antrean.galatJaringan.isNotEmpty && m > 0) Text(antrean.galatJaringan, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            if (k > 0) Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: () => _kodeBuka(context), icon: const Icon(Icons.key_rounded, size: 18), label: const Text('Masukkan Kode Buka'))),
+            for (final p in terbaru)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(children: [
+                  Icon(
+                    switch (p.status) { 'ok' => Icons.check_circle_rounded, 'gagal' => Icons.error_rounded, 'perluKode' => Icons.key_rounded, _ => Icons.schedule_rounded },
+                    size: 16,
+                    color: switch (p.status) { 'ok' => Colors.green, 'gagal' => cs.error, _ => cs.outline },
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(p.pesan.isNotEmpty ? p.pesan : (p.nama.isNotEmpty ? p.nama : 'Menunggu dikirim...'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
+                  ),
+                ]),
+              ),
+          ]),
+        );
       },
     );
   }

@@ -60,40 +60,114 @@ function waStafAbsenHarianPindai(token, d) {
   var p = ahWajib_(token);
   d = d || {};
   absJendela_(absSim_(), d.kodeBuka);
-  var wb = absCariWb_(d.kode);
-  if (!wb) throw new Error('QR tidak dikenali sebagai kartu warga belajar.');
-  if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ', tidak dapat diabsen.');
+  var wb = ahWbPindai_(d.kode);
   var namaRb = (ahPetaRombel_()[wb.rombel] || {}).nama || wb.rombel || '-';
   var hari = absHariIni_(), jam = absJamKini_().slice(0, 5);
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
   try {
-    var t = ahBaca_();
-    var ada = ahCari_(t, hari, wb.id);
-    if (!ada) {
-      t.sh.appendRow(absBaris_(t, {
-        'ID': absId_(), 'TANGGAL': hari, 'WARGA BELAJAR': wb.id, 'NAMA': wb.nama, 'ROMBEL': wb.rombel,
-        'STATUS': 'Hadir', 'JAM DATANG': jam, 'DICATAT OLEH': p.nama, 'DIUBAH PADA': absWaktu_()
-      }));
-      return { aksi: 'datang', nama: wb.nama, rombel: namaRb, jam: jam, pesan: wb.nama + ' (' + namaRb + ') datang ' + jam };
-    }
-    var datang = absJam_(absNilai_(t, ada.r, 'JAM DATANG')), pulang = absJam_(absNilai_(t, ada.r, 'JAM PULANG'));
-    var status = sTeks_(absNilai_(t, ada.r, 'STATUS')).trim();
-    if (status !== 'Hadir' || !datang) {
-      ahSet_(t, ada.baris, 'STATUS', 'Hadir');
-      ahSet_(t, ada.baris, 'JAM DATANG', jam);
-      ahSet_(t, ada.baris, 'DICATAT OLEH', p.nama);
-      ahSet_(t, ada.baris, 'DIUBAH PADA', absWaktu_());
-      return { aksi: 'datang', nama: wb.nama, rombel: namaRb, jam: jam, pesan: wb.nama + ' (' + namaRb + ') datang ' + jam + (status && status !== 'Hadir' ? ' (sebelumnya ' + status + ')' : '') };
-    }
-    if (pulang) return { aksi: 'sudah', nama: wb.nama, rombel: namaRb, pesan: wb.nama + ' sudah tercatat datang ' + datang + ' dan pulang ' + pulang + '.' };
-    if (ahMenit_(jam) - ahMenit_(datang) < AH.JEDA_PULANG_MENIT) {
-      return { aksi: 'sudah', nama: wb.nama, rombel: namaRb, pesan: wb.nama + ' sudah tercatat datang ' + datang + '. Scan lagi saat pulang.' };
-    }
-    ahSet_(t, ada.baris, 'JAM PULANG', jam);
-    ahSet_(t, ada.baris, 'DIUBAH PADA', absWaktu_());
-    return { aksi: 'pulang', nama: wb.nama, rombel: namaRb, jam: jam, pesan: wb.nama + ' (' + namaRb + ') pulang ' + jam };
+    return ahProsesPindai_(ahBaca_(), p, wb, namaRb, hari, jam);
   } finally { kunci.releaseLock(); }
+}
+
+function ahWbPindai_(kode) {
+  var wb = absCariWb_(kode);
+  if (!wb) throw new Error('QR tidak dikenali sebagai kartu warga belajar.');
+  if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ', tidak dapat diabsen.');
+  return wb;
+}
+
+// Inti pencatatan satu pindaian (dipanggil di dalam kunci). Baris baru ikut dimasukkan ke t.v
+// agar pindaian berikutnya dalam satu kiriman (antrean) langsung menemukannya.
+function ahProsesPindai_(t, p, wb, namaRb, hari, jam) {
+  var ada = ahCari_(t, hari, wb.id);
+  if (!ada) {
+    var baris = absBaris_(t, {
+      'ID': absId_(), 'TANGGAL': hari, 'WARGA BELAJAR': wb.id, 'NAMA': wb.nama, 'ROMBEL': wb.rombel,
+      'STATUS': 'Hadir', 'JAM DATANG': jam, 'DICATAT OLEH': p.nama, 'DIUBAH PADA': absWaktu_()
+    });
+    t.sh.appendRow(baris);
+    t.v.push(baris);
+    return { aksi: 'datang', nama: wb.nama, rombel: namaRb, jam: jam, pesan: wb.nama + ' (' + namaRb + ') datang ' + jam };
+  }
+  var datang = absJam_(absNilai_(t, ada.r, 'JAM DATANG')), pulang = absJam_(absNilai_(t, ada.r, 'JAM PULANG'));
+  var status = sTeks_(absNilai_(t, ada.r, 'STATUS')).trim();
+  if (status !== 'Hadir' || !datang) {
+    ahSetBaris_(t, ada, { 'STATUS': 'Hadir', 'JAM DATANG': jam, 'DICATAT OLEH': p.nama, 'DIUBAH PADA': absWaktu_() });
+    return { aksi: 'datang', nama: wb.nama, rombel: namaRb, jam: jam, pesan: wb.nama + ' (' + namaRb + ') datang ' + jam + (status && status !== 'Hadir' ? ' (sebelumnya ' + status + ')' : '') };
+  }
+  if (pulang) return { aksi: 'sudah', nama: wb.nama, rombel: namaRb, pesan: wb.nama + ' sudah tercatat datang ' + datang + ' dan pulang ' + pulang + '.' };
+  if (ahMenit_(jam) - ahMenit_(datang) < AH.JEDA_PULANG_MENIT) {
+    return { aksi: 'sudah', nama: wb.nama, rombel: namaRb, pesan: wb.nama + ' sudah tercatat datang ' + datang + '. Scan lagi saat pulang.' };
+  }
+  ahSetBaris_(t, ada, { 'JAM PULANG': jam, 'DIUBAH PADA': absWaktu_() });
+  return { aksi: 'pulang', nama: wb.nama, rombel: namaRb, jam: jam, pesan: wb.nama + ' (' + namaRb + ') pulang ' + jam };
+}
+
+// Menulis beberapa kolom sekaligus dan memperbarui salinan baris di memori.
+function ahSetBaris_(t, ada, nilai) {
+  Object.keys(nilai).forEach(function(k) {
+    ahSet_(t, ada.baris, k, nilai[k]);
+    var c = absCol_(t, k);
+    if (c >= 0) ada.r[c] = nilai[k];
+  });
+}
+
+// ---------- PINDAI ANTREAN (aplikasi 1.35): pindaian dicatat di HP lalu dikirim bertahap ----------
+// d: {items: [{uid, kode, umur (detik sejak dipindai)}], kodeBuka}
+// Jam dicatat = jam server dikurangi umur pindaian, sehingga jam HP yang salah tidak berpengaruh.
+// uid mencegah pencatatan ganda bila kiriman diulang karena sinyal putus.
+function waStafAbsenHarianPindaiBanyak(token, d) {
+  var p = ahWajib_(token);
+  d = d || {};
+  var items = Array.isArray(d.items) ? d.items.slice(0, 40) : [];
+  var c = CacheService.getScriptCache(), sim = absSim_(), rb = ahPetaRombel_();
+  var hari = absHariIni_(), kini = ahMenit_(absJamKini_()), buka = ahMenit_(sim.jamBuka || '00:00'), tutup = ahMenit_(sim.jamTutup || '23:59');
+  if (buka < 0) buka = 0;
+  if (tutup < 0) tutup = 1439;
+  var jendelaOk = null, jendelaGalat = '';
+  var hasil = [], siap = [];
+  items.forEach(function(it) {
+    var uid = String((it && it.uid) || '').slice(0, 48);
+    try {
+      var lama = uid ? c.get('ahp|' + uid) : null;
+      if (lama) { hasil.push(JSON.parse(lama)); return; }
+      var umur = Math.max(0, Math.min(43200, Math.round(Number(it.umur) || 0)));
+      var m = kini - Math.floor(umur / 60);
+      if (m < 0) throw new Error('Pindaian kemarin tidak dapat dikirim. Catat manual dari daftar.');
+      var jam = ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2);
+      if (m < buka || m > tutup) {
+        if (jendelaOk === null) {
+          try { absJendela_(sim, d.kodeBuka); jendelaOk = true; } catch (e) { jendelaOk = false; jendelaGalat = e.message; }
+        }
+        if (!jendelaOk) throw new Error(jendelaGalat);
+      }
+      var wb = ahWbPindai_(it.kode);
+      siap.push({ uid: uid, wb: wb, jam: jam, namaRb: (rb[wb.rombel] || {}).nama || wb.rombel || '-' });
+    } catch (e) {
+      hasil.push({ uid: uid, ok: false, pesan: e.message, ulang: /Kode Buka/i.test(e.message) });
+    }
+  });
+  if (siap.length) {
+    // urutkan menurut jam pindai agar datang tercatat sebelum pulang
+    siap.sort(function(a, b) { return a.jam < b.jam ? -1 : (a.jam > b.jam ? 1 : 0); });
+    var kunci = LockService.getScriptLock();
+    kunci.waitLock(25000);
+    try {
+      var t = ahBaca_();
+      siap.forEach(function(x) {
+        var h;
+        try {
+          h = ahProsesPindai_(t, p, x.wb, x.namaRb, hari, x.jam);
+          h.ok = true;
+        } catch (e) { h = { ok: false, pesan: e.message }; }
+        h.uid = x.uid;
+        if (x.uid && h.ok) c.put('ahp|' + x.uid, JSON.stringify(h), 21600);
+        hasil.push(h);
+      });
+    } finally { kunci.releaseLock(); }
+  }
+  return { hasil: hasil };
 }
 
 // q: {tanggal, idRombel ('' = semua)}
@@ -111,7 +185,7 @@ function waStafAbsenHarianDaftar(token, q) {
       ket: sTeks_(absNilai_(t, r, 'KETERANGAN')).trim(), oleh: sTeks_(absNilai_(t, r, 'DICATAT OLEH')).trim()
     };
   }
-  var w = absBaca_('WARGA BELAJAR'), siswa = [];
+  var w = absBaca_('WARGA BELAJAR'), siswa = [], kNisn = absCol_(w, 'NISN');
   for (var j = 1; j < w.v.length; j++) {
     var x = w.v[j];
     var st = sTeks_(absNilai_(w, x, 'STATUS')).trim();
@@ -119,7 +193,7 @@ function waStafAbsenHarianDaftar(token, q) {
     var id = sTeks_(absNilai_(w, x, 'ID WB')).trim(), rId = sTeks_(absNilai_(w, x, 'ROMBEL')).trim();
     if (!id || (idRb && rId !== idRb)) continue;
     var c = catat[id] || {};
-    siswa.push({ id: id, nama: sTeks_(absNilai_(w, x, 'NAMA WB')).trim(), rombel: (rb[rId] || {}).nama || rId, status: c.status || '', datang: c.datang || '', pulang: c.pulang || '', ket: c.ket || '', oleh: c.oleh || '' });
+    siswa.push({ id: id, nisn: kNisn >= 0 ? String(x[kNisn] || '').trim() : '', nama: sTeks_(absNilai_(w, x, 'NAMA WB')).trim(), rombel: (rb[rId] || {}).nama || rId, status: c.status || '', datang: c.datang || '', pulang: c.pulang || '', ket: c.ket || '', oleh: c.oleh || '' });
   }
   siswa.sort(function(a, b) { return a.rombel.localeCompare(b.rombel, 'id', { numeric: true }) || a.nama.localeCompare(b.nama); });
   return { tanggal: tanggal, siswa: siswa };

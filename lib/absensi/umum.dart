@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -34,9 +35,16 @@ Future<String?> pindaiSekali(BuildContext context, {String judul = 'Pindai QR'})
 /// Layar pemindai QR. Bila [onKode] diisi, layar tetap terbuka (pindai beruntun) dan
 /// menampilkan hasil tiap pindaian; bila tidak, layar tertutup dengan isi QR pertama.
 class PemindaiQr extends StatefulWidget {
-  const PemindaiQr({super.key, this.judul = 'Pindai QR', this.onKode, this.petunjuk});
+  const PemindaiQr({super.key, this.judul = 'Pindai QR', this.onKode, this.onKodeCepat, this.bawah, this.petunjuk});
   final String judul;
   final Future<String> Function(String kode)? onKode;
+
+  /// Mode cepat (antrean): pindaian langsung dicatat di HP tanpa menunggu server.
+  /// Mengembalikan pesan untuk ditampilkan; pemindai siap untuk kartu berikutnya seketika.
+  final String Function(String kode)? onKodeCepat;
+
+  /// Panel tambahan di bawah pesan (mis. status antrean pengiriman).
+  final Widget? bawah;
   final String? petunjuk;
 
   @override
@@ -62,9 +70,14 @@ class _PemindaiQrState extends State<PemindaiQr> {
   Future<void> _terima(String kode) async {
     kode = kode.trim();
     if (kode.isEmpty || _sibuk) return;
-    if (kode == _terakhir && DateTime.now().difference(_waktuTerakhir).inSeconds < 4) return;
+    if (kode == _terakhir && DateTime.now().difference(_waktuTerakhir).inSeconds < (widget.onKodeCepat != null ? 15 : 4)) return;
     _terakhir = kode;
     _waktuTerakhir = DateTime.now();
+    if (widget.onKodeCepat != null) {
+      HapticFeedback.mediumImpact();
+      setState(() { _pesan = widget.onKodeCepat!(kode); _galat = false; });
+      return;
+    }
     if (widget.onKode == null) {
       Navigator.pop(context, kode);
       return;
@@ -132,6 +145,7 @@ class _PemindaiQrState extends State<PemindaiQr> {
                     Expanded(child: Text(_pesan!, style: const TextStyle(fontWeight: FontWeight.w700))),
                   ]),
                 ),
+              if (widget.bawah != null) widget.bawah!,
               Text(widget.petunjuk ?? 'Arahkan kamera ke QR pada kartu.', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
               const SizedBox(height: 8),
               Row(children: [
