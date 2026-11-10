@@ -226,7 +226,7 @@ function waStafNilaiUnggahPratinjau(token, d) {
   var wbs = {}, urut = [];
   absWbRombel_(kelas.idRombel).forEach(function(w) { wbs[w.id] = w; urut.push(w.id); });
   var ada = nxlNilaiAda_(kelas, jenis, per), at = nilAturan_();
-  var hk = (jenis !== 'Lainnya') ? nilHadirKelas_(per, kelas.idRombel + '|' + kelas.kodeMapel) : { total: 0, hadir: {} };
+  var hk = nilHadirKelas_(per, kelas.idRombel + '|' + kelas.kodeMapel);
   var dis = nilDisBaca_(per);
   var ubah = [], sama = 0, kosong = 0, ditolak = [], dilihat = {};
   for (var x = hdr + 1; x < baris.length; x++) {
@@ -240,9 +240,9 @@ function waStafNilaiUnggahPratinjau(token, d) {
     if (s === '') { kosong++; continue; }
     var n = Number(s);
     if (isNaN(n) || n < 0 || n > 100) { ditolak.push(w.nama + ': nilai "' + row[kNilai] + '" tidak sah (harus 0–100)'); continue; }
-    if (jenis !== 'Lainnya' && at.blokir && hk.total) {
-      var ps = (hk.hadir[w.id] || 0) * 100 / hk.total;
-      if (ps < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, jenis)) { ditolak.push(w.nama + ': kehadiran ' + nilBulat_(ps) + '% di bawah syarat'); continue; }
+    if (jenis !== 'Lainnya' && at.blokir) {
+      var gh = hk.gabung(w.id);   // kehadiran gabungan TH.E-Course + tatap muka
+      if (gh.total && gh.persen < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, jenis)) { ditolak.push(w.nama + ': kehadiran ' + gh.persen + '% di bawah syarat'); continue; }
     }
     var nb = String(nilBulat_(n)), lama = (ada[id] || {}).nilai || '', ket = kKet >= 0 ? String(row[kKet] || '').slice(0, 200) : '';
     if (lama !== '' && Number(lama) === Number(nb) && ((ada[id] || {}).ket || '') === ket) { sama++; continue; }

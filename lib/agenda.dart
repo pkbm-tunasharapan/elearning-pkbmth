@@ -72,12 +72,72 @@ class _AgendaBerandaState extends State<AgendaBeranda> {
       return const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator()));
     }
     final kartu = daftar(d['kartu']).map(peta).toList();
-    if (kartu.isEmpty) return const Kosong(pesan: 'Belum ada agenda untuk ditampilkan.', ikon: Icons.event_available_rounded);
+    final status = d['status'] is Map ? peta(d['status']) : null;
+    if (kartu.isEmpty && status == null) return const Kosong(pesan: 'Belum ada agenda untuk ditampilkan.', ikon: Icons.event_available_rounded);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (status != null) _SpandukStatus(s: status),
       for (final k in kartu) _KartuAgenda(k: k, onPilih: widget.onPilih, bolehMenu: widget.bolehMenu),
       if (_galat != null) Text(_galat!, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
     ]);
   }
+}
+
+/// v1.38.4: spanduk status kondisi belajar siswa (Bahaya / Perlu perhatian / Baik) di atas beranda.
+class _SpandukStatus extends StatelessWidget {
+  const _SpandukStatus({required this.s});
+  final Map<String, dynamic> s;
+
+  @override
+  Widget build(BuildContext context) {
+    final level = teks(s['level']);
+    final (Color warna, IconData ikon) = switch (level) {
+      'bahaya' => (const Color(0xFFDC2626), Icons.dangerous_rounded),
+      'perhatian' => (const Color(0xFFD97706), Icons.warning_amber_rounded),
+      _ => (const Color(0xFF16A34A), Icons.verified_rounded),
+    };
+    String p(dynamic v) => v == null ? '–' : '${(v is num && v == v.roundToDouble()) ? v.toInt() : v}%';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: warna.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: warna, width: level == 'bahaya' ? 2 : 1),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(ikon, color: warna, size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(teks(s['judul']), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5, color: warna)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, runSpacing: 6, children: [
+                _Angka('Kehadiran', p(s['hadir']), warna),
+                _Angka('Penyelesaian sesi', p(s['selesai']), warna),
+              ]),
+              const SizedBox(height: 6),
+              Text(teks(s['pesan']), style: const TextStyle(fontSize: 12.5)),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _Angka extends StatelessWidget {
+  const _Angka(this.label, this.nilai, this.warna);
+  final String label;
+  final String nilai;
+  final Color warna;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(color: warna.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(99)),
+        child: Text('$label $nilai', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: warna)),
+      );
 }
 
 IconData _ikon(String s) => switch (s) {

@@ -209,7 +209,9 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
             Text(teks(w['nama']), style: Theme.of(c).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             Text('NISN ${teks(w['nisn'], '-')}${w['terhubung'] == true ? '' : ' · belum terhubung ke akun e-Learning'}', style: const TextStyle(fontSize: 12.5)),
             const SizedBox(height: 10),
-            _baris('Kehadiran', '${angka(w['hadir'])} / ${angka(w['totalSesi'])} pertemuan (${w['persen'] == null ? '–' : '${nilT(w['persen'])}%'})'),
+            _baris('Kehadiran', '${angka(w['hadir'])} / ${angka(w['totalSesi'])} sesi (${w['persen'] == null ? '–' : '${nilT(w['persen'])}%'})'
+                '\nTH.E-Course ${angka(peta(w['hadirOnline'])['hadir'])}/${angka(peta(w['hadirOnline'])['total'])}'
+                '${angka(peta(w['hadirTatapMuka'])['total']) > 0 ? ' · tatap muka ${angka(peta(w['hadirTatapMuka'])['hadir'])}/${angka(peta(w['hadirTatapMuka'])['total'])}' : ''}'),
             _baris('Syarat ujian', teks(w['syarat']) + (dis.isEmpty ? '' : ' — ${teks(dis['alasan'])} (${teks(dis['oleh'])})')),
             _baris('Rata-rata diskusi', '${nilT(w['diskusi'])} (${angka(w['jmlDiskusi'])} jawaban dinilai)'),
             for (final j in ['uts', 'uas'])
@@ -1175,7 +1177,7 @@ class _PesertaAsesmenScreenState extends State<PesertaAsesmenScreen> {
                       dense: true,
                       leading: Icon(p['hadir'] == true ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, color: p['hadir'] == true ? Colors.green : Theme.of(context).colorScheme.outline),
                       title: Text(teks(p['nama'])),
-                      subtitle: Text('${p['persen'] == null ? 'Belum ada sesi tatap muka' : 'Kehadiran ${nilT(p['persen'])}%'} · ${teks(p['syarat'])}${p['hadir'] == true ? ' · ${teks(p['jam'])}' : ''}',
+                      subtitle: Text('${p['persen'] == null ? 'Belum ada sesi' : 'Kehadiran ${nilT(p['persen'])}%'} · ${teks(p['syarat'])}${p['hadir'] == true ? ' · ${teks(p['jam'])}' : ''}',
                           style: TextStyle(color: p['boleh'] == true ? null : Theme.of(context).colorScheme.error)),
                       trailing: boleh && p['hadir'] != true && p['boleh'] == true ? TextButton(onPressed: () => _catat(p), child: const Text('Hadir')) : null,
                     ),

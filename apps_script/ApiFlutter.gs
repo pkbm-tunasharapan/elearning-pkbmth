@@ -2135,7 +2135,7 @@ function waStafUsulanPutus(token, id, setuju, catatan) {
 // NILAI & ASESMEN TH.E-COURSE (Tahap 4, migrasi SIM SETARA)
 // Nilai akhir per mapel = bobot x (rata-rata Diskusi, UTS, UAS). UTS/UAS diambil dari
 // ujian online TH.E-Course (nilai terbaik) atau input manual tutor (ujian kertas; manual
-// menggantikan online bila diisi). Syarat ujian: kehadiran tatap muka >= syaratHadir %
+// menggantikan online bila diisi). Syarat ujian: kehadiran gabungan (absensi TH.E-Course + tatap muka) >= syaratHadir %
 // per mapel pada semester berjalan; bila kurang, ujian diblokir kecuali ada dispensasi KS.
 // Tab (database simSs_): NILAI, ASESMEN, PRESENSI ASESMEN (sudah ada di SIM SETARA),
 // DISPENSASI UJIAN (baru).
@@ -2303,23 +2303,95 @@ function nilCocokWb_(wbs, nisn, nama) {
 }
 
 // ---------- kehadiran & dispensasi ----------
-function nilHadirKelas_(per, key) {
-  var ts = absBaca_('SESI BELAJAR'), sesi = {}, total = 0, hadir = {};
+// ---------- v1.38.4: KEHADIRAN GABUNGAN ----------
+// Persen hadir = (hadir absensi TH.E-Course + hadir tatap muka) / (sesi TH.E-Course + pertemuan tatap muka).
+// - TH.E-Course: sesi mingguan yang wajib absensi (bukan UTS/UAS) pada semester itu yang SUDAH BERAKHIR;
+//   sesi yang sedang berjalan ikut dihitung bila siswa sudah absen (agar absen minggu ini langsung terlihat).
+// - Tatap muka (SESI BELAJAR/PRESENSI WB) menambah pembilang & pembagi bila ada; bila tidak ada,
+//   pembagi hanya dari TH.E-Course. Data online hanya ada untuk tahun ajaran berjalan (tahun lama diarsipkan).
+var HDR_MEMO_ = {};
+function hdrOnline_(per) {
+  var mk = per.tahun + '|' + per.semester;
+  if (HDR_MEMO_[mk]) return HDR_MEMO_[mk];
+  var out = { aktif: false, lewat: 0, wajibLewat: {}, wajibMulai: {}, hadir: {} };
+  try {
+    var cfg = taBaca_(), now = new Date().getTime(), smt = per.smt;
+    if (String(cfg.label || '').trim() === String(per.tahun).trim() && smt >= 1 && smt <= cfg.jumlahSemester) {
+      out.aktif = true;
+      for (var n = 1; n <= cfg.sesiPerSemester; n++) {
+        if (!abSesiWajib_(cfg, smt, n)) continue;
+        var info = taInfo_(cfg, smt, n, now), kk = smt + '|' + n;
+        if (info.status === 'lewat') { out.wajibLewat[kk] = true; out.lewat++; }
+        else if (info.status === 'berjalan') out.wajibMulai[kk] = true;
+      }
+      abBaca_(null).forEach(function(r) {
+        var kk = r.smt + '|' + r.n;
+        if (r.smt !== smt || (!out.wajibLewat[kk] && !out.wajibMulai[kk])) return;
+        var key = r.idMapel + '|' + r.kunciNama;
+        (out.hadir[key] = out.hadir[key] || {})[kk] = true;
+      });
+    }
+  } catch (e) { out = { aktif: false, lewat: 0, wajibLewat: {}, wajibMulai: {}, hadir: {} }; }
+  HDR_MEMO_[mk] = out;
+  return out;
+}
+// bm: mapel e-learning [{idMapel, idRombel}] milik kelas ini; nama: nama siswa di e-learning ('' = tidak terhubung).
+function hdrGabung_(on, tmHadir, tmTotal, bm, nama) {
+  var oh = 0, ot = 0;
+  if (on && on.aktif && nama && bm && bm.length) {
+    var set = {}, nn = normNama_(nama);
+    bm.forEach(function(b) { var x = on.hadir[b.idMapel + '|' + nn]; if (x) Object.keys(x).forEach(function(k) { set[k] = true; }); });
+    ot = on.lewat;
+    Object.keys(set).forEach(function(k) { oh++; if (!on.wajibLewat[k]) ot++; });
+  }
+  var h = oh + (tmHadir || 0), t = ot + (tmTotal || 0);
+  return { hadir: h, total: t, persen: t ? nilBulat_(h * 100 / t) : null, online: { hadir: oh, total: ot }, tatapMuka: { hadir: tmHadir || 0, total: tmTotal || 0 } };
+}
+
+// Indeks tatap muka per periode (dibaca sekali per eksekusi): total pertemuan per kelas & hadir per WB|kelas.
+function hdrTatapMuka_(per) {
+  var mk = 'tm|' + per.tahun + '|' + per.semester;
+  if (HDR_MEMO_[mk]) return HDR_MEMO_[mk];
+  var ts = absBaca_('SESI BELAJAR'), sesi = {}, total = {}, hadir = {};
   for (var i = 1; i < ts.v.length; i++) {
     var r = ts.v[i], tg = absTgl_(absNilai_(ts, r, 'TANGGAL'));
     if (tg < per.dari || tg > per.sampai) continue;
-    if (sTeks_(absNilai_(ts, r, 'ROMBEL')).trim() + '|' + sTeks_(absNilai_(ts, r, 'MAPEL')).trim() !== key) continue;
-    sesi[sTeks_(absNilai_(ts, r, 'ID SESI')).trim()] = true; total++;
+    var key = sTeks_(absNilai_(ts, r, 'ROMBEL')).trim() + '|' + sTeks_(absNilai_(ts, r, 'MAPEL')).trim();
+    sesi[sTeks_(absNilai_(ts, r, 'ID SESI')).trim()] = key;
+    total[key] = (total[key] || 0) + 1;
   }
   var tp = absBaca_('PRESENSI WB');
   for (var j = 1; j < tp.v.length; j++) {
-    var w = tp.v[j];
-    if (!sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()]) continue;
-    if ((sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir') !== 'Hadir') continue;
-    var id = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim();
-    hadir[id] = (hadir[id] || 0) + 1;
+    var w = tp.v[j], kk = sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()];
+    if (!kk || (sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir') !== 'Hadir') continue;
+    var hk = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim() + '|' + kk;
+    hadir[hk] = (hadir[hk] || 0) + 1;
   }
-  return { total: total, hadir: hadir };
+  return (HDR_MEMO_[mk] = { total: total, hadir: hadir });
+}
+function hdrPetaBm_() { return HDR_MEMO_.peta || (HDR_MEMO_.peta = nilPetaBm_()); }
+function hdrSiswaBm_() { return HDR_MEMO_.siswa || (HDR_MEMO_.siswa = nilSiswaBm_()); }
+
+function nilHadirKelas_(per, key) {
+  var tm = hdrTatapMuka_(per), total = tm.total[key] || 0, hadir = {};
+  Object.keys(tm.hadir).forEach(function(hk) {
+    var i = hk.indexOf('|');
+    if (hk.slice(i + 1) === key) hadir[hk.slice(0, i)] = tm.hadir[hk];
+  });
+  // total/hadir = tatap muka saja (lama). gabung(idWb) = kehadiran gabungan TH.E-Course + tatap muka (dipakai untuk syarat).
+  var siap = null;
+  var gabung = function(idWb) {
+    if (!siap) {
+      var peta = hdrPetaBm_(), bm = peta.kelas[key] || [], sb = hdrSiswaBm_(), siswa = [], wbs = {};
+      bm.forEach(function(b) { (sb[b.idRombel] || []).forEach(function(s) { siswa.push(s); }); });
+      absWbRombel_(String(key).split('|')[0]).forEach(function(w) { wbs[w.id] = w; });
+      siap = { bm: bm, siswa: siswa, wbs: wbs, on: hdrOnline_(per) };
+    }
+    var w = siap.wbs[String(idWb)], c = w ? nilCocokBm_(w, siap.siswa) : null;
+    var bmKu = c ? siap.bm.filter(function(b) { return b.idRombel === c.idRombel; }) : [];
+    return hdrGabung_(siap.on, hadir[idWb] || 0, total, bmKu, c ? c.nama : '');
+  };
+  return { total: total, hadir: hadir, gabung: gabung };
 }
 function nilDisBaca_(per) {
   var t = absBaca_(NIL.TAB_DIS, NIL.HDR_DIS), out = [];
@@ -2429,8 +2501,10 @@ function nilRekapKelas_(k, kelas) {
   bm.forEach(function(b) { (k.siswaBm[b.idRombel] || []).forEach(function(s) { siswaBm.push(s); }); });
   return nilWbRombelK_(k, kelas.idRombel).map(function(w) {
     var c = nilCocokBm_(w, siswaBm), nn = c ? normNama_(c.nama) : '';
-    var h = k.hadir[w.id + '|' + key] || 0, persen = total ? nilBulat_(h * 100 / total) : null;
-    var lolos = !total || persen >= k.at.syaratHadir;
+    // v1.38.4: kehadiran gabungan TH.E-Course + tatap muka
+    var g = hdrGabung_(hdrOnline_(k.per), k.hadir[w.id + '|' + key] || 0, total, c ? bm.filter(function(b) { return b.idRombel === c.idRombel; }) : [], c ? c.nama : '');
+    var h = g.hadir, persen = g.persen, totalG = g.total;
+    var lolos = !totalG || persen >= k.at.syaratHadir;
     var dis = nilDisCari_(k.dis, w.id, kelas.idRombel, kelas.kodeMapel, '');
     var dsum = 0, djml = 0;
     if (c) bm.forEach(function(b) { var x = k.disk[b.idMapel + '|' + nn]; if (x) { dsum += x.sum; djml += x.jml; } });
@@ -2451,8 +2525,8 @@ function nilRekapKelas_(k, kelas) {
     var ak = nilAkhir_(k.at, diskusi, komp.UTS.nilai, komp.UAS.nilai);
     return {
       idWb: w.id, nisn: w.nisn, nama: w.nama, terhubung: !!c,
-      hadir: h, totalSesi: total, persen: persen,
-      syarat: lolos ? (total ? 'Memenuhi' : 'Belum ada sesi') : (dis ? 'Dispensasi' : 'Kurang'),
+      hadir: h, totalSesi: totalG, persen: persen, hadirOnline: g.online, hadirTatapMuka: g.tatapMuka,
+      syarat: lolos ? (totalG ? 'Memenuhi' : 'Belum ada sesi') : (dis ? 'Dispensasi' : 'Kurang'),
       bolehUjian: lolos || !!dis || !k.at.blokir,
       dispensasi: dis ? { id: dis.id, alasan: dis.alasan, oleh: dis.oleh, jenis: dis.jenis } : null,
       diskusi: diskusi, jmlDiskusi: djml, uts: komp.UTS, uas: komp.UAS,
@@ -2575,9 +2649,9 @@ function waStafNilaiInput(token, d) {
       if (s !== '') {
         var n = Number(s);
         if (isNaN(n) || n < 0 || n > 100) { ditolak.push(w.nama + ' (nilai tidak sah)'); return; }
-        if (at.blokir && hk.total && d.jenis !== 'Lainnya') {
-          var ps = (hk.hadir[w.id] || 0) * 100 / hk.total;
-          if (ps < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, d.jenis)) { ditolak.push(w.nama + ' (kehadiran ' + nilBulat_(ps) + '%)'); return; }
+        if (at.blokir && d.jenis !== 'Lainnya') {
+          var gh = hk.gabung(w.id);   // v1.38.4: kehadiran gabungan TH.E-Course + tatap muka
+          if (gh.total && gh.persen < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, d.jenis)) { ditolak.push(w.nama + ' (kehadiran ' + gh.persen + '%)'); return; }
         }
         s = String(nilBulat_(n));
       }
@@ -2892,8 +2966,9 @@ function nilAsCari_(id) {
   return a;
 }
 function nilSyaratAs_(a, hk, dis, at, w) {
-  if (!hk.total) return { persen: null, boleh: true, status: 'Belum ada sesi' };
-  var ps = nilBulat_((hk.hadir[w.id] || 0) * 100 / hk.total);
+  var g = hk.gabung ? hk.gabung(w.id) : { total: hk.total, persen: hk.total ? nilBulat_((hk.hadir[w.id] || 0) * 100 / hk.total) : null };
+  if (!g.total) return { persen: null, boleh: true, status: 'Belum ada sesi' };
+  var ps = g.persen;
   if (ps >= at.syaratHadir) return { persen: ps, boleh: true, status: 'Memenuhi' };
   var jn = NIL.JENIS.indexOf(a.jenis) >= 0 ? a.jenis : '';
   if (nilDisCari_(dis, w.id, a.idRombel, a.kodeMapel, jn)) return { persen: ps, boleh: true, status: 'Dispensasi' };
@@ -2962,12 +3037,13 @@ function nilGerbangUjian_(j, idRombelBm, namaBm) {
   (nilSiswaBm_()[String(idRombelBm)] || []).forEach(function(s) { if (normNama_(s.nama) === normNama_(namaBm)) nisn = s.nisn; });
   var wb = nilCocokWb_(absWbRombel_(idR), nisn, namaBm);
   if (!wb) return '';
-  var per = nilPeriode_(), h = nilHadirKelas_(per, key);
-  if (!h.total) return '';
-  var hd = h.hadir[wb.id] || 0, ps = nilBulat_(hd * 100 / h.total);
+  var per = nilPeriode_(), g = nilHadirKelas_(per, key).gabung(wb.id);   // v1.38.4: TH.E-Course + tatap muka
+  if (!g.total) return '';
+  var ps = g.persen;
   if (ps >= at.syaratHadir) return '';
   if (nilDisCari_(nilDisBaca_(per), wb.id, idR, km, j.jenis)) return '';
-  return 'Anda belum memenuhi syarat kehadiran untuk mengikuti ujian ini (hadir ' + hd + ' dari ' + h.total + ' pertemuan = ' + ps + '%, minimal ' + at.syaratHadir + '%). Silakan hubungi Kepala Sekolah untuk dispensasi.';
+  return 'Anda belum memenuhi syarat kehadiran untuk mengikuti ujian ini (hadir ' + g.hadir + ' dari ' + g.total + ' sesi = ' + ps + '%; absensi TH.E-Course ' + g.online.hadir + '/' + g.online.total +
+    (g.tatapMuka.total ? ', tatap muka ' + g.tatapMuka.hadir + '/' + g.tatapMuka.total : '') + '; minimal ' + at.syaratHadir + '%). Silakan hubungi Kepala Sekolah untuk dispensasi.';
 }
 
 
@@ -3528,33 +3604,15 @@ function brdKartuBelumDinilai_(mapelBoleh, perTutor) {
   return { judul: 'Tugas & diskusi belum dinilai', ikon: 'tugas', menu: 'nilai', ringkas: String(total), item: item, kosong: 'Semua jawaban sudah dinilai. Mantap!' };
 }
 // WB dengan kehadiran di bawah syarat pada kelas-kelas tertentu (semester berjalan).
+// v1.38.4: memakai kehadiran gabungan (TH.E-Course + tatap muka), sama dengan syarat ujian.
 function brdHadirRendah_(kelas) {
-  var per = nilPeriode_(), at = nilAturan_(), keys = {}, sesi = {}, tot = {}, hadir = {};
-  kelas.forEach(function(k) { keys[k.idRombel + '|' + k.kodeMapel] = k; });
-  var ts = absBaca_('SESI BELAJAR');
-  for (var i = 1; i < ts.v.length; i++) {
-    var r = ts.v[i], tg = absTgl_(absNilai_(ts, r, 'TANGGAL'));
-    if (tg < per.dari || tg > per.sampai) continue;
-    var key = sTeks_(absNilai_(ts, r, 'ROMBEL')).trim() + '|' + sTeks_(absNilai_(ts, r, 'MAPEL')).trim();
-    if (!keys[key]) continue;
-    sesi[sTeks_(absNilai_(ts, r, 'ID SESI')).trim()] = key;
-    tot[key] = (tot[key] || 0) + 1;
-  }
-  var tp = absBaca_('PRESENSI WB');
-  for (var j = 1; j < tp.v.length; j++) {
-    var w = tp.v[j], kk = sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()];
-    if (!kk || (sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir') !== 'Hadir') continue;
-    var hk = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim() + '|' + kk;
-    hadir[hk] = (hadir[hk] || 0) + 1;
-  }
-  var byR = {};
+  var per = nilPeriode_(), at = nilAturan_(), byR = {}, out = [];
   keuWbSemua_().forEach(function(x) { if (x.aktif) (byR[x.idRombel] = byR[x.idRombel] || []).push(x); });
-  var out = [];
-  Object.keys(tot).forEach(function(key) {
-    var k = keys[key];
+  kelas.forEach(function(k) {
+    var hk = nilHadirKelas_(per, k.idRombel + '|' + k.kodeMapel);
     (byR[k.idRombel] || []).forEach(function(x) {
-      var ps = Math.round((hadir[x.id + '|' + key] || 0) * 1000 / tot[key]) / 10;
-      if (ps < at.syaratHadir) out.push({ ps: ps, t: x.nama, s: k.namaMapel + ' · ' + k.namaRombel, n: ps + '%', w: 'merah' });
+      var g = hk.gabung(x.id);
+      if (g.total && g.persen < at.syaratHadir) out.push({ ps: g.persen, t: x.nama, s: k.namaMapel + ' · ' + k.namaRombel, n: g.persen + '%', w: 'merah' });
     });
   });
   out.sort(function(a, b) { return a.ps - b.ps; });
@@ -3802,36 +3860,67 @@ function waSiswaBeranda(token, paksa) {
     out.sort(function(a, b) { return String(b.tgl).localeCompare(String(a.tgl)); });
     return { judul: 'Hasil UTS / UAS', ikon: 'ujian', menu: '', item: out.slice(0, 8).map(function(x) { return { t: x.t, s: x.s, n: x.n, w: x.w }; }), kosong: 'Belum ada hasil UTS/UAS semester ini.' };
   });
-  // 4. statistik kehadiran tatap muka per mapel
+  // 4. v1.38.4: kehadiran gabungan (absensi TH.E-Course + tatap muka) per mapel & penyelesaian sesi
+  var statusBelajar = null;
   brdKartu_(k, function() {
-    if (!simR || !wb) return { judul: 'Kehadiran tatap muka', ikon: 'hadir', menu: '', item: [], kosong: 'Data kehadiran belum terhubung. Hubungi admin bila ini keliru.' };
-    var per = nilPeriode_(), at = nilAturan_(), kelas = absKelas_('').filter(function(x) { return x.idRombel === simR; }), nama = {}, sesi = {}, tot = {}, hadir = {}, izin = {};
-    kelas.forEach(function(x) { nama[x.kodeMapel] = x.namaMapel; });
-    var ts = absBaca_('SESI BELAJAR');
-    for (var i = 1; i < ts.v.length; i++) {
-      var r = ts.v[i], tg = absTgl_(absNilai_(ts, r, 'TANGGAL'));
-      if (tg < per.dari || tg > per.sampai || sTeks_(absNilai_(ts, r, 'ROMBEL')).trim() !== simR) continue;
-      var km = sTeks_(absNilai_(ts, r, 'MAPEL')).trim();
-      if (!nama[km]) continue;
-      sesi[sTeks_(absNilai_(ts, r, 'ID SESI')).trim()] = km;
-      tot[km] = (tot[km] || 0) + 1;
+    var per = nilPeriode_(), at = nilAturan_(), on = hdrOnline_(per), tm = hdrTatapMuka_(per), peta2 = hdrPetaBm_();
+    var item = [], sh = 0, stt = 0;
+    if (simR) {
+      nilKelasRapor_(simR).forEach(function(kl) {
+        var key = kl.idRombel + '|' + kl.kodeMapel;
+        var bm = (peta2.kelas[key] || []).filter(function(b) { return b.idRombel === String(s.idRombel); });
+        if (peta2.kelas[key] && !peta2.aktif[key]) return;          // mapel nonaktif di e-learning
+        var g = hdrGabung_(on, wb ? (tm.hadir[wb.id + '|' + key] || 0) : 0, wb ? (tm.total[key] || 0) : 0, bm, s.nama);
+        if (!g.total) return;
+        sh += g.hadir; stt += g.total;
+        item.push({ ps: g.persen, t: kl.namaMapel,
+          s: 'TH.E-Course ' + g.online.hadir + '/' + g.online.total + (g.tatapMuka.total ? ' · tatap muka ' + g.tatapMuka.hadir + '/' + g.tatapMuka.total : ''),
+          n: g.persen + '%', w: g.persen >= at.syaratHadir ? 'hijau' : (g.persen >= 50 ? 'kuning' : 'merah') });
+      });
     }
-    var tp = absBaca_('PRESENSI WB');
-    for (var j = 1; j < tp.v.length; j++) {
-      var w = tp.v[j], km2 = sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()];
-      if (!km2 || sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim() !== wb.id) continue;
-      var st = sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir';
-      if (st === 'Hadir') hadir[km2] = (hadir[km2] || 0) + 1; else izin[km2] = (izin[km2] || 0) + 1;
+    item.sort(function(a, b) { return a.ps - b.ps; });
+    var rata = stt ? nilBulat_(sh * 100 / stt) : null;
+    // penyelesaian sesi: diskusi aktif pada sesi yang sudah berakhir vs yang sudah dijawab
+    var selesai = null, wajibD = 0, dikerjakan = 0;
+    try {
+      var cfg = taBaca_(), now = new Date().getTime(), dijawab = {};
+      var vj = getSheetData(CONFIG.SHEETS.JAWABAN);
+      if (vj.length) {
+        var hj = vj[0].map(function(x) { return String(x).trim(); }), jR = hj.indexOf('ID Rombel'), jM = hj.indexOf('ID Materi'), jS = hj.indexOf('Nama Siswa');
+        for (var a = 1; a < vj.length; a++) if (sTeks_(vj[a][jR]) === String(s.idRombel) && normNama_(vj[a][jS]) === nn) dijawab[sTeks_(vj[a][jM]).trim()] = true;
+      }
+      var vm = getSheetData(CONFIG.SHEETS.MATERI);
+      if (vm.length) {
+        var hm = vm[0].map(function(x) { return String(x).trim(); });
+        var mId = hm.indexOf('ID Materi'), mMp = hm.indexOf('ID Mapel'), mJ = hm.indexOf('Jenis'), mSt = hm.indexOf('Status'), mSs = hm.indexOf('Sesi');
+        for (var b2 = 1; b2 < vm.length; b2++) {
+          var r2 = vm[b2];
+          if (!mapelKu[sTeks_(r2[mMp]).trim()] || sTeks_(r2[mJ]).trim() !== 'Diskusi' || sTeks_(r2[mSt]).trim() !== 'Aktif') continue;
+          var ps2 = taParse_(cfg, r2[mSs]);
+          if (!ps2 || ps2.smt !== per.smt || taInfo_(cfg, ps2.smt, ps2.n, now).status !== 'lewat') continue;
+          wajibD++;
+          if (dijawab[sTeks_(r2[mId]).trim()]) dikerjakan++;
+        }
+      }
+      if (wajibD) selesai = nilBulat_(dikerjakan * 100 / wajibD);
+    } catch (eS) {}
+    // status kondisi belajar: Bahaya (< 50%), Perlu perhatian (< syarat), Baik
+    var buruk = function(x, batas) { return x !== null && x < batas; };
+    var level = (buruk(rata, 50) || buruk(selesai, 50)) ? 'bahaya' : ((buruk(rata, at.syaratHadir) || buruk(selesai, 80)) ? 'perhatian' : 'baik');
+    var pesan = [];
+    if (rata !== null) pesan.push('Kehadiran ' + rata + '% (syarat ikut ujian ' + at.syaratHadir + '%)');
+    if (selesai !== null) pesan.push('penyelesaian sesi ' + selesai + '% (' + dikerjakan + ' dari ' + wajibD + ' diskusi)');
+    if (rata !== null || selesai !== null) {
+      statusBelajar = {
+        level: level, hadir: rata, selesai: selesai, syarat: at.syaratHadir,
+        judul: level === 'bahaya' ? 'Status: BAHAYA' : (level === 'perhatian' ? 'Status: Perlu perhatian' : 'Status: Baik'),
+        pesan: pesan.join(', ') + '. ' + (level === 'bahaya'
+          ? 'Kamu berisiko tidak boleh mengikuti ujian dan tidak naik kelas. Segera isi absensi dan kerjakan diskusi yang tertinggal, atau hubungi tutor/wali kelas.'
+          : level === 'perhatian' ? 'Masih di bawah target. Isi absensi tiap sesi dan selesaikan diskusi yang tertinggal agar aman.' : 'Pertahankan! Tetap isi absensi dan kerjakan diskusi tiap sesi.')
+      };
     }
-    var sh = 0, stt = 0;
-    var item = Object.keys(tot).map(function(km) {
-      var ps = Math.round((hadir[km] || 0) * 1000 / tot[km]) / 10;
-      sh += hadir[km] || 0; stt += tot[km];
-      return { ps: ps, t: nama[km], s: (hadir[km] || 0) + ' dari ' + tot[km] + ' pertemuan' + (izin[km] ? ' · ' + izin[km] + ' izin/sakit/alpa' : ''), n: ps + '%', w: ps >= at.syaratHadir ? 'hijau' : 'merah' };
-    }).sort(function(a, b) { return a.ps - b.ps; });
-    var rata = stt ? Math.round(sh * 1000 / stt) / 10 : null;
-    return { judul: 'Kehadiran tatap muka (syarat ujian ' + at.syaratHadir + '%)', ikon: 'hadir', menu: '', ringkas: rata === null ? '' : rata + '%',
-      item: item.map(function(x) { return { t: x.t, s: x.s, n: x.n, w: x.w }; }), kosong: 'Belum ada pertemuan tatap muka semester ini.' };
+    return { judul: 'Kehadiran (TH.E-Course + tatap muka) · syarat ujian ' + at.syaratHadir + '%', ikon: 'hadir', menu: '', ringkas: rata === null ? '' : rata + '%',
+      item: item.map(function(x) { return { t: x.t, s: x.s, n: x.n, w: x.w }; }), kosong: 'Belum ada sesi yang dihitung semester ini.' };
   });
   // 5. tagihan
   if (wb) brdKartu_(k, function() {
@@ -3848,7 +3937,8 @@ function waSiswaBeranda(token, paksa) {
     if (!item.length) return null;
     return { judul: 'Tagihan belum lunas', ikon: 'tagihan', menu: '', ringkas: brdRp_(sisa), item: item, kosong: '' };
   });
-  var hasilS = { kartu: k, waktu: absWaktu_() };
+  // v1.38.4: status kondisi belajar (Bahaya / Perlu perhatian / Baik) ditampilkan sebagai spanduk di atas beranda.
+  var hasilS = { kartu: k, status: statusBelajar, waktu: absWaktu_() };
   try { cS.put(ckS, JSON.stringify(hasilS), 600); } catch (eS2) {}
   return hasilS;
 }
