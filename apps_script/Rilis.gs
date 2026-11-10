@@ -17,6 +17,13 @@ var RLS = {
 
 function rlsProp_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
 
+// Bandingkan versi "1.38.0" vs "1.37.0": >0 bila a lebih baru, 0 sama, <0 lebih lama (kosong = 0.0.0).
+function rlsBanding_(a, b) {
+  var x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number);
+  for (var i = 0; i < 3; i++) { var d = (x[i] || 0) - (y[i] || 0); if (d) return d; }
+  return 0;
+}
+
 function rlsGithub_(url, token, octet) {
   var res = UrlFetchApp.fetch(url, {
     method: 'get', muteHttpExceptions: true, followRedirects: !octet,
@@ -42,7 +49,17 @@ function rlsTarik_(paksa) {
   if (!token) throw new Error('Token GitHub belum diisi.');
   var rilis = JSON.parse(rlsGithub_('https://api.github.com/repos/' + RLS.REPO + '/releases/latest', token, false).getContentText());
   var tag = String(rilis.tag_name || '');
-  if (!paksa && tag && tag === rlsProp_('RILIS_TAG')) return { baru: false, tag: tag, versi: rlsProp_('APP_VERSI_TERBARU'), url: rlsProp_('APP_URL_UNDUH') };
+  if (!paksa && tag && tag === rlsProp_('RILIS_TAG')) {
+    // v1.38: bila Versi Aplikasi sempat diturunkan manual, pulihkan versi & tautan rilis terbaru (tanpa unduh ulang).
+    var vRilis = ((/v?(\d+\.\d+\.\d+)/.exec(String(rilis.name || '')) || [])[1]) || '', idBerkas = rlsProp_('RILIS_BERKAS');
+    if (vRilis && idBerkas && rlsBanding_(vRilis, rlsProp_('APP_VERSI_TERBARU')) > 0) {
+      var urlPulih = DriveApp.getFileById(idBerkas).getUrl();
+      PropertiesService.getScriptProperties().setProperties({ APP_VERSI_TERBARU: vRilis, APP_URL_UNDUH: urlPulih, RILIS_VERSI: vRilis });
+      try { catat_('Sistem', '', 'Rilis otomatis', 'Pulihkan versi aplikasi', vRilis + ' (' + tag + ')', 'OK'); } catch (e0) {}
+      return { baru: false, dipulihkan: true, tag: tag, versi: vRilis, url: urlPulih };
+    }
+    return { baru: false, tag: tag, versi: rlsProp_('APP_VERSI_TERBARU'), url: rlsProp_('APP_URL_UNDUH') };
+  }
   var aset = null;
   RLS.POLA_ASET.some(function(pola) { aset = (rilis.assets || []).filter(function(a) { return pola.test(a.name); })[0] || null; return !!aset; });
   if (!aset) throw new Error('Rilis ' + tag + ' tidak berisi berkas APK.');
@@ -58,7 +75,7 @@ function rlsTarik_(paksa) {
   var catatan = String(rilis.body || '').replace(/\r/g, '').trim().slice(0, 500);
   PropertiesService.getScriptProperties().setProperties({
     APP_VERSI_TERBARU: versi, APP_URL_UNDUH: berkas.getUrl(), APP_CATATAN: catatan,
-    RILIS_TAG: tag, RILIS_WAKTU: absWaktu_(), RILIS_BERKAS: berkas.getId()
+    RILIS_TAG: tag, RILIS_WAKTU: absWaktu_(), RILIS_BERKAS: berkas.getId(), RILIS_VERSI: versi
   });
   try { catat_('Sistem', '', 'Rilis otomatis', 'Rilis APK', versi + ' (' + tag + ') -> Drive', 'OK'); } catch (e2) {}
   return { baru: true, tag: tag, versi: versi, url: berkas.getUrl(), nama: berkas.getName(), ukuranMb: Math.round(aset.size / 104857.6) / 10 };

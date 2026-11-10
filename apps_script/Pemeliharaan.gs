@@ -98,6 +98,11 @@ function waAdminVersiAppAtur(token, d) {
   if (url && !/^https:\/\//i.test(url)) throw new Error('Tautan unduh harus diawali https://');
   if (versi && !url) throw new Error('Isi tautan unduh APK untuk versi ini.');
   var sp = PropertiesService.getScriptProperties();
+  // v1.38: jangan turunkan di bawah rilis APK terbaru; HP yang sudah memasang rilis itu tidak akan ditawari pembaruan lagi.
+  var vRilis = sp.getProperty('RILIS_VERSI') || '';
+  if (versi && vRilis && rlsBanding_(versi, vRilis) < 0) {
+    throw new Error('Versi ' + versi + ' lebih rendah dari rilis APK terbaru (' + vRilis + '). Isi ' + vRilis + ' atau yang lebih baru; untuk memulihkan otomatis tekan "Ambil rilis sekarang".');
+  }
   sp.setProperties({
     APP_VERSI_TERBARU: versi,
     APP_URL_UNDUH: url,
