@@ -138,27 +138,32 @@ function aturRilis(o) { props._peta.clear(); Object.keys(o).forEach((k) => props
 g.catat_ = () => {};
 g.absWaktu_ = () => '2026-11-10 10:00:00';
 tes('rlsCekNaik_: lolos (2 penguji, 13 jam, 0 galat)', () => {
-  aturRilis({ APP_VERSI_TERBARU: '1.38.4', RILIS_UJI_VERSI: '1.38.5', RILIS_UJI_MS: String(Date.now() - 13 * 3600000), RILIS_UJI_PAKAI: '["U1","U2"]', RILIS_UJI_GALAT: '0', RILIS_UJI_URL: 'u' });
-  sama(g.rlsCekNaik_(), '1.38.5');
-  sama([props.getProperty('APP_VERSI_TERBARU'), props.getProperty('APP_WAJIB'), props.getProperty('RILIS_SEBELUM_VERSI'), props.getProperty('RILIS_UJI_VERSI')], ['1.38.5', '1', '1.38.4', null]);
+  aturRilis({ APP_VERSI_TERBARU: '1.38.5', RILIS_UJI_VERSI: '1.38.6', RILIS_UJI_MS: String(Date.now() - 13 * 3600000), RILIS_UJI_PAKAI: '["U1","U2"]', RILIS_UJI_GALAT: '0', RILIS_UJI_URL: 'u' });
+  sama(g.rlsCekNaik_(), '1.38.6');
+  sama([props.getProperty('APP_VERSI_TERBARU'), props.getProperty('APP_WAJIB'), props.getProperty('RILIS_SEBELUM_VERSI'), props.getProperty('RILIS_UJI_VERSI')], ['1.38.6', '1', '1.38.5', null]);
 });
 tes('rlsCekNaik_: tertahan bila ada galat / penguji kurang / belum 12 jam', () => {
-  aturRilis({ APP_VERSI_TERBARU: '1.38.4', RILIS_UJI_VERSI: '1.38.5', RILIS_UJI_MS: String(Date.now() - 13 * 3600000), RILIS_UJI_PAKAI: '["U1","U2"]', RILIS_UJI_GALAT: '1' });
+  aturRilis({ APP_VERSI_TERBARU: '1.38.5', RILIS_UJI_VERSI: '1.38.6', RILIS_UJI_MS: String(Date.now() - 13 * 3600000), RILIS_UJI_PAKAI: '["U1","U2"]', RILIS_UJI_GALAT: '1' });
   sama(g.rlsCekNaik_(), '');
   props.setProperty('RILIS_UJI_GALAT', '0'); props.setProperty('RILIS_UJI_PAKAI', '["U1"]');
   sama(g.rlsCekNaik_(), '');
   props.setProperty('RILIS_UJI_PAKAI', '["U1","U2"]'); props.setProperty('RILIS_UJI_MS', String(Date.now() - 2 * 3600000));
   sama(g.rlsCekNaik_(), '');
-  sama(props.getProperty('APP_VERSI_TERBARU'), '1.38.4');
+  sama(props.getProperty('APP_VERSI_TERBARU'), '1.38.5');
 });
 tes('rlsUntuk_: penguji dapat rilis uji (tidak wajib), lainnya rilis resmi (wajib)', () => {
-  aturRilis({ APP_VERSI_TERBARU: '1.38.4', APP_URL_UNDUH: 'resmi', RILIS_UJI_VERSI: '1.38.5', RILIS_UJI_URL: 'uji', RILIS_UJI_MS: String(Date.now()), RILIS_UJI_PAKAI: '[]', RILIS_UJI_GALAT: '0', RILIS_PENGUJI: '["T9"]' });
+  aturRilis({ APP_VERSI_TERBARU: '1.38.5', APP_URL_UNDUH: 'resmi', RILIS_UJI_VERSI: '1.38.6', RILIS_UJI_URL: 'uji', RILIS_UJI_MS: String(Date.now()), RILIS_UJI_PAKAI: '[]', RILIS_UJI_GALAT: '0', RILIS_PENGUJI: '["T9"]' });
   g.stafDariToken_ = (t) => ({ A: { id: 'A1', peran: 'Admin' }, T: { id: 'T9', peran: 'Tutor' }, X: { id: 'T2', peran: 'Tutor' } }[t]);
   const a = g.rlsUntuk_('A'), t = g.rlsUntuk_('T'), x = g.rlsUntuk_('X'), s = g.rlsUntuk_('');
-  sama([a.versi, a.wajib, a.uji], ['1.38.5', false, true], 'admin');
-  sama([t.versi, t.uji], ['1.38.5', true], 'penguji');
-  sama([x.versi, x.wajib, x.uji], ['1.38.4', true, false], 'bukan penguji');
-  sama([s.versi, s.wajib], ['1.38.4', true], 'tanpa token');
+  sama([a.versi, a.wajib, a.uji], ['1.38.6', false, true], 'admin');
+  sama([t.versi, t.uji], ['1.38.6', true], 'penguji');
+  sama([x.versi, x.wajib, x.uji], ['1.38.5', true, false], 'bukan penguji');
+  sama([s.versi, s.wajib], ['1.38.5', true], 'tanpa token');
+});
+tes('rlsCekNaik_: resmi lama (< 1.38.5, tanpa tombol Resmikan) -> rilis uji langsung resmi', () => {
+  aturRilis({ APP_VERSI_TERBARU: '1.38.4', RILIS_UJI_VERSI: '1.38.8', RILIS_UJI_MS: String(Date.now()), RILIS_UJI_PAKAI: '[]', RILIS_UJI_GALAT: '0', RILIS_UJI_URL: 'u' });
+  sama(g.rlsCekNaik_(), '1.38.8');
+  sama([props.getProperty('APP_VERSI_TERBARU'), props.getProperty('RILIS_UJI_VERSI')], ['1.38.8', null]);
 });
 tes('rlsCatatGalat_: galat jaringan diabaikan, galat aplikasi dihitung', () => {
   aturRilis({ RILIS_UJI_VERSI: '1.38.5', RILIS_UJI_GALAT: '0' });
@@ -167,6 +172,33 @@ tes('rlsCatatGalat_: galat jaringan diabaikan, galat aplikasi dihitung', () => {
   sama(props.getProperty('RILIS_UJI_GALAT'), '0');
   g.rlsCatatGalat_('aplikasi', '[E900-XYZ] Null check operator', '1.38.5 web');
   sama(props.getProperty('RILIS_UJI_GALAT'), '1');
+});
+
+// 6b. dasbor: absensi & tugas sesi berjalan (v1.38.9)
+tes('dsbOnline_: hitung absen sesi berjalan, belum absensi/tugas, kehadiran semester', () => {
+  const simpan = {};
+  ['taBaca_', 'taInfo_', 'nilPeriode_', 'abSesiWajib_', 'brdMapelBm_', 'abBaca_', 'getSheetData', 'taParse_', 'hdrOnline_', 'nilSiswaBm_'].forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.taBaca_ = () => ({ sesiPerSemester: 3 });
+    g.taInfo_ = (c, smt, n) => ({ status: n < 3 ? 'lewat' : 'berjalan' });
+    g.nilPeriode_ = () => ({ smt: 1 });
+    g.abSesiWajib_ = () => true;
+    g.brdMapelBm_ = () => ({ M1: { idRombel: 'R1', rombel: 'Kelas 10', nama: 'MTK' }, M2: { idRombel: 'R1', rombel: 'Kelas 10', nama: 'IPA' } });
+    g.abBaca_ = () => [{ smt: 1, n: 3, idMapel: 'M1', kunciNama: g.normNama_('Ani') }, { smt: 1, n: 3, idMapel: 'M2', kunciNama: g.normNama_('Ani') },
+      { smt: 1, n: 3, idMapel: 'M1', kunciNama: g.normNama_('Budi') }, { smt: 1, n: 2, idMapel: 'M2', kunciNama: g.normNama_('Budi') }];
+    g.getSheetData = (nama) => nama === 'Materi'
+      ? [['ID Materi', 'ID Mapel', 'Jenis', 'Status', 'Sesi'], ['D1', 'M1', 'Diskusi', 'Aktif', 'S1-3'], ['D0', 'M1', 'Diskusi', 'Aktif', 'S1-2']]
+      : [['ID Rombel', 'ID Materi', 'Nama Siswa'], ['R1', 'D1', 'Ani']];
+    g.taParse_ = (c, x) => { const m = /S([0-9])-([0-9])/.exec(String(x)); return m ? { smt: +m[1], n: +m[2] } : null; };
+    g.hdrOnline_ = () => ({ aktif: true, lewat: 2, wajibLewat: { '1|1': true, '1|2': true }, hadir: { ['M1|' + g.normNama_('Ani')]: { '1|1': true, '1|3': true } } });
+    g.nilSiswaBm_ = () => ({ R1: [{ nama: 'Ani' }, { nama: 'Budi' }, { nama: 'Cici' }] });
+    const o = g.dsbOnline_();
+    sama([o.adaSesi, o.wb, o.sudahAbsenWb, o.absen, o.wajibAbsen, o.persenAbsen], [true, 3, 2, 3, 6, 50], 'absen');
+    sama([o.tugas, o.wajibTugas, o.belumWb, o.belumAbsenWb, o.belumTugasWb], [1, 3, 2, 2, 2], 'belum');
+    sama(o.belum.map((x) => x.nama), ['Cici', 'Budi']);
+    // semester: Ani M1 hadir 2 dari (2 lewat + 1 berjalan yg diikuti) = 3; sisanya 0 dari 2 (5 pasang) -> 2/13
+    sama([o.semHadir, o.semTotal, o.persenSemester], [2, 13, 15]);
+  } finally { Object.keys(simpan).forEach((k) => { g[k] = simpan[k]; }); }
 });
 
 // 7. tulis-tembus tutor e-learning -> Data Induk (kasus tutor baru seperti Ikman)

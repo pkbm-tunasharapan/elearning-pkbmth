@@ -22,7 +22,10 @@ var RLS = {
   MIN_PENGUJI: 2,
   JAM_UJI: 12,
   // galat yang bukan kesalahan aplikasi (jaringan/kuota) tidak menghalangi kenaikan rilis
-  GALAT_ABAI: /\[(E10[1-5]|E20[1-3]|E23[0-2])-/
+  GALAT_ABAI: /\[(E10[1-5]|E20[1-3]|E23[0-2])-/,
+  // Versi pertama yang punya tombol Resmikan & mengirim token saat cek versi. Bila rilis resmi masih di bawah ini,
+  // tidak ada HP yang bisa menguji/meresmikan rilis uji -> rilis uji langsung diresmikan (v1.38.9).
+  VERSI_UJI_MIN: '1.38.5'
 };
 
 function rlsProp_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
@@ -101,6 +104,9 @@ function rlsResmikan_(oleh, alasan) {
 function rlsCekNaik_() {
   var u = rlsUji_();
   if (!u) return '';
+  if (rlsBanding_(rlsProp_('APP_VERSI_TERBARU'), RLS.VERSI_UJI_MIN) < 0) {
+    return rlsResmikan_('Rilis otomatis', 'versi resmi ' + (rlsProp_('APP_VERSI_TERBARU') || '-') + ' belum mendukung rilis uji');
+  }
   var jam = (new Date().getTime() - u.waktuMs) / 3600000;
   if (u.pakai.length >= RLS.MIN_PENGUJI && jam >= RLS.JAM_UJI && u.galat === 0) {
     return rlsResmikan_('Rilis otomatis', u.pakai.length + ' penguji, ' + Math.floor(jam) + ' jam tanpa galat');

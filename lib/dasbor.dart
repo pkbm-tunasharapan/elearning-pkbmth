@@ -22,6 +22,7 @@ class _DasborLembagaState extends State<DasborLembaga> {
   String? _galat;
   bool _muat = false;
   bool _semuaRombel = false;
+  bool _semuaBelum = false;
 
   @override
   void initState() {
@@ -82,13 +83,30 @@ class _DasborLembagaState extends State<DasborLembaga> {
           onTap: menu == null ? null : () => widget.onPilih(menu),
         );
 
+    // v1.38.9: statistik TH.E-Course sesi berjalan + tatap muka hari ini + kehadiran semester
+    final on = peta(d['online']);
+    final adaSesi = on['adaSesi'] == true;
+    final galatOn = teks(on['galat']);
+    String nOn(Object? x) => galatOn.isNotEmpty ? '!' : (adaSesi ? '${angka(x)}' : '–');
+    final ketTanpaSesi = galatOn.isNotEmpty ? 'gagal dimuat' : 'tidak ada sesi berjalan';
+    final persenSem = on['persenSemester'];
     final ubinList = [
-      ubin(Icons.groups_rounded, Gaya.warnaMenu('dataInduk'), '$n', 'Warga belajar aktif', '${angka(d['rombelAktif'])} rombel', 'dataInduk'),
-      ubin(Icons.how_to_reg_rounded, const Color(0xFF2F9E8F), '${angka(d['hadir'])}', 'Hadir hari ini', '${angka(d['persenHadir'])}% · ${angka(d['pulang'])} sudah pulang', 'absensi'),
-      ubin(Icons.event_busy_rounded, const Color(0xFFE9A23B), '${angka(d['izin']) + angka(d['sakit']) + angka(d['alpa'])}', 'Tidak hadir',
-          'Izin ${angka(d['izin'])} · Sakit ${angka(d['sakit'])} · Alpa ${angka(d['alpa'])}', 'absensi'),
-      ubin(Icons.hourglass_empty_rounded, const Color(0xFFEF6B5B), '${angka(d['belum'])}', 'Belum diabsen', 'hari ini', 'absensi'),
+      ubin(Icons.groups_rounded, Gaya.warnaMenu('dataInduk'), '$n', 'Warga belajar aktif',
+          '${angka(d['rombelAktif'])} rombel · ${angka(on['wb'])} di TH.E-Course', 'dataInduk'),
+      ubin(Icons.phone_android_rounded, const Color(0xFF3B7DD8), nOn(on['sudahAbsenWb']), 'WB absen online',
+          adaSesi ? 'dari ${angka(on['wb'])} WB · ${teks(on['sesi'])}' : ketTanpaSesi, 'laporanHadir'),
+      ubin(Icons.fact_check_rounded, const Color(0xFF7A5AF8), nOn(on['absen']), 'Absensi hadir sesi ini',
+          adaSesi ? 'dari ${angka(on['wajibAbsen'])} absensi mapel · ${angka(on['persenAbsen'])}%' : ketTanpaSesi, 'laporanHadir'),
+      ubin(Icons.how_to_reg_rounded, const Color(0xFF2F9E8F), '${angka(d['hadir'])}', 'Hadir tatap muka hari ini',
+          '${angka(d['persenHadir'])}% · ${angka(d['pulang'])} sudah pulang', 'absensi'),
+      ubin(Icons.pending_actions_rounded, const Color(0xFFEF6B5B), nOn(on['belumWb']), 'Belum absensi / tugas',
+          adaSesi ? '${angka(on['belumAbsenWb'])} belum absensi · ${angka(on['belumTugasWb'])} belum tugas' : ketTanpaSesi, null),
+      ubin(Icons.insights_rounded, const Color(0xFFE9A23B), persenSem == null ? '–' : '${angka(persenSem)}%', 'Kehadiran semester',
+          'TH.E-Course sejak Sesi 1', 'laporanHadir'),
     ];
+    final rbOn = daftar(on['rombel']).map(peta).toList();
+    final belum = daftar(on['belum']).map(peta).toList();
+    final tampilBelum = _semuaBelum ? belum : belum.take(8).toList();
 
     final kurang = <(String, int, String)>[
       ('Tanpa NISN', angka(data['tanpaNisn']), 'dataInduk'),
@@ -116,14 +134,31 @@ class _DasborLembagaState extends State<DasborLembaga> {
           return Wrap(spacing: jarak, runSpacing: jarak, children: [for (final u in ubinList) SizedBox(width: w, child: u)]);
         }),
         const SizedBox(height: 10),
-        if (rombel.isNotEmpty)
+        if (adaSesi && rbOn.isNotEmpty)
           Card(
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
-                  const Expanded(child: Text('Kehadiran per rombel', style: TextStyle(fontWeight: FontWeight.w800))),
+                  Expanded(child: Text('Absen online per rombel · ${teks(on['sesi'])}', style: const TextStyle(fontWeight: FontWeight.w800))),
+                  TextButton(onPressed: () => widget.onPilih('laporanHadir'), child: const Text('Laporan')),
+                ]),
+                for (final r in (_semuaRombel ? rbOn : rbOn.take(6)))
+                  _BarisRombel({'nama': r['nama'], 'aktif': r['wb'], 'hadir': r['absen'], 'absen': 0}, ket: 'sudah absen', belum: angka(r['belum'])),
+                if (rbOn.length > 6)
+                  TextButton(onPressed: () => setState(() => _semuaRombel = !_semuaRombel), child: Text(_semuaRombel ? 'Ringkas' : 'Lihat semua (${rbOn.length})')),
+              ]),
+            ),
+          )
+        else if (rombel.isNotEmpty)
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  const Expanded(child: Text('Hadir tatap muka per rombel', style: TextStyle(fontWeight: FontWeight.w800))),
                   TextButton(onPressed: () => widget.onPilih('absensi'), child: const Text('Buka absensi')),
                 ]),
                 for (final r in tampilRb) _BarisRombel(r),
@@ -135,6 +170,40 @@ class _DasborLembagaState extends State<DasborLembaga> {
               ]),
             ),
           ),
+        if (adaSesi && belum.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text('Belum lengkap di ${teks(on['sesi'])} (${angka(on['belumWb'])} WB)', style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                for (final x in tampilBelum)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(teks(x['nama']), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text(teks(x['rombel']), style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
+                        ]),
+                      ),
+                      Text(
+                        [
+                          if (angka(x['absen']) > 0) '${angka(x['absen'])}/${angka(x['dari'])} mapel belum absen',
+                          if (angka(x['tugas']) > 0) '${angka(x['tugas'])} tugas',
+                        ].join(' · '),
+                        style: TextStyle(fontSize: 11.5, color: cs.error, fontWeight: FontWeight.w700),
+                      ),
+                    ]),
+                  ),
+                if (belum.length > 8)
+                  TextButton(onPressed: () => setState(() => _semuaBelum = !_semuaBelum), child: Text(_semuaBelum ? 'Ringkas' : 'Lihat semua (${belum.length})')),
+              ]),
+            ),
+          ),
+        ],
         if (kurang.isNotEmpty && !Sesi.instance.isDinas) ...[
           const SizedBox(height: 10),
           Card(
@@ -199,8 +268,10 @@ class _Ubin extends StatelessWidget {
 }
 
 class _BarisRombel extends StatelessWidget {
-  const _BarisRombel(this.r);
+  const _BarisRombel(this.r, {this.ket = 'hadir', this.belum = 0});
   final Map<String, dynamic> r;
+  final String ket;
+  final num belum;
 
   @override
   Widget build(BuildContext context) {
@@ -219,8 +290,8 @@ class _BarisRombel extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         SizedBox(
-          width: 96,
-          child: Text('$hadir/$aktif hadir${absen > 0 ? ' · $absen' : ''}', textAlign: TextAlign.right, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
+          width: 140,
+          child: Text('$hadir/$aktif $ket${absen > 0 ? ' · $absen' : ''}${belum > 0 ? ' · $belum belum' : ''}', textAlign: TextAlign.right, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
         ),
       ]),
     );
