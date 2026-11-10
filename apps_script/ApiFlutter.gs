@@ -1292,6 +1292,8 @@ function absKelas_(idTutorSaja) {
     var x = ada[k.idRombel + '|' + k.kodeMapel];
     if (!x) { ada[k.idRombel + '|' + k.kodeMapel] = k; a.push(k); }
     else if (!x.idTutor && k.idTutor) { x.idTutor = k.idTutor; x.namaTutor = k.namaTutor; }
+    // v1.38.5: tutor dari Enrollment e-learning yang belum punya ID di Data Induk (tab TUTOR) tetap tampil namanya
+    else if (!x.namaTutor && k.namaTutor) { x.namaTutor = k.namaTutor; }
   });
   // hanya mapel berstatus Aktif di e-Learning (mapel SIM yang tak terhubung tetap dipakai)
   try { a = nilSaringAktif_(a, nilPetaBm_()); } catch (e2) {}
