@@ -2317,13 +2317,11 @@ function hdrOnline_(per) {
   try {
     var cfg = taBaca_(), now = new Date().getTime(), smt = per.smt;
     if (String(cfg.label || '').trim() === String(per.tahun).trim() && smt >= 1 && smt <= cfg.jumlahSemester) {
-      // Penghitungan dimulai dari sesi PERTAMA yang punya catatan absensi di semester ini (fitur absensi
-      // TH.E-Course baru dipakai sejak sesi itu); sesi sebelumnya tidak dihitung agar tidak merugikan siswa.
-      var semua = abBaca_(null), mulai = 0;
-      semua.forEach(function(r) { if (r.smt === smt && r.n > 0 && (!mulai || r.n < mulai)) mulai = r.n; });
-      if (!mulai) { HDR_MEMO_[mk] = out; return out; }
-      out.aktif = true; out.mulaiSesi = mulai;
-      for (var n = mulai; n <= cfg.sesiPerSemester; n++) {
+      // Pembagi = SELURUH sesi wajib absensi yang sudah berakhir sejak Sesi 1. Sesi yang terlewat diisi siswa
+      // lewat fitur Buka Susulan Massal (absensi yang diisi saat susulan ikut terhitung).
+      var semua = abBaca_(null);
+      out.aktif = true;
+      for (var n = 1; n <= cfg.sesiPerSemester; n++) {
         if (!abSesiWajib_(cfg, smt, n)) continue;
         var info = taInfo_(cfg, smt, n, now), kk = smt + '|' + n;
         if (info.status === 'lewat') { out.wajibLewat[kk] = true; out.lewat++; }
