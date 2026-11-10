@@ -1,0 +1,260 @@
+<!--
+  ============================================
+  OVERLAY SIBUK — KOMPONEN BERSAMA
+  ============================================
+  Disuntikkan otomatis ke SEMUA panel oleh panelHtml_() di Helpers.gs, tepat
+  sebelum tag penutup body milik panel. Tidak perlu disalin ke tiap berkas
+  panel - itulah cara memastikan tampilan dan perilakunya tidak menyimpang
+  antar panel.
+
+  Berkas ini sengaja TIDAK memuat tag penutup body mana pun, bahkan di dalam
+  komentar. panelHtml_() menyisipkan diri dengan mencari tag itu, jadi satu
+  kemunculan tambahan di sini akan membuat penghitungan dan penyisipannya
+  ambigu.
+
+  MASALAH YANG DISELESAIKAN
+  Pengiriman ke Classroom berjalan bertahap dan bisa memakan puluhan detik.
+  Selama itu panel tetap bisa diklik: tombol Kirim bisa ditekan dua kali,
+  kelas bisa diganti di tengah jalan, panel bisa ditutup sebelum potongan
+  terakhir selesai. Semuanya menghasilkan kekacauan yang sulit ditelusuri -
+  item kembar di Classroom, atau baris yang statusnya tidak pernah tertulis.
+
+  PEMAKAIAN
+    busyShow({ judul: '...', sub: '...', total: 18 })
+    busyStep('Sesi 3 — presensi')            // catatan langkah, opsional
+    busyProgress(6)                          // 6 dari total
+    busyHide()
+
+  Atau bentuk aman yang MENJAMIN overlay tertutup apa pun hasilnya:
+    busyRun({
+      judul: 'Mengirim ke Classroom',
+      jalankan: function(sukses, gagal) {
+        google.script.run.withSuccessHandler(sukses).withFailureHandler(gagal).namaFungsi(arg);
+      },
+      selesai: function(res) { ... },
+      galat: function(e) { ... }
+    });
+-->
+<style>
+  #busyOverlay {
+    display: none; position: fixed; inset: 0; z-index: 99999;
+    background: rgba(23, 28, 38, 0.62);
+    backdrop-filter: blur(2px);
+    align-items: center; justify-content: center;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    /* Menangkap SEMUA klik, termasuk pada tombol di bawahnya. */
+    cursor: progress; user-select: none;
+  }
+  #busyOverlay.show { display: flex; }
+
+  #busyOverlay .kotak {
+    background: #fff; border-radius: 14px; padding: 26px 28px;
+    width: 400px; max-width: 92vw;
+    box-shadow: 0 14px 44px rgba(0,0,0,0.32);
+    text-align: center;
+  }
+
+  /* Cincin berputar. Dipakai untuk proses yang panjangnya tidak diketahui. */
+  #busyOverlay .cincin {
+    width: 42px; height: 42px; margin: 0 auto 15px auto;
+    border: 3.5px solid #e8f0fe; border-top-color: #1a73e8;
+    border-radius: 50%; animation: busySpin .85s linear infinite;
+  }
+  @keyframes busySpin { to { transform: rotate(360deg); } }
+
+  #busyOverlay .judul {
+    font-size: 15.5px; font-weight: 700; color: #202124; margin-bottom: 6px;
+  }
+  #busyOverlay .sub {
+    font-size: 12.5px; color: #5f6368; line-height: 1.6;
+  }
+
+  #busyOverlay .bar-luar {
+    height: 8px; background: #eceff1; border-radius: 5px;
+    overflow: hidden; margin-top: 16px; display: none;
+  }
+  #busyOverlay .bar-luar.show { display: block; }
+  #busyOverlay .bar-isi {
+    height: 100%; width: 0; background: #1a73e8;
+    border-radius: 5px; transition: width .25s ease;
+  }
+  #busyOverlay .angka {
+    font-size: 11.5px; color: #80868b; margin-top: 7px;
+    font-variant-numeric: tabular-nums; display: none;
+  }
+  #busyOverlay .angka.show { display: block; }
+
+  #busyOverlay .langkah {
+    font-size: 11.5px; color: #1a56b0; background: #f4f8ff;
+    border-radius: 7px; padding: 8px 11px; margin-top: 14px;
+    display: none; word-break: break-word; line-height: 1.5;
+  }
+  #busyOverlay .langkah.show { display: block; }
+
+  #busyOverlay .peringatan {
+    font-size: 11.5px; color: #7a5b00; background: #fef7e0;
+    border-radius: 7px; padding: 9px 11px; margin-top: 14px;
+    display: none; line-height: 1.6;
+  }
+  #busyOverlay .peringatan.show { display: block; }
+  #busyOverlay .peringatan button {
+    margin-top: 8px; padding: 6px 12px; border: none; border-radius: 5px;
+    background: #fdefc4; color: #7a5b00; font-weight: 700; font-size: 11.5px;
+    cursor: pointer; font-family: inherit;
+  }
+  #busyOverlay .jangan-tutup {
+    font-size: 11px; color: #9aa0a6; margin-top: 15px;
+  }
+</style>
+
+<div id="busyOverlay" role="alertdialog" aria-live="assertive" aria-busy="true">
+  <div class="kotak">
+    <div class="cincin"></div>
+    <div class="judul" id="busyJudul">Sedang diproses…</div>
+    <div class="sub" id="busySub">Mohon tunggu sampai selesai.</div>
+
+    <div class="bar-luar" id="busyBarLuar"><div class="bar-isi" id="busyBarIsi"></div></div>
+    <div class="angka" id="busyAngka"></div>
+    <div class="langkah" id="busyLangkah"></div>
+
+    <!-- Jalan keluar darurat. Kalau server tidak pernah menjawab - kuota
+         habis, izin dicabut, jaringan mati - tanpa ini pengguna terkurung di
+         balik overlay tanpa satu pun cara keluar selain menutup paksa Sheet.
+         Sengaja baru muncul setelah lama, supaya tidak dipakai sebagai tombol
+         "batal" pada proses yang sebenarnya masih sehat. -->
+    <div class="peringatan" id="busyPeringatan">
+      Prosesnya belum menjawab lebih dari <b id="busyTungguDetik">60</b> detik.
+      Kemungkinan besar masih berjalan di latar — jangan jalankan ulang sebelum
+      memeriksa hasilnya, karena bisa menghasilkan item kembar.
+      <br>
+      <button type="button" onclick="busyLepas()">Lepaskan tampilan ini</button>
+    </div>
+
+    <div class="jangan-tutup">Jangan tutup jendela ini.</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var total = 0;
+  var jam = null;          // penghitung ambang peringatan
+  var mulai = 0;
+  var AMBANG_MS = 60000;
+
+  function el(id) { return document.getElementById(id); }
+
+  function kunciPapanTik(e) {
+    // Esc dan Enter adalah dua tombol yang paling mungkin ditekan orang yang
+    // menunggu - dan keduanya bisa menutup dialog atau memicu tombol utama
+    // di balik overlay. Semua tombol dijegal kecuali Tab, supaya pembaca layar
+    // tetap bisa menjelajah isi overlay.
+    if (e.key === 'Tab') return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  window.busyShow = function (opsi) {
+    opsi = opsi || {};
+    total = parseInt(opsi.total, 10) || 0;
+    mulai = Date.now();
+
+    el('busyJudul').textContent = opsi.judul || 'Sedang diproses…';
+    el('busySub').textContent = opsi.sub || 'Mohon tunggu sampai selesai.';
+
+    el('busyBarLuar').className = 'bar-luar' + (total > 0 ? ' show' : '');
+    el('busyAngka').className = 'angka' + (total > 0 ? ' show' : '');
+    el('busyBarIsi').style.width = '0%';
+    el('busyAngka').textContent = total > 0 ? ('0 dari ' + total) : '';
+
+    el('busyLangkah').className = 'langkah';
+    el('busyLangkah').textContent = '';
+    el('busyPeringatan').className = 'peringatan';
+
+    el('busyOverlay').classList.add('show');
+    document.addEventListener('keydown', kunciPapanTik, true);
+
+    if (jam) clearTimeout(jam);
+    jam = setTimeout(function () {
+      el('busyTungguDetik').textContent = Math.round(AMBANG_MS / 1000);
+      el('busyPeringatan').className = 'peringatan show';
+    }, AMBANG_MS);
+  };
+
+  window.busyProgress = function (selesai, totalBaru) {
+    if (totalBaru) {
+      total = parseInt(totalBaru, 10) || total;
+      el('busyBarLuar').className = 'bar-luar show';
+      el('busyAngka').className = 'angka show';
+    }
+    if (!total) return;
+    var n = Math.max(0, Math.min(total, parseInt(selesai, 10) || 0));
+    el('busyBarIsi').style.width = ((n / total) * 100) + '%';
+    el('busyAngka').textContent = n + ' dari ' + total;
+
+    // Setiap kemajuan nyata menunda ambang peringatan. Proses 200 item yang
+    // sehat tapi lambat tidak boleh dituduh menggantung.
+    if (jam) {
+      clearTimeout(jam);
+      jam = setTimeout(function () {
+        el('busyTungguDetik').textContent = Math.round(AMBANG_MS / 1000);
+        el('busyPeringatan').className = 'peringatan show';
+      }, AMBANG_MS);
+    }
+  };
+
+  window.busyStep = function (teks) {
+    var l = el('busyLangkah');
+    if (!teks) { l.className = 'langkah'; return; }
+    l.textContent = teks;
+    l.className = 'langkah show';
+  };
+
+  // Sengaja TIDAK dinamai busySub: elemen dengan id="busySub" otomatis menjadi
+  // properti global window.busySub di browser, dan dua hal bernama sama pada
+  // objek yang sama adalah sumber kebingungan yang tidak perlu.
+  window.busyUbahSub = function (teks) {
+    el('busySub').textContent = teks || '';
+  };
+
+  window.busyHide = function () {
+    if (jam) { clearTimeout(jam); jam = null; }
+    el('busyOverlay').classList.remove('show');
+    document.removeEventListener('keydown', kunciPapanTik, true);
+  };
+
+  // Dipakai tombol darurat. Overlay ditutup, tapi pengguna sudah diberi tahu
+  // bahwa prosesnya mungkin masih berjalan - bukan dibiarkan menyangka
+  // prosesnya batal.
+  window.busyLepas = function () {
+    busyHide();
+    if (typeof showToast === 'function') {
+      showToast('Tampilan dilepas. Periksa hasilnya sebelum menjalankan ulang.', 'info', 6000);
+    }
+  };
+
+  // Pembungkus yang MENJAMIN overlay tertutup, apa pun hasilnya. Menyebar
+  // busyHide() ke belasan penangan galat di banyak panel cepat atau lambat
+  // akan menyisakan satu jalur yang luput - dan jalur itulah yang mengurung
+  // pengguna di balik overlay.
+  window.busyRun = function (opsi) {
+    opsi = opsi || {};
+    busyShow(opsi);
+
+    var sudah = false;
+    function sekali(fn) {
+      return function (arg) {
+        if (sudah) return;
+        sudah = true;
+        busyHide();
+        if (typeof fn === 'function') fn(arg);
+      };
+    }
+
+    try {
+      opsi.jalankan(sekali(opsi.selesai), sekali(opsi.galat));
+    } catch (e) {
+      sekali(opsi.galat)(e);
+    }
+  };
+})();
+</script>

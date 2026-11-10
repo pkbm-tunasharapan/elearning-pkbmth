@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<style>/*OVERLAY MUAT*/
+#ovMuat{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(8,28,36,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);cursor:progress}
+#ovMuat.show{display:flex}
+#ovMuat .ov-kotak{background:rgba(20,52,62,.92);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:18px;padding:22px 26px;max-width:84vw;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.35);animation:ovMasuk .18s ease-out}
+#ovMuat .ov-putar{width:42px;height:42px;margin:0 auto 12px;border:4px solid rgba(255,255,255,.25);border-top-color:#fde68a;border-radius:50%;animation:ovPutar .8s linear infinite}
+#ovMuat .ov-teks{font-size:16px;font-weight:700;color:#fff}
+#ovMuat .ov-kecil{font-size:12px;margin-top:6px;color:rgba(255,255,255,.8)}
+@keyframes ovPutar{to{transform:rotate(360deg)}}
+@keyframes ovMasuk{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+</style>
+<script>
+(function(){
+try{
+if(typeof google==='undefined'||!google.script||!google.script.run||window.__ovMuatPasang)return;
+window.__ovMuatPasang=true;
+var asli=google.script.run,hitung=0,tm=null,el=null;
+function buat(){
+ if(el||!document.body)return;
+ el=document.createElement('div');el.id='ovMuat';
+ el.innerHTML='<div class="ov-kotak"><div class="ov-putar"></div><div class="ov-teks">Memuat...</div><div class="ov-kecil">Mohon tunggu, jangan menutup atau menekan tombol apa pun.</div></div>';
+ document.body.appendChild(el);
+ ['click','mousedown','touchstart','keydown'].forEach(function(n){
+  el.addEventListener(n,function(e){e.stopPropagation();e.preventDefault();});
+ });
+}
+function tampil(){
+ buat();if(el&&hitung>0)el.classList.add('show');
+}
+function ubah(d){
+ hitung+=d;if(hitung<0)hitung=0;
+ if(hitung>0){
+  if(!tm&&!(el&&el.classList.contains('show')))tm=setTimeout(function(){tm=null;tampil();},120);
+ }else{
+  if(tm){clearTimeout(tm);tm=null;}
+  if(el)el.classList.remove('show');
+ }
+}
+document.addEventListener('keydown',function(e){
+ if(hitung>0&&el&&el.classList.contains('show')){e.stopPropagation();e.preventDefault();}
+},true);
+function bangun(s,f,u){
+ return new Proxy({},{get:function(_,p){
+  if(p==='withSuccessHandler')return function(h){return bangun(h,f,u);};
+  if(p==='withFailureHandler')return function(h){return bangun(s,h,u);};
+  if(p==='withUserObject')return function(o){return bangun(s,f,o);};
+  return function(){
+   if(/Poll|RuangCek|RuangKirim|LaporPindahTab|SimpanDraft|StatusUjian|KirimChat|Ping|Heartbeat/i.test(String(p))){var rr=asli;if(u!==undefined)rr=rr.withUserObject(u);if(s)rr=rr.withSuccessHandler(s);if(f)rr=rr.withFailureHandler(f);return rr[p].apply(rr,arguments);}
+   var r=asli;
+   if(u!==undefined)r=r.withUserObject(u);
+   var selesai=false;
+   function akhir(){if(!selesai){selesai=true;ubah(-1);}}
+   r=r.withSuccessHandler(function(){akhir();if(s)return s.apply(this,arguments);});
+   r=r.withFailureHandler(function(){akhir();if(f)return f.apply(this,arguments);});
+   ubah(1);
+   try{return r[p].apply(r,arguments);}catch(x){akhir();throw x;}
+  };
+ }});
+}
+google.script.run=bangun();
+}catch(e){}
+})();
+</script>
+
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daftar Siswa Baru</title>
+<style>
+  :root {
+    --hijau: #1b7a4d; --hijau-gelap: #145c3a; --hijau-muda: #e8f5ee;
+    --merah: #dc2626; --abu: #6b7280; --abu-muda: #f3f4f6; --border: #e2e5e9;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: #f7f8fa; color: #1f2937; font-size: 15px; }
+  .topbar { background: linear-gradient(135deg, var(--hijau), var(--hijau-gelap)); color: #fff; padding: 18px 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .topbar h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  .topbar p { margin: 4px 0 0; font-size: 12.5px; opacity: .9; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 18px 14px 60px; }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin: 14px 0 6px; }
+  label.pertama { margin-top: 0; }
+  input[type=text], input[type=date], input[type=email] { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 15px; font-family: inherit; background: #fff; }
+  input:focus { outline: none; border-color: var(--hijau); }
+  .hint { font-size: 12.5px; color: var(--abu); margin-top: 6px; line-height: 1.45; }
+  .btn { display: inline-block; width: 100%; padding: 12px; margin-top: 18px; background: var(--hijau); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; text-align: center; text-decoration: none; }
+  .btn:disabled { background: #9ca3af; cursor: default; }
+  .btn-secondary { background: #fff; color: var(--hijau); border: 1.5px solid var(--hijau); margin-top: 10px; }
+  .btn-secondary:disabled { background: #fff; color: #9ca3af; border-color: #d1d5db; }
+  .pesan { display: none; padding: 11px 14px; border-radius: 10px; font-size: 14px; margin-bottom: 14px; line-height: 1.45; }
+  .pesan.tampil { display: block; }
+  .pesan.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+  .pesan.info { background: var(--hijau-muda); color: var(--hijau-gelap); border: 1px solid #b7e1c9; }
+  .hidden { display: none !important; }
+  .langkah { font-size: 12.5px; color: var(--abu); margin-bottom: 10px; }
+  .otp { text-align: center; letter-spacing: 8px; font-size: 24px !important; font-weight: 700; }
+  .kode-besar { font-size: 30px; font-weight: 800; letter-spacing: 4px; text-align: center; background: var(--hijau-muda); color: var(--hijau-gelap); border: 2px dashed var(--hijau); border-radius: 12px; padding: 16px 8px; margin: 14px 0 6px; user-select: all; }
+  .peringatan { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 11px 14px; font-size: 13px; line-height: 1.5; margin-top: 12px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: putar .7s linear infinite; vertical-align: -2px; margin-right: 8px; }
+  @keyframes putar { to { transform: rotate(360deg); } }
+  .link { text-align: center; margin-top: 14px; font-size: 12.5px; color: var(--abu); }
+  a { color: var(--hijau); }
+/* ---- Tema LMS biru-teal (seragam di semua halaman) ---- */
+:root{--hijau:#0e7490;--hijau-gelap:#0b5c75;--hijau-muda:#e2f3f8;--aksen:#0891b2;--navy:#0f2a3d;--navy2:#143c55;--teks:#16212b;--abu:#5f7285;--abu-muda:#f1f5f9;--border:#e1e8ee;--bayang:0 1px 2px rgba(15,42,61,.05),0 12px 30px -16px rgba(15,42,61,.22)}
+html{-webkit-text-size-adjust:100%}
+body{font-family:Inter,'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased;color:var(--teks);line-height:1.5;background:radial-gradient(900px 420px at 0% -10%,#d9f0f6 0,rgba(217,240,246,0) 70%),radial-gradient(800px 420px at 100% -5%,#e4ebfb 0,rgba(228,235,251,0) 65%),#f2f6f9;background-attachment:fixed}
+.topbar{display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:center;background:rgba(255,255,255,.9);-webkit-backdrop-filter:saturate(1.4) blur(10px);backdrop-filter:saturate(1.4) blur(10px);color:var(--navy);text-align:left;padding:10px 18px;border-bottom:1px solid var(--border);box-shadow:none;position:sticky;top:0;z-index:30}
+.topbar::before{content:'';grid-row:1/3;width:38px;height:38px;border-radius:11px;background:url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2040%2040'%3E%3Cdefs%3E%3ClinearGradient%20id%3D'g'%20x1%3D'0'%20y1%3D'0'%20x2%3D'1'%20y2%3D'1'%3E%3Cstop%20offset%3D'0'%20stop-color%3D'%2322c1dc'%2F%3E%3Cstop%20offset%3D'1'%20stop-color%3D'%230e7490'%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D'40'%20height%3D'40'%20rx%3D'11'%20fill%3D'url(%23g)'%2F%3E%3Cpath%20d%3D'M10.5%2013.2c3.2-1.3%206.6-1%209.5%201.1v13.6c-2.9-2.1-6.3-2.4-9.5-1.1z'%20fill%3D'%23fff'%2F%3E%3Cpath%20d%3D'M29.5%2013.2c-3.2-1.3-6.6-1-9.5%201.1v13.6c2.9-2.1%206.3-2.4%209.5-1.1z'%20fill%3D'%23fff'%20fill-opacity%3D'.8'%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;box-shadow:0 6px 14px -6px rgba(14,116,144,.6)}
+.topbar h1{margin:0;font-size:16px;font-weight:800;letter-spacing:-.2px;color:var(--navy);line-height:1.2}
+.topbar p{margin:0;font-size:12px;color:var(--abu);opacity:1}
+.card{background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:var(--bayang)}
+label{color:#334155}
+select,input[type=text],input[type=password],input[type=date],input[type=email],input[type=number],textarea{min-height:44px;border:1.5px solid #d6e0e8;border-radius:12px;background:#fff;color:var(--teks);transition:border-color .18s,box-shadow .18s}
+select:focus,input:focus,textarea:focus{outline:0;border-color:var(--hijau);box-shadow:0 0 0 4px rgba(14,116,144,.15)}
+.btn{background-image:linear-gradient(135deg,var(--hijau),var(--aksen));border-radius:12px;min-height:44px;font-weight:700;box-shadow:0 8px 18px -10px rgba(14,116,144,.85);transition:transform .12s,filter .18s,box-shadow .18s}
+.btn:hover:not(:disabled){filter:brightness(1.07)}
+.btn:active:not(:disabled){transform:translateY(1px) scale(.985)}
+.btn:disabled{box-shadow:none;background-image:none}
+.btn-secondary,.btn-nav{background-image:none;box-shadow:none}
+.btn.abu,.btn.kecil{box-shadow:none}
+.btn.kecil{min-height:38px}
+a{color:var(--hijau)}
+.hint,.kecil-teks{color:var(--abu)}
+.pesan{border-radius:12px}
+.badge{border-radius:999px}
+table{font-size:13.5px}
+th{background:#f6f9fb;color:#5b6b7b}
+tbody tr:hover td{background:#fafcfd}
+.tabs{flex-wrap:nowrap;overflow-x:auto;gap:4px;padding:5px;background:#e6eef3;border-radius:14px;margin-bottom:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;white-space:nowrap;border:0;background:transparent;color:#475569;border-radius:10px;padding:9px 14px;transition:background .15s,color .15s}
+.tab:hover{background:rgba(255,255,255,.65)}
+.tab.aktif{background:#fff;color:var(--hijau-gelap);border:0;box-shadow:0 2px 8px -2px rgba(15,42,61,.2)}
+.item-mapel{border-radius:12px;transition:background .15s}
+.item-mapel.aktif{background:var(--hijau-muda);border-color:transparent;color:var(--hijau-gelap)}
+.modal-box{border-radius:20px;box-shadow:0 30px 70px -20px rgba(15,42,61,.5)}
+.overlay-ujian-box{border-radius:20px}
+.indikator-dot.aktif{box-shadow:0 0 0 2px var(--hijau-gelap)}
+@media (max-width:759px){
+select,input[type=text],input[type=password],input[type=date],input[type=email],input[type=number],textarea{font-size:16px}
+.topbar{padding:9px 14px}
+}
+
+/* ---- Halaman Daftar (hero) ---- */
+.topbar{display:block;text-align:center;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;border:0;position:static;padding:34px 16px 4px}
+.topbar::before{display:block;width:60px;height:60px;border-radius:18px;margin:0 auto 12px}
+.topbar h1{font-size:23px}
+.topbar p{margin-top:2px;font-size:13.5px}
+.wrap{max-width:460px;padding:14px 16px 56px}
+.card{padding:22px}
+.langkah{display:inline-block;background:var(--hijau-muda);color:var(--hijau-gelap);font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;margin-bottom:8px}
+.btn{width:100%}
+</style>
+<style id="temaKaca">
+/* TEMA KACA (glassmorphism) */
+:root{--hijau:#7a5cff;--hijau-gelap:#4b2fd0;--hijau-muda:rgba(122,92,255,.16);--abu:#4f5470;--abu-muda:rgba(255,255,255,.38);--border:rgba(255,255,255,.6);--kaca:rgba(255,255,255,.74);--kaca-gelap:rgba(22,14,64,.52)}
+body{background-color:#120a3a;background-image:radial-gradient(1100px 700px at 10% 6%,rgba(139,92,255,.78),transparent 60%),radial-gradient(1000px 700px at 92% 12%,rgba(33,150,243,.66),transparent 60%),radial-gradient(900px 700px at 60% 100%,rgba(0,188,212,.42),transparent 60%),linear-gradient(160deg,#1a0f4d,#2a1a7a 45%,#0d3b78);background-attachment:fixed;color:#1f2430}
+.topbar{background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.28);box-shadow:none}
+.topbar h1,.topbar .judul,.topbar b{color:#fff}.topbar p,.topbar small,.topbar span{color:rgba(255,255,255,.82)}
+.topbar{position:-webkit-sticky;position:sticky;top:0;z-index:35}
+.card{background:var(--kaca);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);border:1px solid rgba(255,255,255,.65);border-radius:18px;box-shadow:0 8px 32px rgba(10,5,50,.28)}
+.btn:not(.abu):not(.merah):not(.btn-secondary){background:linear-gradient(135deg,#8b6cff,#5b3fd6);color:#fff;border-radius:12px;box-shadow:0 4px 14px rgba(75,47,208,.35)}
+.btn.btn-secondary,.btn-secondary{background:rgba(255,255,255,.6);color:#2d1f7a;border:1px solid rgba(255,255,255,.75)}
+input[type=text],input[type=password],input[type=email],input[type=search],input[type=number],input[type=date],select,textarea{background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.75);border-radius:12px}
+input:focus,select:focus,textarea:focus{outline:none;box-shadow:0 0 0 3px rgba(139,108,255,.4)}
+.modal-box{background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);border-radius:20px}
+.tab{background:rgba(255,255,255,.58);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.75);color:#2d1f7a}
+.tab.aktif{background:linear-gradient(135deg,#8b6cff,#5b3fd6);color:#fff;border-color:rgba(255,255,255,.5)}
+
+/* OTP kaca */
+#inOtp,label[for=inOtp]{position:absolute;opacity:0;pointer-events:none;height:0;width:0;margin:0;padding:0;border:0;overflow:hidden}
+#langkah2{background:linear-gradient(160deg,rgba(255,255,255,.14),rgba(255,255,255,.04)),rgba(10,16,22,.62);-webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(255,255,255,.26);color:#ecfff5;box-shadow:0 16px 48px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.3);text-align:center}
+#langkah2 .langkah{color:#8be9bd;font-weight:700;letter-spacing:.04em}
+#langkah2 b{color:#fff}
+#langkah2 .link a{color:#8be9bd}
+.otp-kaca{display:flex;gap:8px;justify-content:center;margin:16px 0 8px}
+.otp-kaca input{width:46px;height:58px;padding:0;text-align:center;font-size:24px;font-weight:700;color:#fff;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.3);border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.18);transition:border-color .15s,box-shadow .15s,transform .15s;caret-color:#34d399}
+.otp-kaca input:focus{border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.3);transform:translateY(-2px);background:rgba(255,255,255,.14)}
+.otp-kaca input.isi{border-color:rgba(52,211,153,.75)}
+.otp-kaca.goyang{animation:otpGoyang .4s}
+@keyframes otpGoyang{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.otp-hitung{font-size:12.5px;color:#cfe9dc;margin:4px 0 12px}.otp-hitung b{color:#fbbf24}
+#langkah2 .btn:not(.btn-secondary){background:linear-gradient(135deg,#10b981,#047857);box-shadow:0 6px 18px rgba(16,185,129,.4)}
+#langkah2 .btn.btn-secondary{background:rgba(255,255,255,.12);color:#ecfff5;border:1px solid rgba(255,255,255,.3)}
+.ok-kaca{text-align:center;margin:4px 0 10px}
+.ok-kaca svg{width:76px;height:76px;filter:drop-shadow(0 6px 14px rgba(16,185,129,.45))}
+.ok-kaca .cincin{fill:rgba(16,185,129,.16);stroke:#10b981;stroke-width:3;stroke-dasharray:190;stroke-dashoffset:190;animation:okGaris .7s ease forwards}
+.ok-kaca .centang{fill:none;stroke:#059669;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:okGaris .45s .6s ease forwards}
+.ok-kaca .judul{font-size:19px;font-weight:800;color:#065f46;margin-top:6px;animation:okMuncul .5s .8s both}
+.ok-kaca .judul span{color:#059669}
+.ok-kaca .sub{font-size:12.5px;color:#374151;animation:okMuncul .5s .95s both}
+@keyframes okGaris{to{stroke-dashoffset:0}}@keyframes okMuncul{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (max-width:380px){.otp-kaca input{width:40px;height:52px}.otp-kaca{gap:6px}}
+/* rapikan formulir (HP) */
+html,body{overflow-x:hidden;max-width:100%}
+input[type=date],select{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;height:46px;margin:6px 0 4px;padding:10px 12px;font-size:16px;line-height:1.2;-webkit-appearance:none;appearance:none;color:#1f2430}
+input[type=date]::-webkit-date-and-time-value{text-align:left;min-height:1.2em}
+select{padding-right:40px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b2fd0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:16px}
+input[type=text],input[type=email],input[type=password]{width:100%;max-width:100%;box-sizing:border-box;height:46px;font-size:16px}
+.card .hint{margin:4px 2px 14px;line-height:1.45}
+</style>
+<style id="liquidBM">
+/* LIQUID GLASS: panel bening, warna latar tembus, tepi berkilau */
+.card,.modal-box,.overlay-ujian-box{background:rgba(255,255,255,.34)!important;-webkit-backdrop-filter:blur(10px) saturate(190%) brightness(1.06)!important;backdrop-filter:blur(10px) saturate(190%) brightness(1.06)!important;border:1px solid rgba(255,255,255,.55)!important;box-shadow:inset 0 1.5px 1px -.5px rgba(255,255,255,.95),inset 0 -1.5px 1px -.5px rgba(255,255,255,.5),inset 0 0 26px 2px rgba(255,255,255,.2),0 14px 36px -8px rgba(20,10,80,.4),0 2px 6px rgba(20,10,80,.12)!important}
+.topbar,.header-siswa,.header-staf{background:rgba(255,255,255,.1)!important;-webkit-backdrop-filter:blur(10px) saturate(190%)!important;backdrop-filter:blur(10px) saturate(190%)!important;box-shadow:inset 0 -1px 0 rgba(255,255,255,.5),inset 0 1px 0 rgba(255,255,255,.6),0 8px 22px -12px rgba(10,5,60,.5)!important}
+.tab{background:rgba(255,255,255,.3)!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.9),inset 0 -1px 1px rgba(255,255,255,.35),0 3px 10px -3px rgba(20,10,80,.3)!important}
+.btn.btn-secondary,.btn-secondary{background:rgba(255,255,255,.4)!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.95),0 3px 10px -3px rgba(20,10,80,.3)!important}
+.btn:not(.abu):not(.merah):not(.btn-secondary),.tab.aktif{box-shadow:inset 0 1px 1px rgba(255,255,255,.7),inset 0 -6px 12px rgba(30,15,140,.25),0 6px 18px -4px rgba(91,63,214,.6)!important}
+input[type=text],input[type=password],input[type=email],input[type=search],input[type=number],input[type=date],select,textarea{background:rgba(255,255,255,.55)!important;box-shadow:inset 0 1px 2px rgba(20,10,80,.12),inset 0 1px 1px rgba(255,255,255,.8)!important}
+.sidebar,#areaAdminTabs{-webkit-backdrop-filter:blur(12px) saturate(200%)!important;backdrop-filter:blur(12px) saturate(200%)!important;box-shadow:inset 0 1.5px 1px -.5px rgba(255,255,255,.7),inset 0 0 28px 2px rgba(255,255,255,.12),0 14px 40px -8px rgba(5,0,40,.5)!important}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;background:linear-gradient(140deg,rgba(255,255,255,.95),rgba(255,255,255,.06) 28%,rgba(255,255,255,.03) 62%,rgba(255,255,255,.7));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.card{position:relative}
+/*hover*/
+.tab:hover:not(.aktif){background:rgba(255,255,255,.62)!important;transform:translateY(-1px);box-shadow:inset 0 1px 1px #fff,0 6px 16px -4px rgba(20,10,80,.4)!important}
+.btn.btn-secondary:hover,.btn-secondary:hover{background:rgba(255,255,255,.7)!important;transform:translateY(-1px)}
+.btn:not(.abu):not(.merah):not(.btn-secondary):hover{filter:brightness(1.12) saturate(1.1);transform:translateY(-1px)}
+.btn:active,.tab:active{transform:translateY(0) scale(.98)}
+.btn,.tab{transition:background .15s,transform .15s,box-shadow .15s,filter .15s}
+.card:hover{box-shadow:inset 0 1.5px 1px -.5px rgba(255,255,255,.95),inset 0 0 30px 3px rgba(255,255,255,.26),0 18px 42px -8px rgba(20,10,80,.45)!important}
+.sidebar .tree-mapel-header:hover,.sidebar .sesi-header:hover,.sidebar .tree-item:hover,.sidebar .tree-chat-item:hover,#areaAdminTabs .tab:hover{background:rgba(255,255,255,.2)!important}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>Daftar Siswa Baru</h1>
+  <p>PKBM Tunas Harapan - Belajar Mandiri</p>
+</div>
+
+<div class="wrap">
+  <div id="pesanGlobal" class="pesan"></div>
+
+  <!-- LANGKAH 1: data diri -->
+  <div id="langkah1" class="card">
+    <div class="langkah">Langkah 1 dari 2 - isi data diri</div>
+    <label class="pertama" for="inNama">Nama Lengkap</label>
+    <input type="text" id="inNama" placeholder="Tulis nama lengkap sesuai KTP/KK/akta" autocomplete="off" maxlength="80"><div class="hint"><b>Penting:</b> tulis nama persis seperti di data kependudukan (KTP/Kartu Keluarga/akta lahir), tanpa singkatan atau nama panggilan. Jika nama Anda sudah ada di daftar kelas, Anda hanya perlu memverifikasi email.</div>
+
+    <label for="inTgl">Tanggal Lahir</label>
+    <input type="date" id="inTgl">
+    <div class="hint">Tanggal lahir ini menjadi kata sandi Anda saat masuk, dengan format <b>TH-ddmmyyyy</b> (contoh lahir 3 Maret 2009: TH-03032009).</div>
+
+    <label for="inEmail">Email</label>
+    <input type="email" id="inEmail" placeholder="nama@gmail.com" autocomplete="email" maxlength="120">
+    <div class="hint">Kode verifikasi 6 angka akan dikirim ke email ini. Pakai email yang aktif dan bisa Anda buka sekarang. Kode ini hanya diminta sekali, saat mendaftar.</div>
+
+    <label for="inRombel">Kelas (Rombel)</label>
+    <select id="inRombel"><option value="">Memuat daftar kelas...</option></select>
+    <div class="hint" id="hintRombel">Pilih kelas Anda. Bila kelas Anda belum muncul, pendaftarannya belum dibuka; tanyakan ke tutor atau admin.</div>
+
+    <button class="btn" id="btnDaftar" onclick="mulaiDaftar()">Kirim Kode ke Email</button>
+    <div class="link">Sudah punya akun? <a id="linkMasuk" href="#" target="_top">Masuk di sini</a></div>
+  </div>
+
+  <!-- LANGKAH 2: OTP -->
+  <div id="langkah2" class="card hidden">
+    <div class="langkah">Langkah 2 dari 2 - verifikasi email</div>
+    <div style="font-size:14px;line-height:1.5">Kode 6 angka sudah dikirim ke <b id="tampilEmail"></b>. Cek kotak masuk, dan folder Spam bila belum terlihat. Kode berlaku 10 menit.</div>
+    <label for="inOtp">Kode Verifikasi</label>
+    <input type="text" id="inOtp" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="------">
+    <button class="btn" id="btnOtp" onclick="verifikasi()">Verifikasi dan Daftar</button>
+    <button class="btn btn-secondary" id="btnKirimUlang" onclick="kirimUlang()">Kirim ulang kode</button>
+    <div class="link"><a href="#" onclick="kembaliKeForm();return false;">Ubah data / email</a></div>
+  </div>
+
+  <!-- LANGKAH 3: berhasil -->
+  <div id="langkah3" class="card hidden">
+    <div style="font-size:18px;font-weight:700;color:var(--hijau-gelap)">Pendaftaran berhasil ✅</div>
+    <div style="margin-top:6px;font-size:14px;line-height:1.5"><b id="hasilNama"></b><br>Kelas: <b id="hasilKelas"></b></div>
+    <div class="hint" style="margin-top:12px">Kata Sandi Anda untuk masuk (bersama nama lengkap):</div>
+    <div class="kode-besar" id="hasilSandi" style="font-size:24px"></div>
+    <div class="hint" style="margin-top:12px">Kode Akses Anda (diminta saat mengirim jawaban, diskusi, dan ujian):</div>
+    <div class="kode-besar" id="hasilKode"></div>
+    <button class="btn btn-secondary" id="btnSalin" onclick="salinKode()" style="margin-top:6px">Salin kode</button>
+    <div class="peringatan"><b>Simpan Kode Akses ini sekarang</b> (catat atau tangkap layar). Kode tidak ditampilkan lagi; bila hilang, minta tutor untuk melihatnya di data siswa.<br>
+    Untuk masuk berikutnya: tulis <b>nama lengkap</b> dan kata sandi <b>TH-</b> diikuti tanggal lahir (ddmmyyyy). Kode verifikasi email tidak diminta lagi.</div>
+    <a class="btn" id="linkMasuk2" href="#" target="_top">Masuk ke Belajar Mandiri</a>
+  </div>
+</div>
+
+<script>
+  var sesi = '';
+  var cooldownTimer = null;
+  var urlMasuk = '';
+
+  function el(id) { return document.getElementById(id); }
+
+  function pesan(teks, jenis) {
+    var e = el('pesanGlobal');
+    e.textContent = teks;
+    e.className = 'pesan tampil ' + (jenis || 'error');
+    try { e.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (x) {}
+  }
+  function sembunyi() { el('pesanGlobal').className = 'pesan'; }
+
+  function langkah(n) {
+    ['langkah1', 'langkah2', 'langkah3'].forEach(function(id, i) {
+      el(id).classList.toggle('hidden', i !== n - 1);
+    });
+    try { window.scrollTo(0, 0); } catch (x) {}
+  }
+
+  function tombolKerja(id, aktif, teksAsli, teksKerja) {
+    var b = el(id);
+    b.disabled = !aktif;
+    if (aktif) b.textContent = teksAsli;
+    else b.innerHTML = '<span class="spinner"></span>' + teksKerja;
+  }
+
+  function mulaiCooldown(detik) {
+    var b = el('btnKirimUlang');
+    clearInterval(cooldownTimer);
+    var sisa = detik;
+    function tampil() {
+      if (sisa > 0) { b.disabled = true; b.textContent = 'Kirim ulang kode (' + sisa + ' dtk)'; }
+      else { b.disabled = false; b.textContent = 'Kirim ulang kode'; clearInterval(cooldownTimer); }
+    }
+    tampil();
+    cooldownTimer = setInterval(function() { sisa--; tampil(); }, 1000);
+  }
+
+  function mulaiDaftar() {
+    sembunyi();
+    var data = {
+      nama: el('inNama').value.trim(),
+      tanggalLahir: el('inTgl').value.trim(),
+      email: el('inEmail').value.trim(),
+      idRombel: el('inRombel').value
+    };
+    if (data.nama.length < 3) { pesan('Tulis nama lengkap Anda.'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.tanggalLahir)) { pesan('Pilih tanggal lahir Anda.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(data.email)) { pesan('Alamat email belum benar.'); return; }
+    if (!data.idRombel) { pesan('Pilih kelas (rombel) Anda.'); return; }
+    tombolKerja('btnDaftar', false, '', 'Mengirim kode...');
+    google.script.run.withSuccessHandler(function(h) {
+      tombolKerja('btnDaftar', true, 'Kirim Kode ke Email');
+      if (!h || !h.sukses) { pesan((h && h.pesan) || 'Pendaftaran gagal. Coba lagi.'); return; }
+      sesi = h.sesi;
+      el('tampilEmail').textContent = h.emailMasked;
+      el('inOtp').value = '';
+      langkah(2);
+      mulaiCooldown(45);
+      el('inOtp').focus();
+    }).withFailureHandler(function(e) {
+      tombolKerja('btnDaftar', true, 'Kirim Kode ke Email');
+      pesan('Terjadi kesalahan: ' + (e && e.message ? e.message : e));
+    }).waDaftarMulai(data);
+  }
+
+  function kembaliKeForm() {
+    sembunyi();
+    sesi = '';
+    clearInterval(cooldownTimer);
+    langkah(1);
+  }
+
+  function kirimUlang() {
+    sembunyi();
+    var b = el('btnKirimUlang');
+    b.disabled = true;
+    google.script.run.withSuccessHandler(function(h) {
+      if (!h || !h.sukses) { pesan((h && h.pesan) || 'Gagal mengirim ulang.'); b.disabled = false; return; }
+      pesan('Kode baru sudah dikirim.', 'info');
+      mulaiCooldown(45);
+    }).withFailureHandler(function(e) {
+      b.disabled = false;
+      pesan('Terjadi kesalahan: ' + (e && e.message ? e.message : e));
+    }).waDaftarKirimUlang(sesi);
+  }
+
+  function verifikasi() {
+    sembunyi();
+    var kode = el('inOtp').value.replace(/\D/g, '');
+    if (kode.length !== 6) { pesan('Kode verifikasi terdiri dari 6 angka.'); return; }
+    tombolKerja('btnOtp', false, '', 'Memeriksa...');
+    google.script.run.withSuccessHandler(function(h) {
+      tombolKerja('btnOtp', true, 'Verifikasi dan Daftar');
+      if (!h || !h.sukses) {
+        pesan((h && h.pesan) || 'Verifikasi gagal.');
+        if (h && h.ulang) kembaliKeForm();
+        return;
+      }
+      clearInterval(cooldownTimer);
+      el('hasilNama').textContent = h.nama;
+      el('hasilKelas').textContent = h.namaRombel;
+      el('hasilKode').textContent = h.kodeAkses;
+      el('hasilSandi').textContent = h.kataSandi || '';
+      langkah(3);
+    }).withFailureHandler(function(e) {
+      tombolKerja('btnOtp', true, 'Verifikasi dan Daftar');
+      pesan('Terjadi kesalahan: ' + (e && e.message ? e.message : e));
+    }).waDaftarVerifikasi(sesi, kode);
+  }
+
+  function salinKode() {
+    var kode = el('hasilKode').textContent;
+    var b = el('btnSalin');
+    function ok() { b.textContent = 'Tersalin ✓'; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(kode).then(ok, function() { pesan('Tidak bisa menyalin otomatis. Tekan lama pada kode lalu pilih Salin.', 'info'); });
+        return;
+      }
+    } catch (x) {}
+    pesan('Tidak bisa menyalin otomatis. Tekan lama pada kode lalu pilih Salin.', 'info');
+  }
+
+  el('inOtp').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') verifikasi(); });
+
+  function muatRombel() {
+    var sel = el('inRombel');
+    google.script.run.withSuccessHandler(function(d) {
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      var daftar = (d && d.rombel) || [];
+      var o0 = document.createElement('option');
+      o0.value = '';
+      o0.textContent = daftar.length ? '- Pilih kelas -' : 'Belum ada kelas yang membuka pendaftaran';
+      sel.appendChild(o0);
+      daftar.slice().sort(function(a, b) { return a.nama.localeCompare(b.nama, undefined, { numeric: true }); }).forEach(function(r) {
+        var o = document.createElement('option');
+        o.value = r.idRombel;
+        o.textContent = r.nama;
+        sel.appendChild(o);
+      });
+      if (!daftar.length) el('hintRombel').textContent = 'Pendaftaran belum dibuka untuk kelas mana pun. Hubungi tutor atau admin.';
+    }).withFailureHandler(function(e) {
+      sel.firstChild.textContent = 'Gagal memuat kelas. Muat ulang halaman.';
+    }).waDaftarRombel();
+  }
+  muatRombel();
+
+  google.script.run.withSuccessHandler(function(u) {
+    if (u && u.siswa) {
+      urlMasuk = u.siswa;
+      el('linkMasuk').href = u.siswa;
+      el('linkMasuk2').href = u.siswa;
+    }
+  }).waUrlStaf();
+/* OTP kaca: 6 kotak yang menyinkronkan nilai ke #inOtp */
+(function(){
+  var asli = document.getElementById('inOtp'), l2 = document.getElementById('langkah2'), l3 = document.getElementById('langkah3'), btnU = document.getElementById('btnKirimUlang');
+  if (!asli || !l2) return;
+  var wadah = document.createElement('div'); wadah.className = 'otp-kaca'; wadah.id = 'otpKaca';
+  var kotak = [];
+  for (var i = 0; i < 6; i++) { var k = document.createElement('input'); k.type = 'text'; k.inputMode = 'numeric'; k.maxLength = 1; k.setAttribute('aria-label', 'Digit ' + (i + 1)); k.autocomplete = i === 0 ? 'one-time-code' : 'off'; wadah.appendChild(k); kotak.push(k); }
+  asli.parentNode.insertBefore(wadah, asli);
+  var hitung = document.createElement('div'); hitung.className = 'otp-hitung'; hitung.id = 'otpHitung'; asli.parentNode.insertBefore(hitung, document.getElementById('btnOtp'));
+  function sinkron() { var v = kotak.map(function(x) { return x.value; }).join(''); asli.value = v; kotak.forEach(function(x) { x.classList.toggle('isi', !!x.value); }); }
+  function isi(dari, teks) { var d = String(teks || '').replace(/\D/g, '').split(''); for (var j = 0; j < d.length && dari + j < 6; j++) kotak[dari + j].value = d[j]; sinkron(); var n = Math.min(dari + d.length, 5); kotak[n].focus(); }
+  kotak.forEach(function(k, idx) {
+    k.addEventListener('input', function() { var v = k.value.replace(/\D/g, ''); k.value = ''; if (v.length > 1) { isi(idx, v); } else { k.value = v; sinkron(); if (v && idx < 5) kotak[idx + 1].focus(); } });
+    k.addEventListener('keydown', function(e) { if (e.key === 'Backspace' && !k.value && idx > 0) { kotak[idx - 1].value = ''; kotak[idx - 1].focus(); sinkron(); } else if (e.key === 'ArrowLeft' && idx > 0) kotak[idx - 1].focus(); else if (e.key === 'ArrowRight' && idx < 5) kotak[idx + 1].focus(); else if (e.key === 'Enter') { var b = document.getElementById('btnOtp'); if (b && !b.disabled) b.click(); } });
+    k.addEventListener('paste', function(e) { e.preventDefault(); var t = (e.clipboardData || window.clipboardData).getData('text'); isi(idx, t); });
+    k.addEventListener('focus', function() { k.select(); });
+  });
+  var timer = null;
+  function mulaiHitung(detik) { clearInterval(timer); var sisa = detik; function tampil() { if (sisa > 0) { var m = Math.floor(sisa / 60), s = sisa % 60; hitung.innerHTML = 'Belum menerima kode? Kirim ulang dalam <b>' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s + '</b>'; } else { hitung.textContent = 'Belum menerima kode? Silakan kirim ulang.'; clearInterval(timer); } } tampil(); timer = setInterval(function() { sisa--; tampil(); }, 1000); }
+  function reset() { kotak.forEach(function(x) { x.value = ''; x.classList.remove('isi'); }); asli.value = ''; }
+  var tampilSebelumnya = !l2.classList.contains('hidden');
+  new MutationObserver(function() { var tampil = !l2.classList.contains('hidden'); if (tampil && !tampilSebelumnya) { reset(); mulaiHitung(60); setTimeout(function() { kotak[0].focus(); }, 80); } tampilSebelumnya = tampil; }).observe(l2, { attributes: true, attributeFilter: ['class'] });
+  if (btnU) btnU.addEventListener('click', function() { reset(); mulaiHitung(60); kotak[0].focus(); });
+  var pe = document.getElementById('pesan'); if (pe) new MutationObserver(function() { if (!l2.classList.contains('hidden') && pe.textContent && pe.className.indexOf('err') >= 0) { wadah.classList.remove('goyang'); void wadah.offsetWidth; wadah.classList.add('goyang'); } }).observe(pe, { childList: true, characterData: true, subtree: true });
+  if (l3 && !l3.querySelector('.ok-kaca')) { var ok = document.createElement('div'); ok.className = 'ok-kaca'; ok.innerHTML = '<svg viewBox="0 0 80 80" aria-hidden="true"><path class="cincin" d="M40 6 L68 16 V38 C68 55 56 68 40 74 C24 68 12 55 12 38 V16 Z"/><path class="centang" d="M27 40 L36 49 L53 31"/></svg><div class="judul">Terverifikasi <span>Berhasil</span></div><div class="sub">Kode verifikasi email Anda sudah dikonfirmasi.</div>'; l3.insertBefore(ok, l3.firstChild); }
+})();
+</script>
+</body>
+</html>

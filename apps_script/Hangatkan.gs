@@ -18,12 +18,13 @@ function waStafHangatkan(kunci) {
     var t = Date.now();
     try { f(); langkah[nama] = Date.now() - t; } catch (e) { langkah[nama] = 'galat: ' + e.message; }
   }
+  ukur('pengguna', function() { if (typeof penggunaCache_ === 'function') penggunaCache_(); });
   ukur('sim', function() { absSim_(); });
   ukur('rombel', function() { ahPetaRombel_(); });
   ukur('wargaBelajar', function() { absBaca_('WARGA BELAJAR'); });
   ukur('presensiHarian', function() { ahBaca_(); });
   ukur('versi', function() { if (typeof updTerbaru_ === 'function') updTerbaru_(); });
-  ukur('promosi', function() { if (typeof waStafPromosi === 'function') waStafPromosi(''); });
+  ukur('promosi', function() { if (typeof promoAturan_ === 'function') promoAturan_(); });
   return { ok: true, ms: Date.now() - mulai, jam: absJamKini_(), langkah: langkah };
 }
 
