@@ -41,8 +41,10 @@ if mf.exists():
     d.update({'name': 'TH.E-Course', 'short_name': NAMA, 'background_color': '#4B2FD0', 'theme_color': '#4B2FD0'})
     mf.write_text(json.dumps(d, indent=2))
 
-# test bawaan `flutter create` merujuk MyApp yang tidak ada di proyek ini
-shutil.rmtree(akar / 'test', ignore_errors=True)
+# test bawaan `flutter create` merujuk MyApp yang tidak ada di proyek ini; tes milik proyek (test/logika_test.dart) dipertahankan
+bawaan = akar / 'test' / 'widget_test.dart'
+if bawaan.exists():
+    bawaan.unlink()
 # Kunci tanda tangan TETAP: semua build memakai kunci yang sama supaya APK baru bisa
 # memperbarui (menimpa) APK lama di HP. Tanpa ini tiap build GitHub memakai kunci acak
 # dan Android menolak pembaruan ("Aplikasi tidak terinstal").

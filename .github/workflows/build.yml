@@ -45,6 +45,13 @@ jobs:
       - name: Periksa kode (galat menggagalkan build)
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      # Tes otomatis: bila satu tes gagal, APK tidak dibuat dan tidak dirilis.
+      - name: Tes backend Apps Script
+        run: node tool/tes_backend.js
+
+      - name: Tes aplikasi
+        run: flutter test
+
       - name: Baca versi aplikasi
         id: versi
         run: echo "versi=$(grep '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')" >> "$GITHUB_OUTPUT"

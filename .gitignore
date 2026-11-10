@@ -7,4 +7,4 @@ pubspec.lock
 android/
 web/
 ios/
-test/
+test/widget_test.dart

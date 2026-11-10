@@ -40,6 +40,7 @@ function doPost(e) {
       var hasilFn = globalThis[fn].apply(null, args);
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
       if (typeof updLama_ === 'function') hasilFn = updLama_(fn, args, hasilFn, body);
+      if (typeof rlsCatatPakai_ === 'function') rlsCatatPakai_(fn, args, body);   // pemakaian rilis uji oleh penguji
       if (typeof rfSisipNotif_ === 'function') hasilFn = rfSisipNotif_(fn, args, hasilFn);
       out = { ok: true, data: hasilFn };
     }

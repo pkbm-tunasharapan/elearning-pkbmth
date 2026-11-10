@@ -38,6 +38,7 @@ function pmlCatatGalat_(sumber, fungsi, pesan, detail, versi, pengguna) {
   try {
     var sh = pmlSheet_(PML.SHEET_GALAT, PML.HDR_GALAT);
     sh.appendRow([absWaktu_(), pmlAman_(sumber, 20), pmlAman_(fungsi, 80), pmlAman_(pesan, 500), pmlAman_(detail, 1500), pmlAman_(versi, 20), pmlAman_(pengguna, 80)]);
+    if (typeof rlsCatatGalat_ === 'function') rlsCatatGalat_(sumber, pesan, versi);   // galat rilis uji (Rilis.gs)
     var n = sh.getLastRow();
     if (n > PML.MAKS_GALAT + 200) sh.deleteRows(2, n - 1 - PML.MAKS_GALAT);
   } catch (e) {}
@@ -79,17 +80,12 @@ function waAdminLogGalatBersihkan(token) {
 }
 
 // ---------- versi aplikasi ----------
-// v1.38.2: versi aplikasi SEPENUHNYA otomatis dari rilis GitHub (Rilis.gs) dan selalu wajib dipasang.
-// Tidak ada lagi pengaturan manual. Panggilan ini (tiap aplikasi dibuka) juga memastikan pemicu tiap jam terpasang.
-function waStafVersiApp() {
+// Versi aplikasi otomatis dari rilis GitHub (Rilis.gs). v1.38.5: jalur UJI -> RESMI.
+// token (opsional, staf): akun penguji ditawari rilis uji (tidak wajib); lainnya rilis resmi (wajib).
+// Panggilan ini (tiap aplikasi dibuka) juga memastikan pemicu rilis & cadangan terpasang.
+function waStafVersiApp(token) {
   try { rlsPastikanPemicu_(false); } catch (e) {}
-  var sp = PropertiesService.getScriptProperties(), versi = sp.getProperty('APP_VERSI_TERBARU') || '';
-  return {
-    versi: versi,
-    url: sp.getProperty('APP_URL_UNDUH') || '',
-    catatan: sp.getProperty('APP_CATATAN') || '',
-    wajib: !!versi
-  };
+  return rlsUntuk_(token || '');
 }
 
 // ---------- audit kesehatan data siswa ----------

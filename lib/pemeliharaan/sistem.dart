@@ -95,7 +95,11 @@ Future<void> cekVersiAplikasi(GlobalKey<NavigatorState> kunci) async {
   _sudahCekVersi = true;
   Map<String, dynamic> d;
   try {
-    d = peta(await Api.instance('waStafVersiApp', [], const Duration(seconds: 30)));
+    // token staf (bila sudah masuk) agar akun penguji ditawari RILIS UJI; tunggu sebentar sesi selesai dimuat
+    for (var i = 0; i < 10 && Sesi.instance.token == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    d = peta(await Api.instance('waStafVersiApp', [Sesi.instance.token ?? ''], const Duration(seconds: 30)));
   } catch (_) {
     return;
   }
@@ -111,7 +115,7 @@ Future<void> cekVersiAplikasi(GlobalKey<NavigatorState> kunci) async {
       canPop: !wajib,
       child: AlertDialog(
         icon: const Icon(Icons.system_update_rounded),
-        title: Text('Versi $terbaru tersedia'),
+        title: Text(d['uji'] == true ? 'Rilis uji $terbaru tersedia' : 'Versi $terbaru tersedia'),
         content: Text([
           'Versi Anda: $kVersi.',
           if (teks(d['catatan']).isNotEmpty) teks(d['catatan']),
@@ -290,6 +294,8 @@ class _LogGalatState extends State<_LogGalat> {
 
 /// Versi aplikasi (v1.38.2): sepenuhnya otomatis. Server memeriksa GitHub Releases tiap jam, menyimpan APK
 /// terbaru ke folder Drive sekolah, dan semua pengguna WAJIB memperbarui saat membuka aplikasi.
+/// Versi aplikasi (v1.38.5): rilis dari GitHub masuk sebagai RILIS UJI (hanya ditawarkan ke penguji),
+/// lalu naik menjadi RILIS RESMI (wajib untuk semua) otomatis bila lolos uji, atau saat admin menekan Resmikan.
 class _VersiAplikasi extends StatefulWidget {
   const _VersiAplikasi();
 
@@ -307,6 +313,8 @@ class _VersiAplikasiState extends State<_VersiAplikasi> {
     super.dispose();
   }
 
+  void _segar() => setState(() => _v++);
+
   Future<void> _simpanToken() async {
     if (_token.text.trim().isEmpty) {
       kabar(context, 'Tempel token GitHub terlebih dulu.', galat: true);
@@ -315,24 +323,95 @@ class _VersiAplikasiState extends State<_VersiAplikasi> {
     final r = await jalankan(context, () => Api.instance('waAdminRilisAtur', [_t, {'githubToken': _token.text.trim()}]), teksProses: 'Menyimpan token...');
     if (r.ok && mounted) {
       _token.clear();
-      setState(() => _v++);
+      _segar();
     }
   }
 
   Future<void> _tarik() async {
     final r = await jalankan(context, () async => peta(await Api.instance('waAdminRilisTarik', [_t, false], const Duration(minutes: 6))),
-        teksProses: 'Mengambil APK terbaru dari GitHub dan menyimpannya ke Drive...');
+        teksProses: 'Memeriksa rilis baru di GitHub...');
     if (!r.ok || !mounted) return;
     final h = r.data!;
     kabar(
       context,
       h['baru'] == true
-          ? 'Versi ${teks(h['versi'])} tersimpan di Drive (${teks(h['ukuranMb'])} MB). Semua pengguna wajib memperbarui.'
-          : h['dipulihkan'] == true
-              ? 'Versi terbaru dipulihkan ke ${teks(h['versi'])}.'
-              : 'Sudah yang terbaru (${teks(h['versi'])}, ${teks(h['tag'])}).',
+          ? 'Versi ${teks(h['versi'])} tersimpan sebagai RILIS UJI (${teks(h['ukuranMb'])} MB). Hanya penguji yang ditawari dulu.'
+          : teks(h['naik']).isNotEmpty
+              ? 'Versi ${teks(h['naik'])} lolos uji dan kini menjadi rilis resmi.'
+              : teks(h['lewat']).isNotEmpty
+                  ? teks(h['lewat'])
+                  : 'Belum ada rilis baru (${teks(h['tag'])}).',
     );
-    setState(() => _v++);
+    _segar();
+  }
+
+  Future<void> _resmikan(Map<String, dynamic> u) async {
+    final galat = angka(u['galat']);
+    final ok = await konfirmasi(
+      context,
+      'Resmikan versi ${teks(u['versi'])}?',
+      'Semua pengguna akan WAJIB memperbarui ke versi ini saat membuka aplikasi.'
+          '${galat > 0 ? '\n\nPerhatian: tercatat $galat galat aplikasi dari versi ini. Periksa Log Galat dulu.' : ''}',
+      ya: 'Resmikan',
+    );
+    if (!ok || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waAdminRilisResmikan', [_t]), teksProses: 'Meresmikan...');
+    if (r.ok && mounted) _segar();
+  }
+
+  Future<void> _batal(String jenis, String versi, String sebelum) async {
+    final ok = await konfirmasi(
+      context,
+      jenis == 'uji' ? 'Tarik rilis uji $versi?' : 'Tarik rilis resmi $versi?',
+      jenis == 'uji'
+          ? 'Versi ini tidak lagi ditawarkan ke penguji. Rilis berikutnya dari GitHub akan menjadi rilis uji baru.'
+          : 'Pengguna yang BELUM memperbarui tidak akan ditawari $versi lagi; versi resmi kembali ke $sebelum.\n\n'
+              'HP yang sudah memasang $versi tidak bisa turun versi (aturan Android): buat rilis perbaikan bernomor lebih tinggi.',
+      ya: 'Tarik',
+    );
+    if (!ok || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waAdminRilisBatal', [_t, jenis]), teksProses: 'Menarik rilis...');
+    if (r.ok && mounted) _segar();
+  }
+
+  Future<void> _penguji(List<Map<String, dynamic>> staf) async {
+    final pilih = staf.where((s) => s['penguji'] == true).map((s) => teks(s['id'])).toSet();
+    final hasil = await showDialog<Set<String>>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, atur) => AlertDialog(
+          title: const Text('Akun penguji rilis'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(shrinkWrap: true, children: [
+              const Text('Semua Admin otomatis menjadi penguji. Tambahkan staf lain yang akan mencoba rilis uji di HP-nya.', style: TextStyle(fontSize: 12.5)),
+              for (final s in staf)
+                CheckboxListTile(
+                  dense: true,
+                  value: pilih.contains(teks(s['id'])),
+                  onChanged: (v) => atur(() => v == true ? pilih.add(teks(s['id'])) : pilih.remove(teks(s['id']))),
+                  title: Text(teks(s['nama'])),
+                  subtitle: Text(teks(s['peran'])),
+                ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+            FilledButton(onPressed: () => Navigator.pop(c, pilih), child: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+    if (hasil == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waAdminRilisPenguji', [_t, hasil.toList()]), teksProses: 'Menyimpan penguji...');
+    if (r.ok && mounted) _segar();
+  }
+
+  Future<void> _cadangan() async {
+    final r = await jalankan(context, () async => peta(await Api.instance('waAdminCadanganSekarang', [_t], const Duration(minutes: 6))), teksProses: 'Menyalin seluruh database ke folder cadangan...');
+    if (!r.ok || !mounted) return;
+    kabar(context, 'Cadangan dibuat: ${teks(r.data!['nama'])} (${angka(r.data!['tersimpan'])} cadangan tersimpan).');
+    _segar();
   }
 
   @override
@@ -343,15 +422,19 @@ class _VersiAplikasiState extends State<_VersiAplikasi> {
       muat: () async => peta(await Api.instance('waAdminRilisStatus', [_t])),
       bangun: (context, d, segarkan) {
         final adaToken = d['adaToken'] == true;
-        final otomatis = d['otomatis'] == true;
+        final resmi = peta(d['resmi']);
+        final uji = d['uji'] == null ? null : peta(d['uji']);
+        final staf = daftar(d['staf']).map(peta).toList();
+        final penguji = staf.where((s) => s['penguji'] == true).map((s) => teks(s['nama'])).toList();
+        final cad = peta(d['cadangan']);
         return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
           Card(
             color: cs.primaryContainer,
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Text(
-                'Pembaruan aplikasi berjalan otomatis: server memeriksa rilis baru di GitHub tiap jam, menyimpan APK-nya ke folder Drive sekolah, '
-                'lalu semua pengguna WAJIB memperbarui saat membuka aplikasi.',
+                'Rilis baru dari GitHub diperiksa tiap jam dan masuk sebagai RILIS UJI: hanya ditawarkan ke akun penguji. '
+                'Rilis naik menjadi RESMI (wajib untuk semua) otomatis setelah lolos uji, atau saat Anda menekan Resmikan.',
                 style: TextStyle(color: cs.onPrimaryContainer),
               ),
             ),
@@ -361,33 +444,99 @@ class _VersiAplikasiState extends State<_VersiAplikasi> {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text('Versi terbaru: ${teks(d['versi'], '-')}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                Row(children: [
+                  const Lencana('RESMI', warna: Colors.green),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Versi ${teks(resmi['versi'], '-')}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+                ]),
                 const SizedBox(height: 4),
-                Text('Versi aplikasi ini: $kVersi', style: TextStyle(color: cs.onSurfaceVariant)),
-                Text(teks(d['tag']).isEmpty ? 'Belum ada rilis yang diambil.' : 'Rilis terakhir: ${teks(d['tag'])} pada ${teks(d['waktu'])}',
-                    style: TextStyle(color: cs.onSurfaceVariant)),
-                Text(otomatis ? 'Pemeriksaan tiap jam: aktif' : 'Pemeriksaan tiap jam: menunggu token GitHub',
-                    style: TextStyle(color: otomatis ? Colors.green : cs.error, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: adaToken ? _tarik : null,
-                  icon: const Icon(Icons.cloud_download_rounded),
-                  label: const Text('Ambil rilis terbaru sekarang'),
-                ),
+                Text('Wajib untuk semua pengguna · ${teks(resmi['tag'])} · ${teks(resmi['waktu'])}', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+                Text('Versi aplikasi ini: $kVersi', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+                if (teks(d['sebelum']).isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _batal('resmi', teks(resmi['versi']), teks(d['sebelum'])),
+                      icon: Icon(Icons.undo_rounded, size: 18, color: cs.error),
+                      label: Text('Tarik rilis resmi (kembali ke ${teks(d['sebelum'])})', style: TextStyle(color: cs.error)),
+                    ),
+                  ),
               ]),
             ),
           ),
-          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: uji == null
+                  ? Row(children: [
+                      const Lencana('UJI', warna: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('Tidak ada rilis uji. Rilis baru dari GitHub akan muncul di sini.', style: TextStyle(color: cs.onSurfaceVariant))),
+                    ])
+                  : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Row(children: [
+                        const Lencana('UJI', warna: Colors.orange),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('Versi ${teks(uji['versi'])}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text('${teks(uji['tag'])} · sejak ${teks(uji['waktu'])} (${angka(uji['jam'])} jam)', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+                      const SizedBox(height: 6),
+                      Text('Syarat naik otomatis:', style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
+                      Text('${daftar(uji['pakai']).length >= angka(peta(uji['syarat'])['penguji']) ? '✓' : '○'} Dipakai ${daftar(uji['pakai']).length}/${angka(peta(uji['syarat'])['penguji'])} penguji'
+                          '${daftar(uji['pakai']).isEmpty ? '' : ': ${daftar(uji['pakai']).map(teks).join(', ')}'}'),
+                      Text('${angka(uji['jam']) >= angka(peta(uji['syarat'])['jam']) ? '✓' : '○'} Minimal ${angka(peta(uji['syarat'])['jam'])} jam masa uji'),
+                      Text('${angka(uji['galat']) == 0 ? '✓' : '✗'} Galat aplikasi dari versi ini: ${angka(uji['galat'])}',
+                          style: TextStyle(color: angka(uji['galat']) == 0 ? null : cs.error, fontWeight: angka(uji['galat']) == 0 ? null : FontWeight.w700)),
+                      const SizedBox(height: 10),
+                      Wrap(spacing: 8, runSpacing: 6, children: [
+                        FilledButton.icon(onPressed: () => _resmikan(uji), icon: const Icon(Icons.verified_rounded, size: 18), label: const Text('Resmikan sekarang')),
+                        OutlinedButton.icon(onPressed: () => _batal('uji', teks(uji['versi']), ''), icon: const Icon(Icons.block_rounded, size: 18), label: const Text('Tarik rilis uji')),
+                      ]),
+                    ]),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.science_rounded),
+              title: const Text('Akun penguji'),
+              subtitle: Text('Semua Admin${penguji.isEmpty ? '' : ' + ${penguji.join(', ')}'}'),
+              trailing: const Icon(Icons.edit_rounded),
+              onTap: () => _penguji(staf),
+            ),
+          ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(d['otomatis'] == true ? 'Pemeriksaan tiap jam: aktif' : 'Pemeriksaan tiap jam: menunggu token GitHub',
+                    style: TextStyle(color: d['otomatis'] == true ? Colors.green : cs.error, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(onPressed: adaToken ? _tarik : null, icon: const Icon(Icons.cloud_download_rounded), label: const Text('Periksa rilis baru sekarang')),
+              ]),
+            ),
+          ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Text('Cadangan database', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text('Otomatis tiap Minggu pukul 02.00, ${angka(cad['jumlah'])} cadangan terbaru disimpan di Drive. '
+                    'Terakhir: ${teks(cad['terakhir'], 'belum ada')}.', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(onPressed: _cadangan, icon: const Icon(Icons.backup_rounded), label: const Text('Buat cadangan sekarang')),
+              ]),
+            ),
+          ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Text('Token GitHub', style: TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text(
-                  adaToken ? 'Token tersimpan.' : 'Isi token GitHub (fine-grained, izin Contents: Read-only untuk repo ${teks(d['repo'])}).',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5),
-                ),
+                Text(adaToken ? 'Token tersimpan.' : 'Isi token GitHub (fine-grained, izin Contents: Read-only untuk repo ${teks(d['repo'])}).',
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _token,
