@@ -33,7 +33,7 @@ class _KelolaMapelScreenState extends State<KelolaMapelScreen> {
   }
 
   Future<void> _sinkron() async {
-    final r = await jalankan(context, () => Api.instance('waAdminSinkronSekarang', [_t], const Duration(seconds: 300)), teksProses: 'Sinkron dengan SIM SETARA...');
+    final r = await jalankan(context, () => Api.instance('waAdminSinkronSekarang', [_t], const Duration(seconds: 300)), teksProses: 'Sinkron Data Induk...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     final ubah = daftar(d['perubahan']);
@@ -49,7 +49,7 @@ class _KelolaMapelScreenState extends State<KelolaMapelScreen> {
   }
 
   Future<void> _tarik() async {
-    final r = await jalankan(context, () => Api.instance('waAdminImporPratinjau', [_t], const Duration(seconds: 180)), teksProses: 'Membaca SIM SETARA...');
+    final r = await jalankan(context, () => Api.instance('waAdminImporPratinjau', [_t], const Duration(seconds: 180)), teksProses: 'Membaca Data Induk...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     final kelasBaru = daftar(d['kelasBaru']);
@@ -58,10 +58,10 @@ class _KelolaMapelScreenState extends State<KelolaMapelScreen> {
     final lanjut = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Tarik Kelas & Mapel dari SIM SETARA'),
+        title: const Text('Tarik Kelas & Mapel dari Data Induk'),
         content: SingleChildScrollView(
           child: Text([
-            'Kelas di SIM SETARA: ${angka(d['totalKelasMaster'])}',
+            'Kelas di Data Induk: ${angka(d['totalKelasMaster'])}',
             'Kelas baru: ${kelasBaru.isEmpty ? '-' : kelasBaru.join(', ')}',
             'Mapel baru: ${angka(d['jumlahMapelBaru'])} (sudah ada ${angka(d['jumlahMapelAda'])})',
             if (perKelas.isNotEmpty) '\n${perKelas.map((x) => '• ${teks(x['kelas'])}: ${angka(x['jumlah'])} mapel').join('\n')}',
@@ -106,7 +106,7 @@ class _KelolaMapelScreenState extends State<KelolaMapelScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
             children: [
               Wrap(spacing: 8, runSpacing: 8, children: [
-                FilledButton.tonalIcon(onPressed: _sinkron, icon: const Icon(Icons.sync), label: const Text('Sinkron SIM SETARA')),
+                FilledButton.tonalIcon(onPressed: _sinkron, icon: const Icon(Icons.sync), label: const Text('Sinkron Data Induk')),
                 OutlinedButton.icon(onPressed: _tarik, icon: const Icon(Icons.download), label: const Text('Tarik Kelas & Mapel')),
               ]),
               const SizedBox(height: 10),

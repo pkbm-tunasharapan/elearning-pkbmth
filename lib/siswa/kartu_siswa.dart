@@ -55,7 +55,7 @@ class KartuSiswaScreen extends StatelessWidget {
                       ? const SizedBox(
                           width: 230,
                           height: 230,
-                          child: Center(child: Text('Data belum tercatat di SIM SETARA.\nHubungi admin sekolah.', textAlign: TextAlign.center)),
+                          child: Center(child: Text('Data belum tercatat di Data Induk.\nHubungi admin sekolah.', textAlign: TextAlign.center)),
                         )
                       : QrImageView(data: kode, version: QrVersions.auto, size: 230, backgroundColor: Colors.white),
                 ),

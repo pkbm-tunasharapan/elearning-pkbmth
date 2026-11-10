@@ -4,7 +4,7 @@ import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
 
-/// Sinkron siswa MENU <-> Belajar Mandiri (saling melengkapi, tidak menimpa) + analisa data ganda.
+/// Sinkron siswa Data Induk <-> Belajar Mandiri (saling melengkapi, tidak menimpa) + analisa data ganda.
 class GandaScreen extends StatefulWidget {
   const GandaScreen({super.key});
 
@@ -37,7 +37,7 @@ class _GandaScreenState extends State<GandaScreen> {
 
   Future<void> _terapkan() async {
     if (!await konfirmasi(context, 'Lengkapi sekarang',
-        'Kolom yang masih kosong di Belajar Mandiri dan MENU akan dilengkapi, dan tanggal lahir yang mundur 1 hari disamakan dengan MENU. Data yang sudah terisi tidak ditimpa. Lanjutkan?',
+        'Kolom yang masih kosong di Belajar Mandiri dan Data Induk akan dilengkapi, dan tanggal lahir yang mundur 1 hari disamakan dengan Data Induk. Data yang sudah terisi tidak ditimpa. Lanjutkan?',
         ya: 'Lengkapi')) {
       return;
     }
@@ -50,11 +50,11 @@ class _GandaScreenState extends State<GandaScreen> {
   }
 
   Future<void> _kirim(Map<String, dynamic> c) async {
-    if (!await konfirmasi(context, 'Kirim ke MENU', 'Kirim ${teks(c['nama'])} (${teks(c['rombel'])}, lahir ${teks(c['tgl'])}) ke tab WARGA BELAJAR di MENU?', ya: 'Kirim')) return;
+    if (!await konfirmasi(context, 'Kirim ke Data Induk', 'Kirim ${teks(c['nama'])} (${teks(c['rombel'])}, lahir ${teks(c['tgl'])}) ke tab WARGA BELAJAR di Data Induk?', ya: 'Kirim')) return;
     if (!mounted) return;
-    final r = await jalankan(context, () => Api.instance('waAdminKirimKeMenu', [_t, teks(c['kunci'])]), teksProses: 'Mengirim ke MENU...');
+    final r = await jalankan(context, () => Api.instance('waAdminKirimKeMenu', [_t, teks(c['kunci'])]), teksProses: 'Mengirim ke Data Induk...');
     if (r.ok && mounted) {
-      kabar(context, '${teks(c['nama'])} ditambahkan ke MENU.');
+      kabar(context, '${teks(c['nama'])} ditambahkan ke Data Induk.');
       _cek();
     }
   }
@@ -92,7 +92,7 @@ class _GandaScreenState extends State<GandaScreen> {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('🔄 Sinkron Siswa: MENU ⇄ Belajar Mandiri', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text('🔄 Sinkron Siswa: Data Induk ⇄ Belajar Mandiri', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           const Text('Kedua data saling dicek dan saling melengkapi kolom yang masih kosong. Data yang sudah terisi tidak ditimpa; bila berbeda, masuk daftar "Perlu dicek".'),
           const SizedBox(height: 10),
@@ -106,7 +106,7 @@ class _GandaScreenState extends State<GandaScreen> {
             const SizedBox(height: 10),
             Wrap(spacing: 6, runSpacing: 6, children: [
               Lencana('${daftar(r['keBm']).length} dilengkapi di BM', warna: Colors.green),
-              Lencana('${daftar(r['keMenu']).length} dilengkapi di MENU', warna: Colors.green),
+              Lencana('${daftar(r['keMenu']).length} dilengkapi di Data Induk', warna: Colors.green),
               Lencana('${daftar(r['tglDibetulkan']).length} tgl lahir dibetulkan', warna: Colors.orange),
               Lencana('${daftar(r['perluCek']).length} perlu dicek', warna: cs.error),
               Lencana('${daftar(r['calonKeMenu']).length} hanya di BM', warna: Colors.orange),
@@ -116,14 +116,14 @@ class _GandaScreenState extends State<GandaScreen> {
               lipat('Akan dilengkapi di Belajar Mandiri (${daftar(r['keBm']).length})',
                   tabel(['Nama', 'Kolom', 'Isi'], daftar(r['keBm']).map(peta).map((x) => [teks(x['nama']), teks(x['kolom']), teks(x['nilai'])]).toList())),
             if (daftar(r['keMenu']).isNotEmpty)
-              lipat('Akan dilengkapi di MENU (${daftar(r['keMenu']).length})',
+              lipat('Akan dilengkapi di Data Induk (${daftar(r['keMenu']).length})',
                   tabel(['Nama', 'Kolom', 'Isi'], daftar(r['keMenu']).map(peta).map((x) => [teks(x['nama']), teks(x['kolom']), teks(x['nilai'])]).toList())),
             if (daftar(r['tglDibetulkan']).isNotEmpty)
-              lipat('Tanggal lahir disamakan dengan MENU (${daftar(r['tglDibetulkan']).length})',
-                  tabel(['Nama', 'Di BM', 'Di MENU'], daftar(r['tglDibetulkan']).map(peta).map((x) => [teks(x['nama']), teks(x['lama']), teks(x['baru'])]).toList())),
+              lipat('Tanggal lahir disamakan dengan Data Induk (${daftar(r['tglDibetulkan']).length})',
+                  tabel(['Nama', 'Di BM', 'Di Data Induk'], daftar(r['tglDibetulkan']).map(peta).map((x) => [teks(x['nama']), teks(x['lama']), teks(x['baru'])]).toList())),
             if (daftar(r['perluCek']).isNotEmpty)
               lipat('Perlu dicek admin (${daftar(r['perluCek']).length})',
-                  tabel(['Nama', 'Kolom', 'Di BM', 'Di MENU', 'Ket'],
+                  tabel(['Nama', 'Kolom', 'Di BM', 'Di Data Induk', 'Ket'],
                       daftar(r['perluCek']).map(peta).map((x) => [teks(x['nama']), teks(x['kolom']), teks(x['bm']), teks(x['menu']), teks(x['ket'])]).toList()),
                   buka: true),
             if (daftar(r['calonKeMenu']).isNotEmpty)
@@ -134,7 +134,7 @@ class _GandaScreenState extends State<GandaScreen> {
                     ListTile(
                       title: Text(teks(c['nama'])),
                       subtitle: Text([teks(c['rombel']), 'lahir ${teks(c['tgl'])}', if (c['curigaGanda'] == true) '⚠ mirip siswa lain'].join(' · ')),
-                      trailing: TextButton(onPressed: () => _kirim(c), child: const Text('Kirim ke MENU')),
+                      trailing: TextButton(onPressed: () => _kirim(c), child: const Text('Kirim ke Data Induk')),
                     ),
                 ]),
                 buka: true,
@@ -215,7 +215,7 @@ class _KartuPasangan extends StatelessWidget {
                 : Column(children: [kiri, const SizedBox(height: 8), kanan]);
           }),
           const SizedBox(height: 8),
-          Text(menu.isEmpty ? 'Tidak ditemukan di MENU (kemungkinan belum ada di Dapodik).' : 'Di MENU: ${teks(menu['nama'])} · ${teks(menu['namaRombel'])} · lahir ${teks(menu['tgl'])}${teks(menu['nisn']).isNotEmpty ? ' · NISN ${teks(menu['nisn'])}' : ''}',
+          Text(menu.isEmpty ? 'Tidak ditemukan di Data Induk (kemungkinan belum ada di Dapodik).' : 'Di Data Induk: ${teks(menu['nama'])} · ${teks(menu['namaRombel'])} · lahir ${teks(menu['tgl'])}${teks(menu['nisn']).isNotEmpty ? ' · NISN ${teks(menu['nisn'])}' : ''}',
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),
           Wrap(spacing: 8, children: [
@@ -329,17 +329,17 @@ class _GabungScreenState extends State<_GabungScreen> {
         _grup('Nama (dipakai untuk masuk)', [
           MapEntry(teks(a['nama']), '${teks(a['nama'])} (A)'),
           MapEntry(teks(b['nama']), '${teks(b['nama'])} (B)'),
-          MapEntry(teks(menu['nama']), '${teks(menu['nama'])} (MENU)'),
+          MapEntry(teks(menu['nama']), '${teks(menu['nama'])} (Data Induk)'),
         ], nama, (v) => setState(() => nama = v)),
         _grup('Tanggal lahir (kata sandi = TH-ddmmyyyy)', [
           MapEntry(teks(a['tgl']), '${teks(a['tgl'])} (A)'),
           MapEntry(teks(b['tgl']), '${teks(b['tgl'])} (B)'),
-          MapEntry(teks(menu['tgl']), '${teks(menu['tgl'])} (MENU)'),
+          MapEntry(teks(menu['tgl']), '${teks(menu['tgl'])} (Data Induk)'),
         ], tgl, (v) => setState(() => tgl = v)),
         _grup('Rombel', [
           MapEntry(teks(a['rombel']), '${teks(a['namaRombel'])} (A)'),
           MapEntry(teks(b['rombel']), '${teks(b['namaRombel'])} (B)'),
-          MapEntry(_idRombelMenu, '${namaRombel[_idRombelMenu] ?? teks(menu['namaRombel'])} (MENU)'),
+          MapEntry(_idRombelMenu, '${namaRombel[_idRombelMenu] ?? teks(menu['namaRombel'])} (Data Induk)'),
         ], rombel, (v) => setState(() => rombel = v)),
         if (peringatan.isNotEmpty)
           Container(
@@ -370,7 +370,7 @@ class _GabungScreenState extends State<_GabungScreen> {
   }
 }
 
-/// Sinkron otomatis SIM SETARA tiap 15 menit (pengganti menjalankan pasangSinkronOtomatis di editor).
+/// Sinkron otomatis Data Induk tiap 15 menit (pengganti menjalankan pasangSinkronOtomatis di editor).
 class _KartuSinkronOtomatis extends StatefulWidget {
   const _KartuSinkronOtomatis();
 
@@ -417,7 +417,7 @@ class _KartuSinkronOtomatisState extends State<_KartuSinkronOtomatis> {
     return Card(
       child: SwitchListTile(
         secondary: const Icon(Icons.autorenew_rounded),
-        title: const Text('Sinkron otomatis SIM SETARA', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text('Sinkron otomatis Data Induk', style: TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text(_galat ?? (_aktif == null ? 'Memeriksa...' : (_aktif! ? 'Aktif: data rombel, mapel, tutor, dan siswa disinkronkan tiap 15 menit.' : 'Mati: sinkron hanya saat tombol "Sinkron sekarang" ditekan.'))),
         value: _aktif ?? false,
         onChanged: _aktif == null || _sibuk ? null : _atur,

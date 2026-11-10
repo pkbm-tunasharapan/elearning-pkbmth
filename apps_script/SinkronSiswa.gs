@@ -66,17 +66,17 @@ function sswKunciBaris_(r) { return [r.baris, String(r.rombel), String(r.nama), 
 
 // ---------------------------------------------------------------- baca data
 function sswBacaMenu_() {
-  var ss = SpreadsheetApp.openById(SIMSETARA_ID);
+  var ss = simSs_();
   var tz = ss.getSpreadsheetTimeZone() || Session.getScriptTimeZone();
-  var sh = ss.getSheetByName(SSW.TAB_WB);
-  if (!sh) throw new Error('Tab "' + SSW.TAB_WB + '" tidak ditemukan di MENU.');
+  var sh = simTab_(SSW.TAB_WB);
+  if (!sh) throw new Error('Tab "' + simNamaTab_(SSW.TAB_WB) + '" tidak ditemukan di database.');
   var v = sh.getDataRange().getValues();
   var head = v[0].map(function (x) { return String(x).trim().toUpperCase(); });
   function kol(n) { return head.indexOf(n); }
   var K = { id: kol('ID WB'), nisn: kol('NISN'), nik: kol('NIK'), nama: kol('NAMA WB'), tgl: kol('TANGGAL LAHIR'), rombel: kol('ROMBEL'), hp: kol('NO HP'), status: kol('STATUS'), email: kol('EMAIL') };
   if (K.nama < 0 || K.tgl < 0) throw new Error('Kolom NAMA WB / TANGGAL LAHIR tidak ditemukan di tab WARGA BELAJAR.');
   var rombel = {};
-  var shR = ss.getSheetByName(SSW.TAB_ROMBEL);
+  var shR = simTab_(SSW.TAB_ROMBEL);
   if (shR) shR.getDataRange().getValues().slice(1).forEach(function (r) { var id = String(r[0]).trim(); if (id) rombel[id] = String(r[1] || '').trim(); });
   var wb = [];
   for (var i = 1; i < v.length; i++) {
@@ -206,14 +206,14 @@ function sswTerapkan_(oleh) {
       var c = shS.getRange(u.baris, u.kol);
       if (String(c.getValue()).trim() !== '') return;
       c.setNumberFormat('@').setValue(u.nilai);
-      log.push([waktu, 'MENU → BM', u.nama, u.kolom, '', u.nilai, oleh]);
+      log.push([waktu, 'Data Induk → BM', u.nama, u.kolom, '', u.nilai, oleh]);
     });
     r.tglDibetulkan.forEach(function (u) {
       var c = shS.getRange(u.baris, SSW.S_TGL + 1);
       if (sswTgl_(c.getValue(), Session.getScriptTimeZone()) !== u.lama) return;
       if (String(shS.getRange(u.baris, SSW.S_KODE + 1).getValue()).trim()) return;
       c.setNumberFormat('@').setValue(u.baru);
-      log.push([waktu, 'MENU → BM (betulkan tgl)', u.nama, 'Tanggal Lahir', u.lama, u.baru, oleh]);
+      log.push([waktu, 'Data Induk → BM (betulkan tgl)', u.nama, 'Tanggal Lahir', u.lama, u.baru, oleh]);
     });
     // BM -> MENU (hanya sel kosong)
     var perluEmail = r.keMenu.some(function (u) { return u.kolom === 'EMAIL'; });
@@ -223,7 +223,7 @@ function sswTerapkan_(oleh) {
       if (menu.sh.getMaxColumns() <= lastCol) menu.sh.insertColumnAfter(lastCol);
       kolEmail = lastCol + 1;
       menu.sh.getRange(1, kolEmail).setValue('EMAIL').setFontWeight('bold');
-      log.push([waktu, 'BM → MENU', '-', 'EMAIL', '', 'kolom EMAIL ditambahkan di WARGA BELAJAR', oleh]);
+      log.push([waktu, 'BM → Data Induk', '-', 'EMAIL', '', 'kolom EMAIL ditambahkan di WARGA BELAJAR', oleh]);
     }
     r.keMenu.forEach(function (u) {
       var kol = u.kolom === 'EMAIL' ? kolEmail : u.kol;
@@ -232,7 +232,7 @@ function sswTerapkan_(oleh) {
       if (String(c.getValue()).trim() !== '') return;
       if (u.kolom !== 'TANGGAL LAHIR') c.setNumberFormat('@');
       c.setValue(u.nilai);
-      log.push([waktu, 'BM → MENU', u.nama, u.kolom, '', u.nilai, oleh]);
+      log.push([waktu, 'BM → Data Induk', u.nama, u.kolom, '', u.nilai, oleh]);
     });
     sswRiwayat_(log);
     PropertiesService.getScriptProperties().setProperty('SINKRON_SISWA_TERAKHIR', waktu);
@@ -273,11 +273,11 @@ function waAdminKirimKeMenu(token, kunciBaris) {
     var x = sswRencana_();
     var r = x.bm.rows.filter(function (b) { return b.kunci === kunciBaris; })[0];
     if (!r) throw new Error('Data siswa sudah berubah. Muat ulang daftar lalu coba lagi.');
-    if (r.wb) throw new Error(r.nama + ' sudah ada di MENU.');
+    if (r.wb) throw new Error(r.nama + ' sudah ada di Data Induk.');
     var menu = x.menu, head = menu.head;
     var idRombel = '';
     Object.keys(menu.rombel).forEach(function (id) { if (sswKunciKelas_(menu.rombel[id]) === sswKunciKelas_(r.namaRombel)) idRombel = id; });
-    if (!idRombel) throw new Error('Rombel "' + r.namaRombel + '" tidak ditemukan di tab ROMBEL MENU.');
+    if (!idRombel) throw new Error('Rombel "' + r.namaRombel + '" tidak ditemukan di tab SIM ROMBEL.');
     var kolEmail = menu.K.email;
     if (r.email && kolEmail < 0) {
       var lastCol = menu.sh.getLastColumn();
@@ -298,8 +298,8 @@ function waAdminKirimKeMenu(token, kunciBaris) {
     var b = menu.sh.getLastRow() + 1;
     [menu.K.id, menu.K.nisn, menu.K.hp].forEach(function (k) { if (k >= 0) menu.sh.getRange(b, k + 1).setNumberFormat('@'); });
     menu.sh.getRange(b, 1, 1, baris.length).setValues([baris]);
-    sswRiwayat_([[waktuSekarang_(), 'BM → MENU (siswa baru)', r.nama, 'Semua', '', r.namaRombel + ' · ' + r.tgl, adm.nama || 'Admin']]);
-    catat_('Admin', adm.id, adm.nama, 'Kirim siswa ke MENU', r.nama + ' (' + r.namaRombel + ')', 'OK');
+    sswRiwayat_([[waktuSekarang_(), 'BM → Data Induk (siswa baru)', r.nama, 'Semua', '', r.namaRombel + ' · ' + r.tgl, adm.nama || 'Admin']]);
+    catat_('Admin', adm.id, adm.nama, 'Kirim siswa ke Data Induk', r.nama + ' (' + r.namaRombel + ')', 'OK');
     return { ok: true, nama: r.nama };
   } finally {
     kunci.releaseLock();
@@ -324,7 +324,7 @@ function sswAnalisaGanda_() {
       var a = rows[i], b = rows[j], alasan = [];
       var mirip = sswMirip_(a.nama, b.nama), sama = sswKompak_(a.nama) === sswKompak_(b.nama);
       var sel = sswSelisihHari_(a.tgl, b.tgl);
-      if (a.wb && b.wb && a.wb.baris === b.wb.baris) alasan.push('Keduanya cocok dengan siswa yang sama di MENU');
+      if (a.wb && b.wb && a.wb.baris === b.wb.baris) alasan.push('Keduanya cocok dengan siswa yang sama di Data Induk');
       if (sama && sel === 0) alasan.push('Nama dan tanggal lahir sama');
       else if (mirip && sel <= 1) alasan.push(sel === 0 ? 'Nama mirip, tanggal lahir sama' : 'Nama ' + (sama ? 'sama' : 'mirip') + ', tanggal lahir selisih 1 hari');
       else if (sama) alasan.push('Nama sama, tanggal lahir berbeda');
@@ -351,10 +351,10 @@ function analisaDataGanda() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('Analisa Ganda') || ss.insertSheet('Analisa Ganda');
   sh.clear();
-  var isi = [['Indikasi', 'Baris A', 'Rombel A', 'Nama A', 'Tgl Lahir A', 'Terdaftar A', 'Baris B', 'Rombel B', 'Nama B', 'Tgl Lahir B', 'Terdaftar B', 'Data MENU']];
+  var isi = [['Indikasi', 'Baris A', 'Rombel A', 'Nama A', 'Tgl Lahir A', 'Terdaftar A', 'Baris B', 'Rombel B', 'Nama B', 'Tgl Lahir B', 'Terdaftar B', 'Data Induk']];
   hasil.forEach(function (p) {
     isi.push([p.alasan.join('; '), p.a.baris, p.a.namaRombel, p.a.nama, p.a.tgl, p.a.terdaftar ? 'Ya' : '', p.b.baris, p.b.namaRombel, p.b.nama, p.b.tgl, p.b.terdaftar ? 'Ya' : '',
-      p.menu ? (p.menu.nama + ' · ' + p.menu.namaRombel + ' · ' + p.menu.tgl) : '(tidak ada di MENU)']);
+      p.menu ? (p.menu.nama + ' · ' + p.menu.namaRombel + ' · ' + p.menu.tgl) : '(tidak ada di Data Induk)']);
   });
   if (!hasil.length) isi.push(['Tidak ditemukan indikasi data ganda', '', '', '', '', '', '', '', '', '', '', '']);
   sh.getRange(1, 1, isi.length, 12).setNumberFormat('@').setValues(isi);

@@ -59,7 +59,7 @@ class _KartuQrMassalScreenState extends State<KartuQrMassalScreen> {
             color: cs.primaryContainer,
             child: const Padding(
               padding: EdgeInsets.all(14),
-              child: Text('QR berisi NISN (atau ID Warga Belajar bila NISN kosong) dari SIM SETARA, sama dengan kartu siswa digital, '
+              child: Text('QR berisi NISN (atau ID Warga Belajar bila NISN kosong) dari Data Induk, sama dengan kartu siswa digital, '
                   'sehingga dapat langsung dipindai untuk absensi, ujian, dan keuangan. Keterangan di bawah QR hanya nama siswa.'),
             ),
           ),
@@ -121,7 +121,7 @@ class _KartuQrMassalScreenState extends State<KartuQrMassalScreen> {
                 color: cs.errorContainer,
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Text('${tanpaKode.length} siswa belum punya NISN maupun ID WB di SIM SETARA sehingga tidak dibuatkan QR: ${tanpaKode.join(', ')}'),
+                  child: Text('${tanpaKode.length} siswa belum punya NISN maupun ID WB di Data Induk sehingga tidak dibuatkan QR: ${tanpaKode.join(', ')}'),
                 ),
               ),
             if (siswa.isEmpty) const Kosong(pesan: 'Tidak ada siswa aktif dengan NISN/ID WB di rombel ini.', ikon: Icons.person_off_rounded),

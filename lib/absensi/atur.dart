@@ -107,7 +107,7 @@ class _AturAbsensiScreenState extends State<AturAbsensiScreen> {
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Dari Pengaturan Lembaga (SIM SETARA)', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('Dari Pengaturan Lembaga (Data Induk)', style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             Text('Jam absensi ${teks(sim['jamBuka'], '-')}–${teks(sim['jamTutup'], '-')} · Absensi ${sim['aktif'] == true ? 'aktif' : 'nonaktif'} · Kode Buka ${teks(sim['kodeBuka']).isEmpty ? 'tidak dipakai' : 'diisi'}'),
             Text('TP ${teks(sim['tahun'])} ${teks(sim['semester'])} · Honor per hadir Rp${teks(sim['honor'])}'),

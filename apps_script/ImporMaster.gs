@@ -200,7 +200,7 @@ function waAdminImporTerapkan(token) {
   } finally {
     kunci.releaseLock();
   }
-  catat_('Admin', adm.id, adm.nama, 'Impor dari SIM SETARA',
+  catat_('Admin', adm.id, adm.nama, 'Impor dari Data Induk',
     r.kelasBaru.length + ' kelas baru, ' + r.mapelBaru.length + ' mapel baru (sudah ada: ' + r.kelasAda.length + ' kelas, ' + r.mapelAda + ' mapel)', 'OK');
   return { kelasBaru: r.kelasBaru.length, mapelBaru: r.mapelBaru.length, kelasAda: r.kelasAda.length, mapelAda: r.mapelAda };
 }
@@ -211,9 +211,9 @@ function menuSetujuiIzinPendaftaran() {
   var info = [];
   try {
     SpreadsheetApp.openById(IMPOR.MASTER_ID).getName();
-    info.push('Akses ke SIM SETARA: OK');
+    info.push('Akses ke spreadsheet master: OK');
   } catch (e) {
-    info.push('Akses ke SIM SETARA GAGAL: ' + (e && e.message ? e.message : e));
+    info.push('Akses ke spreadsheet master GAGAL: ' + (e && e.message ? e.message : e));
   }
   var sisa = MailApp.getRemainingDailyQuota();
   info.push('Sisa kuota email hari ini: ' + sisa);
@@ -228,15 +228,13 @@ function menuSetujuiIzinPendaftaran() {
 
 
 // ---------- impor siswa dari SIM SETARA (admin) ----------
-// Membaca tab WARGA BELAJAR di spreadsheet SIM SETARA (hanya baca). Siswa yang belum ada di tab Siswa
-// ditambahkan dengan Kode Akses, email, dan waktu daftar KOSONG; siswa melengkapinya lewat verifikasi OTP.
-var SIMSETARA_ID = '1R3b9I0uv3n0qIQY-G11IEDp0TRzDXiHNy_fz8wmLJ7o';
-
+// Membaca tab WARGA BELAJAR eks-SIM SETARA (sejak v1.37.0 tinggal di spreadsheet ini, lihat SumberData.gs).
+// Siswa yang belum ada di tab Siswa ditambahkan dengan Kode Akses, email, dan waktu daftar KOSONG;
+// siswa melengkapinya lewat verifikasi OTP.
 function siswaRencana_() {
-  var ss = SpreadsheetApp.openById(SIMSETARA_ID);
   function tab(n) {
-    var sh = ss.getSheetByName(n);
-    if (!sh) throw new Error('Tab tidak ada di SIM SETARA: ' + n);
+    var sh = simTab_(n);
+    if (!sh) throw new Error('Tab tidak ada di database: ' + simNamaTab_(n));
     var v = sh.getDataRange().getValues();
     var h = v[0].map(function (x) { return String(x).trim(); });
     return v.slice(1).map(function (r) { var o = {}; h.forEach(function (k, i) { o[k] = r[i]; }); return o; });
@@ -304,7 +302,7 @@ function waAdminSiswaTerapkan(token) {
     var rg = sheet.getRange(b, 1, baris.length, 6);
     rg.setNumberFormat('@');
     rg.setValues(baris);
-    catat_('Admin', '', 'Impor siswa', 'Impor siswa dari SIM SETARA', baris.length + ' siswa ditambahkan', 'OK');
+    catat_('Admin', '', 'Impor siswa', 'Impor siswa dari Data Induk', baris.length + ' siswa ditambahkan', 'OK');
     return { ditambah: baris.length };
   } finally {
     kunci.releaseLock();
@@ -312,18 +310,13 @@ function waAdminSiswaTerapkan(token) {
 }
 
 
-// Sumber kelas, mapel, dan pengampu sekarang SIM SETARA (tab ROMBEL, MAPEL, ENROLL MAPEL, TUTOR).
+// Sumber kelas, mapel, dan pengampu: tab eks-SIM SETARA (ROMBEL, MAPEL, ENROLL MAPEL, TUTOR) yang sejak
+// v1.37.0 tinggal di spreadsheet ini (SumberData.gs).
 // Keluarannya sama dengan bacaMasterLama_ supaya rencanaImpor_ dan penerapannya tidak berubah.
 function bacaMaster_() {
-  var ss;
-  try {
-    ss = SpreadsheetApp.openById(SIMSETARA_ID);
-  } catch (e) {
-    throw new Error('Tidak bisa membuka spreadsheet SIM SETARA. Pastikan akun pemilik aplikasi punya akses ke file itu, lalu setujui izin yang diminta. (' + (e && e.message ? e.message : e) + ')');
-  }
   function tab(n) {
-    var sh = ss.getSheetByName(n);
-    if (!sh) throw new Error('Tab "' + n + '" tidak ditemukan di SIM SETARA.');
+    var sh = simTab_(n);
+    if (!sh) throw new Error('Tab "' + simNamaTab_(n) + '" tidak ditemukan di database.');
     var v = sh.getDataRange().getValues();
     var h = v[0].map(function (x) { return String(x).trim(); });
     return v.slice(1).map(function (r) { var o = {}; h.forEach(function (k, i) { o[k] = r[i]; }); return o; });

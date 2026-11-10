@@ -31,6 +31,7 @@ import 'screens/pengguna.dart';
 import 'screens/progres.dart';
 import 'screens/reset.dart';
 import 'screens/siswa_rombel.dart';
+import 'screens/susulan.dart';
 import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
@@ -104,6 +105,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'kartuQr', judul: 'Kartu QR Siswa (ID Card)', ikon: Icons.qr_code_2_rounded, peran: _admin, native: () => const KartuQrMassalScreen()),
   MenuApp(id: 'daftar', judul: 'Pendaftaran Siswa', ikon: Icons.how_to_reg_outlined, peran: _admin, native: () => const PendaftaranScreen()),
   MenuApp(id: 'ganda', judul: 'Sinkron & Data Ganda', ikon: Icons.sync_alt, peran: _admin, native: () => const GandaScreen()),
+  MenuApp(id: 'susulan', judul: 'Buka Susulan Massal', ikon: Icons.lock_open_rounded, peran: _admin, native: () => const SusulanMassalScreen()),
   MenuApp(id: 'ta', judul: 'Tahun Ajaran', ikon: Icons.event_note_outlined, peran: _admin, native: () => const TahunAjaranScreen()),
   MenuApp(id: 'log', judul: 'Log Aktivitas', ikon: Icons.receipt_long_outlined, peran: _admin, native: () => const LogScreen()),
   MenuApp(id: 'reset', judul: 'Reset Data', ikon: Icons.cleaning_services_outlined, peran: _admin, native: () => const ResetScreen()),
@@ -125,7 +127,7 @@ const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kale
 
 const _grupMenu = <String, String>{
   'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
-  'progres': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
+  'progres': 'Pembelajaran', 'susulan': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
   'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
@@ -139,6 +141,7 @@ const _grupMenu = <String, String>{
 /// Kata kunci tambahan agar pencarian menemukan menu dengan istilah sehari-hari.
 const _kataKunci = <String, String>{
   'nilaiRapor': 'raport leger cetak cover biodata kenaikan kelulusan naik kelas lulus',
+  'susulan': 'remedial tertinggal terlewat buka kunci sesi absensi diskusi ujian perbaikan',
   'absensi': 'presensi hadir qr scan datang pulang izin sakit alpa',
   'dataInduk': 'siswa warga belajar wb nisn nik',
   'imporDapodik': 'import excel xlsx dapodik biodata',

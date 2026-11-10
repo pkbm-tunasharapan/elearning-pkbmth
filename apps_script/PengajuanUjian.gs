@@ -664,7 +664,7 @@ function waAbsenIsi(payload) {
     var sh = abSheet_();
     var baris = sh.getLastRow() + 1;
     try { sh.getRange(baris, 8).setNumberFormat('@'); } catch (e) {}   // format teks DULU, baru isi, supaya waktu tidak berubah menjadi tanggal
-    sh.getRange(baris, 1, 1, AB.HEADERS.length).setValues([[idRombel, idMapel, getNamaMapel_(idMapel), ref.smt, ref.n, nama, AB.HADIR, waktu, dibuka ? 'Dibuka tutor' : '']]);
+    sh.getRange(baris, 1, 1, AB.HEADERS.length).setValues([[idRombel, idMapel, getNamaMapel_(idMapel), ref.smt, ref.n, nama, AB.HADIR, waktu, dibuka ? (dibuka.sumber === 'susulan' ? 'Masa susulan' : 'Dibuka tutor') : '']]);
     try { catat_('Siswa', idRombel, nama, 'Absensi', 'mapel ' + idMapel + ', ' + info.nama, 'OK'); } catch (e) {}
     return { sukses: true, sudah: false, pesan: 'Kehadiran Anda tercatat.', waktu: waktu, id: abIdItem_(ref.smt, ref.n) };
   } finally {

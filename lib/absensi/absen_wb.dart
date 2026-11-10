@@ -80,7 +80,7 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
       muat: muatKonteksAbsen,
       bangun: (context, ks, _) {
         if (ks['tutorTerhubung'] == false) {
-          return const Kosong(pesan: 'Akun Anda belum terhubung dengan data tutor di SIM SETARA (email/nomor HP/nama tidak cocok). Hubungi admin.', ikon: Icons.link_off_rounded);
+          return const Kosong(pesan: 'Akun Anda belum terhubung dengan data tutor di Data Induk (email/nomor HP/nama tidak cocok). Hubungi admin.', ikon: Icons.link_off_rounded);
         }
         final kelas = daftar(ks['kelas']).map(peta).toList();
         if (kelas.isEmpty) return const Kosong(pesan: 'Belum ada kelas (rombel × mapel) yang dapat Anda absen.', ikon: Icons.event_busy_rounded);

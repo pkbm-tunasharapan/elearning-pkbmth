@@ -291,8 +291,8 @@ function waStafMasukGoogle(idToken) {
   // setelah keluar-masuk). Keamanan: tanda tangan Google, audiens, penerbit, dan masa berlaku.
   var sim = ssoCariDiSim_(email);
   if (!sim) {
-    catat_('Staf', '', email, 'Masuk', 'Google (aplikasi): email belum terdaftar di SIM SETARA', 'GAGAL');
-    return ssoGagal_('Akun Google ' + email + ' belum terdaftar sebagai pengguna aktif di SIM SETARA. Hubungi admin untuk didaftarkan.');
+    catat_('Staf', '', email, 'Masuk', 'Google (aplikasi): email belum terdaftar di Data Induk', 'GAGAL');
+    return ssoGagal_('Akun Google ' + email + ' belum terdaftar sebagai pengguna aktif di Data Induk. Hubungi admin untuk didaftarkan.');
   }
   pastikanSheetPeran_();
   var u = ssoSelaraskan_(email, sim);
@@ -348,7 +348,7 @@ function waKartuSiswa(token) {
   var tgl = utama ? formatTanggalUntukBanding_(utama.r[2]) : '';
   var idWb = '';
   try {
-    var sh = SpreadsheetApp.openById(SIMSETARA_ID).getSheetByName('WARGA BELAJAR');
+    var sh = simTab_('WARGA BELAJAR');
     if (sh && sh.getLastRow() >= 2) {
       var v = sh.getDataRange().getValues();
       var h = v[0].map(function(x) { return String(x).trim().toUpperCase(); });
@@ -384,7 +384,7 @@ function waStafKartu(token) {
   var normHp = function(x) { x = String(x || '').replace(/\D/g, ''); return x.replace(/^62/, '0'); };
   var id = '', nik = '';
   try {
-    var sh = SpreadsheetApp.openById(SIMSETARA_ID).getSheetByName('TUTOR');
+    var sh = simTab_('TUTOR');
     if (sh && sh.getLastRow() >= 2) {
       var v = sh.getDataRange().getValues();
       var h = v[0].map(function(x) { return String(x).trim().toUpperCase(); });
@@ -404,12 +404,10 @@ function waStafKartu(token) {
 
 // ============================================================================
 // ABSENSI TH.E-COURSE (Tahap 1, migrasi SIM SETARA)
-// Lapisan Repo: selama transisi, tabel absensi memakai tab di spreadsheet SIM SETARA
-// (SESI BELAJAR, PRESENSI WB) agar AppSheet tetap melihat data yang sama. Tab baru
-// (PRESENSI KS, KODE DARURAT) juga dibuat di sana. Saat SIM SETARA dihentikan, cukup
-// ubah ABS_REPO_ID ke spreadsheet tujuan.
+// Lapisan Repo: sejak v1.37.0 seluruh tab eks-SIM SETARA (SESI BELAJAR, PRESENSI WB,
+// PRESENSI KS, KODE DARURAT, dst.) tinggal di spreadsheet ini sendiri. Akses tab
+// lewat simTab_() (SumberData.gs) agar nama yang bentrok memakai alias "SIM ...".
 // ============================================================================
-var ABS_REPO_ID = SIMSETARA_ID;
 var ABS = {
   PROP: 'TH_ABSENSI_ATURAN', PROP_ACUAN: 'TH_ABSENSI_FOTO_ACUAN', PROP_FOLDER: 'TH_ABSENSI_FOLDER',
   TAB_KS: 'PRESENSI KS',
@@ -422,16 +420,16 @@ var ABS = {
   MAKS_FOTO: 900000, MAKS_ACUAN: 4
 };
 
-// v1.17: satu eksekusi cukup membuka spreadsheet SIM SETARA sekali dan membaca tab induk sekali.
+// v1.17: satu eksekusi cukup membuka spreadsheet sekali dan membaca tab induk sekali.
 var ABS_MEMO_ = { ss: null, tab: {} };
 var ABS_MEMO_TAB_ = { 'ROMBEL': 1, 'MAPEL': 1, 'ENROLL MAPEL': 1, 'TUTOR': 1, 'WARGA BELAJAR': 1, 'PENGATURAN': 1 };
-function absSs_() { return ABS_MEMO_.ss || (ABS_MEMO_.ss = SpreadsheetApp.openById(ABS_REPO_ID)); }
+function absSs_() { return ABS_MEMO_.ss || (ABS_MEMO_.ss = simSs_()); }
 function absLupakan_(nama) { if (nama) delete ABS_MEMO_.tab[nama]; else ABS_MEMO_.tab = {}; }
 function absTab_(nama, hdr) {
   var ss = absSs_();
-  var sh = ss.getSheetByName(nama);
+  var sh = ss.getSheetByName(simNamaTab_(nama));
   if (!sh) {
-    sh = ss.insertSheet(nama);
+    sh = ss.insertSheet(simNamaTab_(nama));
     sh.getRange(1, 1, 1, hdr.length).setValues([hdr]).setFontWeight('bold');
     sh.setFrozenRows(1);
   }
@@ -439,7 +437,7 @@ function absTab_(nama, hdr) {
 }
 function absBaca_(nama, hdr) {
   if (!hdr && ABS_MEMO_TAB_[nama] && ABS_MEMO_.tab[nama]) return ABS_MEMO_.tab[nama];
-  var sh = hdr ? absTab_(nama, hdr) : absSs_().getSheetByName(nama);
+  var sh = hdr ? absTab_(nama, hdr) : absSs_().getSheetByName(simNamaTab_(nama));
   if (!sh) throw new Error('Tab "' + nama + '" tidak ditemukan di database.');
   var v = sh.getDataRange().getValues();
   var h = {};
@@ -494,7 +492,7 @@ function absAturan_() {
 function absSim_() { return absSimCache_(); }
 // Baca langsung tab PENGATURAN (tanpa cache); dipanggil absSimCache_ di Performa.gs.
 function absSimBaca_() {
-  var sh = absSs_().getSheetByName('PENGATURAN');
+  var sh = simTab_('PENGATURAN');
   var out = { tahun: '', semester: '', jamBuka: '', jamTutup: '', aktif: true, kodeBuka: '', honor: 0, lembaga: '' };
   if (!sh || sh.getLastRow() < 2) return out;
   var d = sh.getRange(1, 1, 2, sh.getLastColumn()).getDisplayValues();
@@ -727,7 +725,7 @@ function absWajibWb_(p, idRombel, kodeMapel) {
   var kelas;
   if (q.tutor) {
     var t = absTutorSaya_(p);
-    if (!t) throw new Error('Akun Anda belum terhubung dengan data tutor SIM SETARA. Hubungi admin.');
+    if (!t) throw new Error('Akun Anda belum terhubung dengan data tutor di Data Induk. Hubungi admin.');
     kelas = absKelasCek_(absKelas_(t.id), idRombel, kodeMapel);
     if (!kelas) throw new Error('Anda tidak mengampu mapel ini di rombel tersebut.');
   } else {
@@ -782,10 +780,10 @@ function waStafAbsenWbCatat(token, d) {
     if (!wb) throw new Error('Warga belajar tidak ditemukan di rombel ini.');
     wb.rombel = kelas.idRombel;
   }
-  if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ' di SIM SETARA, tidak dapat diabsen.');
+  if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ' di Data Induk, tidak dapat diabsen.');
   if (wb.rombel !== kelas.idRombel) {
     var rbAsli = wb.rombel ? (absNamaRombel_(wb.rombel) || wb.rombel) : '(belum diisi)';
-    throw new Error(wb.nama + ' tercatat di rombel ' + rbAsli + ' menurut SIM SETARA, bukan ' + kelas.namaRombel + '. Pilih rombel ' + rbAsli + ' di atas, atau perbaiki kolom ROMBEL siswa ini di SIM SETARA (Data Induk) bila datanya keliru.');
+    throw new Error(wb.nama + ' tercatat di rombel ' + rbAsli + ' menurut Data Induk, bukan ' + kelas.namaRombel + '. Pilih rombel ' + rbAsli + ' di atas, atau perbaiki kolom ROMBEL siswa ini di Data Induk bila datanya keliru.');
   }
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
@@ -1300,7 +1298,7 @@ function absKelas_(idTutorSaja) {
 
 // ============================================================================
 // HONOR TUTOR (Tahap 2, migrasi SIM SETARA). Repo: tab REKAP HONOR, PEMBAYARAN HONOR,
-// TRANSAKSI di spreadsheet ABS_REPO_ID. Aturan honor di Script Property TH_HONOR_ATURAN
+// TRANSAKSI di spreadsheet database (simSs_). Aturan honor di Script Property TH_HONOR_ATURAN
 // sehingga tarif, satuan, tarif per program, dan syarat tunggakan bisa diubah tanpa kode.
 // Honor = kehadiran tutor (SESI BELAJAR "Tatap Muka", STATUS Hadir) x tarif.
 // Bila ada tunggakan e-learning, SELURUH honor bulan itu ditahan sampai tunggakan selesai.
@@ -1626,7 +1624,7 @@ function waStafHonorRekap(token, bulan) {
   bulan = honBulanSah_(bulan || honBulanIni_());
   var aturan = honAturan_();
   var saya = null;
-  if (hp.tutor) { saya = absTutorSaya_(p); if (!saya) throw new Error('Akun Anda belum terhubung dengan data tutor SIM SETARA.'); }
+  if (hp.tutor) { saya = absTutorSaya_(p); if (!saya) throw new Error('Akun Anda belum terhubung dengan data tutor di Data Induk.'); }
   var tutor = absPetaTutor_();
   var hadir = honKehadiran_(bulan, aturan);
   var bayar = honPembayaran_();
@@ -1783,7 +1781,7 @@ function waStafHonorSaya(token) {
   var p = stafDariToken_(token);
   if (!absPeran_(p).tutor) throw new Error('Khusus tutor.');
   var s = absTutorSaya_(p);
-  if (!s) throw new Error('Akun Anda belum terhubung dengan data tutor SIM SETARA (email/nomor HP/nama tidak cocok). Hubungi admin.');
+  if (!s) throw new Error('Akun Anda belum terhubung dengan data tutor di Data Induk (email/nomor HP/nama tidak cocok). Hubungi admin.');
   var aturan = honAturan_();
   var bayar = honPembayaran_();
   var t = absBaca_(HON.TAB_REKAP), rekap = [];
@@ -1813,7 +1811,7 @@ function waStafHonorSaya(token) {
 
 // ============================================================================
 // JADWAL TATAP MUKA (Tahap 3, migrasi SIM SETARA). Repo: tab PEMETAAN & USULAN JADWAL
-// di ABS_REPO_ID. Slot sesi (Sesi 1, Sesi 2, ...) diatur Admin di Script Property
+// di spreadsheet database (simSs_). Slot sesi (Sesi 1, Sesi 2, ...) diatur Admin di Script Property
 // TH_JADWAL_ATURAN. Jadwal harian dihitung dari PEMETAAN (hari + slot + rentang tanggal).
 // Absen tutor hanya untuk kelas yang terjadwal hari itu; di luar jadwal wajib alasan.
 // ============================================================================
@@ -2073,7 +2071,7 @@ function waStafUsulanAjukan(token, d) {
   if (!absPeran_(p).tutor) throw new Error('Usulan jadwal diajukan oleh tutor.');
   d = d || {};
   var s = absTutorSaya_(p);
-  if (!s) throw new Error('Akun Anda belum terhubung dengan data tutor SIM SETARA.');
+  if (!s) throw new Error('Akun Anda belum terhubung dengan data tutor di Data Induk.');
   var kelas = absKelasCek_(absKelas_(s.id), d.idRombel, d.kodeMapel);
   if (!kelas) throw new Error('Anda tidak mengampu mapel ini di rombel tersebut.');
   if (JAD.HARI.indexOf(String(d.hari)) < 0) throw new Error('Pilih hari.');
@@ -2135,7 +2133,7 @@ function waStafUsulanPutus(token, id, setuju, catatan) {
 // ujian online TH.E-Course (nilai terbaik) atau input manual tutor (ujian kertas; manual
 // menggantikan online bila diisi). Syarat ujian: kehadiran tatap muka >= syaratHadir %
 // per mapel pada semester berjalan; bila kurang, ujian diblokir kecuali ada dispensasi KS.
-// Tab (repo ABS_REPO_ID): NILAI, ASESMEN, PRESENSI ASESMEN (sudah ada di SIM SETARA),
+// Tab (database simSs_): NILAI, ASESMEN, PRESENSI ASESMEN (sudah ada di SIM SETARA),
 // DISPENSASI UJIAN (baru).
 // ============================================================================
 var NIL = {
@@ -2201,7 +2199,7 @@ function nilPeriode_(q) {
 }
 function nilLembaga_() {
   var out = { nama: '', npsn: '', alamat: '', kepala: '' };
-  var sh = absSs_().getSheetByName('PENGATURAN');
+  var sh = simTab_('PENGATURAN');
   if (!sh || sh.getLastRow() < 2) return out;
   var d = sh.getRange(1, 1, 2, sh.getLastColumn()).getDisplayValues(), h = {};
   d[0].forEach(function(x, i) { h[String(x).trim().toUpperCase()] = i; });
@@ -2225,7 +2223,14 @@ function nilPeran_(p) {
 }
 function nilKelasBoleh_(p) {
   var r = nilPeran_(p);
-  if (r.lihatSemua || r.q.fo) return absKelas_('');
+  if (r.lihatSemua || r.q.fo) {
+    // v1.37: termasuk mapel e-learning Aktif yang belum punya tutor (sama dengan leger rapor)
+    var a = absKelas_(''), ada = {};
+    a.forEach(function(x) { ada[x.idRombel + '|' + x.kodeMapel] = true; });
+    try { absKelasBmAktif_('').forEach(function(x) { var k = x.idRombel + '|' + x.kodeMapel; if (!ada[k]) { ada[k] = true; a.push(x); } }); } catch (e) {}
+    a.sort(function(x, y) { return (x.namaRombel + '|' + x.namaMapel).localeCompare(y.namaRombel + '|' + y.namaMapel); });
+    return a;
+  }
   if (r.tutor) { var s = absTutorSaya_(p); return s ? absKelas_(s.id) : []; }
   throw new Error('Peran Anda tidak dapat melihat nilai.');
 }
@@ -2638,13 +2643,59 @@ function waStafDispensasiDaftar(token) {
 }
 
 // ---------- leger & rapor ----------
+// v1.37: mapel e-learning berstatus Aktif untuk satu rombel, TANPA syarat punya tutor (untuk leger & rapor).
+function absKelasBmAktif_(idRombel) {
+  var rb = absBaca_('ROMBEL'), mp = absBaca_('MAPEL');
+  var rombelNama = {}, mapelNama = {}, mapelKode = {};
+  for (var i = 1; i < rb.v.length; i++) {
+    var id = sTeks_(absNilai_(rb, rb.v[i], 'ID ROMBEL')).trim();
+    if (id && absBenar_(absNilai_(rb, rb.v[i], 'AKTIF'))) rombelNama[absNormNama_(absNilai_(rb, rb.v[i], 'NAMA ROMBEL'))] = { id: id, nama: sTeks_(absNilai_(rb, rb.v[i], 'NAMA ROMBEL')).trim(), program: sTeks_(absNilai_(rb, rb.v[i], 'PROGRAM')).trim() };
+  }
+  for (var j = 1; j < mp.v.length; j++) {
+    var k = sTeks_(absNilai_(mp, mp.v[j], 'KODE MAPEL')).trim();
+    if (!k) continue;
+    var nm = sTeks_(absNilai_(mp, mp.v[j], 'NAMA MAPEL')).trim();
+    mapelNama[absNormNama_(nm)] = { kode: k, nama: nm };
+    mapelKode[k.toLowerCase()] = { kode: k, nama: nm };
+  }
+  var out = [];
+  mapelAktifSemua_().forEach(function(m) {
+    var r = rombelNama[absNormNama_(m.namaRombel)];
+    if (!r || (idRombel && r.id !== String(idRombel))) return;   // idRombel kosong = semua rombel
+    var kurung = /\(([^)]+)\)/.exec(m.namaMapel || '');
+    var mm = mapelNama[absNormNama_(m.namaMapel)] || (kurung ? mapelKode[String(kurung[1]).trim().toLowerCase()] : null);
+    if (!mm) return;
+    out.push({ idRombel: r.id, namaRombel: r.nama, program: r.program, kodeMapel: mm.kode, namaMapel: mm.nama, idTutor: '', namaTutor: m.tutorTeks || '' });
+  });
+  return out;
+}
+// Mapel leger/rapor satu rombel: kelas yang sudah dikenal (ENROLL MAPEL + mapel bertutor) ditambah SEMUA mapel
+// e-learning berstatus Aktif walau belum punya tutor. Urutan mengikuti tab SIM MAPEL (urutan baku rapor).
+function nilKelasRapor_(idRombel) {
+  idRombel = String(idRombel || '');
+  var kelas = absKelas_('').filter(function(x) { return x.idRombel === idRombel; });
+  var ada = {};
+  kelas.forEach(function(x) { ada[x.kodeMapel] = true; });
+  try {
+    absKelasBmAktif_(idRombel).forEach(function(x) { if (!ada[x.kodeMapel]) { ada[x.kodeMapel] = true; kelas.push(x); } });
+  } catch (e) {}
+  var urut = {};
+  try {
+    var mp = absBaca_('MAPEL');
+    for (var j = 1; j < mp.v.length; j++) { var km = sTeks_(absNilai_(mp, mp.v[j], 'KODE MAPEL')).trim(); if (km && urut[km] === undefined) urut[km] = j; }
+  } catch (e2) {}
+  kelas.sort(function(a, b) {
+    var x = urut[a.kodeMapel] === undefined ? 9999 : urut[a.kodeMapel], y = urut[b.kodeMapel] === undefined ? 9999 : urut[b.kodeMapel];
+    return x - y || String(a.namaMapel).localeCompare(String(b.namaMapel));
+  });
+  return kelas;
+}
 // q: {idRombel, tahun?, semester?}
 function waStafLeger(token, q) {
   var p = stafDariToken_(token), r = nilPeran_(p);
   q = q || {};
   if (!nilAksesRapor_(p, q.idRombel)) throw new Error('Rapor hanya dapat dibuka Wali Kelas rombel ini, Kepala Sekolah atau Admin.');
-  var semua = absKelas_('');
-  var kelas = semua.filter(function(x) { return x.idRombel === String(q.idRombel); });
+  var kelas = nilKelasRapor_(q.idRombel);
   if (!kelas.length) throw new Error('Rombel tidak ditemukan atau belum punya mapel.');
   var per = nilPeriode_(q), k = nilKtx_(per), baris = {};
   kelas = nilSaringAktif_(kelas, k.peta);
@@ -2663,7 +2714,7 @@ function waStafLeger(token, q) {
   urut.forEach(function(b, i) { b.peringkat = i > 0 && urut[i - 1].jumlah === b.jumlah ? urut[i - 1].peringkat : i + 1; });
   out.sort(function(a, b2) { return a.nama.localeCompare(b2.nama); });
   return {
-    rombel: { id: kelas[0].idRombel, nama: kelas[0].namaRombel, program: kelas[0].program }, periode: per, aturan: k.at, lembaga: nilLembaga_(),
+    rombel: { id: kelas[0].idRombel, nama: kelas[0].namaRombel, program: kelas[0].program }, periode: per, periodeKini: nilPeriode_(), aturan: k.at, lembaga: nilLembaga_(),
     wali: (function() { var w = nilWaliPeta_()[kelas[0].idRombel] || '', pt = absPetaTutor_(); return { id: w, nama: w && pt[w] ? pt[w].nama : '' }; })(),
     mapel: kelas.map(function(kl) { return { kode: kl.kodeMapel, nama: kl.namaMapel, tutor: kl.namaTutor }; }), wb: out
   };
@@ -2692,7 +2743,7 @@ function waStafRapor(token, q) {
   var wb = nilWbDetail_(q.idWb);
   if (!wb) throw new Error('Warga belajar tidak ditemukan.');
   if (!nilAksesRapor_(p, wb.idRombel)) throw new Error('Rapor hanya dapat dibuat Wali Kelas, Kepala Sekolah atau Admin.');
-  var kelas = absKelas_('').filter(function(x) { return x.idRombel === wb.idRombel; });
+  var kelas = nilKelasRapor_(wb.idRombel);
   var per = nilPeriode_(q), k = nilKtx_(per), rows = [];
   kelas = nilSaringAktif_(kelas, k.peta);
   kelas.forEach(function(kl) {
@@ -2883,7 +2934,7 @@ function nilGerbangUjian_(j, idRombelBm, namaBm) {
 
 // ============================================================================
 // KEUANGAN TH.E-COURSE (Tahap 5, migrasi SIM SETARA)
-// Tab (repo ABS_REPO_ID): TRANSAKSI (+kolom TAGIHAN), KATEGORI KEUANGAN, TAGIHAN (baru),
+// Tab (database simSs_): TRANSAKSI (+kolom TAGIHAN), KATEGORI KEUANGAN, TAGIHAN (baru),
 // KERINGANAN TAGIHAN (baru). Pencatat: Bendahara / Admin. Pemasukan langsung Disetujui;
 // pengeluaran Menunggu sampai diputus Ketua Yayasan (Superadmin). Saldo = transaksi Disetujui.
 // Tagihan WB: sasaran Semua / Program / Rombel; lunas bila dibayar + keringanan >= jumlah.

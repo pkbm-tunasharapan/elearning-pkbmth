@@ -164,7 +164,7 @@ class _KurikulumTabState extends State<KurikulumTab> with AutomaticKeepAliveClie
                 const SizedBox(height: 4),
                 Text(
                   'Susun sekali dari buku siswa (PDF): tiap sesi mendapat judul, narasi pengantar, rujukan halaman, tujuan pembelajaran, bacaan lengkap khusus sesi itu, '
-                  'pertanyaan diskusi, dan bank soal ujian, persis seperti SIM SETARA. Satu semester berisi ${angka(d['jumlahMinggu'])} sesi materi '
+                  'pertanyaan diskusi, dan bank soal ujian.  Satu semester berisi ${angka(d['jumlahMinggu'])} sesi materi '
                   '(Sesi ${angka(d['uts'])} = UTS dan Sesi ${angka(d['uas'])} = UAS tidak berisi materi). Hasilnya bisa Anda ubah, lalu dijadikan Draft Materi dan '
                   'Diskusi untuk diperiksa sebelum di-Post. Bank soal tiap sesi dipakai untuk UTS dan UAS: setiap siswa mendapat soal acak dari bank ini, dan jadwalnya diatur di tab Jadwal Ujian.',
                   style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),

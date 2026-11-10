@@ -197,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 final catatan = _siswa
                     ? const SizedBox.shrink()
                     : Text(
-                        'Masuk dengan Google memakai akun Google yang terdaftar di SIM SETARA. Kode akses diberikan oleh admin.',
+                        'Masuk dengan Google memakai akun Google yang terdaftar di Data Induk. Kode akses diberikan oleh admin.',
                         textAlign: lebar ? TextAlign.left : TextAlign.center,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5),
                       );

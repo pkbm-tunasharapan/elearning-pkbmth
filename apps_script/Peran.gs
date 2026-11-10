@@ -412,9 +412,9 @@ function waStafBukaKunci(token, idMapel, idUjian, nama) {
 function ssoSelaraskanSemua_(paksa) {
   var cache = CacheService.getScriptCache();
   if (!paksa && cache.get('sso_semua')) return null;
-  var ss = SpreadsheetApp.openById(SIMSETARA_ID);
+  var ss = simSs_();
   var daftar = [], tanpaEmail = [], i;
-  var sh = ss.getSheetByName('PENGGUNA');
+  var sh = simTab_('PENGGUNA');
   if (sh && sh.getLastRow() > 1) {
     var v = sh.getDataRange().getValues();
     var iE = ssoIndeks_(v[0], 'EMAIL'), iN = ssoIndeks_(v[0], 'NAMA'), iP = ssoIndeks_(v[0], 'PERAN'), iA = ssoIndeks_(v[0], 'AKTIF');
@@ -427,7 +427,7 @@ function ssoSelaraskanSemua_(paksa) {
       if (pr) daftar.push({ email: em, nama: sTeks_(v[i][iN]).trim() || em, peran: pr });
     }
   }
-  var st = ss.getSheetByName('TUTOR');
+  var st = simTab_('TUTOR');
   if (st && st.getLastRow() > 1) {
     var w = st.getDataRange().getValues();
     var tE = ssoIndeks_(w[0], 'EMAIL'), tN = ssoIndeks_(w[0], 'NAMA TUTOR'), tA = ssoIndeks_(w[0], 'AKTIF');
@@ -881,8 +881,8 @@ function ssoIndeks_(header, nama) {
 
 // Cari email di SIM SETARA: tab PENGGUNA (EMAIL, NAMA, PERAN, AKTIF), lalu tab TUTOR (EMAIL, NAMA TUTOR, AKTIF).
 function ssoCariDiSim_(email) {
-  var ss = SpreadsheetApp.openById(SIMSETARA_ID);
-  var sh = ss.getSheetByName('PENGGUNA');
+  var ss = simSs_();
+  var sh = simTab_('PENGGUNA');
   if (sh && sh.getLastRow() > 1) {
     var v = sh.getDataRange().getValues();
     var iE = ssoIndeks_(v[0], 'EMAIL'), iN = ssoIndeks_(v[0], 'NAMA'), iP = ssoIndeks_(v[0], 'PERAN'), iA = ssoIndeks_(v[0], 'AKTIF');
@@ -893,7 +893,7 @@ function ssoCariDiSim_(email) {
       if (peran) return { nama: sTeks_(v[i][iN]).trim() || email, peran: peran };
     }
   }
-  var st = ss.getSheetByName('TUTOR');
+  var st = simTab_('TUTOR');
   if (st && st.getLastRow() > 1) {
     var w = st.getDataRange().getValues();
     var tE = ssoIndeks_(w[0], 'EMAIL'), tN = ssoIndeks_(w[0], 'NAMA TUTOR'), tA = ssoIndeks_(w[0], 'AKTIF');
@@ -955,8 +955,8 @@ function waStafMasukSso(tiket) {
   cache.put('sso_' + p[2], '1', 600);
   var sim = ssoCariDiSim_(email);
   if (!sim) {
-    catat_('Staf', '', email, 'Masuk', 'Google: email belum terdaftar di SIM SETARA', 'GAGAL');
-    return ssoGagal_('Akun Google ' + email + ' belum terdaftar sebagai pengguna aktif di SIM SETARA. Hubungi admin untuk didaftarkan.');
+    catat_('Staf', '', email, 'Masuk', 'Google: email belum terdaftar di Data Induk', 'GAGAL');
+    return ssoGagal_('Akun Google ' + email + ' belum terdaftar sebagai pengguna aktif di Data Induk. Hubungi admin untuk didaftarkan.');
   }
   pastikanSheetPeran_();
   var u = ssoSelaraskan_(email, sim);
@@ -972,8 +972,8 @@ function waStafMasukSso(tiket) {
 // Sumber: ENROLL MAPEL (TUTOR = ID TUTOR, AKTIF, STATUS Disetujui). Kelas dan mapel dicocokkan lewat nama
 // (mengabaikan awalan 'Kelas' dan tanda kurung), sehingga kelas/mapel lama tetap dipakai.
 function ssoSelarasEnroll_(email, u) {
-  var ss = SpreadsheetApp.openById(SIMSETARA_ID);
-  var st = ss.getSheetByName('TUTOR'), se = ss.getSheetByName('ENROLL MAPEL'), sr = ss.getSheetByName('ROMBEL'), sm = ss.getSheetByName('MAPEL');
+  var ss = simSs_();
+  var st = simTab_('TUTOR'), se = simTab_('ENROLL MAPEL'), sr = simTab_('ROMBEL'), sm = simTab_('MAPEL');
   if (!st || !se || !sr || !sm || st.getLastRow() < 2 || se.getLastRow() < 2) return 0;
   var w = st.getDataRange().getValues();
   var tI = ssoIndeks_(w[0], 'ID TUTOR'), tE = ssoIndeks_(w[0], 'EMAIL'), idTutor = '', j;
@@ -1094,11 +1094,11 @@ function jalankanSinkron_(manual) {
     if (e.tambah) ringkas.push(e.tambah + ' penugasan ditambah');
     if (e.hapus) ringkas.push(e.hapus + ' penugasan dicabut');
     try { var nGanda = analisaDataGanda(); if (nGanda) ringkas.push(nGanda + ' indikasi data siswa ganda (lihat tab Analisa Ganda)'); } catch (eG) {}
-    if (ringkas.length) catat_('Sistem', '', 'Sistem', 'Sinkron SIM SETARA', ringkas.join(', '), 'OK');
+    if (ringkas.length) catat_('Sistem', '', 'Sistem', 'Sinkron Data Induk', ringkas.join(', '), 'OK');
     PropertiesService.getScriptProperties().setProperty('SINKRON_TERAKHIR', waktuSekarang_());
     return { perubahan: ringkas, waktu: waktuSekarang_() };
   } catch (err) {
-    try { catat_('Sistem', '', 'Sistem', 'Sinkron SIM SETARA', String(err && err.message || err).slice(0, 200), 'GAGAL'); } catch (x) {}
+    try { catat_('Sistem', '', 'Sistem', 'Sinkron Data Induk', String(err && err.message || err).slice(0, 200), 'GAGAL'); } catch (x) {}
     if (manual) throw err;
   } finally {
     kunci.releaseLock();
@@ -1107,8 +1107,8 @@ function jalankanSinkron_(manual) {
 
 function sinkronTutorSemua_() {
   var out = { pengguna: 0, nonaktif: 0, aktif: 0, tambah: 0, hapus: 0 };
-  var ss = SpreadsheetApp.openById(SIMSETARA_ID);
-  var st = ss.getSheetByName('TUTOR'), se = ss.getSheetByName('ENROLL MAPEL'), sr = ss.getSheetByName('ROMBEL'), sm = ss.getSheetByName('MAPEL');
+  var ss = simSs_();
+  var st = simTab_('TUTOR'), se = simTab_('ENROLL MAPEL'), sr = simTab_('ROMBEL'), sm = simTab_('MAPEL');
   if (!st || !se || !sr || !sm) return out;
   var w = st.getDataRange().getValues();
   var tI = ssoIndeks_(w[0], 'ID TUTOR'), tE = ssoIndeks_(w[0], 'EMAIL'), tA = ssoIndeks_(w[0], 'AKTIF');
@@ -1124,7 +1124,7 @@ function sinkronTutorSemua_() {
     if (ak) emailAktif[em] = true;
   }
   // akun semua peran di tab PENGGUNA SIM SETARA (Admin, Kepala Sekolah, Koordinator Kurikulum, Tutor)
-  var emailPeng = {}, simP = ss.getSheetByName('PENGGUNA');
+  var emailPeng = {}, simP = simTab_('PENGGUNA');
   if (simP && simP.getLastRow() > 1) {
     var wp = simP.getDataRange().getValues();
     var pE = ssoIndeks_(wp[0], 'EMAIL'), pA = ssoIndeks_(wp[0], 'AKTIF');
@@ -1295,7 +1295,7 @@ function rapikanSimCore_(terapkan) {
       var sah = rombelKunci[rid] !== undefined && topikSah[rombelKunci[rid] + '|' + kunciMapel_(vM[i][2])];
       if (sah) continue;
       var jml = materiPerMapel[idM] || 0;
-      var alasan = rombelExtra[rid] ? 'Kelas tidak ada di SIM SETARA' : (rombelKunci[rid] === undefined ? 'Kelas tidak ditemukan' : 'Mapel tidak ada untuk kelas ini di SIM SETARA');
+      var alasan = rombelExtra[rid] ? 'Kelas tidak ada di Data Induk' : (rombelKunci[rid] === undefined ? 'Kelas tidak ditemukan' : 'Mapel tidak ada untuk kelas ini di Data Induk');
       if (rombelExtra[rid]) { (mapelPerRombelExtra[rid] = mapelPerRombelExtra[rid] || []).push(jml); }
       if (jml === 0) { hapusMapel.push(i + 1); laporan.push(['Mapel', idM, sTeks_(vM[i][2]), alasan, jml, 'Dihapus']); }
       else { if (sTeks_(vM[i][4]).trim() === 'Aktif') nonaktifMapel.push(i + 1); laporan.push(['Mapel', idM, sTeks_(vM[i][2]), alasan, jml, 'Dinonaktifkan (ada materi)']); }
@@ -1304,12 +1304,12 @@ function rapikanSimCore_(terapkan) {
     Object.keys(rombelExtra).forEach(function(id) {
       var adaMateri = (mapelPerRombelExtra[id] || []).some(function(x) { return x > 0; });
       var adaSiswa = (siswaPerRombel[id] || 0) > 0;
-      if (!adaMateri && !adaSiswa) { hapusRombel.push(rombelExtra[id].baris); laporan.push(['Kelas', id, rombelExtra[id].nama, 'Tidak ada di SIM SETARA', 0, 'Dihapus']); }
-      else { nonaktifRombel.push(rombelExtra[id].baris); laporan.push(['Kelas', id, rombelExtra[id].nama, 'Tidak ada di SIM SETARA', (adaSiswa ? siswaPerRombel[id] + ' siswa' : '') , 'Dinonaktifkan (ada data)']); }
+      if (!adaMateri && !adaSiswa) { hapusRombel.push(rombelExtra[id].baris); laporan.push(['Kelas', id, rombelExtra[id].nama, 'Tidak ada di Data Induk', 0, 'Dihapus']); }
+      else { nonaktifRombel.push(rombelExtra[id].baris); laporan.push(['Kelas', id, rombelExtra[id].nama, 'Tidak ada di Data Induk', (adaSiswa ? siswaPerRombel[id] + ' siswa' : '') , 'Dinonaktifkan (ada data)']); }
     });
 
     // pengguna tutor yang tidak ada di SIM SETARA
-    var simS = SpreadsheetApp.openById(SIMSETARA_ID), st = simS.getSheetByName('TUTOR');
+    var st = simTab_('TUTOR');
     var emailAktif = {};
     if (st && st.getLastRow() > 1) {
       var w = st.getDataRange().getValues();
@@ -1327,16 +1327,16 @@ function rapikanSimCore_(terapkan) {
       if (emP && emailAktif[emP]) continue;
       idTutorDibuang[sTeks_(vP[i][0]).trim()] = true;
       if ((String(vP[i][5]).trim() || 'Aktif') === 'Aktif') nonaktifTutor.push(i + 1);
-      laporan.push(['Tutor', sTeks_(vP[i][0]).trim(), sTeks_(vP[i][1]), emP ? 'Email tidak aktif di SIM SETARA' : 'Tidak punya email / tidak ada di SIM SETARA', '', 'Dinonaktifkan']);
+      laporan.push(['Tutor', sTeks_(vP[i][0]).trim(), sTeks_(vP[i][1]), emP ? 'Email tidak aktif di Data Induk' : 'Tidak punya email / tidak ada di Data Induk', '', 'Dinonaktifkan']);
     }
     var shE = getSheet(PERAN.SHEET_ENROLLMENT), vE = shE.getDataRange().getValues(), hapusEnroll = [];
     for (i = 1; i < vE.length; i++) { if (idTutorDibuang[sTeks_(vE[i][0]).trim()]) hapusEnroll.push(i + 1); }
-    if (hapusEnroll.length) laporan.push(['Penugasan', '', hapusEnroll.length + ' baris', 'Milik tutor yang tidak ada di SIM SETARA', '', 'Dihapus']);
+    if (hapusEnroll.length) laporan.push(['Penugasan', '', hapusEnroll.length + ' baris', 'Milik tutor yang tidak ada di Data Induk', '', 'Dihapus']);
 
     // laporan
     var nl = 'Audit SIM', sh = ss.getSheetByName(nl) || ss.insertSheet(nl);
     sh.clear();
-    var isi = [['Jenis', 'ID', 'Nama', 'Alasan', 'Materi/Data', 'Tindakan']].concat(laporan.length ? laporan : [['-', '', 'Semua sudah sesuai SIM SETARA', '', '', '']]);
+    var isi = [['Jenis', 'ID', 'Nama', 'Alasan', 'Materi/Data', 'Tindakan']].concat(laporan.length ? laporan : [['-', '', 'Semua sudah sesuai Data Induk', '', '', '']]);
     sh.getRange(1, 1, isi.length, 6).setNumberFormat('@').setValues(isi);
     sh.getRange(isi.length + 2, 1).setValue((terapkan ? 'DITERAPKAN ' : 'PRATINJAU (belum diubah) ') + waktuSekarang_());
 
@@ -1349,7 +1349,7 @@ function rapikanSimCore_(terapkan) {
       hapus(shE, hapusEnroll);
       hapus(shM, hapusMapel);
       hapus(shR, hapusRombel);
-      catat_('Sistem', '', 'Sistem', 'Rapikan sesuai SIM SETARA', hapusMapel.length + ' mapel dan ' + hapusRombel.length + ' kelas dihapus; ' + (nonaktifMapel.length + nonaktifRombel.length) + ' dinonaktifkan; ' + nonaktifTutor.length + ' tutor dinonaktifkan', 'OK');
+      catat_('Sistem', '', 'Sistem', 'Rapikan sesuai Data Induk', hapusMapel.length + ' mapel dan ' + hapusRombel.length + ' kelas dihapus; ' + (nonaktifMapel.length + nonaktifRombel.length) + ' dinonaktifkan; ' + nonaktifTutor.length + ' tutor dinonaktifkan', 'OK');
     }
     return { hapusMapel: hapusMapel.length, nonaktifMapel: nonaktifMapel.length, hapusRombel: hapusRombel.length, nonaktifRombel: nonaktifRombel.length, nonaktifTutor: nonaktifTutor.length, hapusEnroll: hapusEnroll.length };
   } finally {

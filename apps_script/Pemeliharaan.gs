@@ -11,7 +11,7 @@ var PML = {
   MAKS_GALAT: 3000,
   MAKS_LAPOR_PER_MENIT: 30,
   SHEET_AUDIT: 'Audit Data',
-  HDR_AUDIT: ['Diperiksa Pada', 'Jenis Masalah', 'Nama', 'NISN', 'ID WB', 'Rombel E-Learning', 'Rombel SIM SETARA', 'Keterangan'],
+  HDR_AUDIT: ['Diperiksa Pada', 'Jenis Masalah', 'Nama', 'NISN', 'ID WB', 'Rombel E-Learning', 'Rombel Data Induk', 'Keterangan'],
   PEMICU: 'pemicuCekDataHarian',
   JAM_PEMICU: 1
 };
@@ -159,12 +159,12 @@ function pmlCekData_() {
       var sama = perNama[normNama_(nama)] || [];
       if (sama.length === 1) cocok = sama[0];
     }
-    if (!cocok) { tambah('Tidak ditemukan di SIM SETARA', nama, nisn, '', rbEl, '', nisn ? 'NISN tidak ada di WARGA BELAJAR aktif.' : 'NISN kosong dan nama tidak cocok tepat satu.'); return; }
+    if (!cocok) { tambah('Tidak ditemukan di Data Induk', nama, nisn, '', rbEl, '', nisn ? 'NISN tidak ada di WARGA BELAJAR aktif.' : 'NISN kosong dan nama tidak cocok tepat satu.'); return; }
     var rbSim = simRb[cocok.rombel] || cocok.rombel;
     if (pmlNormRombel_(rbEl) && pmlNormRombel_(rbSim) && pmlNormRombel_(rbEl) !== pmlNormRombel_(rbSim)) {
-      tambah('Rombel berbeda', nama, nisn || cocok.nisn, cocok.id, rbEl, rbSim, 'Absensi mengikuti SIM SETARA.');
+      tambah('Rombel berbeda', nama, nisn || cocok.nisn, cocok.id, rbEl, rbSim, 'Absensi mengikuti Data Induk.');
     }
-    if (!nisn && cocok.nisn) tambah('NISN kosong di e-learning', nama, cocok.nisn, cocok.id, rbEl, rbSim, 'NISN ada di SIM SETARA.');
+    if (!nisn && cocok.nisn) tambah('NISN kosong di e-learning', nama, cocok.nisn, cocok.id, rbEl, rbSim, 'NISN ada di Data Induk.');
   });
   return masalah;
 }

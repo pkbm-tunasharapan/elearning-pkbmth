@@ -678,7 +678,7 @@ class _AturanHonorScreenState extends State<AturanHonorScreen> {
           onSelectionChanged: ro ? null : (s) => setState(() => _satuan = s.first),
         ),
         const SizedBox(height: 12),
-        TextField(controller: _tarif, enabled: !ro, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Tarif (Rp)', helperText: 'Kosongkan untuk mengikuti SIM SETARA (${rp(a['tarifSim'])})')),
+        TextField(controller: _tarif, enabled: !ro, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Tarif (Rp)', helperText: 'Kosongkan untuk mengikuti Pengaturan Lembaga (${rp(a['tarifSim'])})')),
         const SizedBox(height: 12),
         Text('Tarif khusus per program (opsional, kosong = tarif di atas)', style: TextStyle(color: cs.onSurfaceVariant)),
         const SizedBox(height: 6),

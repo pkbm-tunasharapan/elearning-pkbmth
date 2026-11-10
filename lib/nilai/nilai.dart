@@ -427,7 +427,31 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<String, dynamic>> wbs, String namaBerkas) async {
   final o = await opsiCetakRapor(context, d);
   if (o == null || !context.mounted) return;
-  await htmlKePdf(context, nama: namaBerkas, args: [_t, raporHtml(d, wbs, opsi: o)]);
+  var data = d;
+  var siswa = wbs;
+  final per = peta(d['periode']);
+  // semester lain dipilih di dialog: ambil leger periode itu dulu
+  if (o.tahun.isNotEmpty && (o.tahun != teks(per['tahun']) || o.semester != teks(per['semester']))) {
+    final idRombel = teks(peta(d['rombel'])['id']);
+    final h = await jalankan<Map<String, dynamic>>(context, () async {
+      final x = peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel, 'tahun': o.tahun, 'semester': o.semester}], const Duration(minutes: 3)));
+      if (o.semester == 'Genap') {
+        try {
+          x['kenaikan'] = peta(await Api.instance('waStafKenaikanDaftar', [_t, {'idRombel': idRombel, 'tahun': o.tahun}]));
+        } catch (_) {}
+      }
+      return x;
+    }, teksProses: 'Memuat nilai Semester ${o.semester} ${o.tahun}...');
+    if (!h.ok || h.data == null || !context.mounted) return;
+    data = h.data!;
+    final ids = wbs.map((w) => teks(w['idWb'])).toSet();
+    siswa = daftar(data['wb']).map(peta).where((w) => ids.contains(teks(w['idWb']))).toList();
+    if (siswa.isEmpty) {
+      kabar(context, 'Data warga belajar ini tidak ditemukan pada Semester ${o.semester} ${o.tahun}.', galat: true);
+      return;
+    }
+  }
+  await htmlKePdf(context, nama: namaBerkas, args: [_t, raporHtml(data, siswa, opsi: o)]);
 }
 
 /// Pilihan cetak untuk satu warga belajar: rapor nilai atau cover & biodata.

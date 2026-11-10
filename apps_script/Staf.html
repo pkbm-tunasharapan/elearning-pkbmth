@@ -638,7 +638,7 @@ html,body{background:linear-gradient(135deg,#2a2a72 0%,#0b78d1 100%) fixed!impor
       <input type="password" id="inKode" placeholder="Kode akses dari admin" autocomplete="off">
       <button class="btn blok" id="btnMasuk">Masuk</button>
     <a class="btn blok abu" id="btnGoogle" href="#" target="_top" style="display:none;text-align:center;text-decoration:none;margin-top:10px">Masuk dengan Google</a>
-    <p class="kecil-teks" style="margin:8px 0 0">Tutor, kepala sekolah, dan admin yang sudah terdaftar di SIM SETARA bisa masuk dengan akun Google, tanpa kode akses.</p>
+    <p class="kecil-teks" style="margin:8px 0 0">Tutor, kepala sekolah, dan admin yang sudah terdaftar di Data Induk bisa masuk dengan akun Google, tanpa kode akses.</p>
       <p class="kecil-teks" style="margin:12px 0 0">Halaman ini untuk tutor dan admin. Siswa masuk lewat <a id="linkSiswa" href="#">halaman siswa</a>.</p>
     </div>
   </div>
@@ -677,7 +677,7 @@ html,body{background:linear-gradient(135deg,#2a2a72 0%,#0b78d1 100%) fixed!impor
       <div class="card">
         <div class="baris" style="padding-top:0">
           <div><b>Mata Pelajaran</b><div class="kecil-teks">Setiap mapel milik satu kelas. Setelah dibuat, enroll-kan ke tutor lewat tab Kelola Tutor.</div></div>
-          <div class="aksi"><button class="btn kecil" id="btnSinkronSemua">🔄 Sinkron dengan SIM SETARA</button><button class="btn kecil abu" id="btnImporMaster">⬇ Tarik Kelas &amp; Mapel dari SIM SETARA</button><button class="btn kecil" id="btnTambahMapel">+ Tambah Mapel</button></div>
+          <div class="aksi"><button class="btn kecil" id="btnSinkronSemua">🔄 Sinkron Data Induk</button><button class="btn kecil abu" id="btnImporMaster">⬇ Tarik Kelas &amp; Mapel dari Data Induk</button><button class="btn kecil" id="btnTambahMapel">+ Tambah Mapel</button></div>
         </div>
         <div id="daftarMapelAdmin"><div class="muat">Memuat...</div></div>
       </div>
@@ -1456,8 +1456,8 @@ function renderDaftar() {
   var box = $('daftarKodeKelas');
   kosongkan(box);
   var d = S.pendaftaran;
-  var bImp = h('button', 'btn kecil', 'Tarik siswa dari SIM SETARA'); bImp.style.marginBottom = '10px'; bImp.onclick = bukaImporSiswa; box.appendChild(bImp);
-  if (!d.rombel.length) { box.appendChild(h('div', 'pesan info', 'Belum ada kelas aktif. Tarik kelas dari SIM SETARA di tab Kelola Mata Pelajaran, atau isi sheet Rombel.')); box.lastChild.style.display = 'block'; return; }
+  var bImp = h('button', 'btn kecil', 'Tarik siswa dari Data Induk'); bImp.style.marginBottom = '10px'; bImp.onclick = bukaImporSiswa; box.appendChild(bImp);
+  if (!d.rombel.length) { box.appendChild(h('div', 'pesan info', 'Belum ada kelas aktif. Tarik kelas dari Data Induk di tab Kelola Mata Pelajaran, atau isi sheet Rombel.')); box.lastChild.style.display = 'block'; return; }
   d.rombel.slice().sort(function(a, b) { return a.nama.localeCompare(b.nama, undefined, { numeric: true }); }).forEach(function(r) {
     var baris = h('div', 'baris');
     var kiri = h('div');
@@ -1514,18 +1514,18 @@ function renderLog() {
 // ---------- impor siswa dari SIM SETARA (admin) ----------
 function bukaImporSiswa() {
   var w = h('div');
-  w.appendChild(h('h3', null, 'Tarik Siswa dari SIM SETARA'));
-  var isi = h('div', 'muat', 'Membaca data warga belajar SIM SETARA...');
+  w.appendChild(h('h3', null, 'Tarik Siswa dari Data Induk'));
+  var isi = h('div', 'muat', 'Membaca data warga belajar Data Induk...');
   w.appendChild(isi);
   bukaModal(w);
   panggil('waAdminSiswaPratinjau', [S.token], function (p) {
     kosongkan(isi); isi.className = '';
-    isi.appendChild(h('div', 'kecil-teks', 'Warga belajar di SIM SETARA: ' + p.totalSim + '. Yang sudah ada di daftar Belajar Mandiri dilewati, data yang sudah ada tidak diubah.'));
+    isi.appendChild(h('div', 'kecil-teks', 'Warga belajar di Data Induk: ' + p.totalSim + '. Yang sudah ada di daftar Belajar Mandiri dilewati, data yang sudah ada tidak diubah.'));
     isi.appendChild(h('div', 'sesi-judul', 'Siswa baru yang akan ditambahkan: ' + p.baru));
     if (p.contoh.length) isi.appendChild(h('div', 'kecil-teks', 'Contoh: ' + p.contoh.join('; ')));
     isi.appendChild(h('div', 'kecil-teks', 'Sudah ada di daftar: ' + p.ada + ' \u00b7 Tanggal lahir kosong/tidak valid (dilewati): ' + p.tanpaData));
     var tk = Object.keys(p.takCocok || {});
-    if (tk.length) isi.appendChild(h('div', 'kecil-teks', 'Rombel SIM SETARA yang belum cocok dengan kelas aktif di sini (siswanya dilewati): ' + tk.map(function (k) { return k + ' (' + p.takCocok[k] + ')'; }).join(', ')));
+    if (tk.length) isi.appendChild(h('div', 'kecil-teks', 'Rombel Data Induk yang belum cocok dengan kelas aktif di sini (siswanya dilewati): ' + tk.map(function (k) { return k + ' (' + p.takCocok[k] + ')'; }).join(', ')));
     var aksi = h('div', 'aksi'); aksi.style.marginTop = '14px';
     var ok = h('button', 'btn', 'Tambahkan Sekarang');
     ok.disabled = !p.baru;
@@ -1547,13 +1547,13 @@ function bukaImporSiswa() {
 // ---------- impor kelas & mapel dari SIM SETARA (admin) ----------
 function bukaImpor() {
   var w = h('div');
-  w.appendChild(h('h3', null, 'Tarik Kelas & Mapel dari SIM SETARA'));
-  var isi = h('div', 'muat', 'Membaca data SIM SETARA...');
+  w.appendChild(h('h3', null, 'Tarik Kelas & Mapel dari Data Induk'));
+  var isi = h('div', 'muat', 'Membaca Data Induk...');
   w.appendChild(isi);
   bukaModal(w);
   panggil('waAdminImporPratinjau', [S.token], function(p) {
     kosongkan(isi); isi.className = '';
-    isi.appendChild(h('div', 'kecil-teks', 'SIM SETARA berisi ' + p.totalKelasMaster + ' kelas aktif. Yang sudah ada di sini dilewati (tidak diubah, tidak digandakan). Data siswa, tutor, materi, dan ujian tidak disentuh.'));
+    isi.appendChild(h('div', 'kecil-teks', 'Data Induk berisi ' + p.totalKelasMaster + ' kelas aktif. Yang sudah ada di sini dilewati (tidak diubah, tidak digandakan). Data siswa, tutor, materi, dan ujian tidak disentuh.'));
     isi.appendChild(h('div', 'sesi-judul', 'Kelas baru: ' + p.kelasBaru.length));
     isi.appendChild(h('div', 'kecil-teks', p.kelasBaru.length ? p.kelasBaru.join(', ') : 'tidak ada'));
     isi.appendChild(h('div', 'sesi-judul', 'Kelas yang sudah ada: ' + p.kelasAda.length));
@@ -1591,12 +1591,12 @@ $('tabMapel').onclick = function() { tampilTabAdmin('mapel'); };
 $('btnTambahMapel').onclick = function() { bukaFormMapel(null); };
 $('btnImporMaster').onclick = bukaImpor;
 $('btnSinkronSemua').onclick = function() {
-  var b = $('btnSinkronSemua'), teksAwal = '🔄 Sinkron dengan SIM SETARA';
+  var b = $('btnSinkronSemua'), teksAwal = '🔄 Sinkron Data Induk';
   b.disabled = true; b.textContent = 'Menyinkronkan...';
   panggil('waAdminSinkronSekarang', [S.token], function(r) {
     b.disabled = false; b.textContent = teksAwal;
     var p = (r && r.perubahan) || [];
-    pesan(p.length ? 'Sinkron selesai: ' + p.join(', ') + '.' : 'Sinkron selesai. Semua sudah sesuai SIM SETARA.', 'ok');
+    pesan(p.length ? 'Sinkron selesai: ' + p.join(', ') + '.' : 'Sinkron selesai. Semua sudah sesuai Data Induk.', 'ok');
     muatMapelAdmin(); segarkanProfilMapel();
   }, function(msg) {
     b.disabled = false; b.textContent = teksAwal;
@@ -3240,7 +3240,7 @@ function gambarTahunBaru_(isi, r) {
   kosongkan(isi);
   var gar = '1px solid rgba(148,163,184,.35)';
   var info = h('div', 'kecil-teks');
-  info.appendChild(h('div', null, 'Tahun ajaran berjalan: ' + r.labelLama + ' (mulai ' + r.mulaiLama + '). Sebelum lanjut, pastikan nilai akhir sudah masuk ke SIM SETARA.'));
+  info.appendChild(h('div', null, 'Tahun ajaran berjalan: ' + r.labelLama + ' (mulai ' + r.mulaiLama + '). Sebelum lanjut, pastikan nilai akhir sudah lengkap di menu Nilai & Rapor.'));
   info.appendChild(h('div', null, 'Yang akan dilakukan, berurutan: (1) salinan seluruh spreadsheet dibuat di Google Drive, (2) jawaban, nilai ujian, chat, dan jadwal tahun lama dipindah ke sheet Arsip, (3) siswa dinaikkan atau diluluskan, (4) semua materi dan diskusi dikembalikan ke Draft, (5) tahun ajaran baru diatur. Tidak ada data yang dihapus permanen.'));
   isi.appendChild(info);
 
@@ -3412,7 +3412,7 @@ tampilTabAdmin = function(nama) {
 };
 </script>
 
-<script>// ---------- tab Kurikulum: rencana sesi per mapel dari PDF (meniru JSON kurikulum SIM SETARA) ----------
+<script>// ---------- tab Kurikulum: rencana sesi per mapel dari PDF (meniru JSON kurikulum Data Induk) ----------
 // Dimuat SETELAH skrip lain di halaman staf. Tab disisipkan lewat pembungkus renderKepala/muatTab (tanpa mengubah kode lama).
 var TAB_KUR = 'kurikulum';
 S.kurRef = null;
@@ -3566,8 +3566,8 @@ function renderKur_(d) {
   area.appendChild(card);
   card.appendChild(h('b', null, 'Rencana Kurikulum per Sesi'));
   var ket = h('div', 'kecil-teks');
-  ket.textContent = 'Susun sekali dari buku siswa (PDF): tiap sesi mendapat judul, narasi pengantar, rujukan halaman, tujuan pembelajaran, bacaan lengkap khusus sesi itu, pertanyaan diskusi, dan bank soal ujian, ' +
-    'persis seperti SIM SETARA.  Satu semester berisi ' + d.jumlahMinggu + ' sesi materi (Sesi ' + d.uts + ' = UTS dan Sesi ' + d.uas + ' = UAS tidak berisi materi). ' +
+  ket.textContent = 'Susun sekali dari buku siswa (PDF): tiap sesi mendapat judul, narasi pengantar, rujukan halaman, tujuan pembelajaran, bacaan lengkap khusus sesi itu, pertanyaan diskusi, dan bank soal ujian.' +
+    '  Satu semester berisi ' + d.jumlahMinggu + ' sesi materi (Sesi ' + d.uts + ' = UTS dan Sesi ' + d.uas + ' = UAS tidak berisi materi). ' +
     'Hasilnya bisa Anda ubah, lalu dijadikan Draft Materi dan Diskusi untuk diperiksa sebelum di-Post. Bank soal tiap sesi dipakai untuk UTS dan UAS: setiap siswa mendapat soal acak dari bank ini, dan jadwalnya diatur di tab Jadwal Ujian.';
   card.appendChild(ket);
   if (!d.siapAi) {
@@ -9541,7 +9541,7 @@ function bmKembaliKeApp_(tiket) {
     var k1 = h('div', 'card');
     var b1 = h('div', 'baris'); b1.style.paddingTop = '0';
     var j1 = h('div'); j1.appendChild(h('b', null, '🔄 Sinkron Siswa: MENU ⇄ Belajar Mandiri'));
-    j1.appendChild(h('div', 'kecil-teks', 'Kedua data saling dicek dan saling melengkapi kolom yang masih kosong. Data yang sudah terisi TIDAK ditimpa; bila isinya berbeda, masuk daftar "Perlu dicek". Sinkron otomatis juga berjalan bersama sinkron SIM SETARA tiap 15 menit.'));
+    j1.appendChild(h('div', 'kecil-teks', 'Kedua data saling dicek dan saling melengkapi kolom yang masih kosong. Data yang sudah terisi TIDAK ditimpa; bila isinya berbeda, masuk daftar "Perlu dicek". Sinkron otomatis juga berjalan bersama sinkron Data Induk tiap 15 menit.'));
     b1.appendChild(j1);
     var a1 = h('div', 'aksi');
     a1.appendChild(tombol('Cek perbedaan', 'abu', gdPratinjau_));

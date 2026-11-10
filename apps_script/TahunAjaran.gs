@@ -234,7 +234,8 @@ function taAdaBuka_(idMapel, nama, namaSesi, nowMs) {
     var b = daftar[i];
     if (b.idMapel === String(idMapel) && normNama_(b.nama) === kunciNama && b.sesi === namaSesi && !b.dicabut && b.berlakuMs > nowMs) return b;
   }
-  return null;
+  // v1.37: masa susulan massal dari admin (SusulanMassal.gs)
+  try { return ssmBuka_(idMapel, namaSesi, nowMs); } catch (e) { return null; }
 }
 
 // { "Semester 1 - Sesi 3": true, ... } untuk siswa ini pada mapel ini (dipakai klien untuk membuka kunci tampilan).
@@ -246,6 +247,7 @@ function taDibukaUntuk_(idMapel, nama) {
       if (b.idMapel === String(idMapel) && normNama_(b.nama) === kunciNama && !b.dicabut && b.berlakuMs > now) out[b.sesi] = true;
     });
   } catch (e) {}
+  try { ssmTandaiDibuka_(idMapel, out, new Date().getTime()); } catch (e2) {}
   return out;
 }
 

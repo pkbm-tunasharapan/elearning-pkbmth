@@ -185,7 +185,7 @@ class _KesehatanDataState extends State<_KesehatanData> {
             child: ListTile(
               leading: const Icon(Icons.health_and_safety_rounded),
               title: Text(ringkas.isEmpty ? 'Belum pernah diperiksa' : '${angka(ringkas['total'])} masalah data', style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(ringkas.isEmpty ? 'Membandingkan sheet Siswa e-learning dengan WARGA BELAJAR di SIM SETARA.' : 'Pemeriksaan terakhir ${teks(ringkas['waktu'])}'),
+              subtitle: Text(ringkas.isEmpty ? 'Membandingkan sheet Siswa e-learning dengan WARGA BELAJAR di Data Induk.' : 'Pemeriksaan terakhir ${teks(ringkas['waktu'])}'),
             ),
           ),
           FilledButton.icon(onPressed: _jalankan, icon: const Icon(Icons.play_arrow_rounded), label: const Text('Periksa sekarang')),
