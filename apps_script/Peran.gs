@@ -482,7 +482,7 @@ function waAdminSimpanPengguna(token, data) {
   var status = data.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif';
   if (!nama) throw new Error('Nama wajib diisi.');
   if (!peran) throw new Error('Peran harus Admin, Superadmin, Tutor, Kepala Sekolah, Koordinator Kurikulum, Front Office, atau Bendahara.');
-  var kunci = LockService.getScriptLock();
+  var kunci = LockService.getScriptLock(), idBaru = '';
   kunci.waitLock(15000);
   try {
     var daftar = bacaPengguna_();
@@ -512,13 +512,16 @@ function waAdminSimpanPengguna(token, data) {
       else segarkanNamaEnrollment_(ada.id, nama);
     } else {
       var baris = sheet.getLastRow() + 1;
+      idBaru = buatIdPengguna_();
       sheet.getRange(baris, 1, 1, 7).setNumberFormat('@');
-      sheet.getRange(baris, 1, 1, 7).setValues([[buatIdPengguna_(), nama, peran, buatKodeStaf_(), String(data.hp || ''), status, waktuSekarang_()]]);
+      sheet.getRange(baris, 1, 1, 7).setValues([[idBaru, nama, peran, buatKodeStaf_(), String(data.hp || ''), status, waktuSekarang_()]]);
     }
   } finally {
     kunci.releaseLock();
   }
   catat_('Admin', me.id, me.nama, data.id ? 'Ubah pengguna' : 'Tambah pengguna', nama + ' (' + peran + ', ' + status + ')', 'OK');
+  // v1.38.5: tutor yang dibuat/diubah di e-learning langsung tercatat di Data Induk (IndukTutor.gs)
+  if (peran === 'Tutor') indukSelarasTutor_(data.id || idBaru);
   return true;
 }
 
@@ -656,6 +659,7 @@ function waAdminSetEnrollment(token, idPengguna, daftarIdMapel) {
     kunci.releaseLock();
   }
   catat_('Admin', adm.id, adm.nama, 'Atur enrollment tutor', namaTutorLog + ': ' + jumlahLog + ' mapel', 'OK');
+  indukSelarasTutor_(idPengguna);   // v1.38.5: penugasan ikut tercatat di Data Induk (ENROLL MAPEL)
   return true;
 }
 
@@ -1113,7 +1117,17 @@ function sinkronTutorSemua_() {
   var w = st.getDataRange().getValues();
   var tI = ssoIndeks_(w[0], 'ID TUTOR'), tE = ssoIndeks_(w[0], 'EMAIL'), tA = ssoIndeks_(w[0], 'AKTIF');
   if (tI < 0 || tE < 0) return out;
+  // v1.38.5: catat dulu ke Data Induk tutor & penugasan yang terlanjur dibuat langsung di e-learning (sekali jalan)
+  try { indukSelarasSemuaSekali_(); w = st.getDataRange().getValues(); } catch (eSekali) {}
   var tutor = {}, emailAktif = {}, emailAda = {}, j;
+  // v1.38.5: tutor aktif juga dikenali lewat nomor HP / nama (bukan hanya email)
+  var tH = ssoIndeks_(w[0], 'NO HP'), tN = ssoIndeks_(w[0], 'NAMA TUTOR'), hpAktif = {}, namaAktif = {};
+  var normHp = function(x) { return String(x || '').replace(/\D/g, '').replace(/^62/, '0'); };
+  for (j = 1; j < w.length; j++) {
+    if (tA >= 0 && !ssoAktif_(w[j][tA])) continue;
+    if (tH >= 0 && normHp(w[j][tH]).length >= 9) hpAktif[normHp(w[j][tH])] = true;
+    if (tN >= 0 && String(w[j][tN]).trim()) namaAktif[normNama_(w[j][tN])] = true;
+  }
   for (j = 1; j < w.length; j++) {
     var em = String(w[j][tE]).trim().toLowerCase();
     var idT = String(w[j][tI]).trim();
@@ -1158,8 +1172,11 @@ function sinkronTutorSemua_() {
     if (!String(vp[j][1]).trim() || !prP || prP === 'Admin' || prP === 'Superadmin' || prP === 'Front Office' || prP === 'Bendahara') continue;
     var emP = String(vp[j][4]).trim().toLowerCase();
     var idP = sTeks_(vp[j][0]).trim();
-    var sahP = !!emP && (emailAktif[emP] || ada_(emP));
-    kelolaId[idP] = true;
+    var sahEmail = !!emP && (emailAktif[emP] || ada_(emP));
+    // tertaut lewat HP/nama di Data Induk: tetap aktif, tetapi enrollment-nya tidak dikelola sinkron (tidak dihapus)
+    var sahLain = !sahEmail && ((emP.indexOf('@') < 0 && hpAktif[normHp(emP)]) || namaAktif[normNama_(vp[j][1])]);
+    var sahP = sahEmail || !!sahLain;
+    if (sahEmail || !sahLain) kelolaId[idP] = true;
     var stP = String(vp[j][5]).trim() || 'Aktif';
     if (sahP && stP !== 'Aktif') { shP.getRange(j + 1, 6).setValue('Aktif'); out.aktif++; }
     if (!sahP && stP === 'Aktif') { shP.getRange(j + 1, 6).setValue('Nonaktif'); out.nonaktif++; }

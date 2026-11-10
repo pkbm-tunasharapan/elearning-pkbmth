@@ -1687,6 +1687,7 @@ function waDaftarTutorVerifikasi(sesi, kodeOtp) {
     var b = sp.getLastRow() + 1;
     sp.getRange(b, 1, 1, 7).setNumberFormat('@');
     sp.getRange(b, 1, 1, 7).setValues([[idPengguna, o.d.nama, 'Tutor', kode, o.d.email, 'Aktif', waktu]]);
+    try { indukSelarasTutor_(idPengguna); } catch (eInduk) {}   // v1.38.5: tutor baru langsung tercatat di Data Induk
     var baris = [];
     o.d.mapel.forEach(function(id) {
       var m = peta[id];
@@ -1786,6 +1787,7 @@ function dtTambahEnrollment_(tutor, daftarIdMapel, peta) {
     sheet.getRange(awal, 1, baris.length, 6).setValues(baris);
   }
   segarkanKolomTutorMapel_(daftarIdMapel);
+  indukSelarasTutor_(tutor.id);   // v1.38.5: tutor & penugasan yang disetujui tercatat di Data Induk
   return baru.length;
 }
 

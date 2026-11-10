@@ -169,5 +169,44 @@ tes('rlsCatatGalat_: galat jaringan diabaikan, galat aplikasi dihitung', () => {
   sama(props.getProperty('RILIS_UJI_GALAT'), '1');
 });
 
+// 7. tulis-tembus tutor e-learning -> Data Induk (kasus tutor baru seperti Ikman)
+function tabelTiruan(baris) {
+  const v = baris.map((r) => r.slice());
+  const h = {}; v[0].forEach((x, i) => { h[String(x).trim().toUpperCase()] = i; });
+  const sh = {
+    getLastRow: () => v.length,
+    getRange: (r, c, n, m) => ({
+      setValue: (x) => { while (v.length < r) v.push(new Array(v[0].length).fill('')); v[r - 1][c - 1] = x; },
+      setValues: (xs) => { xs.forEach((row, i) => { v[r - 1 + i] = row.slice(); }); },
+      setNumberFormat() { return this; },
+    }),
+  };
+  return { sh, v, h };
+}
+tes('itSelarasEnroll_: isi kosong, tambah baru, lepas yang dicabut, jangan timpa tutor lain', () => {
+  const en = tabelTiruan([
+    ['ID ENROLL', 'ROMBEL', 'MAPEL', 'TUTOR', 'AKTIF', 'DICATAT PADA', 'STATUS', 'DIAJUKAN OLEH'],
+    ['E1', 'R1', 'MTK', '', true, '', 'Disetujui', ''],          // diampu di e-learning, tutor kosong -> diisi
+    ['E2', 'R1', 'GEO', 'TT-IKMAN', true, '', 'Disetujui', ''],  // tidak lagi diampu -> dilepas
+    ['E3', 'R3', 'MTK', 'TT-LAIN', true, '', 'Disetujui', ''],   // diampu, tetapi milik tutor lain -> bentrok, tidak ditimpa
+  ]);
+  g.absBaca_ = (nama) => { if (nama === 'ENROLL MAPEL') return en; throw new Error('tab ' + nama); };
+  g.nilPetaBm_ = () => ({ kelas: { 'R1|MTK': [{ idMapel: 'MP1' }], 'R1|GEO': [{ idMapel: 'MP2' }], 'R2|MTK': [{ idMapel: 'MP3' }], 'R3|MTK': [{ idMapel: 'MP4' }] } });
+  g.bacaEnrollment_ = () => [{ idPengguna: 'U1', idMapel: 'MP1' }, { idPengguna: 'U1', idMapel: 'MP3' }, { idPengguna: 'U1', idMapel: 'MP4' }, { idPengguna: 'U2', idMapel: 'MP2' }];
+  const h = g.itSelarasEnroll_({ id: 'U1', nama: 'Ikman', peran: 'Tutor', status: 'Aktif' }, 'TT-IKMAN');
+  sama([h.isi, h.lepas, h.tambah, h.bentrok.length], [1, 1, 1, 1], 'ringkasan');
+  sama(en.v[1][3], 'TT-IKMAN', 'E1 diisi');
+  sama(en.v[2][3], '', 'E2 dilepas');
+  sama(en.v[3][3], 'TT-LAIN', 'E3 tidak ditimpa');
+  const baru = en.v[4];
+  sama([baru[1], baru[2], baru[3], baru[6]], ['R2', 'MTK', 'TT-IKMAN', 'Disetujui'], 'baris baru R2|MTK');
+});
+tes('itSelarasEnroll_: tutor nonaktif -> semua penugasannya dilepas', () => {
+  const en = tabelTiruan([['ID ENROLL', 'ROMBEL', 'MAPEL', 'TUTOR', 'AKTIF', 'DICATAT PADA', 'STATUS', 'DIAJUKAN OLEH'], ['E1', 'R1', 'MTK', 'TT-X', true, '', 'Disetujui', '']]);
+  g.absBaca_ = () => en;
+  const h = g.itSelarasEnroll_({ id: 'U1', nama: 'X', peran: 'Tutor', status: 'Nonaktif' }, 'TT-X');
+  sama([h.lepas, en.v[1][3]], [1, '']);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
