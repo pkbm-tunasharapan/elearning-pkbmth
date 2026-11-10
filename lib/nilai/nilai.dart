@@ -11,6 +11,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'cover_rapor.dart';
+import 'opsi_rapor.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -61,13 +62,15 @@ class NilaiRaporScreen extends StatefulWidget {
   State<NilaiRaporScreen> createState() => _NilaiRaporScreenState();
 }
 
-/// Daftar semester untuk dipilih: semester berjalan lalu 3 semester sebelumnya.
+/// Daftar semester untuk dipilih: semester berjalan lalu seluruh semester
+/// 2 tahun ajaran sebelumnya (Ganjil berjalan → 5 pilihan, Genap berjalan → 6 pilihan).
 List<Map<String, String>> daftarSemester(Map<String, dynamic> kini) {
   final m = RegExp(r'(\d{4})\s*/\s*(\d{4})').firstMatch(teks(kini['tahun']));
   var y1 = m == null ? DateTime.now().year : int.parse(m.group(1)!);
   var genap = teks(kini['semester']) == 'Genap';
+  final jumlah = genap ? 6 : 5;
   final out = <Map<String, String>>[];
-  for (var i = 0; i < 4; i++) {
+  for (var i = 0; i < jumlah; i++) {
     out.add({'tahun': '$y1/${y1 + 1}', 'semester': genap ? 'Genap' : 'Ganjil'});
     if (genap) {
       genap = false;
@@ -420,6 +423,13 @@ class _InputNilaiScreenState extends State<InputNilaiScreen> {
 
 // ───────────────────────── leger & rapor ─────────────────────────
 
+/// Cetak rapor: tanya dulu kepala sekolah penanda tangan & tanggal rapor, lalu buat PDF.
+Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<String, dynamic>> wbs, String namaBerkas) async {
+  final o = await opsiCetakRapor(context, d);
+  if (o == null || !context.mounted) return;
+  await htmlKePdf(context, nama: namaBerkas, args: [_t, raporHtml(d, wbs, opsi: o)]);
+}
+
 /// Pilihan cetak untuk satu warga belajar: rapor nilai atau cover & biodata.
 Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRombel, Map<String, dynamic> d, Map<String, dynamic> w) async {
   if (!bolehUnduh) return;
@@ -438,7 +448,7 @@ Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRom
   );
   if (p == null || !context.mounted) return;
   if (p == 'rapor') {
-    await htmlKePdf(context, nama: 'Rapor_$nm.pdf', args: [_t, raporHtml(d, [w])]);
+    await _cetakRapor(context, d, [w], 'Rapor_$nm.pdf');
   } else {
     await cetakCoverBiodata(context, idRombel: idRombel, namaRombel: namaRombel, idWb: teks(w['idWb']), nisn: teks(w['nisn']), namaWb: nm);
   }
@@ -478,7 +488,7 @@ class RaporRombelScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 6, children: [
               if (bolehUnduh) ...[
-              FilledButton.icon(onPressed: () => htmlKePdf(context, nama: 'Rapor_${nama}_${tanggalBerkas()}.pdf', args: [_t, raporHtml(d, wb)]), icon: const Icon(Icons.print_rounded), label: const Text('Cetak rapor semua')),
+              FilledButton.icon(onPressed: () => _cetakRapor(context, d, wb, 'Rapor_${nama}_${tanggalBerkas()}.pdf'), icon: const Icon(Icons.print_rounded), label: const Text('Cetak rapor semua')),
               FilledButton.tonalIcon(onPressed: () => htmlKePdf(context, nama: 'Rekap_Nilai_${nama}_${tanggalBerkas()}.pdf', args: [_t, legerHtml(d)]), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Rekap PDF')),
               FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Rekap_Nilai_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Rekap Excel')),
               FilledButton.tonalIcon(onPressed: () => cetakCoverBiodata(context, idRombel: idRombel, namaRombel: nama), icon: const Icon(Icons.badge_outlined), label: const Text('Cover & biodata')),
@@ -610,7 +620,8 @@ String _deskripsi(String nama, String p) => switch (p) {
     };
 
 /// Rapor (satu halaman per WB) dari data leger.
-String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs) {
+/// [opsi]: kepala sekolah penanda tangan & tanggal rapor (untuk rapor periode lalu); null = data saat ini.
+String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs, {OpsiRapor? opsi}) {
   final mapel = daftar(d['mapel']).map(peta).toList();
   final rb = peta(d['rombel']);
   final per = peta(d['periode']);
@@ -618,6 +629,9 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs) {
   final at = peta(d['aturan']);
   final kota = _kotaDari(teks(l['alamat']));
   final kn = teks(per['semester']) == 'Genap' ? peta(d['kenaikan']) : <String, dynamic>{};
+  final kepala = opsi != null && opsi.kepala.trim().isNotEmpty ? opsi.kepala.trim() : teks(l['kepala']);
+  final nipKepala = opsi?.nip.trim() ?? '';
+  final tglTtd = opsi != null && opsi.tanggal.isNotEmpty ? opsi.tanggal : tanggalIni();
   final b = StringBuffer();
   for (final w in wbs) {
     final h = peta(w['kehadiran']);
@@ -638,8 +652,9 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs) {
         '<tr><td>Izin</td><td class="c">${angka(h['Izin'])} hari</td></tr><tr><td>Tanpa keterangan</td><td class="c">${angka(h['Alpa'])} hari</td></tr></table>');
     if (kn.isNotEmpty) b.write(_kotakKeputusan(peta(kn['info']), teks(peta(kn['keputusan'])[teks(w['idWb'])])));
     b.write('<table class="ttd"><tr><td>Orang Tua/Wali<br><br><br><br><br>(..............................)</td>'
-        '<td>${escHtml(kota)}${kota.isEmpty ? '' : ', '}${tanggalIni()}<br>Wali Kelas<br><br><br><br><b><u>${escHtml(teks(peta(d['wali'])['nama'], '..............................'))}</u></b></td></tr>'
-        '<tr><td colspan="2" style="padding-top:14px">Mengetahui,<br>Kepala ${escHtml(teks(l['nama'], 'PKBM'))}<br><br><br><br><b><u>${escHtml(teks(l['kepala']))}</u></b></td></tr></table></div>');
+        '<td>${escHtml(kota)}${kota.isEmpty ? '' : ', '}${escHtml(tglTtd)}<br>Wali Kelas<br><br><br><br><b><u>${escHtml(teks(peta(d['wali'])['nama'], '..............................'))}</u></b></td></tr>'
+        '<tr><td colspan="2" style="padding-top:14px">Mengetahui,<br>Kepala ${escHtml(teks(l['nama'], 'PKBM'))}<br><br><br><br><b><u>${escHtml(kepala)}</u></b>'
+        '${nipKepala.isEmpty ? '' : '<br>NIP. ${escHtml(nipKepala)}'}</td></tr></table></div>');
   }
   return dokumenA4(b.toString(), _cssDok);
 }

@@ -76,6 +76,9 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
   }
 
   Future<void> _pindai() async {
+    // Log di layar pemindai hanya menampilkan pindaian sejak layar ini dibuka,
+    // sehingga log absen masuk pagi tidak muncul lagi saat memindai absen pulang.
+    final mulai = DateTime.now().millisecondsSinceEpoch;
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PemindaiQr(
         judul: 'Absensi harian',
@@ -87,7 +90,7 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
               ? 'Kartu dipindai ${_jamKini()}. Nama muncul setelah terkirim.'
               : '${teks(s['nama'])} (${teks(s['rombel'])}) · ${_jamKini()}';
         },
-        bawah: PanelAntreanPindai(antrean: _antre),
+        bawah: PanelAntreanPindai(antrean: _antre, sejakMs: mulai),
       ),
     ));
     if (mounted) setState(() => _v++);
@@ -248,11 +251,15 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
 
 /// Status antrean pindaian: jumlah menunggu, terkirim, gagal, dan permintaan Kode Buka.
 class PanelAntreanPindai extends StatelessWidget {
-  const PanelAntreanPindai({super.key, required this.antrean, this.ringkas = false});
+  const PanelAntreanPindai({super.key, required this.antrean, this.ringkas = false, this.sejakMs = 0});
   final AntreanPindai antrean;
 
   /// Ringkas: hanya tampil bila ada yang menunggu/gagal (dipakai di atas daftar).
   final bool ringkas;
+
+  /// Bila > 0: log & jumlah terkirim hanya untuk pindaian sejak waktu ini (satu sesi pemindaian),
+  /// agar pindaian sesi sebelumnya (mis. absen masuk) tidak tampil saat memindai absen pulang.
+  final int sejakMs;
 
   Future<void> _kodeBuka(BuildContext context) async {
     final k = await mintaTeks(context, 'Di luar jam absensi', label: 'Kode Buka dari admin', huruf: true);
@@ -282,9 +289,11 @@ class PanelAntreanPindai extends StatelessWidget {
     return ListenableBuilder(
       listenable: antrean,
       builder: (context, _) {
-        final m = antrean.menunggu, g = antrean.gagal, k = antrean.perluKode, ok = antrean.terkirim;
+        final m = antrean.menunggu, g = antrean.gagal, k = antrean.perluKode;
+        final sesi = sejakMs > 0 ? antrean.daftar.where((p) => p.waktuMs >= sejakMs).toList() : antrean.daftar;
+        final ok = sesi.where((p) => p.status == 'ok').length;
         if (ringkas && m == 0 && g == 0 && k == 0) return const SizedBox.shrink();
-        final terbaru = ringkas ? const <PindaianAntre>[] : antrean.terbaru(4);
+        final terbaru = ringkas ? const <PindaianAntre>[] : sesi.reversed.take(4).toList();
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
@@ -295,7 +304,7 @@ class PanelAntreanPindai extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  [if (m > 0) '$m menunggu dikirim', if (!ringkas) '$ok terkirim', if (g > 0) '$g gagal', if (k > 0) '$k perlu Kode Buka'].join(' · '),
+                  [if (m > 0) '$m menunggu dikirim', if (!ringkas) '$ok terkirim${sejakMs > 0 ? ' sesi ini' : ''}', if (g > 0) '$g gagal', if (k > 0) '$k perlu Kode Buka'].join(' · '),
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
