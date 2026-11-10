@@ -54,7 +54,7 @@ function rlsTarik_(paksa) {
     var vRilis = ((/v?(\d+\.\d+\.\d+)/.exec(String(rilis.name || '')) || [])[1]) || '', idBerkas = rlsProp_('RILIS_BERKAS');
     if (vRilis && idBerkas && rlsBanding_(vRilis, rlsProp_('APP_VERSI_TERBARU')) > 0) {
       var urlPulih = DriveApp.getFileById(idBerkas).getUrl();
-      PropertiesService.getScriptProperties().setProperties({ APP_VERSI_TERBARU: vRilis, APP_URL_UNDUH: urlPulih, RILIS_VERSI: vRilis });
+      PropertiesService.getScriptProperties().setProperties({ APP_VERSI_TERBARU: vRilis, APP_URL_UNDUH: urlPulih, RILIS_VERSI: vRilis, APP_WAJIB: '1' });
       try { catat_('Sistem', '', 'Rilis otomatis', 'Pulihkan versi aplikasi', vRilis + ' (' + tag + ')', 'OK'); } catch (e0) {}
       return { baru: false, dipulihkan: true, tag: tag, versi: vRilis, url: urlPulih };
     }
@@ -74,7 +74,7 @@ function rlsTarik_(paksa) {
   }
   var catatan = String(rilis.body || '').replace(/\r/g, '').trim().slice(0, 500);
   PropertiesService.getScriptProperties().setProperties({
-    APP_VERSI_TERBARU: versi, APP_URL_UNDUH: berkas.getUrl(), APP_CATATAN: catatan,
+    APP_VERSI_TERBARU: versi, APP_URL_UNDUH: berkas.getUrl(), APP_CATATAN: catatan, APP_WAJIB: '1',
     RILIS_TAG: tag, RILIS_WAKTU: absWaktu_(), RILIS_BERKAS: berkas.getId(), RILIS_VERSI: versi
   });
   try { catat_('Sistem', '', 'Rilis otomatis', 'Rilis APK', versi + ' (' + tag + ') -> Drive', 'OK'); } catch (e2) {}
@@ -85,21 +85,42 @@ function rlsJadwalAktif_() {
   return ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === RLS.PEMICU; });
 }
 
-// Pemicu tiap jam (dipasang dari aplikasi). Galat dicatat ke Log Galat, tidak menghentikan pemicu.
+// v1.38.2: pemeriksaan tiap jam SELALU aktif (tidak ada sakelar). Dipanggil dari endpoint rilis dan dari
+// waStafVersiApp (tiap aplikasi dibuka); pemeriksaan pemicu di-cache 6 jam agar ringan.
+function rlsPastikanPemicu_(paksaCek) {
+  if (!rlsProp_('GITHUB_TOKEN')) return false;
+  var c = CacheService.getScriptCache();
+  if (!paksaCek && c.get('rls_pemicu_ok')) return true;
+  var ada = false;
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() !== RLS.PEMICU) return;
+    if (ada) ScriptApp.deleteTrigger(t); else ada = true;   // buang pemicu ganda
+  });
+  if (!ada) {
+    ScriptApp.newTrigger(RLS.PEMICU).timeBased().everyHours(1).create();
+    try { catat_('Sistem', '', 'Rilis otomatis', 'Pasang pemicu rilis', 'tiap jam', 'OK'); } catch (e) {}
+  }
+  try { c.put('rls_pemicu_ok', '1', 21600); } catch (e2) {}
+  return true;
+}
+
+// Pemicu tiap jam. Galat dicatat ke Log Galat, tidak menghentikan pemicu.
 function pemicuRilisApk() {
   try { rlsTarik_(false); } catch (e) { pmlCatatGalat_('pemicu', RLS.PEMICU, String(e && e.message || e), e && e.stack, '', ''); }
 }
 
 function waAdminRilisStatus(token) {
   wajibAdmin_(token);
+  try { rlsPastikanPemicu_(true); } catch (e) {}
   var folder = rlsProp_('RILIS_FOLDER') || RLS.FOLDER_BAWAAN;
   return {
     adaToken: !!rlsProp_('GITHUB_TOKEN'), otomatis: rlsJadwalAktif_(), tag: rlsProp_('RILIS_TAG'), waktu: rlsProp_('RILIS_WAKTU'),
+    versi: rlsProp_('APP_VERSI_TERBARU'), url: rlsProp_('APP_URL_UNDUH'),
     folderUrl: 'https://drive.google.com/drive/folders/' + folder, repo: RLS.REPO
   };
 }
 
-// d: {githubToken?: string ('' = hapus), otomatis?: boolean}
+// d: {githubToken: string ( = hapus)}. Versi aplikasi tidak bisa diatur manual lagi; semuanya dari rilis GitHub.
 function waAdminRilisAtur(token, d) {
   var p = wajibAdmin_(token);
   d = d || {};
@@ -109,11 +130,7 @@ function waAdminRilisAtur(token, d) {
     if (t && !/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(t)) throw new Error('Format token GitHub tidak dikenali (diawali github_pat_ atau ghp_).');
     if (t) sp.setProperty('GITHUB_TOKEN', t); else sp.deleteProperty('GITHUB_TOKEN');
   }
-  if (d.otomatis === true || d.otomatis === false) {
-    ScriptApp.getProjectTriggers().forEach(function(tr) { if (tr.getHandlerFunction() === RLS.PEMICU) ScriptApp.deleteTrigger(tr); });
-    if (d.otomatis === true) ScriptApp.newTrigger(RLS.PEMICU).timeBased().everyHours(1).create();
-  }
-  try { catat_(p.peran, '', p.nama, 'Atur rilis otomatis', (d.githubToken !== undefined ? 'token diperbarui; ' : '') + (d.otomatis === true ? 'otomatis aktif' : d.otomatis === false ? 'otomatis nonaktif' : ''), 'OK'); } catch (e) {}
+  try { catat_(p.peran, '', p.nama, 'Atur rilis otomatis', 'token diperbarui', 'OK'); } catch (e) {}
   return waAdminRilisStatus(token);
 }
 
@@ -123,6 +140,7 @@ function waAdminRilisTarik(token, paksa) {
   kunci.waitLock(30000);
   try {
     var h = rlsTarik_(paksa === true);
+    try { rlsPastikanPemicu_(true); } catch (e0) {}
     try { catat_(p.peran, '', p.nama, 'Ambil rilis APK', h.versi + ' (' + h.tag + ')' + (h.baru ? '' : ' sudah terbaru'), 'OK'); } catch (e) {}
     return h;
   } finally { kunci.releaseLock(); }

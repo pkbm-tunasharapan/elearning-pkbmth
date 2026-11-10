@@ -288,6 +288,8 @@ class _LogGalatState extends State<_LogGalat> {
   }
 }
 
+/// Versi aplikasi (v1.38.2): sepenuhnya otomatis. Server memeriksa GitHub Releases tiap jam, menyimpan APK
+/// terbaru ke folder Drive sekolah, dan semua pengguna WAJIB memperbarui saat membuka aplikasi.
 class _VersiAplikasi extends StatefulWidget {
   const _VersiAplikasi();
 
@@ -296,88 +298,6 @@ class _VersiAplikasi extends StatefulWidget {
 }
 
 class _VersiAplikasiState extends State<_VersiAplikasi> {
-  final _versi = TextEditingController();
-  final _url = TextEditingController();
-  final _catatan = TextEditingController();
-  bool _wajib = false;
-  bool _termuat = false;
-
-  @override
-  void dispose() {
-    _versi.dispose();
-    _url.dispose();
-    _catatan.dispose();
-    super.dispose();
-  }
-
-  Future<void> _simpan() async {
-    final r = await jalankan(
-      context,
-      () => Api.instance('waAdminVersiAppAtur', [
-        _t,
-        {'versi': _versi.text.trim(), 'url': _url.text.trim(), 'catatan': _catatan.text.trim(), 'wajib': _wajib}
-      ]),
-      teksProses: 'Menyimpan...',
-    );
-    if (r.ok && mounted) kabar(context, 'Tersimpan. Pengguna dengan versi lebih lama akan ditawari pembaruan saat membuka aplikasi.');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Muatan<Map<String, dynamic>>(
-      muat: () async => peta(await Api.instance('waStafVersiApp', [])),
-      bangun: (context, d, segarkan) {
-        if (!_termuat) {
-          _termuat = true;
-          _versi.text = teks(d['versi']);
-          _url.text = teks(d['url']);
-          _catatan.text = teks(d['catatan']);
-          _wajib = d['wajib'] == true;
-        }
-        final cs = Theme.of(context).colorScheme;
-        return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
-          Card(
-            color: cs.primaryContainer,
-            child: const Padding(
-              padding: EdgeInsets.all(14),
-              child: Text('Setelah APK baru selesai dibuat, isi versinya dan tautan unduh yang bisa dibuka semua staf '
-                  '(misalnya berkas APK di Google Drive yang dibagikan "siapa saja yang memiliki link"). '
-                  'Repo GitHub yang privat tidak bisa diunduh tanpa login.'),
-            ),
-          ),
-          const _RilisOtomatis(),
-          const JudulBagian('Atur manual'),
-          Text('Versi aplikasi ini: $kVersi', style: TextStyle(color: cs.onSurfaceVariant)),
-          const SizedBox(height: 12),
-          TextField(controller: _versi, decoration: const InputDecoration(labelText: 'Versi terbaru (mis. 1.17.0)'), keyboardType: TextInputType.number),
-          const SizedBox(height: 10),
-          TextField(controller: _url, decoration: const InputDecoration(labelText: 'Tautan unduh APK (https://...)'), keyboardType: TextInputType.url),
-          const SizedBox(height: 10),
-          TextField(controller: _catatan, decoration: const InputDecoration(labelText: 'Catatan pembaruan (opsional)'), maxLines: 3),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _wajib,
-            onChanged: (v) => setState(() => _wajib = v),
-            title: const Text('Wajib diperbarui'),
-            subtitle: const Text('Dialog pembaruan tidak bisa ditutup.'),
-          ),
-          FilledButton.icon(onPressed: _simpan, icon: const Icon(Icons.save_rounded), label: const Text('Simpan')),
-        ]);
-      },
-    );
-  }
-}
-
-/// Rilis otomatis: server mengambil APK terbaru dari GitHub Releases, menyimpannya ke folder Drive
-/// sekolah, membukanya untuk "siapa saja yang memiliki link", dan mengisi versi terbaru sendiri.
-class _RilisOtomatis extends StatefulWidget {
-  const _RilisOtomatis();
-
-  @override
-  State<_RilisOtomatis> createState() => _RilisOtomatisState();
-}
-
-class _RilisOtomatisState extends State<_RilisOtomatis> {
   final _token = TextEditingController();
   int _v = 0;
 
@@ -387,8 +307,12 @@ class _RilisOtomatisState extends State<_RilisOtomatis> {
     super.dispose();
   }
 
-  Future<void> _atur(Map<String, dynamic> d, String proses) async {
-    final r = await jalankan(context, () => Api.instance('waAdminRilisAtur', [_t, d]), teksProses: proses);
+  Future<void> _simpanToken() async {
+    if (_token.text.trim().isEmpty) {
+      kabar(context, 'Tempel token GitHub terlebih dulu.', galat: true);
+      return;
+    }
+    final r = await jalankan(context, () => Api.instance('waAdminRilisAtur', [_t, {'githubToken': _token.text.trim()}]), teksProses: 'Menyimpan token...');
     if (r.ok && mounted) {
       _token.clear();
       setState(() => _v++);
@@ -400,7 +324,14 @@ class _RilisOtomatisState extends State<_RilisOtomatis> {
         teksProses: 'Mengambil APK terbaru dari GitHub dan menyimpannya ke Drive...');
     if (!r.ok || !mounted) return;
     final h = r.data!;
-    kabar(context, h['baru'] == true ? 'Versi ${teks(h['versi'])} tersimpan di Drive (${teks(h['ukuranMb'])} MB). Pengguna akan ditawari pembaruan.' : 'Sudah yang terbaru (${teks(h['tag'])}).');
+    kabar(
+      context,
+      h['baru'] == true
+          ? 'Versi ${teks(h['versi'])} tersimpan di Drive (${teks(h['ukuranMb'])} MB). Semua pengguna wajib memperbarui.'
+          : h['dipulihkan'] == true
+              ? 'Versi terbaru dipulihkan ke ${teks(h['versi'])}.'
+              : 'Sudah yang terbaru (${teks(h['versi'])}, ${teks(h['tag'])}).',
+    );
     setState(() => _v++);
   }
 
@@ -410,48 +341,66 @@ class _RilisOtomatisState extends State<_RilisOtomatis> {
     return Muatan<Map<String, dynamic>>(
       key: ValueKey(_v),
       muat: () async => peta(await Api.instance('waAdminRilisStatus', [_t])),
-      bangun: (context, d, segarkan) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Text('Rilis otomatis dari GitHub', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-            const SizedBox(height: 4),
-            Text(
-              d['adaToken'] == true
-                  ? (teks(d['tag']).isEmpty ? 'Token tersimpan. Belum ada APK yang diambil.' : 'Terakhir: ${teks(d['tag'])} pada ${teks(d['waktu'])}.')
-                  : 'Isi token GitHub (fine-grained, izin Contents: Read-only untuk repo ${teks(d['repo'])}).',
-              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5),
+      bangun: (context, d, segarkan) {
+        final adaToken = d['adaToken'] == true;
+        final otomatis = d['otomatis'] == true;
+        return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
+          Card(
+            color: cs.primaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                'Pembaruan aplikasi berjalan otomatis: server memeriksa rilis baru di GitHub tiap jam, menyimpan APK-nya ke folder Drive sekolah, '
+                'lalu semua pengguna WAJIB memperbarui saat membuka aplikasi.',
+                style: TextStyle(color: cs.onPrimaryContainer),
+              ),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _token,
-              obscureText: true,
-              decoration: InputDecoration(labelText: d['adaToken'] == true ? 'Ganti token GitHub (opsional)' : 'Token GitHub', isDense: true),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text('Versi terbaru: ${teks(d['versi'], '-')}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text('Versi aplikasi ini: $kVersi', style: TextStyle(color: cs.onSurfaceVariant)),
+                Text(teks(d['tag']).isEmpty ? 'Belum ada rilis yang diambil.' : 'Rilis terakhir: ${teks(d['tag'])} pada ${teks(d['waktu'])}',
+                    style: TextStyle(color: cs.onSurfaceVariant)),
+                Text(otomatis ? 'Pemeriksaan tiap jam: aktif' : 'Pemeriksaan tiap jam: menunggu token GitHub',
+                    style: TextStyle(color: otomatis ? Colors.green : cs.error, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: adaToken ? _tarik : null,
+                  icon: const Icon(Icons.cloud_download_rounded),
+                  label: const Text('Ambil rilis terbaru sekarang'),
+                ),
+              ]),
             ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                if (_token.text.trim().isEmpty) return kabar(context, 'Tempel token GitHub terlebih dulu.', galat: true);
-                _atur({'githubToken': _token.text.trim()}, 'Menyimpan token...');
-              },
-              icon: const Icon(Icons.key_rounded),
-              label: const Text('Simpan token'),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Text('Token GitHub', style: TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(
+                  adaToken ? 'Token tersimpan.' : 'Isi token GitHub (fine-grained, izin Contents: Read-only untuk repo ${teks(d['repo'])}).',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12.5),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _token,
+                  obscureText: true,
+                  decoration: InputDecoration(labelText: adaToken ? 'Ganti token GitHub (opsional)' : 'Token GitHub', isDense: true),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(onPressed: _simpanToken, icon: const Icon(Icons.key_rounded), label: const Text('Simpan token')),
+              ]),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: d['otomatis'] == true,
-              onChanged: d['adaToken'] == true ? (v) => _atur({'otomatis': v}, 'Mengatur jadwal...') : null,
-              title: const Text('Periksa rilis baru tiap jam'),
-              subtitle: const Text('APK baru otomatis disimpan ke folder Drive dan ditawarkan ke pengguna.'),
-            ),
-            FilledButton.icon(
-              onPressed: d['adaToken'] == true ? _tarik : null,
-              icon: const Icon(Icons.cloud_download_rounded),
-              label: const Text('Ambil rilis terbaru sekarang'),
-            ),
-          ]),
-        ),
-      ),
+          ),
+        ]);
+      },
     );
   }
 }

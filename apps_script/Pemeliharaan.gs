@@ -79,38 +79,17 @@ function waAdminLogGalatBersihkan(token) {
 }
 
 // ---------- versi aplikasi ----------
+// v1.38.2: versi aplikasi SEPENUHNYA otomatis dari rilis GitHub (Rilis.gs) dan selalu wajib dipasang.
+// Tidak ada lagi pengaturan manual. Panggilan ini (tiap aplikasi dibuka) juga memastikan pemicu tiap jam terpasang.
 function waStafVersiApp() {
-  var sp = PropertiesService.getScriptProperties();
+  try { rlsPastikanPemicu_(false); } catch (e) {}
+  var sp = PropertiesService.getScriptProperties(), versi = sp.getProperty('APP_VERSI_TERBARU') || '';
   return {
-    versi: sp.getProperty('APP_VERSI_TERBARU') || '',
+    versi: versi,
     url: sp.getProperty('APP_URL_UNDUH') || '',
     catatan: sp.getProperty('APP_CATATAN') || '',
-    wajib: sp.getProperty('APP_WAJIB') === '1'
+    wajib: !!versi
   };
-}
-
-// d: {versi: '1.17.0', url: 'https://...', catatan, wajib}
-function waAdminVersiAppAtur(token, d) {
-  var p = wajibAdmin_(token);
-  d = d || {};
-  var versi = String(d.versi || '').trim(), url = String(d.url || '').trim();
-  if (versi && !/^\d+\.\d+\.\d+$/.test(versi)) throw new Error('Format versi harus seperti 1.17.0');
-  if (url && !/^https:\/\//i.test(url)) throw new Error('Tautan unduh harus diawali https://');
-  if (versi && !url) throw new Error('Isi tautan unduh APK untuk versi ini.');
-  var sp = PropertiesService.getScriptProperties();
-  // v1.38: jangan turunkan di bawah rilis APK terbaru; HP yang sudah memasang rilis itu tidak akan ditawari pembaruan lagi.
-  var vRilis = sp.getProperty('RILIS_VERSI') || '';
-  if (versi && vRilis && rlsBanding_(versi, vRilis) < 0) {
-    throw new Error('Versi ' + versi + ' lebih rendah dari rilis APK terbaru (' + vRilis + '). Isi ' + vRilis + ' atau yang lebih baru; untuk memulihkan otomatis tekan "Ambil rilis sekarang".');
-  }
-  sp.setProperties({
-    APP_VERSI_TERBARU: versi,
-    APP_URL_UNDUH: url,
-    APP_CATATAN: String(d.catatan || '').slice(0, 500),
-    APP_WAJIB: d.wajib === true ? '1' : '0'
-  });
-  try { catat_(p.peran, '', p.nama, 'Atur versi aplikasi', versi + (d.wajib === true ? ' (wajib)' : ''), 'OK'); } catch (e) {}
-  return waStafVersiApp();
 }
 
 // ---------- audit kesehatan data siswa ----------
