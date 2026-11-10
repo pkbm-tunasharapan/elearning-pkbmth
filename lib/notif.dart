@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'pemberitahuan.dart';
+import 'pemeliharaan/sistem.dart';
 import 'referral/referral.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
@@ -98,6 +99,8 @@ class Notif with WidgetsBindingObserver {
       if (_timer != null) Pemberitahuan.instance.cek(kunciNavigator);
       // v1.38.7: daftar mapel & sesi siswa diperbarui saat aplikasi kembali ke depan (maks. 10 menit sekali)
       if (SesiSiswa.instance.masuk) SesiSiswa.instance.segarkan();
+      // v1.38.9: periksa versi aplikasi lagi (maks. 1 jam sekali) agar pembaruan wajib tetap muncul
+      cekVersiAplikasi(kunciNavigator);
     }
   }
 

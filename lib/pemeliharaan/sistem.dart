@@ -87,12 +87,16 @@ int bandingVersi(String a, String b) {
   return 0;
 }
 
-bool _sudahCekVersi = false;
+DateTime? _terakhirCekVersi;
+bool _dialogVersiTerbuka = false;
 
-/// Menanyakan versi terbaru ke server sekali per sesi aplikasi; bila lebih baru, tawarkan unduh.
+/// Menanyakan versi terbaru ke server saat aplikasi dibuka, dan (v1.38.9) lagi setiap kembali ke depan
+/// bila sudah lewat 1 jam: HP Android jarang benar-benar menutup aplikasi, jadi cek sekali per proses tidak cukup.
 Future<void> cekVersiAplikasi(GlobalKey<NavigatorState> kunci) async {
-  if (kIsWeb || _sudahCekVersi) return;
-  _sudahCekVersi = true;
+  if (kIsWeb || _dialogVersiTerbuka) return;
+  final kini = DateTime.now();
+  if (_terakhirCekVersi != null && kini.difference(_terakhirCekVersi!) < const Duration(hours: 1)) return;
+  _terakhirCekVersi = kini;
   Map<String, dynamic> d;
   try {
     // token staf (bila sudah masuk) agar akun penguji ditawari RILIS UJI; tunggu sebentar sesi selesai dimuat
@@ -101,6 +105,7 @@ Future<void> cekVersiAplikasi(GlobalKey<NavigatorState> kunci) async {
     }
     d = peta(await Api.instance('waStafVersiApp', [Sesi.instance.token ?? ''], const Duration(seconds: 30)));
   } catch (_) {
+    _terakhirCekVersi = null; // gagal jaringan: coba lagi saat aplikasi kembali ke depan
     return;
   }
   final terbaru = teks(d['versi']), url = teks(d['url']);
@@ -108,6 +113,15 @@ Future<void> cekVersiAplikasi(GlobalKey<NavigatorState> kunci) async {
   final ctx = kunci.currentContext;
   if (ctx == null || !ctx.mounted) return;
   final wajib = d['wajib'] == true;
+  _dialogVersiTerbuka = true;
+  try {
+    await _dialogVersi(ctx, d, terbaru, url, wajib);
+  } finally {
+    _dialogVersiTerbuka = false;
+  }
+}
+
+Future<void> _dialogVersi(BuildContext ctx, Map<String, dynamic> d, String terbaru, String url, bool wajib) async {
   await showDialog<void>(
     context: ctx,
     barrierDismissible: !wajib,
@@ -338,9 +352,12 @@ class _VersiAplikasiState extends State<_VersiAplikasi> {
           ? 'Versi ${teks(h['versi'])} tersimpan sebagai RILIS UJI (${teks(h['ukuranMb'])} MB). Hanya penguji yang ditawari dulu.'
           : teks(h['naik']).isNotEmpty
               ? 'Versi ${teks(h['naik'])} lolos uji dan kini menjadi rilis resmi.'
-              : teks(h['lewat']).isNotEmpty
-                  ? teks(h['lewat'])
-                  : 'Belum ada rilis baru (${teks(h['tag'])}).',
+              : teks(h['ujiTertunda']).isNotEmpty
+                  ? 'Versi ${teks(h['ujiTertunda'])} masih RILIS UJI (hanya penguji). Pengguna lain masih ditawari ${teks(h['resmi'], '-')}. '
+                      'Tekan "Resmikan sekarang" agar wajib untuk semua.'
+                  : teks(h['lewat']).isNotEmpty
+                      ? teks(h['lewat'])
+                      : 'Belum ada rilis baru (${teks(h['tag'])}).',
     );
     _segar();
   }

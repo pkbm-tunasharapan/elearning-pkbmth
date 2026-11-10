@@ -144,7 +144,8 @@ function rlsTarik_(paksa) {
   var tag = String(rilis.tag_name || '');
   if (!paksa && tag && tag === rlsProp_('RILIS_TAG')) {
     var naik = rlsCekNaik_();
-    return { baru: false, tag: tag, versi: naik || rlsProp_('RILIS_UJI_VERSI') || rlsProp_('APP_VERSI_TERBARU'), naik: naik };
+    var tertunda = naik ? '' : rlsProp_('RILIS_UJI_VERSI');
+    return { baru: false, tag: tag, versi: naik || tertunda || rlsProp_('APP_VERSI_TERBARU'), naik: naik, ujiTertunda: tertunda, resmi: rlsProp_('APP_VERSI_TERBARU') };
   }
   var versi = ((/v?(\d+\.\d+\.\d+)/.exec(String(rilis.name || '')) || [])[1]) || '';
   if (!versi) throw new Error('Nama rilis "' + rilis.name + '" tidak memuat nomor versi (mis. v1.19.0).');
