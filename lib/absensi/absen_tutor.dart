@@ -10,7 +10,7 @@ import 'umum.dart';
 String? get _t => Sesi.instance.token;
 bool get _fo => Sesi.instance.peran == 'Front Office';
 
-/// Absen tutor: Kepala Sekolah memindai QR tutor. Front Office hanya dalam keadaan darurat
+/// Absen tutor: Kepala Sekolah atau Admin memindai QR tutor. Front Office hanya dalam keadaan darurat
 /// dan wajib memasukkan kode approval yang dibuat Kepala Sekolah (satu tutor = satu kode).
 class AbsenTutorScreen extends StatefulWidget {
   const AbsenTutorScreen({super.key});

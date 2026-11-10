@@ -711,7 +711,7 @@ function waStafAbsenKonteks(token) {
   return {
     peran: p.peran, nama: p.nama,
     bolehWb: q.tutor || q.ks || q.admin,
-    bolehTutor: q.ks || q.fo,
+    bolehTutor: q.ks || q.admin || q.fo,
     perluKodeDarurat: q.fo,
     bolehAbsenDiri: q.ks,
     bolehPutus: q.sa,
@@ -820,7 +820,8 @@ function waStafAbsenWbCatat(token, d) {
 // Sejak Tahap 3: hanya kelas yang TERJADWAL hari itu (PEMETAAN). Di luar jadwal wajib alasan.
 function waStafAbsenTutorCari(token, kode) {
   var p = stafDariToken_(token), q = absPeran_(p);
-  if (!(q.ks || q.fo)) throw new Error('Absen tutor hanya dapat dilakukan Kepala Sekolah (atau Front Office dengan kode darurat).');
+  // v1.38.7: tutor hanya bisa diabsen Kepala Sekolah, Admin, dan Front Office (FO dengan kode darurat). Tutor tidak bisa mengabsen diri sendiri.
+  if (!(q.ks || q.admin || q.fo)) throw new Error('Absen tutor hanya dapat dilakukan Kepala Sekolah, Admin, atau Front Office (dengan kode darurat).');
   kode = String(kode || '').trim();
   var peta = absPetaTutor_();
   var t = peta[kode];
@@ -847,7 +848,7 @@ function waStafAbsenTutorCari(token, kode) {
 function waStafAbsenTutorCatat(token, d) {
   var p = stafDariToken_(token), q = absPeran_(p);
   d = d || {};
-  if (!(q.ks || q.fo)) throw new Error('Absen tutor hanya dapat dilakukan Kepala Sekolah.');
+  if (!(q.ks || q.admin || q.fo)) throw new Error('Absen tutor hanya dapat dilakukan Kepala Sekolah, Admin, atau Front Office (dengan kode darurat).');
   var peta = absPetaTutor_();
   var t = peta[String(d.idTutor || '').trim()];
   if (!t) throw new Error('Tutor tidak ditemukan.');
