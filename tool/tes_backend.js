@@ -37,6 +37,9 @@ const Utilities = {
   getUuid: () => crypto.randomUUID(),
   computeHmacSha256Signature: (v, k) => Array.from(crypto.createHmac('sha256', k).update(v).digest()).map((b) => (b > 127 ? b - 256 : b)),
   base64Encode: (b) => Buffer.from(b).toString('base64'),
+  base64EncodeWebSafe: (b) => Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
+  computeDigest: (alg, v) => Array.from(crypto.createHash('sha256').update(String(v), 'utf8').digest()).map((b) => (b > 127 ? b - 256 : b)),
+  DigestAlgorithm: { SHA_256: 'SHA_256' }, Charset: { UTF_8: 'UTF_8' },
 };
 const tolak = (nama) => new Proxy({}, { get: (_, p) => () => { throw new Error('Layanan ' + nama + '.' + String(p) + ' tidak tersedia di tes'); } });
 const konteks = {
@@ -255,6 +258,91 @@ tes('waPulihSesiSiswa: token berlaku, token habis + kunci perangkat, kunci tidak
   sama(g.waPulihSesiSiswa('', 'KUNCI_PALSU').sukses, false, 'kunci palsu');
   g.getSheetData = () => [['ID Rombel', 'Nama Siswa']];
   sama(g.waPulihSesiSiswa('', 'KUNCI_SISWA').sukses, false, 'siswa sudah tidak terdaftar');
+});
+
+// 8. PIN warga belajar (v1.39.0)
+function lembarTiruan(kepala) {
+  const v = [kepala.slice()];
+  const rentang = (r, c, nr, nc) => ({
+    setNumberFormat() { return this; },
+    setValues(x) { for (let i = 0; i < nr; i++) { while (v.length < r + i) v.push(new Array(kepala.length).fill('')); v[r + i - 1] = x[i].slice(); } return this; },
+    getValues() { return v.slice(r - 1, r - 1 + nr).map((b) => b.slice(c - 1, c - 1 + nc)); },
+  });
+  return { v, getDataRange: () => ({ getValues: () => v.map((b) => b.slice()) }), getLastRow: () => v.length, getRange: rentang };
+}
+function siapPin() {
+  const lembar = lembarTiruan(g.PIN.H);
+  g.pinSheet_ = () => lembar;
+  cache.remove(g.PIN.CK_PETA);
+  ['gagalpin_ani', 'gagalpin_budi'].forEach((k) => cache.remove(k));
+  g.getSheetData = (nama) => (nama === 'Siswa'
+    ? [['ID Rombel', 'Nama Siswa', 'Tanggal Lahir'], ['ROM-C10', 'Ani', '2009-03-03'], ['ROM-C12', 'Budi', '2008-07-15']] : []);
+  g.waLoginAsli_ = (nama, tgl) => {
+    const r = { Ani: ['ROM-C10', '2009-03-03'], Budi: ['ROM-C12', '2008-07-15'] }[nama];
+    return r && r[1] === tgl ? { sukses: true, nama, idRombel: r[0], namaRombel: 'X', daftarMapel: [] } : { sukses: false, pesan: 'tidak cocok' };
+  };
+  g.absHariIni_ = () => '2026-11-10';
+  g.catat_ = () => {};
+  g.__API_V = '1.39.0';
+  return lembar;
+}
+tes('pinLemah_: tolak angka berulang, berurutan, tanggal lahir', () => {
+  const t = '2009-03-03';
+  sama(g.pinLemah_('12345', t) !== '', true, 'kurang dari 6');
+  ['111111', '121212', '123123', '123456', '654321', '030309', '090303'].forEach((p) => sama(g.pinLemah_(p, t) !== '', true, p));
+  sama(g.pinLemah_('583920', t), '', 'PIN wajar');
+});
+tes('PIN: tenggang 7 hari, buat, masuk dengan PIN, TH- ditolak, ujian minta PIN', () => {
+  siapPin();
+  g.__API_V = '1.38.8';
+  const lama = g.pinStatus_('Budi', 'ROM-C12', true);
+  sama([lama.tercatat, lama.wajib, g.pinPengingat_({ jenis: 'siswa', nama: 'Budi', rombel: 'ROM-C12' })], [false, false, null], 'aplikasi lama: tenggang belum mulai');
+  g.__API_V = '1.39.0';
+  const st = g.pinStatus_('Ani', 'ROM-C10', true);
+  sama([st.ada, st.perlu, st.wajib, st.tenggat, st.sisaHari], [false, true, false, '2026-11-17', 7], 'tenggang');
+  g.absHariIni_ = () => '2026-11-18';
+  sama(g.pinStatus_('Ani', 'ROM-C10', true).wajib, true, 'lewat tenggang -> wajib');
+  const tok = 'P'.repeat(64);
+  cache.put('sis_' + tok, JSON.stringify({ nama: 'Ani', idRombel: 'ROM-C10' }));
+  g.siswaTerdaftar_ = () => true;
+  sama(g.waSiswaPinBuat(tok, '111111').sukses, false, 'PIN lemah ditolak');
+  sama(g.waSiswaPinBuat(tok, '583920').sukses, true, 'buat PIN');
+  sama(g.pinStatus_('Ani', 'ROM-C10', false).ada, true, 'status ada');
+  sama(g.waLogin('Ani', '583920').sukses, true, 'masuk dengan PIN');
+  sama(g.waLogin('Ani', 'TH-03032009').sukses, false, 'TH- ditolak setelah punya PIN');
+  sama(g.waSiswaPinBuat(tok, '904817', '000000').sukses, false, 'ganti PIN butuh PIN lama');
+  cache.remove('gagalpin_ani');
+  sama(g.waSiswaPinBuat(tok, '904817', '583920').sukses, true, 'ganti PIN');
+  sama(g.waLogin('Ani', '583920').sukses, false, 'PIN lama tidak berlaku');
+  cache.remove('gagalpin_ani');
+  g.ujJadwalDariUjian_ = () => ({ idUjian: 'U1' });
+  g.cariBarisSesiUjian_ = () => null;
+  g.nilGerbangUjian_ = () => '';
+  g.ujGerbangMulai_ = () => ({ pesan: 'LANJUT' });
+  sama(/PIN/.test(g.waMulaiUjian('U1', 'ROM-C10', 'M1', 'Ani', 'KODE').pesan), true, 'ujian tanpa PIN ditolak');
+  sama(/salah/.test(g.waMulaiUjian('U1', 'ROM-C10', 'M1', 'Ani', 'KODE', '111222').pesan), true, 'ujian PIN salah');
+  sama(g.waMulaiUjian('U1', 'ROM-C10', 'M1', 'Ani', 'KODE', '904817').pesan, 'LANJUT', 'ujian PIN benar lanjut');
+});
+tes('PIN: salah 5x dikunci, reset oleh tutor rombel, siswa lain tidak terpengaruh', () => {
+  siapPin();
+  const tok = 'Q'.repeat(64);
+  cache.put('sis_' + tok, JSON.stringify({ nama: 'Ani', idRombel: 'ROM-C10' }));
+  g.siswaTerdaftar_ = () => true;
+  g.waSiswaPinBuat(tok, '583920');
+  for (let i = 0; i < 5; i++) g.waLogin('Ani', '000001');
+  sama(/30 menit/.test(g.waLogin('Ani', '583920').pesan), true, 'terkunci walau PIN benar');
+  sama(g.waLogin('Budi', 'TH-15072008').sukses, true, 'siswa lain tetap bisa (belum punya PIN)');
+  g.stafDariToken_ = (t) => ({ TUTOR: { id: 'U7', nama: 'Pak T', peran: 'Tutor' }, LAIN: { id: 'U8', nama: 'Bu L', peran: 'Tutor' } }[t]);
+  g.mapelAktifSemua_ = () => [{ idMapel: 'M1', idRombel: 'ROM-C10' }];
+  g.bacaEnrollment_ = () => [{ idPengguna: 'U7', idMapel: 'M1' }];
+  let galat = '';
+  try { g.waStafPinReset('LAIN', 'ROM-C10', 'Ani'); } catch (e) { galat = e.message; }
+  sama(/Reset PIN hanya/.test(galat), true, 'tutor rombel lain ditolak');
+  sama(g.waStafPinReset('TUTOR', 'ROM-C10', 'Ani').sukses, true, 'tutor rombel me-reset');
+  const st = g.pinStatus_('Ani', 'ROM-C10', false);
+  sama([st.ada, st.wajib, st.reset], [false, true, true], 'setelah reset wajib buat ulang');
+  sama(g.waLogin('Ani', 'TH-03032009').sukses, true, 'masuk lagi dengan TH- setelah reset');
+  sama(g.pinPengingat_({ jenis: 'siswa', nama: 'Budi', rombel: 'ROM-C12' }).id, 'PIN-2026-11-10', 'pengingat harian');
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

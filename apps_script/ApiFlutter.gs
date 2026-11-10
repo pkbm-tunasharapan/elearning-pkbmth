@@ -17,6 +17,8 @@ var API_FLUTTER = {
     waNotifDaftar: true, waNotifCek: true, waNotifKeluar: true,
     // kartu pencapaian studi siswa
     waSiswaPencapaian: true,
+    // PIN warga belajar (PinSiswa.gs)
+    waSiswaPinBuat: true,
     // siswa (fungsi yang sama dengan yang dipakai halaman web siswa)
     waLogin: true, waPulihSesiSiswa: true, waKeluarSiswa: true, waGetMateri: true, waGetRiwayatJawaban: true, waSubmitJawaban: true, waSimpanDraftDiskusi: true, waGetDraftDiskusi: true, waTandaiBaca: true, waStatusUjian: true, waMulaiUjian: true, waSubmitUjian: true, waLaporPindahTab: true, waUjianAjukan: true, waAbsenIsi: true, waRuangPoll: true, waRuangKirim: true, waRuangCek: true, waSiswaKalender: true, waDaftarRombel: true, waDaftarMulai: true, waDaftarKirimUlang: true, waDaftarVerifikasi: true, waProfilSiswa: true, waProfilSiswaSimpan: true, waDaftarTutorStatus: true, waDaftarTutorCek: true, waDaftarTutorMulaiUndangan: true, waDaftarTutorKirimUlang: true, waDaftarTutorVerifikasiUndangan: true, waStafMasukGoogle: true, waKartuSiswa: true, waSiswaBeranda: true
   }
@@ -36,7 +38,7 @@ function doPost(e) {
       var boleh = (API_FLUTTER.POLA.test(fn) || API_FLUTTER.TAMBAHAN[fn] === true) && typeof globalThis[fn] === 'function';
       if (!boleh) throw new Error('Fungsi tidak diizinkan: ' + fn);
       API_FN_SAAT_INI_ = fn;
-      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__DINAS = false;
+      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__API_V = String(body.v || ""); globalThis.__DINAS = false;
       var hasilFn = globalThis[fn].apply(null, args);
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
       if (typeof updLama_ === 'function') hasilFn = updLama_(fn, args, hasilFn, body);

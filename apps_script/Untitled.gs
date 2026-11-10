@@ -422,7 +422,18 @@ function waStatusUjian(idUjian, idRombel, idMapel, nama) {
   return r;
 }
 
-function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses) {
+function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
+  // v1.39.0: WB yang sudah punya PIN wajib memasukkan PIN sebelum ujian dimulai
+  try {
+    if (pinPunya_(nama, idRombel)) {
+      if (!pin) return { sukses: false, pesan: 'Masukkan PIN Anda untuk memulai ujian. Bila kolom PIN belum muncul, perbarui aplikasi.' };
+      var gPin = pinPeriksa_(nama, idRombel, pin);
+      if (gPin) {
+        try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - PIN salah', 'GAGAL'); } catch (e0) {}
+        return { sukses: false, pesan: gPin };
+      }
+    }
+  } catch (ePin) {}
   var j = ujJadwalDariUjian_(idUjian);
   var g = { pesan: '' };
   if (j) {

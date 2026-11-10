@@ -1395,11 +1395,13 @@ function waStafRombelSiswa(token) {
     if (Object.prototype.toString.call(x) === '[object Date]' && !isNaN(x.getTime())) return Utilities.formatDate(x, tz, pola);
     return String(x === null || x === undefined ? '' : x).trim();
   };
-  var v = getSheetData(CONFIG.SHEETS.SISWA);
+  var v = getSheetData(CONFIG.SHEETS.SISWA), stPin = {};
+  try { stPin = pinStatusDaftar_(); } catch (eP) {}
   for (var i = 1; i < v.length; i++) {
     var r = v[i], id = String(r[0] === null || r[0] === undefined ? '' : r[0]).trim();
     if (!rom[id] || !String(r[1]).trim()) continue;
-    rom[id].siswa.push({ nama: String(r[1]).trim(), lahir: tgl(r[2], 'dd-MM-yyyy'), kontak: String(r[4] === null || r[4] === undefined ? '' : r[4]).trim(), daftar: tgl(r[5], 'dd-MM-yyyy') });
+    rom[id].siswa.push({ nama: String(r[1]).trim(), lahir: tgl(r[2], 'dd-MM-yyyy'), kontak: String(r[4] === null || r[4] === undefined ? '' : r[4]).trim(), daftar: tgl(r[5], 'dd-MM-yyyy'),
+      pin: stPin[pinKunci_(r[1], formatTanggalUntukBanding_(r[2]))] || 'Belum' });
   }
   urut.forEach(function(r) { r.siswa.sort(function(a, b) { return a.nama.localeCompare(b.nama); }); r.mapel.sort(); });
   urut.sort(function(a, b) { return a.namaRombel.localeCompare(b.namaRombel); });

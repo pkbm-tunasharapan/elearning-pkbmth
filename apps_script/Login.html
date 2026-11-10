@@ -602,7 +602,7 @@ select option{color:#1f2430;background:#fff}
         <input type="password" id="inputTanggalLahir" inputmode="numeric" autocomplete="off" placeholder="ddmmyyyy" style="flex:1;min-width:0;width:auto;border:0;border-radius:0;padding:11px 12px;font-size:15px;letter-spacing:2px;font-family:inherit;background:#fff;outline:none">
       </div>
       <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-top:8px;font-size:13px"><input type="checkbox" id="tampilSandi" style="width:auto;margin:0"> Tampilkan kata sandi</label>
-      <div class="hint">Kata sandi: <b>TH-</b> (otomatis) lalu tanggal lahir 8 angka <b>ddmmyyyy</b>. Contoh lahir 3 Maret 2009: TH-03032009. Ketik angkanya saja.</div>
+      <div class="hint">Sudah punya PIN: isi <b>PIN 6 angka</b>. Belum punya PIN: <b>TH-</b> (otomatis) lalu tanggal lahir 8 angka <b>ddmmyyyy</b>. Contoh lahir 3 Maret 2009: TH-03032009. Ketik angkanya saja.</div>
 
       <button class="btn" id="btnMasuk" onclick="prosesLogin()">Masuk</button>
       <p style="margin:14px 0 0;text-align:center;font-size:12.5px;color:#6b7280">Belum punya akun? <a id="linkDaftar" href="#" target="_top">Daftar di sini</a></p>
@@ -1420,7 +1420,7 @@ function tutupOverlayKarenaPindahTab_() {
     var nama = document.getElementById('inputNama').value.trim();
     var angka = angkaSandi();
     if (!nama) { tampilkanPesan('Tulis nama lengkap terlebih dahulu.'); return; }
-    if (angka.length !== 8) { tampilkanPesan('Isi 8 angka tanggal lahir dengan urutan ddmmyyyy. Contoh: 03032009.'); return; }
+    if (angka.length !== 8 && angka.length !== 6) { tampilkanPesan('Isi PIN 6 angka, atau (bila belum punya PIN) 8 angka tanggal lahir ddmmyyyy. Contoh: 03032009.'); return; }
     var btn = document.getElementById('btnMasuk');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Memeriksa...';
     sembunyikanPesan();
@@ -1431,7 +1431,7 @@ function tutupOverlayKarenaPindahTab_() {
     }).withFailureHandler(function(e) {
       btn.disabled = false; btn.textContent = 'Masuk';
       tampilkanPesan('Terjadi kesalahan: ' + e.message);
-    }).waLogin(nama, 'TH-' + angka);
+    }).waLogin(nama, angka.length === 6 ? angka : 'TH-' + angka);   // v1.39.0: 6 angka = PIN
   }
 
   (function() {

@@ -29,6 +29,18 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
     pilihEkspor(context, judul: judul, kepala: const ['No', 'Rombel', 'Nama', 'Tanggal lahir', 'Kontak', 'Daftar mandiri'], baris: baris, sub: 'Dicetak ${tanggalIni()}');
   }
 
+  // v1.39.0: reset PIN warga belajar (Admin / tutor rombel)
+  Future<void> _resetPin(BuildContext context, String idRombel, String nama, Future<void> Function() segarkan) async {
+    final ok = await konfirmasi(context, 'Reset PIN $nama?',
+        'PIN lama tidak berlaku lagi. Siswa masuk sekali dengan TH- tanggal lahir (8 angka), lalu wajib membuat PIN baru.', ya: 'Reset PIN');
+    if (!ok || !context.mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafPinReset', [Sesi.instance.token, idRombel, nama]), teksProses: 'Me-reset PIN...');
+    if (!r.ok || !context.mounted) return;
+    final d = peta(r.data);
+    kabar(context, teks(d['pesan'], 'PIN sudah di-reset.'), galat: d['sukses'] != true);
+    if (d['sukses'] == true) segarkan();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Muatan<List<dynamic>>(
@@ -97,7 +109,13 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                             if (teks(s['kontak']).isNotEmpty) teks(s['kontak']),
                             if (teks(s['daftar']).isNotEmpty) 'daftar ${teks(s['daftar'])}',
                           ].join(' · ')),
-                          trailing: teks(s['kontak']).isNotEmpty ? const Icon(Icons.verified_outlined, color: Colors.green, size: 18) : null,
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            if (teks(s['kontak']).isNotEmpty) const Icon(Icons.verified_outlined, color: Colors.green, size: 18),
+                            _TandaPin(
+                              status: teks(s['pin'], 'Belum'),
+                              onReset: Sesi.instance.isDinas ? null : () => _resetPin(context, teks(r['idRombel']), teks(s['nama']), segarkan),
+                            ),
+                          ]),
                         ),
                     ],
                   ),
@@ -106,6 +124,32 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Penanda status PIN siswa; ketuk untuk reset bila PIN aktif.
+class _TandaPin extends StatelessWidget {
+  const _TandaPin({required this.status, this.onReset});
+  final String status;
+  final VoidCallback? onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (status == 'Aktif') {
+      return IconButton(
+        tooltip: onReset == null ? 'Sudah punya PIN' : 'Sudah punya PIN · ketuk untuk reset',
+        onPressed: onReset,
+        icon: const Icon(Icons.lock_rounded, color: Color(0xFF2F9E8F), size: 20),
+      );
+    }
+    return Tooltip(
+      message: status == 'Reset' ? 'PIN sudah di-reset, menunggu siswa membuat PIN baru' : 'Belum membuat PIN',
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Icon(status == 'Reset' ? Icons.lock_reset_rounded : Icons.lock_open_rounded, color: cs.outline, size: 20),
+      ),
     );
   }
 }

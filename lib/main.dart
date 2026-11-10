@@ -19,6 +19,7 @@ import 'screens/home.dart';
 import 'screens/login.dart';
 import 'session.dart';
 import 'siswa/beranda_siswa.dart';
+import 'siswa/pin_siswa.dart';
 import 'siswa/sesi_siswa.dart';
 import 'theme.dart';
 
@@ -144,7 +145,8 @@ class _AplikasiStafState extends State<AplikasiStaf> {
           final s = Sesi.instance;
           final ss = SesiSiswa.instance;
           if (!s.siap || !ss.siap) return const _Pembuka();
-          if (ss.masuk) return const BerandaSiswa();
+          // v1.39.0: masa tenggang PIN habis / PIN di-reset -> wajib buat PIN dulu
+          if (ss.masuk) return ss.wajibPin ? const BuatPinScreen(wajib: true) : const BerandaSiswa();
           return s.masuk ? const HomeScreen() : const LoginScreen();
         },
       ),

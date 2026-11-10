@@ -407,6 +407,8 @@ function waLogin(nama, kataSandi) {
     catat_('Siswa', '', nama, 'Masuk', 'Diblokir sementara karena terlalu banyak salah', 'GAGAL');
     return { sukses: false, pesan: 'Terlalu banyak percobaan yang salah. Tunggu 30 menit lalu coba lagi, atau hubungi tutor.' };
   }
+  // v1.39.0: 6 angka = PIN
+  if (/^\d{6}$/.test(String(kataSandi === null || kataSandi === undefined ? '' : kataSandi).trim())) return pinMasuk_(nama, String(kataSandi).trim());
   var tgl = tanggalDariKataSandi_(kataSandi);
   if (!tgl) {
     return { sukses: false, pesan: 'Kata sandi berformat TH- diikuti tanggal lahir 8 angka (ddmmyyyy). Contoh lahir 3 Maret 2009: TH-03032009.' };
@@ -417,6 +419,14 @@ function waLogin(nama, kataSandi) {
     catat_('Siswa', '', nama, 'Masuk', 'Nama atau kata sandi tidak cocok', 'GAGAL');
     return { sukses: false, pesan: 'Nama atau kata sandi tidak cocok. Periksa kembali, atau tanyakan ke tutor.' };
   }
+  // v1.39.0: WB yang sudah punya PIN tidak bisa lagi masuk dengan TH-ddmmyyyy
+  var stPin = { ada: false, perlu: false, wajib: false };
+  try { stPin = pinStatusTgl_(res.nama, res.idRombel, tgl, true); } catch (eP) {}
+  if (stPin.ada) {
+    catat_('Siswa', res.idRombel, res.nama, 'Masuk', 'TH- ditolak: sudah memakai PIN', 'GAGAL');
+    return { sukses: false, pesan: 'Akun ini sudah memakai PIN. Masuk dengan nama dan PIN 6 angka. Lupa PIN? Minta tutor atau admin me-reset PIN Anda.' };
+  }
+  res.pin = stPin;
   catat_('Siswa', res.idRombel, res.nama, 'Masuk', '', 'OK');
   try { res.sesi = ssBuat_(res); } catch (e) {}
   return res;
@@ -506,7 +516,9 @@ function waPulihSesiSiswa(token, kunciPerangkat) {
     if (i > 0 && sTeks_(r[0]).trim() === d.idRombel && normNama_(r[1]) === normNama_(d.nama)) ada = true;
   });
   if (!ada) return gagal;
-  return { sukses: true, idRombel: d.idRombel, namaRombel: getNamaRombel_(d.idRombel), nama: d.nama, daftarMapel: getMapelAktifUntukRombel_(d.idRombel), sesi: String(token) };
+  var stPin = { ada: false, perlu: false, wajib: false };
+  try { stPin = pinStatus_(d.nama, d.idRombel, true); } catch (eP) {}
+  return { sukses: true, idRombel: d.idRombel, namaRombel: getNamaRombel_(d.idRombel), nama: d.nama, daftarMapel: getMapelAktifUntukRombel_(d.idRombel), sesi: String(token), pin: stPin };
 }
 
 function waKeluarSiswa(token) {

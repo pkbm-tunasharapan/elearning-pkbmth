@@ -51,9 +51,10 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _galat = _siswa ? 'Isi nama dan kata sandi.' : 'Isi nama dan kode akses.');
       return;
     }
+    // v1.39.0: 6 angka = PIN, 8 angka = tanggal lahir (TH-ddmmyyyy)
     final angkaLahir = _kode.text.replaceAll(RegExp(r'\D'), '');
-    if (_siswa && angkaLahir.length != 8) {
-      setState(() => _galat = 'Isi 8 angka tanggal lahir dengan urutan ddmmyyyy. Contoh: 03032009.');
+    if (_siswa && angkaLahir.length != 8 && angkaLahir.length != 6) {
+      setState(() => _galat = 'Isi PIN 6 angka, atau (bila belum punya PIN) 8 angka tanggal lahir ddmmyyyy. Contoh: 03032009.');
       return;
     }
     setState(() {
@@ -61,7 +62,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _galat = null;
     });
     try {
-      final g = _siswa ? await SesiSiswa.instance.masukSiswa(_nama.text, 'TH-$angkaLahir') : await Sesi.instance.masukKode(_nama.text, _kode.text);
+      final g = _siswa
+          ? await SesiSiswa.instance.masukSiswa(_nama.text, angkaLahir.length == 6 ? angkaLahir : 'TH-$angkaLahir')
+          : await Sesi.instance.masukKode(_nama.text, _kode.text);
       if (mounted && g != null) setState(() => _galat = g);
     } on ApiException catch (e) {
       if (mounted) setState(() => _galat = e.ramah);
@@ -152,10 +155,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: _siswa ? TextInputType.number : TextInputType.text,
                               inputFormatters: _siswa ? [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)] : null,
                               decoration: InputDecoration(
-                                hintText: _siswa ? 'ddmmyyyy' : 'Kode akses',
-                                helperText: _siswa ? 'Kata sandi: tanggal lahir 8 angka, contoh 03032009' : null,
+                                hintText: _siswa ? 'PIN 6 angka / tanggal lahir ddmmyyyy' : 'Kode akses',
+                                helperText: _siswa ? 'Sudah punya PIN: isi PIN 6 angka.\nBelum punya PIN: tanggal lahir 8 angka (TH-), contoh 03032009' : null,
+                                helperMaxLines: 2,
                                 prefixIcon: const Icon(Icons.key_rounded),
-                                prefixText: _siswa ? 'TH-' : null,
                                 prefixStyle: const TextStyle(fontWeight: FontWeight.w800),
                                 suffixIcon: IconButton(onPressed: () => setState(() => _lihat = !_lihat), icon: Icon(_lihat ? Icons.visibility_off_rounded : Icons.visibility_rounded)),
                               ),

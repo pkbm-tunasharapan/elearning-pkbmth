@@ -109,6 +109,8 @@ function waNotifCek(kunci) {
   if (!a) return { sah: false, pesan: [], sekarangMs: now };
   var pesan = bcAktif_().filter(function(b) { return b.berlakuMs > now && bcCocok_(b, a); }).slice(0, 20)
     .map(function(b) { return { id: b.id, judul: b.judul, isi: b.isi, waktu: b.waktu, oleh: b.oleh }; });
+  // v1.39.0: pengingat harian membuat PIN untuk WB yang belum punya PIN
+  try { var ingat = pinPengingat_(a); if (ingat) pesan.unshift(ingat); } catch (eP) {}
   return { sah: true, pesan: pesan, sekarangMs: now };
 }
 

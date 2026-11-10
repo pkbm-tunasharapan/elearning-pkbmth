@@ -14,6 +14,7 @@ import '../widgets.dart';
 import 'kartu_siswa.dart';
 import 'mapel_siswa.dart';
 import 'pencapaian_siswa.dart';
+import 'pin_siswa.dart';
 import 'sesi_siswa.dart';
 
 const _ikonMapel = <String, IconData>{
@@ -115,6 +116,7 @@ class _BerandaIsi extends StatelessWidget {
                 ),
               ]),
             ),
+            const SpandukPin(),
             const KartuUlangTahun(padding: EdgeInsets.fromLTRB(16, 16, 16, 0)),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -338,6 +340,14 @@ class _BerandaSiswaState extends State<BerandaSiswa> {
             Navigator.pop(c);
             Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen()));
           }),
+          ListTile(
+              leading: const Icon(Icons.lock_person_rounded),
+              title: Text(s.punyaPin ? 'Ganti PIN' : 'Buat PIN'),
+              subtitle: s.punyaPin ? null : const Text('Belum ada PIN'),
+              onTap: () {
+                Navigator.pop(c);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BuatPinScreen()));
+              }),
           ListTile(leading: const Icon(Icons.vpn_key_rounded), title: const Text('Kode akses ujian'), onTap: () {
             Navigator.pop(c);
             aturKodeAkses(context);

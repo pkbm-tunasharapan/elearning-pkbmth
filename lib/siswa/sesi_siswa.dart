@@ -22,6 +22,22 @@ class SesiSiswa extends ChangeNotifier {
   String get token => teks(data['sesi']);
   List<Map<String, dynamic>> get mapel => daftar(data['daftarMapel']).map(peta).toList();
 
+  /// v1.39.0: status PIN dari server {ada, perlu, wajib, reset, tenggat, sisaHari}.
+  Map<String, dynamic> get pin => peta(data['pin']);
+  bool get punyaPin => pin['ada'] == true;
+  bool get wajibPin => pin['wajib'] == true;
+
+  /// Membuat / mengganti PIN. Mengembalikan pesan galat, atau null bila berhasil.
+  Future<String?> buatPin(String pinBaru, String pinLama) async {
+    final r = peta(await Api.instance('waSiswaPinBuat', [token, pinBaru, pinLama]));
+    if (r['sukses'] != true) return teks(r['pesan'], 'PIN belum tersimpan. Coba lagi.');
+    data = {...data, 'pin': peta(r['pin'])};
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kunci, jsonEncode(data));
+    notifyListeners();
+    return null;
+  }
+
   /// Kode akses ujian disimpan di HP agar tidak perlu diketik ulang tiap ujian.
   String kodeAkses = '';
 

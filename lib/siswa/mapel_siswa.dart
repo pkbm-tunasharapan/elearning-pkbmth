@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../alarm_ujian.dart';
@@ -793,14 +794,28 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
 
   String get _idUjian => teks(widget.item['id']);
 
+  String _pin = '';
+
   Future<String?> _mintaKode() async {
     final c = TextEditingController(text: _s.kodeAkses);
+    final cPin = TextEditingController();
+    final perluPin = _s.punyaPin;
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
         title: const Text('Kode akses ujian'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: c, autofocus: true, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses dari tutor')),
+          TextField(controller: c, autofocus: !perluPin || c.text.isEmpty, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode akses dari tutor')),
+          // v1.39.0: PIN diminta lagi sebelum ujian
+          if (perluPin)
+            TextField(
+              controller: cPin,
+              autofocus: c.text.isNotEmpty,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+              decoration: const InputDecoration(labelText: 'PIN Anda (6 angka)'),
+            ),
           const SizedBox(height: 12),
           const Text('Selama ujian jangan keluar dari aplikasi. Setiap kali keluar, alarm akan berbunyi keras (juga saat ponsel senyap) dan tercatat sebagai pelanggaran.',
               style: TextStyle(fontSize: 12.5)),
@@ -812,6 +827,11 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
       ),
     );
     if (ok != true || c.text.trim().isEmpty) return null;
+    if (perluPin && cPin.text.trim().length != 6) {
+      if (mounted) kabar(context, 'Isi PIN 6 angka untuk memulai ujian.', galat: true);
+      return null;
+    }
+    _pin = cPin.text.trim();
     await _s.simpanKode(c.text);
     return _s.kodeAkses;
   }
@@ -832,7 +852,7 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
     }
     final kode = await _mintaKode();
     if (kode == null || !mounted) return;
-    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode]), teksProses: 'Menyiapkan soal...');
+    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin]), teksProses: 'Menyiapkan soal...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     if (d['sukses'] != true) {
