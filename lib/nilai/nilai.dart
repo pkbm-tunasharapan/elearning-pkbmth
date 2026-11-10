@@ -13,6 +13,7 @@ import '../widgets.dart';
 import 'cover_rapor.dart';
 import 'nilai_xlsx.dart';
 import 'opsi_rapor.dart';
+import '../pratinjau/pratinjau_html.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -96,7 +97,9 @@ class _NilaiRaporScreenState extends State<NilaiRaporScreen> {
         final rapor = daftar(d['rombelRapor']).map(peta).toList();
         final peran = peta(d['peran']);
         final at = peta(d['aturan']);
-        final semester = daftarSemester(peta(d['periode']));
+        // v1.39.1: Dinas Pendidikan hanya melihat semester berjalan
+        final semuaSemester = daftarSemester(peta(d['periode']));
+        final semester = Sesi.instance.isDinas ? semuaSemester.take(1).toList() : semuaSemester;
         final pilihan = _per ?? semester.first;
         final kini = _per == null || (_per!['tahun'] == semester.first['tahun'] && _per!['semester'] == semester.first['semester']);
         final rombel = <String, List<Map<String, dynamic>>>{};
@@ -473,6 +476,13 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
   await htmlKePdf(context, nama: namaBerkas, args: [_t, raporHtml(data, siswa, opsi: o)]);
 }
 
+/// v1.39.1: pratinjau rapor tanpa unduh/cetak (akun Dinas Pendidikan), semester berjalan saja.
+void _pratinjauRapor(BuildContext context, Map<String, dynamic> d, List<Map<String, dynamic>> wbs, String judul) {
+  final l = peta(d['lembaga']);
+  final html = raporHtml(d, wbs, opsi: OpsiRapor(kepala: teks(l['kepala'])));
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => PratinjauHtmlScreen(judul: judul, html: html, catatan: 'Pratinjau rapor ${_periodeTeks(peta(d['periode']))}: tidak dapat diunduh atau dicetak.')));
+}
+
 /// Pilihan cetak untuk satu warga belajar: rapor nilai atau cover & biodata.
 Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRombel, Map<String, dynamic> d, Map<String, dynamic> w) async {
   if (!bolehUnduh) return;
@@ -503,7 +513,8 @@ class RaporRombelScreen extends StatelessWidget {
   final String nama;
   final Map<String, String>? per;
 
-  void _pilihCetak(BuildContext context, Map<String, dynamic> d, Map<String, dynamic> w) => _pilihCetakWb(context, idRombel, nama, d, w);
+  void _pilihCetak(BuildContext context, Map<String, dynamic> d, Map<String, dynamic> w) =>
+      bolehUnduh ? _pilihCetakWb(context, idRombel, nama, d, w) : _pratinjauRapor(context, d, [w], 'Rapor ${teks(w['nama'])}');
 
   @override
   Widget build(BuildContext context) {
@@ -536,7 +547,9 @@ class RaporRombelScreen extends StatelessWidget {
               FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Rekap_Nilai_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Rekap Excel')),
               FilledButton.tonalIcon(onPressed: () => cetakCoverBiodata(context, idRombel: idRombel, namaRombel: nama), icon: const Icon(Icons.badge_outlined), label: const Text('Cover & biodata')),
               ],
-              if (d['kenaikan'] != null)
+              if (!bolehUnduh)
+                FilledButton.icon(onPressed: () => _pratinjauRapor(context, d, wb, 'Rapor $nama'), icon: const Icon(Icons.visibility_rounded), label: const Text('Pratinjau rapor semua')),
+              if (d['kenaikan'] != null && !Sesi.instance.isDinas)
                 FilledButton.tonalIcon(
                   onPressed: () async {
                     final ubah = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => KenaikanScreen(idRombel: idRombel, namaRombel: nama, leger: d)));
@@ -579,7 +592,7 @@ class RaporRombelScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const Padding(padding: EdgeInsets.only(top: 6), child: Text('Ketuk baris untuk mencetak rapor satu warga belajar.', style: TextStyle(fontSize: 11.5))),
+            Padding(padding: const EdgeInsets.only(top: 6), child: Text(bolehUnduh ? 'Ketuk baris untuk mencetak rapor satu warga belajar.' : 'Ketuk baris untuk melihat rapor satu warga belajar.', style: const TextStyle(fontSize: 11.5))),
           ]);
         },
       ),

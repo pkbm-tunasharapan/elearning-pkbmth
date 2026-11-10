@@ -204,7 +204,9 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
   void _menuItem(Map<String, dynamic> item, List<String> sesi) {
     final jenis = teks(item['jenis']);
     final status = teks(item['status']);
-    final boleh = item['boleh'] == true;
+    // v1.39.1: pimpinan & Dinas (khusus-lihat) tidak mendapat tombol ubah
+    final boleh = item['boleh'] == true && !Sesi.instance.hanyaLihat;
+    final bolehNilai = item['bolehNilai'] == true && !Sesi.instance.isDinas;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -238,16 +240,16 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
           if (jenis == 'Diskusi')
             ListTile(
               leading: const Icon(Icons.grading_rounded),
-              title: Text(item['bolehNilai'] == true ? 'Lihat & nilai tanggapan' : 'Lihat tanggapan'),
-              subtitle: item['bolehNilai'] == true || teks(item['pengampu']).isEmpty ? null : Text('Dinilai oleh ${teks(item['pengampu'])}'),
+              title: Text(bolehNilai ? 'Lihat & nilai tanggapan' : 'Lihat tanggapan'),
+              subtitle: bolehNilai || teks(item['pengampu']).isEmpty ? null : Text('Dinilai oleh ${teks(item['pengampu'])}'),
               onTap: () {
                 Navigator.pop(c);
                 Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => DiskusiScreen(idMapel: widget.idMapel, item: item, bolehNilai: item['bolehNilai'] == true),
+                  builder: (_) => DiskusiScreen(idMapel: widget.idMapel, item: item, bolehNilai: bolehNilai),
                 ));
               },
             ),
-          if (jenis == 'Ujian')
+          if (jenis == 'Ujian' && !Sesi.instance.isDinas)   // soal ujian tidak dibuka untuk Dinas
             ListTile(
               leading: const Icon(Icons.list_alt_rounded),
               title: Text('Soal ujian (${angka(item['jumlahSoal'])})'),

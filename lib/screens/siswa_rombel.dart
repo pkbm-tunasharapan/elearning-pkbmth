@@ -113,7 +113,7 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                             if (teks(s['kontak']).isNotEmpty) const Icon(Icons.verified_outlined, color: Colors.green, size: 18),
                             _TandaPin(
                               status: teks(s['pin'], 'Belum'),
-                              onReset: Sesi.instance.isDinas ? null : () => _resetPin(context, teks(r['idRombel']), teks(s['nama']), segarkan),
+                              onReset: Sesi.instance.hanyaLihat ? null : () => _resetPin(context, teks(r['idRombel']), teks(s['nama']), segarkan),
                             ),
                           ]),
                         ),

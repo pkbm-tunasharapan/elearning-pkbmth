@@ -1380,7 +1380,8 @@ function rapikanSimCore_(terapkan) {
 function waStafRombelSiswa(token) {
   var p = stafDariToken_(token);
   var boleh = null;
-  if (p.peran !== 'Admin') {
+  // v1.39.1: pimpinan (Kepala Sekolah, Koordinator, Superadmin; Dinas = Kepala Sekolah khusus-baca) melihat semua rombel
+  if (['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin'].indexOf(p.peran) < 0) {
     boleh = {};
     bacaEnrollment_().forEach(function(e) { if (e.idPengguna === p.id) boleh[e.idMapel] = true; });
   }

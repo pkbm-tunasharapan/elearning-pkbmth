@@ -27,8 +27,12 @@ var DINAS = {
     waStafProgresDaftar: true, waStafProgresKelas: true, waStafKesiapanSemua: true,
     waStafRombelSiswa: true,
     // daftar pantauan (1.34.1): hanya membaca; tombol ubah dimatikan oleh dinasRapikan_
-    waStafPemetaanDaftar: true, waStafAsesmenDaftar: true, waStafAsesmenPeserta: true
+    waStafPemetaanDaftar: true, waStafAsesmenDaftar: true, waStafAsesmenPeserta: true,
+    // v1.39.1: tab Absensi, Nilai, Jadwal Ujian di Mata Pelajaran (hanya membaca, tanpa soal) + pendaftaran pemberitahuan
+    waStafAbsensi: true, waStafNilai: true, waStafUjianInfo: true, waNotifDaftar: true
   },
+  // v1.39.1: rapor/leger untuk Dinas hanya semester berjalan (pilihan tahun/semester dari aplikasi diabaikan)
+  SEMESTER_KINI: { waStafLeger: true, waStafNilaiRekap: true, waStafKenaikanDaftar: true },
   // Kartu beranda yang berisi tugas/aksi lembaga (absen, persetujuan, keuangan) tidak ditampilkan untuk Dinas.
   MENU_KARTU_DILARANG: { dataInduk: true, kinerja: true, pengguna: true, absenSaya: true, absenTutor: true, usulanJadwal: true, persetujuanKs: true, keuangan: true, rekapHonor: true, honor: true, kodeDarurat: true, referral: true, referralAdmin: true },
   // Penanda izin pada hasil API yang selalu dimatikan untuk Dinas.
@@ -42,6 +46,7 @@ function dinasSaring_(p) {
   if (DINAS.BACA[fn] !== true) throw new Error('Akun Dinas Pendidikan hanya dapat melihat data untuk pengawasan. Tindakan ini tidak diizinkan.');
   var args = globalThis.__API_ARGS || [];
   if (fn === 'waStafIndukDaftar' && DINAS.TABEL_INDUK_DILARANG[String(args[1] || '')]) throw new Error('Data pengaturan tidak tersedia untuk akun Dinas Pendidikan.');
+  if (DINAS.SEMESTER_KINI[fn]) args.forEach(function(a) { if (a && typeof a === 'object' && !Array.isArray(a)) { delete a.tahun; delete a.semester; } });
   globalThis.__DINAS = true;
   var q = {};
   Object.keys(p).forEach(function(k) { q[k] = p[k]; });
@@ -57,6 +62,8 @@ function dinasRapikan_(data) {
   if (data.saya && data.saya.peran === 'Kepala Sekolah') data.saya.peran = DINAS.PERAN;
   if (data.profil && data.profil.peran === 'Kepala Sekolah') data.profil.peran = DINAS.PERAN;
   dinasMatikanIzin_(data, 0);
+  // v1.39.1: tombol ubah/terbitkan/hapus/nilai pada tiap konten mapel dimatikan
+  if (Array.isArray(data.items)) data.items.forEach(function(x) { if (x && typeof x === 'object') { x.boleh = false; x.bolehNilai = false; } });
   if (globalThis.__API_FN === 'waStafLaporanHadir') delete data.ks;
   if (globalThis.__API_FN === 'waStafDasbor') ['tanpaNisn', 'tanpaNik', 'tanpaBiodata', 'tanpaRombel'].forEach(function(k) { delete data[k]; });
   if (Array.isArray(data.kartu)) {
