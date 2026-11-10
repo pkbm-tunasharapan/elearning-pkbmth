@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'config.dart';
 
 /// Kode galat (dipakai admin untuk menelusuri di Pemeliharaan Sistem → Log Galat):
-/// E101 tidak terhubung · E102 waktu habis · E103 status HTTP · E104 jawaban server tak dikenali
+/// E101 tidak terhubung · E102 waktu habis · E103 status HTTP · E104 jawaban server tak dikenali · E105 diproses tetapi jawaban terputus
 /// E201 sesi habis · E202 perawatan · E203 fungsi belum di-deploy · E210 data/aturan (pesan dari server)
 /// E230 kuota Google · E231 proses server terlalu lama · E232 server sibuk (antrean) · E299 galat server lain
 /// E300 peringatan aplikasi · E900 galat aplikasi · E901 tampilan gagal dibuat
@@ -42,6 +42,9 @@ class ApiException implements Exception {
         return 'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.';
       case 'E102':
         return 'Server belum menjawab. Periksa koneksi internet lalu coba lagi.';
+      case 'E105':
+        return 'Server sudah memproses permintaan Anda, tetapi jawabannya tidak sampai karena koneksi terputus. '
+            'Periksa dulu apakah perubahan sudah tersimpan (muat ulang halaman) sebelum mengulang, agar data tidak ganda.';
       case 'E103':
       case 'E104':
         return 'Server sedang bermasalah atau sedang diperbarui. Tunggu sebentar lalu coba lagi.';
@@ -63,7 +66,7 @@ class ApiException implements Exception {
 
   /// Judul singkat untuk modal galat.
   String get judul => switch (kode) {
-        'E101' || 'E102' => 'Koneksi bermasalah',
+        'E101' || 'E102' || 'E105' => 'Koneksi bermasalah',
         'E103' || 'E104' || 'E230' || 'E231' || 'E232' => 'Server bermasalah',
         'E201' => 'Sesi berakhir',
         'E202' => 'Sedang perawatan',
@@ -122,6 +125,23 @@ class Api {
   /// Dipanggil untuk galat yang perlu dicatat ke log admin (dipasang di pemeliharaan/sistem.dart).
   void Function(ApiException e)? onGalat;
 
+  /// Mengambil jawaban dari alamat pengalihan Apps Script (googleusercontent). Langkah ini hanya MEMBACA
+  /// hasil yang sudah jadi, jadi aman diulang saat koneksi putus sesaat (maks. 3 kali).
+  Future<http.Response> _ambilJawaban(http.Client client, Uri lokasi, Duration batas) async {
+    Object? terakhir;
+    for (var i = 0; i < 3; i++) {
+      try {
+        return await client.get(lokasi).timeout(batas);
+      } on TimeoutException {
+        rethrow;
+      } catch (e) {
+        terakhir = e;
+        await Future<void>.delayed(Duration(milliseconds: 800 * (i + 1)));
+      }
+    }
+    throw terakhir ?? Exception('Jawaban server tidak dapat diambil.');
+  }
+
   ApiException _galat(String pesan, String kode, String fn, [Object? asal]) {
     final e = ApiException(pesan, kode: kode, fn: fn, detail: asal == null ? '' : '$asal');
     if (e.perluDilapor) onGalat?.call(e);
@@ -132,6 +152,7 @@ class Api {
     final body = jsonEncode({'fn': fn, 'args': args, 'v': kVersi, 'pf': kIsWeb ? 'web' : 'android'});
     final uri = Uri.parse(kApiUrl);
     http.Response res;
+    var sudahDiproses = false;
     try {
       if (kIsWeb) {
         // Browser mengikuti redirect Apps Script sendiri. text/plain menghindari preflight CORS.
@@ -151,7 +172,9 @@ class Api {
           while ((res.statusCode == 301 || res.statusCode == 302 || res.statusCode == 303 || res.statusCode == 307) && lompat < 5) {
             final lokasi = res.headers['location'];
             if (lokasi == null || lokasi.isEmpty) break;
-            res = await client.get(Uri.parse(lokasi)).timeout(batas);
+            // Server SUDAH memproses permintaan; alamat ini hanya mengambil jawabannya (aman diulang).
+            sudahDiproses = true;
+            res = await _ambilJawaban(client, Uri.parse(lokasi), batas);
             lompat++;
           }
         } finally {
@@ -159,9 +182,11 @@ class Api {
         }
       }
     } on TimeoutException catch (e) {
+      if (sudahDiproses) throw _galat('Server sudah memproses permintaan, tetapi jawabannya tidak sampai.', 'E105', fn, e);
       throw _galat('Server belum menjawab.', 'E102', fn, e);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (sudahDiproses) throw _galat('Server sudah memproses permintaan, tetapi jawabannya tidak sampai.', 'E105', fn, e);
       throw _galat('Tidak dapat terhubung ke server.', 'E101', fn, e);
     }
 

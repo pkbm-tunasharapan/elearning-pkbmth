@@ -22,7 +22,7 @@ var RLS = {
   MIN_PENGUJI: 2,
   JAM_UJI: 12,
   // galat yang bukan kesalahan aplikasi (jaringan/kuota) tidak menghalangi kenaikan rilis
-  GALAT_ABAI: /\[(E10[1-4]|E20[1-3]|E23[0-2])-/
+  GALAT_ABAI: /\[(E10[1-5]|E20[1-3]|E23[0-2])-/
 };
 
 function rlsProp_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }

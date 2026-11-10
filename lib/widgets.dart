@@ -335,7 +335,7 @@ Future<void> tampilGalat(BuildContext context, Object galat, {VoidCallback? ulan
     builder: (c) => AlertDialog(
       icon: Icon(
         switch (e.kode) {
-          'E101' || 'E102' => Icons.wifi_off_rounded,
+          'E101' || 'E102' || 'E105' => Icons.wifi_off_rounded,
           'E201' => Icons.lock_clock_rounded,
           'E202' => Icons.construction_rounded,
           'E210' || 'E300' => Icons.info_outline_rounded,
