@@ -316,6 +316,18 @@ Future<void> bagikanWord(BuildContext context, String html, String nama) async {
   }
 }
 
+/// Membuka/membagikan berkas Excel .xlsx asli (bytes dari server).
+Future<void> bagikanXlsx(BuildContext context, List<int> bytes, String nama) async {
+  if (_tolakDinas(context)) return;
+  const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (kIsWeb) return _unduhWeb(context, bytes, nama, mime);
+  final path = await _simpan(bytes, nama);
+  final r = await OpenFilex.open(path, type: mime);
+  if (r.type != ResultType.done) {
+    await SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: mime)], title: nama));
+  }
+}
+
 /// Mengirim tabel HTML sebagai berkas Excel (.xls) lewat menu Bagikan.
 Future<void> bagikanExcel(BuildContext context, String html, String nama) async {
   if (_tolakDinas(context)) return;

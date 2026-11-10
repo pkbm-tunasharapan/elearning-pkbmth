@@ -11,6 +11,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'cover_rapor.dart';
+import 'nilai_xlsx.dart';
 import 'opsi_rapor.dart';
 
 String? get _t => Sesi.instance.token;
@@ -286,6 +287,22 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
                   const SizedBox(width: 8),
                   Expanded(child: FilledButton.tonalIcon(onPressed: () => _input(d, 'UAS'), icon: const Icon(Icons.edit_note_rounded), label: const Text('Input UAS'))),
                 ]),
+                if (bolehUnduh) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: OutlinedButton.icon(onPressed: () => unduhFormatNilai(context, widget.kelas), icon: const Icon(Icons.download_rounded), label: const Text('Unduh format .xlsx'))),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          if (await unggahNilaiXlsx(context, widget.kelas) && mounted) setState(() => _v++);
+                        },
+                        icon: const Icon(Icons.upload_file_rounded),
+                        label: const Text('Unggah nilai .xlsx'),
+                      ),
+                    ),
+                  ]),
+                ],
               ],
               const SizedBox(height: 8),
               if (wb.isEmpty) const Kosong(pesan: 'Belum ada warga belajar aktif di rombel ini.'),

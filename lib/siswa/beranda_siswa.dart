@@ -13,6 +13,7 @@ import '../ulang_tahun.dart';
 import '../widgets.dart';
 import 'kartu_siswa.dart';
 import 'mapel_siswa.dart';
+import 'pencapaian_siswa.dart';
 import 'sesi_siswa.dart';
 
 const _ikonMapel = <String, IconData>{
@@ -138,6 +139,16 @@ class _BerandaIsi extends StatelessWidget {
                   ),
                 ),
               ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _Pintasan(
+                ikon: Icons.workspace_premium_rounded,
+                warna: const Color(0xFFE9A23B),
+                judul: 'Kartu Pencapaian Studi',
+                sub: 'Nilai semester ini & semester sebelumnya',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen())),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
@@ -322,6 +333,10 @@ class _BerandaSiswaState extends State<BerandaSiswa> {
           ListTile(leading: const Icon(Icons.qr_code_2_rounded), title: const Text('Kartu siswa (QR)'), onTap: () {
             Navigator.pop(c);
             bukaKartuSiswa(context);
+          }),
+          ListTile(leading: const Icon(Icons.workspace_premium_rounded), title: const Text('Kartu pencapaian studi'), onTap: () {
+            Navigator.pop(c);
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen()));
           }),
           ListTile(leading: const Icon(Icons.vpn_key_rounded), title: const Text('Kode akses ujian'), onTap: () {
             Navigator.pop(c);

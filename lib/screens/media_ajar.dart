@@ -198,7 +198,19 @@ class _MediaAjarScreenState extends State<MediaAjarScreen> {
                 ),
               ),
             ],
-            JudulBagian('Media materi ini', sub: '${media.length} file'),
+            JudulBagian(
+              'Media materi ini',
+              sub: '${media.length} file',
+              aksi: boleh && media.any((m) => teks(m['status']) != 'Terbit' && teks(m['jenis']) != 'kunci')
+                  ? FilledButton.tonalIcon(
+                      onPressed: () async {
+                        if (await terbitkanSemuaMediaAjar(context, widget.idMapel, idMateri: _idMateri) > 0 && mounted) setState(() => _v++);
+                      },
+                      icon: const Icon(Icons.publish_rounded, size: 18),
+                      label: const Text('Terbitkan semua'),
+                    )
+                  : null,
+            ),
             if (media.isEmpty) const Kosong(pesan: 'Belum ada media ajar untuk materi ini.', ikon: Icons.collections_rounded),
             for (final m in media)
               Card(
@@ -240,6 +252,35 @@ class _MediaAjarScreenState extends State<MediaAjarScreen> {
       ),
     );
   }
+}
+
+/// Terbitkan semua media ajar berstatus Draf (kecuali kunci LKPD) untuk satu mapel, atau satu materi bila [idMateri] diisi.
+/// Mengembalikan jumlah yang diterbitkan.
+Future<int> terbitkanSemuaMediaAjar(BuildContext context, String idMapel, {String idMateri = ''}) async {
+  if (!await konfirmasi(context, 'Terbitkan semua media ajar?',
+      'Semua media berstatus Draf ${idMateri.isEmpty ? 'di mapel ini' : 'untuk materi ini'} akan diterbitkan dan tampil untuk siswa. Kunci LKPD tetap khusus tutor.',
+      ya: 'Terbitkan semua')) {
+    return 0;
+  }
+  if (!context.mounted) return 0;
+  var total = 0;
+  final gagal = <String>[];
+  final ok = await jalankan(context, () async {
+    while (true) {
+      final r = peta(await Api.instance('waStafMediaAjarTerbitSemua', [_t, idMapel, idMateri], const Duration(minutes: 6)));
+      total += angka(r['terbit']);
+      gagal.addAll(daftar(r['gagal']).map(peta).map((x) => '${teks(x['judul'])}: ${teks(x['alasan'])}'));
+      if (angka(r['sisa']) <= 0 || angka(r['terbit']) == 0) break;
+    }
+    return total;
+  }, teksProses: 'Menerbitkan media ajar...');
+  if (!context.mounted) return total;
+  if (ok.ok) {
+    kabar(context, total == 0 && gagal.isEmpty ? 'Tidak ada media berstatus Draf.' : '$total media ajar diterbitkan${gagal.isEmpty ? '' : ' · ${gagal.length} gagal (${gagal.first})'}.');
+  } else if (total > 0) {
+    kabar(context, '$total media ajar sempat diterbitkan sebelum berhenti. Jalankan lagi untuk melanjutkan.');
+  }
+  return total;
 }
 
 /// Buat LKPD untuk semua materi di mapel yang belum punya (diproses bertahap).

@@ -82,6 +82,10 @@ class MapelDetailScreen extends StatelessWidget {
                   buatMediaAjarMassal(context, idMapel);
                   return;
                 }
+                if (v == 'terbitMedia') {
+                  terbitkanSemuaMediaAjar(context, idMapel);
+                  return;
+                }
                 final nav = Navigator.of(context);
                 final m = Sesi.instance.mapel.where((x) => teks(x['idMapel']) == idMapel).firstOrNull;
                 nav.push(MaterialPageRoute(
@@ -92,6 +96,8 @@ class MapelDetailScreen extends StatelessWidget {
                 const PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
                 if (!lihat)
                   const PopupMenuItem(value: 'media', child: ListTile(leading: Icon(Icons.edit_note_rounded), title: Text('LKPD untuk semua materi'))),
+                if (!lihat)
+                  const PopupMenuItem(value: 'terbitMedia', child: ListTile(leading: Icon(Icons.publish_rounded), title: Text('Terbitkan semua media ajar'))),
               ],
             ),
           ],
@@ -157,7 +163,17 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
   }
 
   Future<void> _status(List<String> ids, String status) async {
-    final r = await jalankan(context, () => Api.instance('waStafMateriStatus', [_t, widget.idMapel, ids, status]), teksProses: 'Mengubah status...');
+    // v1.38.3: dikirim bertahap (20 item per panggilan) agar "Post semua" puluhan item tidak melewati batas waktu (E102).
+    final r = await jalankan<Map<String, dynamic>>(context, () async {
+      final berhasil = <dynamic>[], gagal = <dynamic>[];
+      for (var i = 0; i < ids.length; i += 20) {
+        final bagian = ids.sublist(i, i + 20 > ids.length ? ids.length : i + 20);
+        final h = peta(await Api.instance('waStafMateriStatus', [_t, widget.idMapel, bagian, status], const Duration(minutes: 3)));
+        berhasil.addAll(daftar(h['berhasil']));
+        gagal.addAll(daftar(h['gagal']));
+      }
+      return {'berhasil': berhasil, 'gagal': gagal};
+    }, teksProses: ids.length > 20 ? 'Mengubah status ${ids.length} item (bertahap)...' : 'Mengubah status...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     final gagal = daftar(d['gagal']).map(peta).toList();

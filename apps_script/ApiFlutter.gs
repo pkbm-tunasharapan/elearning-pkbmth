@@ -15,6 +15,8 @@ var API_FLUTTER = {
     waUrlStaf: true, waPimpinanUjianPutusan: true,
     // pemberitahuan / broadcast (siswa & staf; Broadcast.gs)
     waNotifDaftar: true, waNotifCek: true, waNotifKeluar: true,
+    // kartu pencapaian studi siswa
+    waSiswaPencapaian: true,
     // siswa (fungsi yang sama dengan yang dipakai halaman web siswa)
     waLogin: true, waPulihSesiSiswa: true, waKeluarSiswa: true, waGetMateri: true, waGetRiwayatJawaban: true, waSubmitJawaban: true, waSimpanDraftDiskusi: true, waGetDraftDiskusi: true, waTandaiBaca: true, waStatusUjian: true, waMulaiUjian: true, waSubmitUjian: true, waLaporPindahTab: true, waUjianAjukan: true, waAbsenIsi: true, waRuangPoll: true, waRuangKirim: true, waRuangCek: true, waSiswaKalender: true, waDaftarRombel: true, waDaftarMulai: true, waDaftarKirimUlang: true, waDaftarVerifikasi: true, waProfilSiswa: true, waProfilSiswaSimpan: true, waDaftarTutorStatus: true, waDaftarTutorCek: true, waDaftarTutorMulaiUndangan: true, waDaftarTutorKirimUlang: true, waDaftarTutorVerifikasiUndangan: true, waStafMasukGoogle: true, waKartuSiswa: true, waSiswaBeranda: true
   }
@@ -2548,7 +2550,8 @@ function waStafNilaiInput(token, d) {
   var p = stafDariToken_(token), r = nilPeran_(p);
   if (!r.input) throw new Error('Peran Anda tidak dapat menginput nilai.');
   d = d || {};
-  if (NIL.JENIS.indexOf(String(d.jenis)) < 0) throw new Error('Jenis nilai harus UTS atau UAS.');
+  // v1.38.3: 'Lainnya' (ujian lainnya, lewat unggah xlsx) juga diterima; rapor tetap memakai UTS & UAS.
+  if (NIL.JENIS.indexOf(String(d.jenis)) < 0 && String(d.jenis) !== 'Lainnya') throw new Error('Jenis nilai harus UTS, UAS, atau Lainnya.');
   var kelas = absKelasCek_(nilKelasBoleh_(p), d.idRombel, d.kodeMapel);
   if (!kelas) throw new Error('Kelas tidak ditemukan atau bukan kelas Anda.');
   var per = nilPeriode_(), at = nilAturan_(), key = kelas.idRombel + '|' + kelas.kodeMapel;
@@ -2572,7 +2575,7 @@ function waStafNilaiInput(token, d) {
       if (s !== '') {
         var n = Number(s);
         if (isNaN(n) || n < 0 || n > 100) { ditolak.push(w.nama + ' (nilai tidak sah)'); return; }
-        if (at.blokir && hk.total) {
+        if (at.blokir && hk.total && d.jenis !== 'Lainnya') {
           var ps = (hk.hadir[w.id] || 0) * 100 / hk.total;
           if (ps < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, d.jenis)) { ditolak.push(w.nama + ' (kehadiran ' + nilBulat_(ps) + '%)'); return; }
         }
@@ -2745,6 +2748,12 @@ function waStafRapor(token, q) {
   var wb = nilWbDetail_(q.idWb);
   if (!wb) throw new Error('Warga belajar tidak ditemukan.');
   if (!nilAksesRapor_(p, wb.idRombel)) throw new Error('Rapor hanya dapat dibuat Wali Kelas, Kepala Sekolah atau Admin.');
+  var hasil = nilRaporWb_(wb, q);
+  catat_(p.peran, wb.idRombel, p.nama, 'Rapor', wb.nama + ' ' + hasil.periode.tahun + ' ' + hasil.periode.semester, 'OK');
+  return hasil;
+}
+// Rapor satu warga belajar (dipakai rapor staf dan kartu pencapaian siswa; rumus nilai sama persis).
+function nilRaporWb_(wb, q) {
   var kelas = nilKelasRapor_(wb.idRombel);
   var per = nilPeriode_(q), k = nilKtx_(per), rows = [];
   kelas = nilSaringAktif_(kelas, k.peta);
@@ -2755,8 +2764,37 @@ function waStafRapor(token, q) {
   });
   var rb = honProgramRombel_()[wb.idRombel] || { nama: wb.idRombel, program: '' };
   var hd = k.rekapHadir[wb.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 };
-  catat_(p.peran, wb.idRombel, p.nama, 'Rapor', wb.nama + ' ' + per.tahun + ' ' + per.semester, 'OK');
   return { wb: wb, rombel: { id: wb.idRombel, nama: rb.nama, program: rb.program }, periode: per, aturan: k.at, lembaga: nilLembaga_(), mapel: rows, kehadiran: hd, tanggal: absHariIni_() };
+}
+
+// v1.38.3: KARTU PENCAPAIAN STUDI untuk siswa (semester berjalan dan sebelumnya).
+// q: {tahun?, semester?}; bawaan = semester berjalan. Hasil di-cache 10 menit per siswa & periode.
+function waSiswaPencapaian(token, q) {
+  var s = siswaDariSesi_(token), nn = normNama_(s.nama);
+  q = q || {};
+  var kini = nilPeriode_(), per = nilPeriode_(q);
+  var ck = 'kps_' + Utilities.base64EncodeWebSafe([s.idRombel, nn, per.tahun, per.semester].join('|')).slice(0, 200), c = CacheService.getScriptCache();
+  try { var lama = c.get(ck); if (lama) return JSON.parse(lama); } catch (e0) {}
+  var peta = nilPetaBm_(), simR = '', wb = null;
+  Object.keys(peta.rombel).forEach(function(r) { if (peta.rombel[r][s.idRombel]) simR = r; });
+  if (simR) {
+    var nisn = '';
+    (nilSiswaBm_()[String(s.idRombel)] || []).forEach(function(x) { if (normNama_(x.nama) === nn) nisn = x.nisn; });
+    wb = nilCocokWb_(absWbRombel_(simR), nisn, s.nama);
+  }
+  if (!wb) throw new Error('Data Anda belum terhubung dengan Data Induk sekolah, jadi nilai belum bisa ditampilkan. Hubungi admin.');
+  var d = nilWbDetail_(wb.id) || { id: wb.id, nisn: wb.nisn, nama: wb.nama, idRombel: simR };
+  var h = nilRaporWb_(d, per);
+  var mapel = h.mapel, n = 0, jml = 0, tuntas = 0;
+  mapel.forEach(function(m) { if (m.akhir !== null && m.akhir !== undefined && m.akhir !== '') { n++; jml += Number(m.akhir) || 0; if (m.tuntas) tuntas++; } });
+  var out = {
+    nama: d.nama, nisn: d.nisn, rombel: h.rombel, periode: h.periode, periodeKini: kini, kkm: h.aturan.kkm, lembaga: h.lembaga,
+    mapel: mapel.map(function(m) { return { kode: m.kode, nama: m.nama, diskusi: m.diskusi, uts: m.uts, uas: m.uas, akhir: m.akhir, predikat: m.predikat, tuntas: m.tuntas, persenHadir: m.persenHadir }; }),
+    ringkas: { jumlahMapel: mapel.length, dinilai: n, tuntas: tuntas, rata: n ? nilBulat_(jml / n) : null },
+    kehadiran: h.kehadiran
+  };
+  try { c.put(ck, JSON.stringify(out), 600); } catch (e1) {}
+  return out;
 }
 
 // ---------- asesmen tatap muka (kertas) ----------

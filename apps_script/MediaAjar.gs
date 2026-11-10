@@ -329,6 +329,34 @@ function waStafMediaAjarTerbit(token, idMedia, terbit) {
   return maPublik_(x);
 }
 
+// v1.38.3: terbitkan SEMUA media berstatus Draf (kecuali kunci LKPD) untuk satu mapel, atau satu materi bila idMateri diisi.
+// Berhenti sebelum batas waktu Apps Script; mengembalikan sisa agar aplikasi bisa memanggil lagi.
+function waStafMediaAjarTerbitSemua(token, idMapel, idMateri) {
+  var r = maWajibPembuat_(token, idMapel), t0 = Date.now();
+  var data = maBaca_(), draf = data.baris.filter(function(x) {
+    return x.idMapel === String(idMapel) && (!idMateri || x.idMateri === String(idMateri)) && x.status !== 'Terbit' && x.jenis !== 'kunci' && x.idFile;
+  });
+  var sel = [], gagal = [], pada = Utilities.formatDate(new Date(), absTz_(), 'yyyy-MM-dd HH:mm');
+  for (var i = 0; i < draf.length; i++) {
+    if (Date.now() - t0 > 240000) break;   // sisakan waktu untuk menulis sheet
+    var x = draf[i];
+    try {
+      DriveApp.getFileById(x.idFile).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      sel.push(x.baris);
+    } catch (e) {
+      gagal.push({ judul: (MA.JENIS[x.jenis] || x.jenis) + ' · ' + x.judulMateri, alasan: String(e && e.message || e) });
+    }
+  }
+  if (sel.length) {
+    var sh = data.sh;
+    sh.getRangeList(sel.map(function(b) { return 'L' + b; })).setValue('Terbit');
+    sh.getRangeList(sel.map(function(b) { return 'O' + b; })).setValue(r.p.nama);
+    sh.getRangeList(sel.map(function(b) { return 'P' + b; })).setValue(pada);
+    try { kmCatat_(r.p, idMapel, 'Terbitkan semua media ajar', sel.length + ' file' + (idMateri ? ' (materi ' + idMateri + ')' : ''), 'OK'); } catch (e2) {}
+  }
+  return { terbit: sel.length, gagal: gagal, sisa: Math.max(0, draf.length - sel.length - gagal.length) };
+}
+
 function waStafMediaAjarHapus(token, idMedia) {
   var c = maCari_(token, idMedia);
   maBuang_(c.x);

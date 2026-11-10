@@ -173,14 +173,15 @@ function kmDaftarSoalUjian_(idUjian) {
 }
 
 // Mengembalikan '' bila boleh di-Post, selain itu alasannya.
-function kmAlasanBelumSiap_(item) {
+// soalPeta (opsional): { idUjian: [soal] } yang sudah dibaca sekali, supaya Post banyak item tidak membaca ulang sheet soal.
+function kmAlasanBelumSiap_(item, soalPeta) {
   if (!String(item.judul).trim()) return 'Judul masih kosong.';
   if (item.jenis === 'Materi') {
     if (!String(item.konten).trim() && !String(item.youtube).trim() && !String(item.file).trim()) return 'Materi belum punya isi, tautan video, atau tautan file.';
   } else if (item.jenis === 'Diskusi') {
     if (!String(item.konten).trim()) return 'Pertanyaan/instruksi diskusi masih kosong.';
   } else if (item.jenis === 'Ujian') {
-    var soal = kmDaftarSoalUjian_(item.id);
+    var soal = soalPeta ? (soalPeta[item.id] || []) : kmDaftarSoalUjian_(item.id);
     if (!soal.length) return 'Ujian belum punya soal.';
     for (var i = 0; i < soal.length; i++) {
       var a = kmAlasanSoalTidakValid_(soal[i]);
@@ -284,34 +285,69 @@ function waStafMateriHapus(token, idMapel, idMateri) {
 }
 
 // ---------- status: Post (Aktif) / tarik kembali (Draft) / arsip (Selesai) ----------
+// v1.38.3: dibuat sekali-baca. Versi lama membaca ulang seluruh sheet Materi, Jadwal Ujian, dan Soal Ujian
+// untuk SETIAP item dan mencatat log per item, sehingga "Post semua" puluhan item melewati batas tunggu
+// aplikasi (galat E102). Sekarang: tiap sheet dibaca sekali, semua sel status ditulis dalam satu panggilan,
+// log dicatat sekali. Hasil (berhasil/gagal per item) dan aturannya tetap sama.
 function waStafMateriStatus(token, idMapel, daftarId, status) {
   var r = wajibMapel_(token, idMapel);
-  if (typeof ujJagaItem_ === 'function') ujJagaItem_(r.p, daftarId, false);
   if (KM.STATUS_BOLEH.indexOf(status) < 0) throw new Error('Status tidak dikenal.');
   if (!daftarId || !daftarId.length) throw new Error('Tidak ada item yang dipilih.');
+  // ujian yang dikelola Jadwal Ujian hanya boleh diubah admin (aturan ujJagaItem_, dibaca sekali)
+  if (typeof ujJadwalSemua_ === 'function' && r.p.peran !== 'Admin') {
+    var terjadwal = {};
+    ujJadwalSemua_().forEach(function(j) { if (j.idUjian) terjadwal[String(j.idUjian)] = true; });
+    daftarId.forEach(function(id) {
+      if (terjadwal[String(id)]) throw new Error('Ujian ini dikelola lewat tab "Jadwal Ujian" dan jadwalnya terkunci. Perubahan hanya lewat permohonan ke admin.');
+    });
+  }
   var kunci = kmKunciUnik_();
   kunci.waitLock(20000);
   try {
-    var berhasil = [], gagal = [];
+    var m = kmMateri_(), c = m.c;
+    var v = m.sheet.getDataRange().getValues(), letak = {};
+    for (var i = 1; i < v.length; i++) {
+      var idb = sTeks_(v[i][c.id - 1]).trim();
+      if (idb && letak[idb] === undefined) letak[idb] = i;
+    }
+    var soalPeta = null;
+    if (status === 'Aktif') {
+      var adaUjian = daftarId.some(function(id) { var k = letak[String(id)]; return k !== undefined && sTeks_(v[k][c.jenis - 1]).trim() === 'Ujian'; });
+      if (adaUjian) {
+        soalPeta = {};
+        var s = kmSoal_(), vs = s.sheet.getDataRange().getValues();
+        for (var j = 1; j < vs.length; j++) {
+          if (!vs[j][s.c.pertanyaan - 1] && !vs[j][s.c.id - 1]) continue;
+          var iu = String(vs[j][s.c.idUjian - 1]);
+          (soalPeta[iu] = soalPeta[iu] || []).push(kmSoalDariBaris_(vs[j], s.c));
+        }
+      }
+    }
+    var berhasil = [], gagal = [], sel = [], judulOk = [];
     daftarId.forEach(function(id) {
+      var k = letak[String(id)], judul = '';
       try {
-        var f = kmCariMateri_(idMapel, id);
-        var c = f.m.c;
-        var item = kmItemDariBaris_(f.row, c, {});
+        if (k === undefined) throw new Error('Item tidak ditemukan (mungkin sudah dihapus).');
+        if (sTeks_(v[k][c.idMapel - 1]).trim() !== String(idMapel)) throw new Error('Item ini bukan milik mapel yang dipilih.');
+        judul = sTeks_(v[k][c.judul - 1]);
+        var item = kmItemDariBaris_(v[k], c, {});
         if (status === 'Aktif') {
           if (!item.boleh) throw new Error('Jenis ' + item.jenis + ' tidak dikelola dari sini.');
-          var alasan = kmAlasanBelumSiap_(item);
+          var alasan = kmAlasanBelumSiap_(item, soalPeta);
           if (alasan) throw new Error(alasan);
         }
-        f.m.sheet.getRange(f.baris, c.status).setValue(status);
+        sel.push(m.sheet.getRange(k + 1, c.status).getA1Notation());
         berhasil.push(id);
-        kmCatat_(r.p, idMapel, 'Status ' + status, item.jenis + ': ' + item.judul, 'OK');
+        judulOk.push(item.jenis + ': ' + item.judul);
       } catch (e) {
-        var judul = '';
-        try { judul = kmCariMateri_(idMapel, id).row[materiCols_().judul - 1]; } catch (x) {}
         gagal.push({ id: id, judul: String(judul || id), alasan: String(e.message || e).replace(/^Error:\s*/, '') });
       }
     });
+    if (sel.length) m.sheet.getRangeList(sel).setValue(status);
+    if (judulOk.length) {
+      var ringkas = judulOk.length + ' item' + (judulOk.length <= 5 ? ': ' + judulOk.join('; ') : ' (' + judulOk.slice(0, 5).join('; ') + '; ...)');
+      kmCatat_(r.p, idMapel, 'Status ' + status, ringkas.slice(0, 480), 'OK');
+    }
     return { berhasil: berhasil, gagal: gagal };
   } finally {
     kunci.releaseLock();
