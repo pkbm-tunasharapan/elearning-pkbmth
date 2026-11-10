@@ -641,7 +641,12 @@ function waAbsenIsi(payload) {
   if (!ref) return gagal('Absensi tidak dikenali.');
   var cfg = taBaca_();
   if (!abSesiWajib_(cfg, ref.smt, ref.n)) return gagal('Sesi ini tidak memerlukan absensi.');
-  try { ruangSiswa_(nama, idRombel, RUANG.AWALAN_MAPEL + idMapel); } catch (e) { return gagal('Data siswa atau mata pelajaran tidak sesuai. Muat ulang halaman lalu coba lagi.'); }
+  try { ruangSiswa_(nama, idRombel, RUANG.AWALAN_MAPEL + idMapel); } catch (e) {
+    // v1.38.7: bedakan mapel yang sudah dinonaktifkan sekolah dari data siswa yang tidak cocok
+    var mapelAda = false;
+    try { getSheetData(CONFIG.SHEETS.MAPEL).forEach(function(r, i) { if (i > 0 && sTeks_(r[0]).trim() === idMapel && sTeks_(r[1]).trim() === idRombel) mapelAda = true; }); } catch (e2) {}
+    if (mapelAda && !mapelMilikRombel_(idMapel, idRombel)) return gagal('Mata pelajaran ini sudah tidak aktif untuk kelas Anda, jadi absensinya tidak diperlukan. Daftar mata pelajaran Anda akan diperbarui.');
+    return gagal('Data siswa atau mata pelajaran tidak sesuai. Muat ulang halaman lalu coba lagi.'); }
 
   var now = new Date().getTime();
   var info = taInfo_(cfg, ref.smt, ref.n, now);

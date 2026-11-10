@@ -687,7 +687,15 @@ class _AbsensiSiswaScreenState extends State<AbsensiSiswaScreen> {
       setState(() => _tercatat = {'jawaban': 'Hadir', 'waktu': teks(d['waktu'])});
       if (d['sudah'] == true) kabar(context, teks(d['pesan']));
     } else {
-      kabar(context, teks(d['pesan'], 'Absensi gagal dicatat.'), galat: true);
+      final pesan = teks(d['pesan'], 'Absensi gagal dicatat.');
+      if (pesan.contains('sudah tidak aktif untuk kelas Anda')) {
+        // v1.38.7: mapel sudah dinonaktifkan sekolah -> perbarui daftar mapel lalu kembali ke beranda
+        kabar(context, pesan);
+        await SesiSiswa.instance.segarkan(paksa: true);
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+        return;
+      }
+      kabar(context, pesan, galat: true);
     }
   }
 

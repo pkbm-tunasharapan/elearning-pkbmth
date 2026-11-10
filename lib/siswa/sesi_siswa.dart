@@ -31,23 +31,35 @@ class SesiSiswa extends ChangeNotifier {
       kodeAkses = sp.getString('siswaKode') ?? '';
       final mentah = sp.getString(_kunci);
       if (mentah != null) {
-        final simpan = peta(jsonDecode(mentah));
-        data = simpan;
-        // Segarkan dari server (daftar mapel terbaru); bila sesi kedaluwarsa tetap pakai data lokal.
-        if (teks(simpan['sesi']).isNotEmpty) {
-          try {
-            final r = peta(await Api.instance('waPulihSesiSiswa', [teks(simpan['sesi'])]));
-            if (r['sukses'] == true) {
-              data = r;
-              await sp.setString(_kunci, jsonEncode(r));
-            }
-          } catch (_) {}
-        }
+        data = peta(jsonDecode(mentah));
+        await segarkan(paksa: true);
       }
     } finally {
       siap = true;
       notifyListeners();
     }
+  }
+
+  DateTime? _terakhirSegar;
+
+  /// v1.38.7: perbarui sesi & daftar mapel dari server. Dipanggil saat aplikasi dibuka dan setiap kembali ke depan
+  /// (maks. sekali per 10 menit kecuali [paksa]). Bila token sesi 6 jam sudah habis, kunci perangkat jangka panjang
+  /// (bc_kunci, dari pendaftaran notifikasi) dipakai untuk menerbitkan token baru tanpa login ulang.
+  Future<void> segarkan({bool paksa = false}) async {
+    if (!masuk) return;
+    final kini = DateTime.now();
+    if (!paksa && _terakhirSegar != null && kini.difference(_terakhirSegar!) < const Duration(minutes: 10)) return;
+    _terakhirSegar = kini;
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final kunci = sp.getString('bc_kunci') ?? '';
+      final r = peta(await Api.instance('waPulihSesiSiswa', [token, kunci]));
+      if (r['sukses'] == true && teks(r['nama']).isNotEmpty) {
+        data = r;
+        await sp.setString(_kunci, jsonEncode(r));
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   /// Mengembalikan pesan galat, atau null bila berhasil.

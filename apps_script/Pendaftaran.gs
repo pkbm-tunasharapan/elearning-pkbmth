@@ -482,13 +482,25 @@ function ssBuat_(res) {
   return token;
 }
 
-function waPulihSesiSiswa(token) {
+// kunciPerangkat (v1.38.7, opsional): kunci perangkat jangka panjang (Broadcast.gs). Bila token sesi 6 jam sudah
+// habis tetapi kunci perangkat sah untuk siswa ini, diterbitkan token sesi baru (siswa tidak perlu login ulang).
+// Token yang masih berlaku diperpanjang lagi 6 jam setiap kali dipulihkan.
+function waPulihSesiSiswa(token, kunciPerangkat) {
   var gagal = { sukses: false };
-  if (!token || String(token).length < 40) return gagal;
-  var mentah = CacheService.getScriptCache().get(SS.AWAL + String(token));
-  if (!mentah) return gagal;
-  var d;
-  try { d = JSON.parse(mentah); } catch (e) { return gagal; }
+  var c = CacheService.getScriptCache(), d = null, mentah = null;
+  if (token && String(token).length >= 40) mentah = c.get(SS.AWAL + String(token));
+  if (mentah) {
+    try { d = JSON.parse(mentah); } catch (e) { d = null; }
+    if (d) c.put(SS.AWAL + String(token), mentah, SS.DURASI);
+  }
+  if (!d && kunciPerangkat && typeof bcAudiens_ === 'function') {
+    var a = bcAudiens_(kunciPerangkat);
+    if (a && a.jenis === 'siswa' && a.nama && a.rombel) {
+      d = { nama: a.nama, idRombel: a.rombel };
+      token = ssBuat_(d);
+    }
+  }
+  if (!d) return gagal;
   var ada = false;
   getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
     if (i > 0 && sTeks_(r[0]).trim() === d.idRombel && normNama_(r[1]) === normNama_(d.nama)) ada = true;

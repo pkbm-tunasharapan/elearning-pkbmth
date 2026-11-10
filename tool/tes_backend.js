@@ -208,5 +208,22 @@ tes('itSelarasEnroll_: tutor nonaktif -> semua penugasannya dilepas', () => {
   sama([h.lepas, en.v[1][3]], [1, '']);
 });
 
+// 8. pemulihan sesi siswa (token 6 jam habis -> kunci perangkat)
+tes('waPulihSesiSiswa: token berlaku, token habis + kunci perangkat, kunci tidak sah', () => {
+  g.getSheetData = (nama) => (nama === 'Siswa' ? [['ID Rombel', 'Nama Siswa'], ['ROM-C10', 'Alisya Dwi Andita']] : []);
+  g.getNamaRombel_ = () => 'Kelas C10';
+  g.getMapelAktifUntukRombel_ = () => [{ id: 'MP-C04', nama: 'Matematika' }];
+  g.bcAudiens_ = (k) => ({ KUNCI_SISWA: { jenis: 'siswa', nama: 'ALISYA DWI ANDITA', rombel: 'ROM-C10' }, KUNCI_STAF: { jenis: 'staf', nama: 'X' } }[k] || null);
+  cache.put('sis_' + 'T'.repeat(64), JSON.stringify({ nama: 'Alisya Dwi Andita', idRombel: 'ROM-C10' }));
+  const a = g.waPulihSesiSiswa('T'.repeat(64), '');
+  sama([a.sukses, a.sesi, a.daftarMapel.length], [true, 'T'.repeat(64), 1], 'token berlaku');
+  const b = g.waPulihSesiSiswa('HABIS'.repeat(10), 'KUNCI_SISWA');
+  sama([b.sukses, b.sesi.length >= 40, b.sesi !== 'HABIS'.repeat(10)], [true, true, true], 'token baru dari kunci');
+  sama(g.waPulihSesiSiswa('HABIS'.repeat(10), 'KUNCI_STAF').sukses, false, 'kunci staf');
+  sama(g.waPulihSesiSiswa('', 'KUNCI_PALSU').sukses, false, 'kunci palsu');
+  g.getSheetData = () => [['ID Rombel', 'Nama Siswa']];
+  sama(g.waPulihSesiSiswa('', 'KUNCI_SISWA').sukses, false, 'siswa sudah tidak terdaftar');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'siswa/sesi_siswa.dart';
 
 /// Menyimpan token sesi staf dan profil (nama, peran, daftar mapel).
 class Sesi extends ChangeNotifier {
@@ -34,7 +35,14 @@ class Sesi extends ChangeNotifier {
   bool get masuk => token != null && profil.isNotEmpty;
 
   Future<void> muat() async {
-    Api.instance.onSesiHabis = () => keluar(lokal: true, pesan: 'Sesi berakhir. Silakan masuk kembali.');
+    Api.instance.onSesiHabis = () {
+      // v1.38.7: siswa -> perbarui sesi diam-diam (kunci perangkat); staf -> masuk kembali seperti biasa
+      if (SesiSiswa.instance.masuk && token == null) {
+        SesiSiswa.instance.segarkan(paksa: true);
+        return;
+      }
+      keluar(lokal: true, pesan: 'Sesi berakhir. Silakan masuk kembali.');
+    };
     try {
       final sp = await SharedPreferences.getInstance();
       token = sp.getString(_kunciToken);

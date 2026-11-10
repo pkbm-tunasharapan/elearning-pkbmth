@@ -96,6 +96,8 @@ class Notif with WidgetsBindingObserver {
     if (_aktif) {
       _cek();
       if (_timer != null) Pemberitahuan.instance.cek(kunciNavigator);
+      // v1.38.7: daftar mapel & sesi siswa diperbarui saat aplikasi kembali ke depan (maks. 10 menit sekali)
+      if (SesiSiswa.instance.masuk) SesiSiswa.instance.segarkan();
     }
   }
 
