@@ -8,6 +8,7 @@ import 'absensi/antrean_pindai.dart';
 import 'api.dart';
 import 'config.dart';
 import 'notif.dart';
+import 'pemberitahuan.dart';
 import 'pemeliharaan/sistem.dart';
 import 'profil.dart';
 import 'promosi.dart';
@@ -92,8 +93,15 @@ class _AplikasiStafState extends State<AplikasiStaf> {
     ProfilAkun.instance.pastikan();
     final masuk = Sesi.instance.masuk || SesiSiswa.instance.masuk;
     if (masuk == _notifJalan) return;
+    final sebelumnya = _notifJalan;
     _notifJalan = masuk;
-    masuk ? Notif.instance.mulai() : Notif.instance.henti();
+    if (masuk) {
+      Notif.instance.mulai();
+    } else {
+      Notif.instance.henti();
+      // benar-benar keluar (bukan saat aplikasi baru dibuka): cabut pemberitahuan perangkat ini
+      if (sebelumnya == true) Pemberitahuan.instance.keluar();
+    }
   }
 
   @override

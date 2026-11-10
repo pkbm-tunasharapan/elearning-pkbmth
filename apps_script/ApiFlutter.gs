@@ -13,6 +13,8 @@ var API_FLUTTER = {
   TAMBAHAN: {
     // staf
     waUrlStaf: true, waPimpinanUjianPutusan: true,
+    // pemberitahuan / broadcast (siswa & staf; Broadcast.gs)
+    waNotifDaftar: true, waNotifCek: true, waNotifKeluar: true,
     // siswa (fungsi yang sama dengan yang dipakai halaman web siswa)
     waLogin: true, waPulihSesiSiswa: true, waKeluarSiswa: true, waGetMateri: true, waGetRiwayatJawaban: true, waSubmitJawaban: true, waSimpanDraftDiskusi: true, waGetDraftDiskusi: true, waTandaiBaca: true, waStatusUjian: true, waMulaiUjian: true, waSubmitUjian: true, waLaporPindahTab: true, waUjianAjukan: true, waAbsenIsi: true, waRuangPoll: true, waRuangKirim: true, waRuangCek: true, waSiswaKalender: true, waDaftarRombel: true, waDaftarMulai: true, waDaftarKirimUlang: true, waDaftarVerifikasi: true, waProfilSiswa: true, waProfilSiswaSimpan: true, waDaftarTutorStatus: true, waDaftarTutorCek: true, waDaftarTutorMulaiUndangan: true, waDaftarTutorKirimUlang: true, waDaftarTutorVerifikasiUndangan: true, waStafMasukGoogle: true, waKartuSiswa: true, waSiswaBeranda: true
   }
@@ -1424,7 +1426,7 @@ function honBulanan_(bulan, aturan, out) {
     var w = Object.keys(wajib[tt] || {}).sort();
     var honor = honHonorTutor_(aturan, tt);
     var tidak = w.filter(function(t) { return t < hariIni && !x.hari[t]; });
-    var per = w.length ? Math.round(honor / w.length) : 0;
+    var per = w.length ? Math.round(honor / w.length / 1000) * 1000 : 0;   // v1.37: dibulatkan ke ribuan terdekat
     var potong = (w.length && tidak.length === w.length) ? honor : Math.min(honor, per * tidak.length);
     x.jumlah = Object.keys(x.hari).length;
     x.total = Math.max(0, honor - potong);

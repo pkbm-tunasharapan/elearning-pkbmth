@@ -8,7 +8,7 @@ man = akar / 'android/app/src/main/AndroidManifest.xml'
 s = man.read_text()
 if 'android.permission.INTERNET' not in s:
     s = s.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application', 1)
-for izin in ['CAMERA', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'MODIFY_AUDIO_SETTINGS']:
+for izin in ['CAMERA', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'MODIFY_AUDIO_SETTINGS', 'POST_NOTIFICATIONS']:
     if 'android.permission.' + izin not in s:
         s = s.replace('<application', '<uses-permission android:name="android.permission.' + izin + '"/>\n    <application', 1)
 s = re.sub(r'android:label="[^"]*"', f'android:label="{NAMA}"', s, count=1)
@@ -107,6 +107,29 @@ if kunci.exists():
     }""" % (berkas, SANDI, ALIAS, SANDI), 1)
             gro.write_text(g)
         print('Gradle (groovy) memakai kunci tetap.')
+# Pemberitahuan/broadcast (v1.37): MainActivity memakai NotificationCompat dan WorkManager.
+DEP_KTS = """
+dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+}
+"""
+DEP_GRO = """
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
+}
+"""
+if kts.exists():
+    g = kts.read_text()
+    if 'androidx.work:work-runtime-ktx' not in g:
+        kts.write_text(g.rstrip() + '\n' + DEP_KTS)
+        print('Dependensi notifikasi ditambahkan (kts).')
+elif gro.exists():
+    g = gro.read_text()
+    if 'androidx.work:work-runtime-ktx' not in g:
+        gro.write_text(g.rstrip() + '\n' + DEP_GRO)
+        print('Dependensi notifikasi ditambahkan (groovy).')
 # Halaman statis tambahan untuk situs web (mis. kebijakan privasi untuk layar izin Google).
 halaman = akar / 'tool/web'
 if halaman.exists() and (akar / 'web').exists():

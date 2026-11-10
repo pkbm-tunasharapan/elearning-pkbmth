@@ -1,0 +1,163 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'api.dart';
+import 'config.dart';
+import 'session.dart';
+import 'siswa/sesi_siswa.dart';
+
+/// Broadcast/pemberitahuan dari admin (Broadcast.gs).
+/// - Aplikasi terbuka: diperiksa berkala oleh [Notif] -> dialog + notifikasi ponsel.
+/// - Aplikasi tertutup (Android): WorkManager di MainActivity.kt memeriksa ~15 menit sekali
+///   memakai kunci perangkat yang disimpan di shared_preferences (bc_kunci, bc_url, bc_dinotif).
+class Pemberitahuan {
+  Pemberitahuan._();
+  static final Pemberitahuan instance = Pemberitahuan._();
+
+  static const _kanal = MethodChannel('the_course/notif');
+  bool get _android => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool _jalan = false;
+  bool _daftarJalan = false;
+  bool _dialog = false;
+
+  String get _identitas {
+    final ss = SesiSiswa.instance;
+    if (ss.masuk) return 'siswa|${ss.nama.toLowerCase()}|${ss.idRombel}';
+    final s = Sesi.instance;
+    if (s.masuk) return 'staf|${s.peran}|${s.nama.toLowerCase()}';
+    return '';
+  }
+
+  /// Daftarkan perangkat ini (sekali per akun) dan nyalakan pemeriksaan latar belakang.
+  Future<void> mulai() async {
+    if (_daftarJalan) return;
+    _daftarJalan = true;
+    try {
+      final id = _identitas;
+      if (id.isEmpty) return;
+      final sp = await SharedPreferences.getInstance();
+      var kunci = sp.getString('bc_kunci') ?? '';
+      if (kunci.isEmpty || sp.getString('bc_id') != id) {
+        if (kunci.isNotEmpty) {
+          try {
+            await Api.instance('waNotifKeluar', [kunci]);
+          } catch (_) {}
+        }
+        final siswa = SesiSiswa.instance.masuk;
+        final token = siswa ? SesiSiswa.instance.token : (Sesi.instance.token ?? '');
+        if (token.isEmpty) return;
+        final r = peta(await Api.instance('waNotifDaftar', [siswa ? 'siswa' : 'staf', token, kIsWeb ? 'web' : 'android']));
+        kunci = teks(r['kunci']);
+        if (kunci.isEmpty || id != _identitas) return;
+        await sp.setString('bc_kunci', kunci);
+        await sp.setString('bc_id', id);
+      }
+      await sp.setString('bc_url', kApiUrl);
+      if (_android) {
+        try {
+          await _kanal.invokeMethod<bool>('izin');
+          await _kanal.invokeMethod<bool>('jadwalkan', {'aktif': true});
+        } catch (_) {}
+      }
+    } catch (_) {
+    } finally {
+      _daftarJalan = false;
+    }
+  }
+
+  /// Saat keluar: perangkat berhenti menerima pemberitahuan akun ini.
+  Future<void> keluar() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final kunci = sp.getString('bc_kunci') ?? '';
+      await sp.remove('bc_kunci');
+      await sp.remove('bc_id');
+      if (_android) {
+        try {
+          await _kanal.invokeMethod<bool>('jadwalkan', {'aktif': false});
+        } catch (_) {}
+      }
+      if (kunci.isNotEmpty) await Api.instance('waNotifKeluar', [kunci]);
+    } catch (_) {}
+  }
+
+  /// Ambil broadcast aktif; yang belum pernah dikabarkan -> notifikasi ponsel, yang belum dilihat -> dialog.
+  Future<void> cek(GlobalKey<NavigatorState> nav) async {
+    if (_jalan || _dialog) return;
+    _jalan = true;
+    final tampil = <Map<String, dynamic>>[];
+    SharedPreferences? sp;
+    try {
+      sp = await SharedPreferences.getInstance();
+      await sp.reload(); // pemeriksa latar belakang (native) juga menulis bc_dinotif
+      final kunci = sp.getString('bc_kunci') ?? '';
+      if (kunci.isEmpty) {
+        await mulai();
+        return;
+      }
+      final h = peta(await Api.instance('waNotifCek', [kunci]));
+      if (h['sah'] == false) {
+        // kunci tidak dikenal server lagi: daftar ulang pada pemeriksaan berikutnya
+        await sp.remove('bc_kunci');
+        await sp.remove('bc_id');
+        return;
+      }
+      final pesan = daftar(h['pesan']).map(peta).toList().reversed.toList(); // terlama dulu
+      final dinotif = (sp.getString('bc_dinotif') ?? '').split(',').where((x) => x.isNotEmpty).toList();
+      final dilihat = sp.getStringList('bc_dilihat') ?? <String>[];
+      var ubah = false;
+      for (final p in pesan) {
+        final id = teks(p['id']);
+        if (id.isEmpty) continue;
+        if (!dinotif.contains(id)) {
+          if (_android) {
+            try {
+              await _kanal.invokeMethod<bool>('tampil', {'id': id, 'judul': teks(p['judul']), 'isi': teks(p['isi'])});
+            } catch (_) {}
+          }
+          dinotif.add(id);
+          ubah = true;
+        }
+        if (!dilihat.contains(id)) tampil.add(p);
+      }
+      if (ubah) {
+        final sisa = dinotif.length > 200 ? dinotif.sublist(dinotif.length - 200) : dinotif;
+        await sp.setString('bc_dinotif', sisa.join(','));
+      }
+    } catch (_) {
+    } finally {
+      _jalan = false;
+    }
+    if (tampil.isEmpty || sp == null) return;
+    _dialog = true;
+    try {
+      for (final p in tampil) {
+        final c = nav.currentContext;
+        if (c == null || !c.mounted) break;
+        await showDialog<void>(
+          context: c,
+          builder: (d) => AlertDialog(
+            icon: const Icon(Icons.campaign_rounded),
+            title: Text(teks(p['judul'], 'Pemberitahuan')),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SelectableText(teks(p['isi'])),
+                const SizedBox(height: 12),
+                Text('${teks(p['oleh'])} · ${teks(p['waktu'])}', style: TextStyle(fontSize: 12, color: Theme.of(d).colorScheme.onSurfaceVariant)),
+              ]),
+            ),
+            actions: [FilledButton(onPressed: () => Navigator.pop(d), child: const Text('Mengerti'))],
+          ),
+        );
+        final dilihat = sp.getStringList('bc_dilihat') ?? <String>[];
+        dilihat.add(teks(p['id']));
+        await sp.setStringList('bc_dilihat', dilihat.length > 200 ? dilihat.sublist(dilihat.length - 200) : dilihat);
+      }
+    } catch (_) {
+    } finally {
+      _dialog = false;
+    }
+  }
+}

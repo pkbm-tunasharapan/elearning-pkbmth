@@ -18,6 +18,7 @@ import 'kalender.dart';
 import 'ruang.dart';
 import 'screens/admin_lain.dart';
 import 'screens/belum_dinilai.dart';
+import 'screens/broadcast.dart';
 import 'screens/dokumen_rpp.dart';
 import 'screens/kerangka.dart';
 import 'screens/ganda.dart';
@@ -82,6 +83,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'ujianTerpusat', judul: 'Jadwal Ujian Tatap Muka', ikon: Icons.event_available_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const UjianTerpusatScreen()),
   MenuApp(id: 'referral', judul: 'Referral Pendaftaran', ikon: Icons.campaign_outlined, peran: {'Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara'}, native: () => ReferralScreen(token: Sesi.instance.token ?? '')),
   MenuApp(id: 'referralAdmin', judul: 'Kelola Referral & Pendaftaran', ikon: Icons.how_to_reg_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Front Office', 'Bendahara'}, native: () => const ReferralAdminScreen()),
+  MenuApp(id: 'broadcast', judul: 'Broadcast Pemberitahuan', ikon: Icons.notifications_active_outlined, peran: _admin, native: () => const BroadcastScreen()),
   MenuApp(id: 'promosi', judul: 'Popup Promosi', ikon: Icons.campaign_rounded, peran: {'Admin'}, native: () => const PromosiAdminScreen()),
   MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
   MenuApp(id: 'otoNilai', judul: 'Penilaian Otomatis', ikon: Icons.auto_fix_high_rounded, peran: {'Admin', 'Superadmin'}, native: () => const OtoNilaiScreen()),
@@ -132,7 +134,7 @@ const _grupMenu = <String, String>{
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
   'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
-  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
+  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
   'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'maintenance': 'Sistem',
@@ -141,6 +143,7 @@ const _grupMenu = <String, String>{
 /// Kata kunci tambahan agar pencarian menemukan menu dengan istilah sehari-hari.
 const _kataKunci = <String, String>{
   'nilaiRapor': 'raport leger cetak cover biodata kenaikan kelulusan naik kelas lulus',
+  'broadcast': 'notifikasi pengumuman siaran pesan massal info kabar',
   'susulan': 'remedial tertinggal terlewat buka kunci sesi absensi diskusi ujian perbaikan',
   'absensi': 'presensi hadir qr scan datang pulang izin sakit alpa',
   'dataInduk': 'siswa warga belajar wb nisn nik',

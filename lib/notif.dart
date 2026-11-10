@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'pemberitahuan.dart';
 import 'referral/referral.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
@@ -32,6 +33,7 @@ class Notif with WidgetsBindingObserver {
   final _terlihat = <String>{};
   bool _aktif = true;
   bool _terpasang = false;
+  int _detak = 0;
 
   void mulai() {
     if (!_terpasang) {
@@ -39,8 +41,16 @@ class Notif with WidgetsBindingObserver {
       _terpasang = true;
     }
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) => _cek());
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _cek();
+      // broadcast admin: tiap 30 detik (Pemberitahuan juga dicek native saat aplikasi tertutup)
+      if (_aktif && (_detak++).isEven) Pemberitahuan.instance.cek(kunciNavigator);
+    });
     Future.delayed(const Duration(seconds: 3), _cek);
+    Future.delayed(const Duration(seconds: 5), () async {
+      await Pemberitahuan.instance.mulai();
+      await Pemberitahuan.instance.cek(kunciNavigator);
+    });
     Future.delayed(const Duration(seconds: 8), _cekUlangTahun);
   }
 
@@ -83,7 +93,10 @@ class Notif with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _aktif = state == AppLifecycleState.resumed;
-    if (_aktif) _cek();
+    if (_aktif) {
+      _cek();
+      if (_timer != null) Pemberitahuan.instance.cek(kunciNavigator);
+    }
   }
 
   String get _identitas {

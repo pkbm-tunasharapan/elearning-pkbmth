@@ -636,7 +636,7 @@ class _AturanHonorScreenState extends State<AturanHonorScreen> {
         TextField(controller: _tglBayar, enabled: !ro, keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'Tanggal pembayaran (bulan berikutnya)', helperText: 'Bila jatuh hari Minggu, dibayar hari Senin')),
         const SizedBox(height: 8),
-        Text('Potongan per pertemuan = honor bulanan ÷ jumlah pertemuan wajib bulan itu (sesuai Jadwal Tatap Muka tutor, dikurangi hari libur). '
+        Text('Potongan per pertemuan = honor bulanan ÷ jumlah pertemuan wajib bulan itu, dibulatkan ke ribuan terdekat (sesuai Jadwal Tatap Muka tutor, dikurangi hari libur). '
             'Contoh ${rp(bawaan)}: 4 pertemuan → ${rp(bawaan / 4)} per pertemuan; 5 pertemuan → ${rp(bawaan / 5)}. Semua ketidakhadiran dipotong.',
             style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
         JudulBagian('Hari libur', sub: '${_libur.length} tanggal · tidak dihitung sebagai pertemuan wajib'),
