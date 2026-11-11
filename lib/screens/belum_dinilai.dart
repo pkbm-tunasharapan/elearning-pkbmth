@@ -29,6 +29,18 @@ class BelumDinilaiScreen extends StatelessWidget {
                 subtitle: const Text('Ketuk satu diskusi untuk membaca dan menilai tanggapan.'),
               ),
             ),
+            // v1.39.2 (khusus Admin): nilai otomatis untuk tugas yang belum diselesaikan tutor
+            if (Sesi.instance.isAdmin && angka(d['total']) > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 4),
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    if (await _nilaiOtomatis(context)) await segarkan();
+                  },
+                  icon: const Icon(Icons.auto_fix_high_rounded),
+                  label: const Text('Nilai otomatis tugas yang sesinya sudah berakhir (KKM–85)'),
+                ),
+              ),
             if (perTutor.isNotEmpty) ...[
               const JudulBagian('Per tutor'),
               Card(
@@ -77,4 +89,32 @@ class BelumDinilaiScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// v1.39.2 (khusus Admin): jawaban diskusi yang belum dinilai tutor dan sesinya sudah berakhir diberi nilai acak
+/// dari KKM sampai 85. Mengembalikan true bila ada yang dinilai.
+Future<bool> _nilaiOtomatis(BuildContext context) async {
+  final r = await jalankan(context, () => Api.instance('waAdminTugasNilaiOtomatis', [Sesi.instance.token, false]), teksProses: 'Menghitung...');
+  if (!r.ok || !context.mounted) return false;
+  final d = peta(r.data);
+  final n = angka(d['jumlah']);
+  final rg = peta(d['rentang']);
+  if (n == 0) {
+    kabar(context, 'Tidak ada tugas yang sesinya sudah berakhir dan belum dinilai.');
+    return false;
+  }
+  final per = daftar(d['perMapel']).map(peta).toList();
+  final ok = await konfirmasi(
+    context,
+    'Nilai otomatis $n jawaban?',
+    'Jawaban diskusi yang belum dinilai tutor dan sesinya sudah berakhir diberi nilai acak dari ${angka(rg['dari'])} sampai ${angka(rg['sampai'])}. '
+        'Jawaban yang sesinya masih berjalan tidak diubah. Penilai tercatat sebagai "(otomatis)" dan siswa menerima pemberitahuan nilai.\n\n'
+        '${per.take(8).map((x) => '• ${teks(x['nama'])}: ${angka(x['jumlah'])}').join('\n')}${per.length > 8 ? '\n• … ${per.length - 8} mapel lain' : ''}',
+    ya: 'Nilai otomatis',
+  );
+  if (!ok || !context.mounted) return false;
+  final h = await jalankan(context, () => Api.instance('waAdminTugasNilaiOtomatis', [Sesi.instance.token, true], const Duration(minutes: 3)), teksProses: 'Menilai...');
+  if (!h.ok || !context.mounted) return false;
+  kabar(context, '${angka(peta(h.data)['terisi'])} jawaban dinilai otomatis.');
+  return true;
 }

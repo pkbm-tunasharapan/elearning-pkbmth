@@ -2783,6 +2783,10 @@ function waStafLeger(token, q) {
   var p = stafDariToken_(token), r = nilPeran_(p);
   q = q || {};
   if (!nilAksesRapor_(p, q.idRombel)) throw new Error('Rapor hanya dapat dibuka Wali Kelas rombel ini, Kepala Sekolah atau Admin.');
+  // v1.39.2: semester lampau memakai kelas WB pada semester itu (RaporRiwayat.gs); semester mendatang ditolak
+  var kiniL = nilPeriode_(), perL = nilPeriode_(q);
+  if (nilUrutPer_(perL) > nilUrutPer_(kiniL)) throw new Error('Semester ' + perL.semester + ' ' + perL.tahun + ' belum berjalan.');
+  if (nilUrutPer_(perL) < nilUrutPer_(kiniL)) return nilLegerLampau_(String(q.idRombel), perL, kiniL, r.admin);
   var kelas = nilKelasRapor_(q.idRombel);
   if (!kelas.length) throw new Error('Rombel tidak ditemukan atau belum punya mapel.');
   var per = nilPeriode_(q), k = nilKtx_(per), baris = {};
@@ -2802,7 +2806,8 @@ function waStafLeger(token, q) {
   urut.forEach(function(b, i) { b.peringkat = i > 0 && urut[i - 1].jumlah === b.jumlah ? urut[i - 1].peringkat : i + 1; });
   out.sort(function(a, b2) { return a.nama.localeCompare(b2.nama); });
   return {
-    rombel: { id: kelas[0].idRombel, nama: kelas[0].namaRombel, program: kelas[0].program }, periode: per, periodeKini: nilPeriode_(), aturan: k.at, lembaga: nilLembaga_(),
+    rombel: { id: kelas[0].idRombel, nama: kelas[0].namaRombel, program: kelas[0].program }, rombelKini: { id: kelas[0].idRombel, nama: kelas[0].namaRombel }, lampau: false,
+    periode: per, periodeKini: nilPeriode_(), aturan: k.at, lembaga: nilLembaga_(),
     wali: (function() { var w = nilWaliPeta_()[kelas[0].idRombel] || '', pt = absPetaTutor_(); return { id: w, nama: w && pt[w] ? pt[w].nama : '' }; })(),
     mapel: kelas.map(function(kl) { return { kode: kl.kodeMapel, nama: kl.namaMapel, tutor: kl.namaTutor }; }), wb: out
   };
@@ -2837,17 +2842,23 @@ function waStafRapor(token, q) {
 }
 // Rapor satu warga belajar (dipakai rapor staf dan kartu pencapaian siswa; rumus nilai sama persis).
 function nilRaporWb_(wb, q) {
-  var kelas = nilKelasRapor_(wb.idRombel);
-  var per = nilPeriode_(q), k = nilKtx_(per), rows = [];
-  kelas = nilSaringAktif_(kelas, k.peta);
+  var per = nilPeriode_(q), k = nilKtx_(per), rows = [], kiniR = nilPeriode_(), idR = wb.idRombel;
+  if (nilUrutPer_(per) > nilUrutPer_(kiniR)) throw new Error('Semester ' + per.semester + ' ' + per.tahun + ' belum berjalan.');
+  // v1.39.2: semester lampau -> rombel (kelas) WB pada semester itu
+  if (nilUrutPer_(per) < nilUrutPer_(kiniR)) {
+    idR = nilRombelPeriode_(nilRiwayatKtx_(), wb.id, wb.idRombel, per, kiniR);
+    if (!idR) throw new Error('Kelas pada Semester ' + per.semester + ' ' + per.tahun + ' tidak dapat ditentukan.');
+    k.wb[idR] = [{ id: wb.id, nisn: wb.nisn, nama: wb.nama }];
+  }
+  var kelas = nilKelasRombel_(idR, k);
   kelas.forEach(function(kl) {
     var x = nilRekapKelas_(k, kl).filter(function(y) { return y.idWb === wb.id; })[0];
     if (!x) return;
     rows.push({ kode: kl.kodeMapel, nama: kl.namaMapel, diskusi: x.diskusi, uts: x.uts.nilai, uas: x.uas.nilai, akhir: x.akhir, predikat: x.predikat, tuntas: x.tuntas, deskripsi: nilDeskripsi_(kl.namaMapel, x.predikat), persenHadir: x.persen });
   });
-  var rb = honProgramRombel_()[wb.idRombel] || { nama: wb.idRombel, program: '' };
+  var rb = honProgramRombel_()[idR] || { nama: idR, program: '' };
   var hd = k.rekapHadir[wb.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 };
-  return { wb: wb, rombel: { id: wb.idRombel, nama: rb.nama, program: rb.program }, periode: per, aturan: k.at, lembaga: nilLembaga_(), mapel: rows, kehadiran: hd, tanggal: absHariIni_() };
+  return { wb: wb, rombel: { id: idR, nama: rb.nama, program: rb.program }, periode: per, aturan: k.at, lembaga: nilLembaga_(), mapel: rows, kehadiran: hd, tanggal: absHariIni_() };
 }
 
 // v1.38.3: KARTU PENCAPAIAN STUDI untuk siswa (semester berjalan dan sebelumnya).

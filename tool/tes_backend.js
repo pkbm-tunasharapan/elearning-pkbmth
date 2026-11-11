@@ -360,5 +360,55 @@ tes('Dinas: baca tab mapel boleh, tulis ditolak, rapor semester berjalan, konten
   g.__API_FN = '';
 });
 
+// 10. rapor semester lampau & nilai otomatis (v1.39.2)
+function rkTiruan() {
+  const rombel = {}, perKelas = {};
+  [['a10', 'C10', 'C', 10], ['a11', 'C11', 'C', 11], ['a12', 'C12', 'C', 12], ['b9', 'B9', 'B', 9], ['b8', 'B8', 'B', 8]].forEach(([id, nama, pk, k]) => {
+    rombel[id] = { id, nama, paket: pk, kelas: k, program: 'PKT-' + pk };
+    (perKelas[pk + k] = perKelas[pk + k] || []).push(id);
+    (perKelas['*' + k] = perKelas['*' + k] || []).push(id);
+  });
+  return { rombel, perKelas, nilai: {}, naik: {} };
+}
+tes('nilRombelPeriode_: kelas pada semester lampau (C12 kini -> C11 tahun lalu -> C10 -> B9)', () => {
+  const rk = rkTiruan(), kini = { tahun: '2026/2027', semester: 'Ganjil' };
+  sama(g.nilRombelPeriode_(rk, 'W1', 'a12', { tahun: '2025/2026', semester: 'Genap' }, kini), 'a11', 'Genap 25/26');
+  sama(g.nilRombelPeriode_(rk, 'W1', 'a12', { tahun: '2025/2026', semester: 'Ganjil' }, kini), 'a11', 'Ganjil 25/26');
+  sama(g.nilRombelPeriode_(rk, 'W1', 'a12', { tahun: '2024/2025', semester: 'Genap' }, kini), 'a10', '24/25');
+  sama(g.nilRombelPeriode_(rk, 'W1', 'a12', { tahun: '2023/2024', semester: 'Genap' }, kini), 'b9', 'lintas paket');
+  sama(g.nilRombelPeriode_(rk, 'W1', 'a12', kini, kini), 'a12', 'semester berjalan');
+  sama(g.nilRombelPeriode_(rk, 'W1', 'a12', { tahun: '2026/2027', semester: 'Ganjil' }, { tahun: '2026/2027', semester: 'Genap' }), 'a12', 'Ganjil tahun yang sama');
+  // tinggal kelas: tercatat di KENAIKAN KELAS tahun lalu di C12 -> rapor tahun lalu tetap C12
+  rk.naik['W2|2025/2026'] = { idRombel: 'a12', keputusan: 'Tinggal' };
+  sama(g.nilRombelPeriode_(rk, 'W2', 'a12', { tahun: '2025/2026', semester: 'Genap' }, kini), 'a12', 'tinggal kelas');
+  // nilai tahun lalu tercatat di rombel tertentu -> dipakai lebih dulu
+  rk.nilai['W3|2025/2026|Ganjil'] = { a11: 4, a10: 1 };
+  sama(g.nilRombelPeriode_(rk, 'W3', 'a12', { tahun: '2025/2026', semester: 'Ganjil' }, kini), 'a11', 'dari NILAI');
+});
+tes('nilKeputusanLampau_: naik 11->12 disimpulkan, kelulusan kelas akhir, catatan tercatat menang', () => {
+  const simpan = g.knkInfoRombel_;
+  try {
+    g.knkInfoRombel_ = (id) => ({ a11: { kelas: 11, akhir: false }, a12: { kelas: 12, akhir: true } }[id]);
+    const rk = rkTiruan();
+    rk.naik['W9|2025/2026'] = { idRombel: 'a11', keputusan: 'Tinggal' };
+    const h = { rk, utama: 'a11', grup: { a11: [{ id: 'W1' }, { id: 'W9' }] } };
+    const k = g.nilKeputusanLampau_(h, 'a12', { tahun: '2025/2026', semester: 'Genap' });
+    sama([k.keputusan.W1, k.otomatis.W1, k.keputusan.W9, !!k.otomatis.W9, k.info.kelas], ['Naik', true, 'Tinggal', false, 11]);
+    // kelas akhir C12 Genap lampau, WB kini masih di C12 -> Tidak Lulus; kini di kelas lebih tinggi tidak mungkin -> Lulus hanya bila naik
+    const h2 = { rk, utama: 'a12', grup: { a12: [{ id: 'W5' }] } };
+    sama(g.nilKeputusanLampau_(h2, 'a12', { tahun: '2025/2026', semester: 'Genap' }).keputusan.W5, 'Tidak Lulus');
+  } finally { g.knkInfoRombel_ = simpan; }
+});
+tes('nilAcak_: dari KKM sampai 85, tidak sama semua', () => {
+  const at = { kkm: 70 }, isi = new Set();
+  for (let i = 0; i < 300; i++) { const n = g.nilAcak_(at); if (n < 70 || n > 85 || n !== Math.round(n)) throw new Error('di luar rentang: ' + n); isi.add(n); }
+  sama(isi.size > 8, true, 'bervariasi');
+  sama(g.nilAcak_({ kkm: 90 }), 90, 'KKM di atas 85');
+});
+tes('nilUrutPer_: urutan semester', () => {
+  sama(g.nilUrutPer_({ tahun: '2025/2026', semester: 'Genap' }) < g.nilUrutPer_({ tahun: '2026/2027', semester: 'Ganjil' }), true);
+  sama(g.nilUrutPer_({ tahun: '2026/2027', semester: 'Ganjil' }) < g.nilUrutPer_({ tahun: '2026/2027', semester: 'Genap' }), true);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

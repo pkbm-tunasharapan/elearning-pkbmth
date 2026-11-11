@@ -454,10 +454,10 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
   final per = peta(d['periode']);
   // semester lain dipilih di dialog: ambil leger periode itu dulu
   if (o.tahun.isNotEmpty && (o.tahun != teks(per['tahun']) || o.semester != teks(per['semester']))) {
-    final idRombel = teks(peta(d['rombel'])['id']);
+    final idRombel = _idRombelKini(d);
     final h = await jalankan<Map<String, dynamic>>(context, () async {
       final x = peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel, 'tahun': o.tahun, 'semester': o.semester}], const Duration(minutes: 3)));
-      if (o.semester == 'Genap') {
+      if (o.semester == 'Genap' && x['kenaikan'] == null) {
         try {
           x['kenaikan'] = peta(await Api.instance('waStafKenaikanDaftar', [_t, {'idRombel': idRombel, 'tahun': o.tahun}]));
         } catch (_) {}
@@ -466,6 +466,10 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
     }, teksProses: 'Memuat nilai Semester ${o.semester} ${o.tahun}...');
     if (!h.ok || h.data == null || !context.mounted) return;
     data = h.data!;
+    // v1.39.2: admin ditawari mengisi otomatis nilai yang masih kosong (acak KKM–85)
+    final terisi = await _tawarIsiOtomatis(context, data);
+    if (terisi == null || !context.mounted) return;
+    data = terisi;
     final ids = wbs.map((w) => teks(w['idWb'])).toSet();
     siswa = daftar(data['wb']).map(peta).where((w) => ids.contains(teks(w['idWb']))).toList();
     if (siswa.isEmpty) {
@@ -474,6 +478,43 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
     }
   }
   await htmlKePdf(context, nama: namaBerkas, args: [_t, raporHtml(data, siswa, opsi: o)]);
+}
+
+String _idRombelKini(Map<String, dynamic> d) => teks(peta(d['rombelKini'])['id'], teks(peta(d['rombel'])['id']));
+
+/// v1.39.2 (khusus Admin): semester di luar semester berjalan yang masih punya nilai kosong ditawari diisi otomatis
+/// (acak dari KKM sampai 85). Mengembalikan leger terbaru, leger semula (lewati), atau null (batal).
+Future<Map<String, dynamic>?> _tawarIsiOtomatis(BuildContext context, Map<String, dynamic> d, {bool paksaTanya = false}) async {
+  final kosong = angka(d['kosong']);
+  if (!Sesi.instance.isAdmin || d['lampau'] != true || kosong <= 0) return d;
+  final at = peta(d['aturan']);
+  final kkm = angka(at['kkm']);
+  final pilih = await showDialog<String>(
+    context: context,
+    builder: (c) => AlertDialog(
+      icon: const Icon(Icons.auto_fix_high_rounded),
+      title: Text('$kosong nilai masih kosong'),
+      content: Text('${_periodeTeks(peta(d['periode']))} · ${teks(peta(d['rombel'])['nama'])}\n\n'
+          'Isi otomatis nilai UTS/UAS yang kosong dengan angka acak dari KKM ($kkm) sampai ${kkm > 85 ? kkm : 85}? '
+          'Nilai yang sudah ada tidak diubah. Hasilnya tersimpan dan tercatat sebagai "Nilai otomatis (admin)".'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+        if (!paksaTanya) TextButton(onPressed: () => Navigator.pop(c, 'lewati'), child: const Text('Cetak tanpa mengisi')),
+        FilledButton(onPressed: () => Navigator.pop(c, 'isi'), child: const Text('Isi otomatis')),
+      ],
+    ),
+  );
+  if (pilih == null || !context.mounted) return null;
+  if (pilih == 'lewati') return d;
+  final per = peta(d['periode']);
+  final q = {'idRombel': _idRombelKini(d), 'tahun': teks(per['tahun']), 'semester': teks(per['semester'])};
+  final h = await jalankan<Map<String, dynamic>>(context, () async {
+    await Api.instance('waAdminNilaiOtomatis', [_t, q, true], const Duration(minutes: 3));
+    return peta(await Api.instance('waStafLeger', [_t, q], const Duration(minutes: 3)));
+  }, teksProses: 'Mengisi nilai otomatis...');
+  if (!h.ok || h.data == null || !context.mounted) return null;
+  kabar(context, '$kosong nilai terisi otomatis.');
+  return h.data!;
 }
 
 /// v1.39.1: pratinjau rapor tanpa unduh/cetak (akun Dinas Pendidikan), semester berjalan saja.
@@ -524,7 +565,7 @@ class RaporRombelScreen extends StatelessWidget {
         muat: () async {
           final d = peta(await Api.instance('waStafLeger', [_t, {'idRombel': idRombel, ...?per}], const Duration(minutes: 3)));
           final pr = peta(d['periode']);
-          if (teks(pr['semester']) == 'Genap') {
+          if (teks(pr['semester']) == 'Genap' && d['kenaikan'] == null) {
             try {
               d['kenaikan'] = peta(await Api.instance('waStafKenaikanDaftar', [_t, {'idRombel': idRombel, 'tahun': teks(pr['tahun'])}]));
             } catch (_) {}
@@ -539,6 +580,32 @@ class RaporRombelScreen extends StatelessWidget {
           return ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 32), children: [
             Text('${_periodeTeks(peta(d['periode']))} · ${namaProgram(teks(peta(d['rombel'])['program']))} · KKM ${nilT(at['kkm'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
             Text('Wali kelas: ${wali.isEmpty ? 'belum ditetapkan' : wali}', style: const TextStyle(fontSize: 12.5)),
+            // v1.39.2: semester lampau memakai kelas pada semester itu
+            if (d['lampau'] == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('Kelas pada semester ini: ${teks(peta(d['rombel'])['nama'])} (sekarang ${teks(peta(d['rombelKini'])['nama'])}). Rapor dicetak sebagai rapor kelas tersebut.',
+                    style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+              ),
+            if (daftar(d['tanpaKelas']).isNotEmpty)
+              Text('Kelas tidak dapat ditentukan untuk: ${daftar(d['tanpaKelas']).join(', ')}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
+            if (Sesi.instance.isAdmin && d['lampau'] == true && angka(d['kosong']) > 0)
+              Card(
+                margin: const EdgeInsets.only(top: 8),
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.auto_fix_high_rounded),
+                  title: Text('${angka(d['kosong'])} nilai UTS/UAS masih kosong'),
+                  subtitle: const Text('Khusus admin: isi otomatis acak dari KKM sampai 85.'),
+                  trailing: FilledButton(
+                    onPressed: () async {
+                      final x = await _tawarIsiOtomatis(context, d, paksaTanya: true);
+                      if (x != null && !identical(x, d)) await segarkan();
+                    },
+                    child: const Text('Isi'),
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 6, children: [
               if (bolehUnduh) ...[
@@ -549,7 +616,7 @@ class RaporRombelScreen extends StatelessWidget {
               ],
               if (!bolehUnduh)
                 FilledButton.icon(onPressed: () => _pratinjauRapor(context, d, wb, 'Rapor $nama'), icon: const Icon(Icons.visibility_rounded), label: const Text('Pratinjau rapor semua')),
-              if (d['kenaikan'] != null && !Sesi.instance.isDinas)
+              if (d['kenaikan'] != null && !Sesi.instance.isDinas && d['lampau'] != true)
                 FilledButton.tonalIcon(
                   onPressed: () async {
                     final ubah = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => KenaikanScreen(idRombel: idRombel, namaRombel: nama, leger: d)));
