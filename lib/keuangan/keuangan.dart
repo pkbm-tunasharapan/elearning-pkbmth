@@ -7,6 +7,7 @@ import '../honor/honor.dart' show rp;
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'arus.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -103,6 +104,7 @@ class _KeuanganScreenState extends State<KeuanganScreen> {
             _Ubin(ikon: Icons.request_quote_rounded, judul: 'Tagihan Warga Belajar', sub: 'Iuran, biaya ujian, tunggakan', onTap: () => _buka(TagihanScreen(konteks: d))),
             _Ubin(ikon: Icons.account_balance_wallet_rounded, judul: 'Akun Kas & Mutasi', sub: 'Tunai, bank, payment gateway; pemindahan antar akun', onTap: () => _buka(AkunKasScreen(konteks: d))),
             _Ubin(ikon: Icons.receipt_rounded, judul: 'Pajak', sub: 'PPN, potongan PPh, setoran & buku pembantu pajak', onTap: () => _buka(PajakScreen(konteks: d))),
+            _Ubin(ikon: Icons.assessment_rounded, judul: 'Laporan Arus Keuangan', sub: 'Cetak lengkap F4: per periode, sumber dana, kategori, akun, pajak, lampiran', onTap: () => _buka(LaporanArusScreen(konteks: d))),
             _Ubin(ikon: Icons.menu_book_rounded, judul: 'Laporan Kas', sub: 'Buku kas per periode, sumber dana & akun', onTap: () => _buka(LaporanKasScreen(konteks: d))),
             if (peran['catat'] == true) _Ubin(ikon: Icons.category_rounded, judul: 'Kategori Keuangan', sub: 'Kode & nama kategori', onTap: () => _buka(KategoriKeuScreen(konteks: d))),
           ]),

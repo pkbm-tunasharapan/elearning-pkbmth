@@ -133,3 +133,7 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 - PPN "termasuk harga": JUMLAH tetap, dipisah DPP + PPN (informasi; lembaga non-PKP tidak memungut PPN).
 - PPh dipotong pada pengeluaran: JUMLAH = bruto. Saat disetujui, otomatis tercatat Pemasukan kategori PJK "Pajak dipungut" (INDUK = transaksi asal). Honor: centang Potong PPh 21 saat bayar.
 - Setor: Keuangan → Pajak → pilih potongan → NTPN + akun → Pengeluaran PJK; potongan ditandai DISETOR. Batalkan setoran dulu sebelum membatalkan transaksi asal.
+
+## Laporan Arus Keuangan (v1.47.0, Tahap D)
+- Keuangan → Laporan Arus Keuangan. Periode: bulan, semester (Ganjil Jul–Des / Genap Jan–Jun), tahun pelajaran, tahun anggaran, tahap BOSP (I Jan–Jun / II Jul–Des), kustom.
+- Isi: ringkasan, per sumber dana, per bulan, rincian pemasukan/pengeluaran per kategori × sumber dana, posisi kas per akun & mutasi, pajak, piutang & kewajiban, tanda tangan; lampiran tagihan WB, cashback referral, honor belum dibayar, pengeluaran menunggu, rincian transaksi (opsional). PDF F4 & Excel. Server: `waStafKeuArus` (KeuArus.gs).
