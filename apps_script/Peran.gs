@@ -204,7 +204,7 @@ function stafDariToken_(token) {
       try { CacheService.getScriptCache().put('staf_' + token, id, PERAN.DURASI_SESI_DETIK); } catch (e) {}
       if (daftar[i].peran !== 'Admin' && mtAktif_()) throw new Error('MAINTENANCE');
       var hasilU = (daftar[i].peran === 'Dinas Pendidikan' && typeof dinasSaring_ === 'function') ? dinasSaring_(daftar[i]) : daftar[i];
-      if (typeof izPeriksa_ === 'function') izPeriksa_(hasilU);   // v1.41.0: izin per fitur (Peran & Izin)
+      if (typeof izPeriksa_ === 'function') hasilU = izPeriksa_(hasilU) || hasilU;   // v1.41.0/1.41.1: izin per fitur (+ peran pelaksana fitur tambahan)
       return hasilU;
     }
   }

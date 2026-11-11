@@ -46,8 +46,8 @@ class _PeranIzinScreenState extends State<PeranIzinScreen> {
                 child: const ListTile(
                   leading: Icon(Icons.admin_panel_settings_rounded),
                   title: Text('Peran & Izin', style: TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text('Peran baru selalu berdasar salah satu peran bawaan (menentukan cakupan data). Izin dapat diturunkan per fitur: '
-                      'Tidak / Lihat / Ubah. Tahap ini belum bisa memberi fitur di luar peran dasarnya.'),
+                  subtitle: Text('Peran baru selalu berdasar salah satu peran bawaan (menentukan cakupan data). Izin per fitur: Tidak / Lihat / Ubah. '
+                      'Fitur di luar peran dasar dapat diberikan di bagian "Fitur tambahan".'),
                 ),
               ),
               for (final p in peran)
@@ -131,6 +131,12 @@ class _EditorPeranState extends State<_EditorPeran> {
 
   List<Map<String, dynamic>> get _fiturDasar => widget.fitur.where((f) => daftar(f['peran']).map(teks).contains(_dasar)).toList();
 
+  /// v1.41.1 (Tahap 2): fitur di luar peran dasar yang boleh diberikan (bukan fitur terkunci; bukan peran Dinas).
+  List<Map<String, dynamic>> get _fiturTambahan => _dasar == 'Dinas Pendidikan'
+      ? const []
+      : widget.fitur.where((f) => !daftar(f['peran']).map(teks).contains(_dasar) && f['kunci'] != true && teks(f['pelaksanaLihat']).isNotEmpty).toList();
+  String _tingkatTambahan(String id) => _izin[id] ?? 'tidak';
+
   String _tingkat(String id) {
     final t = _izin[id] ?? _maks;
     return t == 'ubah' && _maks == 'lihat' ? 'lihat' : t;
@@ -143,7 +149,10 @@ class _EditorPeranState extends State<_EditorPeran> {
       'dasar': _bawaan ? teks(widget.peran!['nama']) : _dasar,
       'deskripsi': _desk.text.trim(),
       'status': _aktif ? 'Aktif' : 'Nonaktif',
-      'izin': {for (final f in _fiturDasar) teks(f['id']): _tingkat(teks(f['id']))},
+      'izin': {
+        for (final f in _fiturDasar) teks(f['id']): _tingkat(teks(f['id'])),
+        for (final f in _fiturTambahan) teks(f['id']): _tingkatTambahan(teks(f['id'])),
+      },
     };
     final r = await jalankan(context, () => Api.instance('waAdminPeranSimpan', [_t, data]), teksProses: 'Menyimpan peran...');
     if (r.ok && mounted) {
@@ -162,8 +171,9 @@ class _EditorPeranState extends State<_EditorPeran> {
 
   void _pratinjau() {
     final menu = semuaMenu.where((m) {
-      if (!m.peran.contains(_dasar) || m.id == 'peranIzin') return false;
+      if (m.id == 'peranIzin') return false;
       final id = m.id == 'rppSemua' ? 'rpp' : m.id;
+      if (!m.peran.contains(_dasar)) return _fiturTambahan.any((f) => teks(f['id']) == id) && _tingkatTambahan(id) != 'tidak';
       final ada = _fiturDasar.any((f) => teks(f['id']) == id);
       return !ada || _tingkat(id) != 'tidak';
     }).toList();
@@ -184,7 +194,9 @@ class _EditorPeranState extends State<_EditorPeran> {
                 dense: true,
                 leading: Icon(m.ikon),
                 title: Text(m.judul),
-                trailing: Text(_labelTingkat[_tingkat(m.id == 'rppSemua' ? 'rpp' : m.id)] ?? '', style: const TextStyle(fontSize: 12)),
+                trailing: Text(
+                    _labelTingkat[m.peran.contains(_dasar) ? _tingkat(m.id == 'rppSemua' ? 'rpp' : m.id) : _tingkatTambahan(m.id == 'rppSemua' ? 'rpp' : m.id)] ?? '',
+                    style: const TextStyle(fontSize: 12)),
               ),
           ]),
         ),
@@ -257,6 +269,38 @@ class _EditorPeranState extends State<_EditorPeran> {
                               if (_maks == 'ubah') const ButtonSegment(value: 'ubah', label: Text('Ubah')),
                             ],
                             selected: {_tingkat(teks(f['id']))},
+                            onSelectionChanged: (v) => setState(() => _izin[teks(f['id'])] = v.first),
+                          ),
+                        ]),
+                      ),
+                  ]),
+                ),
+              ],
+              if (_fiturTambahan.isNotEmpty) ...[
+                const JudulBagian('Fitur tambahan (di luar peran dasar)',
+                    sub: 'Bawaan: Tidak. Bila diberikan, fitur dijalankan dengan wewenang peran pelaksana yang tertulis — hanya untuk fitur itu.'),
+                Card(
+                  child: Column(children: [
+                    for (final f in _fiturTambahan)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+                        child: Row(children: [
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(teks(f['judul']), style: const TextStyle(fontSize: 13.5)),
+                              Text('${teks(f['kelompok'])} · lihat sebagai ${teks(f['pelaksanaLihat'])} · ubah sebagai ${teks(f['pelaksanaUbah'])}',
+                                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                            ]),
+                          ),
+                          SegmentedButton<String>(
+                            showSelectedIcon: false,
+                            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                            segments: const [
+                              ButtonSegment(value: 'tidak', label: Text('Tidak')),
+                              ButtonSegment(value: 'lihat', label: Text('Lihat')),
+                              ButtonSegment(value: 'ubah', label: Text('Ubah')),
+                            ],
+                            selected: {_tingkatTambahan(teks(f['id']))},
                             onSelectionChanged: (v) => setState(() => _izin[teks(f['id'])] = v.first),
                           ),
                         ]),

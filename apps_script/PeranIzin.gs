@@ -80,8 +80,21 @@ var IZN = {
     ['reset', 'Reset Data', 'Sistem', ['Admin'], /^waAdminReset(Data|Rencana)$/]
   ],
   // menu aplikasi yang memakai fitur lain (id menu -> id fitur)
-  MENU_ALIAS: { rppSemua: 'rpp' }
+  MENU_ALIAS: { rppSemua: 'rpp' },
+  // v1.41.1 (Tahap 2): fitur yang TIDAK dapat diberikan di luar peran dasarnya (keamanan / melekat pada orangnya)
+  KUNCI: { peranIzin: true, pengguna: true, reset: true, maintenance: true, pemeliharaan: true, ai: true, absenSaya: true, honorSaya: true },
+  // urutan peran "pelaksana" untuk fitur tambahan: lihat = paling ringan yang punya fitur; ubah = Admin bila ada
+  URUT_LIHAT: ['Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Bendahara', 'Front Office', 'Tutor', 'Admin'],
+  URUT_UBAH: ['Admin', 'Kepala Sekolah', 'Superadmin', 'Koordinator Kurikulum', 'Bendahara', 'Front Office', 'Tutor']
 };
+
+// Peran bawaan yang menjalankan fitur tambahan (fitur di luar peran dasar yang diberikan admin).
+function izProksi_(f, tingkat) {
+  var urut = tingkat === 'ubah' ? IZN.URUT_UBAH : IZN.URUT_LIHAT;
+  for (var i = 0; i < urut.length; i++) if (f[3].indexOf(urut[i]) >= 0) return urut[i];
+  return '';
+}
+function izBisaTambah_(f, dasar) { return !IZN.KUNCI[f[0]] && dasar !== 'Dinas Pendidikan' && f[3].indexOf(dasar) < 0 && !!izProksi_(f, 'lihat'); }
 
 // ---------- katalog ----------
 function izFitur_(fn) {
@@ -135,7 +148,11 @@ function izPeranKustom_(nama) {
 function izPetaPeran_(kunci, dasar) {
   var d = izData_(), simpan = d.izin[kunci] || {}, out = {};
   IZN.FITUR.forEach(function(f) {
-    if (f[3].indexOf(dasar) < 0) return;               // Tahap 1: fitur di luar peran dasar tidak diatur (aturan lama berlaku)
+    if (f[3].indexOf(dasar) < 0) {
+      // v1.41.1 (Tahap 2): fitur tambahan hanya bila diberikan admin ('lihat' / 'ubah')
+      if (izBisaTambah_(f, dasar) && izNilai_(simpan[f[0]]) > 0) out[f[0]] = simpan[f[0]];
+      return;
+    }
     var bawaan = dasar === 'Dinas Pendidikan' ? 'lihat' : 'ubah';
     out[f[0]] = simpan[f[0]] || bawaan;
     if (izNilai_(out[f[0]]) > izNilai_(bawaan)) out[f[0]] = bawaan;
@@ -150,22 +167,43 @@ function izPetaPengguna_(p) {
 }
 
 // Penjaga pusat: dipanggil stafDariToken_ untuk fungsi tingkat atas (globalThis.__API_FN).
+// Mengembalikan p yang dipakai fungsi: p apa adanya, atau (Tahap 2) salinan p dengan peran pelaksana bila fungsi
+// ini milik fitur tambahan yang diberikan admin. Wewenang pelaksana hanya berlaku untuk fungsi fitur itu.
 function izPeriksa_(p) {
   var fn = String(globalThis.__API_FN || '');
-  if (!fn || globalThis.__IZN_OK === fn) return;
-  if (!/^wa(Staf|Admin)/.test(fn)) return;
+  if (!fn || !/^wa(Staf|Admin)/.test(fn)) return p;
+  if (globalThis.__IZN_OK === fn) return globalThis.__IZN_PROKSI ? izTerapkanProksi_(p, globalThis.__IZN_PROKSI) : p;
+  globalThis.__IZN_PROKSI = null;
   var fitur = izFitur_(fn);
-  if (!fitur || fitur === 'umum') { globalThis.__IZN_OK = fn; return; }
+  if (!fitur || fitur === 'umum') { globalThis.__IZN_OK = fn; return p; }
   var dasar = p.peranAsli || p.peran;
-  if (!p.peranKustom && dasar === 'Admin') { globalThis.__IZN_OK = fn; return; }
+  if (!p.peranKustom && dasar === 'Admin') { globalThis.__IZN_OK = fn; return p; }
   var peta = izPetaPengguna_(p), punya = peta[fitur], perlu = izAksi_(fn);
-  // fitur yang memang tidak dimiliki peran dasar dibiarkan ke pemeriksaan lama (pesan galat lama tetap muncul)
   var ftr = IZN.FITUR.filter(function(f) { return f[0] === fitur; })[0];
-  if (ftr && ftr[3].indexOf(dasar) < 0) { globalThis.__IZN_OK = fn; return; }
+  if (ftr && ftr[3].indexOf(dasar) < 0) {
+    // fitur di luar peran dasar: bila diberikan admin dan tingkatnya cukup -> jalankan sebagai peran pelaksana;
+    // selain itu pemeriksaan lama yang berlaku (perilaku sebelum Tahap 2 tidak berubah)
+    if (izNilai_(punya) >= izNilai_(perlu) && izNilai_(perlu) > 0) {
+      var prx = { fitur: fitur, peran: izProksi_(ftr, perlu === 'ubah' ? 'ubah' : 'lihat') };
+      if (prx.peran) { globalThis.__IZN_OK = fn; globalThis.__IZN_PROKSI = prx; return izTerapkanProksi_(p, prx); }
+    }
+    globalThis.__IZN_OK = fn;
+    return p;
+  }
   if (izNilai_(punya) < izNilai_(perlu)) {
     throw new Error('Peran ' + (p.peranKustom || dasar) + ' tidak memiliki izin ' + (perlu === 'ubah' ? 'mengubah' : 'membuka') + ' fitur "' + (ftr ? ftr[1] : fitur) + '". Hubungi admin.');
   }
   globalThis.__IZN_OK = fn;
+  return p;
+}
+function izTerapkanProksi_(p, prx) {
+  var q = {};
+  Object.keys(p).forEach(function(k) { q[k] = p[k]; });
+  q.peranDasarAsli = p.peranAsli || p.peran;
+  q.peran = prx.peran;
+  q.proksi = prx.fitur;
+  if (!q.peranKustom) q.peranKustom = q.peranDasarAsli;   // tetap ditandai bukan Admin utama
+  return q;
 }
 
 // ---------- endpoint admin ----------
@@ -188,7 +226,7 @@ function waAdminPeranDaftar(token) {
   izWajibAdminBawaan_(token);
   return {
     peran: izRingkasPeran_(),
-    fitur: IZN.FITUR.map(function(f) { return { id: f[0], judul: f[1], kelompok: f[2], peran: f[3] }; }),
+    fitur: IZN.FITUR.map(function(f) { return { id: f[0], judul: f[1], kelompok: f[2], peran: f[3], kunci: !!IZN.KUNCI[f[0]], pelaksanaLihat: izProksi_(f, 'lihat'), pelaksanaUbah: izProksi_(f, 'ubah') }; }),
     menuAlias: IZN.MENU_ALIAS
   };
 }
@@ -196,7 +234,7 @@ function waAdminPeranIzin(token, nama) {
   izWajibAdminBawaan_(token);
   var r = izRingkasPeran_().filter(function(x) { return x.nama === nama; })[0];
   if (!r) throw new Error('Peran tidak ditemukan.');
-  return { peran: r, izin: r.terkunci ? izPetaPengguna_({ peran: 'Admin' }) : izPetaPeran_(r.nama, r.dasar) };
+  return { peran: r, izin: r.terkunci ? izPetaPengguna_({ peran: 'Admin' }) : izPetaPeran_(r.nama, r.dasar) };   // termasuk fitur tambahan
 }
 function izNamaSah_(nama) {
   nama = String(nama || '').trim().replace(/\s+/g, ' ');
@@ -235,7 +273,13 @@ function waAdminPeranSimpan(token, d) {
     hapus.forEach(function(b) { ti.sh.deleteRow(b); });
     var baru = [], ringkas = [];
     IZN.FITUR.forEach(function(f) {
-      if (f[3].indexOf(dasar) < 0) return;
+      if (f[3].indexOf(dasar) < 0) {
+        var tt = String(izin[f[0]] || '').toLowerCase();
+        if (!izBisaTambah_(f, dasar) || izNilai_(tt) <= 0) return;   // fitur tambahan disimpan hanya bila diberikan
+        baru.push(absBaris_(ti, { 'PERAN': nama, 'FITUR': f[0], 'TINGKAT': tt, 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': absWaktu_() }));
+        ringkas.push('+' + f[0] + '=' + tt);
+        return;
+      }
       var t = String(izin[f[0]] || '').toLowerCase();
       if (izNilai_(t) < 0) return;
       var bawaanT = dasar === 'Dinas Pendidikan' ? 'lihat' : 'ubah';
@@ -245,7 +289,7 @@ function waAdminPeranSimpan(token, d) {
     });
     if (baru.length) ti.sh.getRange(ti.sh.getLastRow() + 1, 1, baru.length, baru[0].length).setValues(baru);
     izHapusCache_();
-    catat_(p.peran, '', p.nama, d.namaLama ? 'Ubah peran & izin' : 'Tambah peran', nama + ' (dasar ' + dasar + ') · izin dibatasi: ' + (ringkas.join(', ') || 'tidak ada') + (sebelum ? ' · sebelum: ' + sebelum.slice(0, 150) : ''), 'OK');
+    catat_(p.peran, '', p.nama, d.namaLama ? 'Ubah peran & izin' : 'Tambah peran', nama + ' (dasar ' + dasar + ') · izin diubah: ' + (ringkas.join(', ') || 'tidak ada') + (sebelum ? ' · sebelum: ' + sebelum.slice(0, 150) : ''), 'OK');
     return { sukses: true, nama: nama };
   } finally { lock.releaseLock(); }
 }

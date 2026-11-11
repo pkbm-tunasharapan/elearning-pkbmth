@@ -132,7 +132,10 @@ bool izinkanMenu(Sesi s, String id) {
   return teks(s.izin[_aliasFitur[id] ?? id]) != 'tidak';
 }
 
-List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran) && izinkanMenu(s, m.id)).toList();
+/// v1.41.1 (Tahap 2): fitur di luar peran dasar muncul bila admin memberikannya (izin 'lihat' / 'ubah').
+bool fiturTambahan(Sesi s, String id) => s.peranKustom.isNotEmpty || s.peran != 'Admin' ? const {'lihat', 'ubah'}.contains(teks(s.izin[_aliasFitur[id] ?? id])) : false;
+
+List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran) ? izinkanMenu(s, m.id) : (m.id != 'peranIzin' && fiturTambahan(s, m.id))).toList();
 
 // ───────────────────────── pengelompokan & pencarian menu ─────────────────────────
 

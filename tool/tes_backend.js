@@ -554,5 +554,29 @@ tes('izin: peran kustom dibatasi di bawah peran dasar, Admin bawaan selalu penuh
   } finally { g.izData_ = simpan; }
 });
 
+tes('izin tahap 2: fitur tambahan di luar peran dasar berjalan dengan peran pelaksana, hanya untuk fitur itu', () => {
+  const simpan = g.izData_;
+  try {
+    g.izData_ = () => ({ peran: {}, izin: { 'Front Office': { dataInduk: 'lihat', laporanHadir: 'ubah', pengguna: 'ubah', siswaRombel: 'ubah' } } });
+    const fo = { id: 'F1', nama: 'Mbak FO', peran: 'Front Office' };
+    const peta = g.izPetaPengguna_(fo);
+    sama([peta.dataInduk, peta.siswaRombel, peta.pengguna, peta.keuangan], ['lihat', 'ubah', undefined, undefined], 'fitur terkunci (pengguna) tidak bisa diberikan');
+    const jalan = (fn) => { g.__API_FN = fn; g.__IZN_OK = ''; g.__IZN_PROKSI = null; try { return g.izPeriksa_(fo); } catch (e) { return 'tolak'; } };
+    const a = jalan('waStafIndukDaftar');
+    sama([a.peran, a.proksi, a.nama], ['Kepala Sekolah', 'dataInduk', 'Mbak FO'], 'lihat Data Induk sebagai pelaksana');
+    sama(jalan('waStafIndukSimpan').peran, 'Front Office', 'ubah Data Induk tidak diberikan -> aturan lama (tidak dinaikkan)');
+    sama(jalan('waStafPinReset').peran, 'Admin', 'siswaRombel ubah -> pelaksana Admin');
+    sama(jalan('waStafKeuSimpan').peran, 'Front Office', 'fitur lain tidak ikut naik');
+    sama(jalan('waAdminSimpanPengguna').peran, 'Front Office', 'fitur terkunci tidak pernah dinaikkan');
+    // panggilan stafDariToken_ kedua dalam permintaan yang sama tetap memakai pelaksana
+    g.__API_FN = 'waStafIndukDaftar'; g.__IZN_OK = ''; g.__IZN_PROKSI = null;
+    g.izPeriksa_(fo);
+    sama(g.izPeriksa_(fo).peran, 'Kepala Sekolah', 'panggilan kedua');
+    g.__API_FN = '';
+    const dinas = g.izPetaPeran_('Dinas Pendidikan', 'Dinas Pendidikan');
+    sama(dinas.keuangan, undefined, 'Dinas tidak dapat diberi fitur tambahan');
+  } finally { g.izData_ = simpan; g.__IZN_PROKSI = null; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
