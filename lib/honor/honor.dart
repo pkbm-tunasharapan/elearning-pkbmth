@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../absensi/umum.dart';
 import '../api.dart';
+import '../keuangan/keuangan.dart' show pilihAkunKas;
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -466,10 +467,18 @@ class _FormBayarState extends State<_FormBayar> {
     if (j <= 0) return kabar(context, 'Isi jumlah pembayaran.', galat: true);
     if (!await konfirmasi(context, 'Catat pembayaran ${rp(j)}?', 'Untuk ${teks(widget.r['nama'])} bulan ${bulanIndo(teks(widget.r['bulan']))}. Pembayaran otomatis tercatat sebagai pengeluaran honor (HON) di Keuangan.', ya: 'Catat')) return;
     if (!mounted) return;
+    String? akun;   // v1.45.0: dibayar dari akun kas mana
+    try {
+      final a = peta(await Api.instance('waStafKeuAkun', [_t]));
+      if (!mounted) return;
+      akun = await pilihAkunKas(context, daftar(a['akun']).map(peta).toList(), judul: 'Dibayar dari akun', awal: RegExp(r'tunai', caseSensitive: false).hasMatch(_metode.text) ? 'TUNAI' : 'BANK');
+      if (akun == null) return;
+    } on ApiException catch (_) {}
+    if (!mounted) return;
     final h = await jalankanSaldo(context, (paksa) => Api.instance('waStafHonorBayar', [
           _t,
           teks(widget.r['id']),
-          {'jumlah': j, 'tanggal': tglIso(_tgl), 'metode': _metode.text, 'rekening': _rekening.text, 'sumberDana': _sumber.text, 'catatan': _catatan.text, if (_bukti != null) 'bukti': _bukti, 'paksa': paksa}
+          {'jumlah': j, 'tanggal': tglIso(_tgl), 'metode': _metode.text, 'rekening': _rekening.text, 'sumberDana': _sumber.text, 'catatan': _catatan.text, if (_bukti != null) 'bukti': _bukti, if (akun != null) 'akun': akun, 'paksa': paksa}
         ], const Duration(seconds: 150)), teksProses: 'Mencatat pembayaran...');
     if (h.ok && mounted) {
       kabar(context, 'Pembayaran tercatat.');

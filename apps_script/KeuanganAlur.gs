@@ -35,7 +35,7 @@ function kalKolom_(nama, kolom) {
 function kalSaldoSumber_(sumber) {
   var s = String(sumber || 'Lainnya'), n = 0;
   keuSemua_().forEach(function(x) {
-    if (keuSah_(x) && (x.sumber || 'Lainnya') === s) n += x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
+    if (keuSah_(x) && x.jenis !== 'Mutasi' && (x.sumber || 'Lainnya') === s) n += x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
   });
   return n;
 }
@@ -61,13 +61,15 @@ function rfCatatBayar_(x, oleh, viaGw) {
   var d = rfJson_(x['DATA'], {}), sim = {};
   try { sim = absSim_(); } catch (e) {}
   var tgl = kalTglBayar_(x), nama = d.nama || x['NAMA'], order = String(x['ORDER GATEWAY'] || ''), idWb = x['ID WB'] && x['ID WB'] !== '-' ? x['ID WB'] : '';
+  var pg = kalNamaPenyedia_(g);
   var dasar = { 'TANGGAL': tgl, 'STATUS': 'Disetujui', 'TANGGAL KEPUTUSAN': tgl, 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': oleh.nama, 'DICATAT PADA': absWaktu_() };
   rfKategori_(RF.KAT_DAF, 'Biaya Pendaftaran', 'Pemasukan');
   var ids = [rfTrx_(kalGabung_(dasar, {
     'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': RF.KAT_DAF, 'WARGA BELAJAR': idWb,
-    'URAIAN': ('Pendaftaran ' + nama + ' (' + x['ID'] + ', ' + (x['METODE BAYAR'] || '-') + (viaGw ? ', order Midtrans ' + order : '') + ')').slice(0, 300),
+    'URAIAN': ('Pendaftaran ' + nama + ' (' + x['ID'] + ', ' + (x['METODE BAYAR'] || '-') + (viaGw ? ', order ' + pg + ' ' + order : '') + ')').slice(0, 300),
+    'AKUN KAS': viaGw ? kalAkunBawaan_('gateway') : kalAkunBawaan_(x['METODE BAYAR'] || 'sekretariat'),
     'JUMLAH': jml, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': nama, 'BUKTI': x['BUKTI BAYAR'] || '', 'DIPUTUS OLEH': oleh.nama,
-    'CATATAN KEPUTUSAN': viaGw ? 'Dibayar lewat Midtrans; dicatat sebesar yang dibayar pendaftar' : 'Pendaftaran referral (otomatis saat lunas)'
+    'CATATAN KEPUTUSAN': viaGw ? 'Dibayar lewat ' + pg + '; dicatat sebesar yang dibayar pendaftar' : 'Pendaftaran referral (otomatis saat lunas)'
   }))];
   if (viaGw) {
     var persen = Number(g.biayaPersen) || 0, tetap = Math.round(Number(g.biayaTetap) || 0);
@@ -76,10 +78,11 @@ function rfCatatBayar_(x, oleh, viaGw) {
       rfKategori_(KAL.KAT_ADM, 'Biaya Administrasi Payment Gateway', 'Pengeluaran');
       ids.push(rfTrx_(kalGabung_(dasar, {
         'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': KAL.KAT_ADM,
-        'URAIAN': ('Biaya layanan Midtrans QRIS' + (persen ? ' ' + persen + '%' : '') + (tetap ? ' + ' + honRp_(tetap) : '') + ' atas ' + honRp_(jml) +
+        'AKUN KAS': kalAkunBawaan_('gateway'),
+        'URAIAN': ('Biaya layanan ' + pg + ' QRIS' + (persen ? ' ' + persen + '%' : '') + (tetap ? ' + ' + honRp_(tetap) : '') + ' atas ' + honRp_(jml) +
           ' (order ' + order + ', pendaftaran ' + x['ID'] + ' ' + nama + ')').slice(0, 300),
-        'JUMLAH': biaya, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': 'Midtrans', 'DIPUTUS OLEH': 'Sistem (dipotong otomatis oleh gateway)',
-        'CATATAN KEPUTUSAN': 'Dibayar ' + honRp_(jml) + ' - biaya ' + honRp_(biaya) + ' = diterima bersih ' + honRp_(jml - biaya) + '. Sesuaikan bila laporan Midtrans berbeda.'
+        'JUMLAH': biaya, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': pg, 'DIPUTUS OLEH': 'Sistem (dipotong otomatis oleh gateway)',
+        'CATATAN KEPUTUSAN': 'Dibayar ' + honRp_(jml) + ' - biaya ' + honRp_(biaya) + ' = diterima bersih ' + honRp_(jml - biaya) + '. Sesuaikan bila laporan ' + pg + ' berbeda.'
       })));
     }
   }
@@ -135,7 +138,7 @@ function waStafRefKembaliAjukan(token, id, jumlah, alasan, bukti) {
     t.sh.appendRow(absBaris_(t, {
       'ID TRANSAKSI': idTrx, 'TANGGAL': absHariIni_(), 'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': KAL.KAT_KMB,
       'URAIAN': ('Pengembalian dana pendaftaran ' + x['NAMA'] + ' (' + id + '): ' + alasan).slice(0, 300), 'JUMLAH': jml, 'SUMBER DANA': 'Swadaya',
-      'PIHAK TERKAIT': x['NAMA'], 'BUKTI': f, 'STATUS': 'Menunggu', 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': r.p.nama, 'DICATAT PADA': absWaktu_()
+      'PIHAK TERKAIT': x['NAMA'], 'BUKTI': f, 'STATUS': 'Menunggu', 'AKUN KAS': kalAkunBawaan_('transfer'), 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': r.p.nama, 'DICATAT PADA': absWaktu_()
     }));
   } finally { lock.releaseLock(); }
   rfUbah_('DAFTAR', x._baris, { 'STATUS BAYAR': 'Pengembalian Diajukan', 'ID TRX KEMBALI': idTrx,
@@ -220,4 +223,141 @@ function waStafHonorBayarBatal(token, idBayar, alasan) {
     catat_(p.peran, '', p.nama, 'Batal bayar honor', idBayar + ' ' + honRp_(jumlah) + ': ' + alasan, 'OK');
     return { sukses: true };
   } finally { kunci.releaseLock(); }
+}
+
+// ============================================================================
+// AKUN KAS & MUTASI (v1.45.0, Tahap B)
+// Setiap transaksi menyebut TEMPAT uangnya (kolom AKUN KAS): Kas Tunai, Rekening Bank, atau Saldo Payment Gateway
+// (Midtrans/DOKU). Pemindahan antar tempat dicatat sebagai JENIS "Mutasi" (AKUN KAS = asal, AKUN TUJUAN = tujuan):
+// tidak dihitung sebagai pemasukan/pengeluaran, tidak mengubah saldo sumber dana, hanya memindah saldo antar akun.
+// Contoh: pencairan saldo gateway ke rekening bank, setor tunai ke bank, tarik tunai dari bank.
+// Transaksi lama tanpa akun tampil sebagai "Belum ditentukan" dan bisa diatur (Atur akun kas).
+// ============================================================================
+KAL.PROP_AKUN = 'TH_KEU_AKUN';
+KAL.JENIS_AKUN = ['Tunai', 'Bank', 'Gateway'];
+KAL.AKUN_BAWAAN = [
+  { kode: 'TUNAI', nama: 'Kas Tunai', jenis: 'Tunai', ket: '', aktif: true },
+  { kode: 'BANK', nama: 'Rekening Bank', jenis: 'Bank', ket: '', aktif: true },
+  { kode: 'PG', nama: 'Saldo Payment Gateway', jenis: 'Gateway', ket: '', aktif: true }
+];
+KAL.TANPA_AKUN = { kode: '', nama: 'Belum ditentukan', jenis: '', ket: 'Transaksi lama, atur lewat "Atur akun kas"', aktif: true };
+
+function kalAkun_() {
+  try {
+    var s = JSON.parse(PropertiesService.getScriptProperties().getProperty(KAL.PROP_AKUN) || 'null');
+    if (Array.isArray(s) && s.length) return s;
+  } catch (e) {}
+  return JSON.parse(JSON.stringify(KAL.AKUN_BAWAAN));
+}
+function kalAkunPeta_() { var m = {}; kalAkun_().forEach(function(a) { m[a.kode] = a; }); return m; }
+function kalAkunSah_(kode) { var k = String(kode || '').trim().toUpperCase(); return kalAkunPeta_()[k] ? k : ''; }
+// Akun bawaan menurut metode bayar (dipakai pencatatan otomatis).
+function kalAkunBawaan_(metode) {
+  var m = String(metode || '').toLowerCase(), peta = kalAkunPeta_();
+  var pilih = function(jenis, kode) {
+    if (peta[kode] && peta[kode].aktif !== false) return kode;
+    var a = kalAkun_().filter(function(x) { return x.jenis === jenis && x.aktif !== false; })[0];
+    return a ? a.kode : '';
+  };
+  if (/gateway|otomatis|midtrans|doku/.test(m)) return pilih('Gateway', 'PG');
+  if (/tunai|cash|sekretariat/.test(m)) return pilih('Tunai', 'TUNAI');
+  if (!m) return '';
+  return pilih('Bank', 'BANK');
+}
+function kalNamaPenyedia_(g) { return String((g && g.penyedia) || 'midtrans').toLowerCase() === 'doku' ? 'DOKU' : 'Midtrans'; }
+
+// Saldo per akun (transaksi Disetujui; sampai = batas tanggal inklusif, opsional).
+function kalSaldoAkun_(semua, sampai) {
+  var s = {};
+  (semua || keuSemua_()).forEach(function(x) {
+    if (!keuSah_(x) || (sampai && x.tanggal > sampai)) return;
+    var a = x.akun || '';
+    if (x.jenis === 'Mutasi') { s[a] = (s[a] || 0) - x.jumlah; s[x.akunTujuan || ''] = (s[x.akunTujuan || ''] || 0) + x.jumlah; }
+    else s[a] = (s[a] || 0) + (x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah);
+  });
+  return s;
+}
+function kalDaftarAkunSaldo_(semua) {
+  var s = kalSaldoAkun_(semua), out = kalAkun_().map(function(a) { return { kode: a.kode, nama: a.nama, jenis: a.jenis, ket: a.ket || '', aktif: a.aktif !== false, saldo: s[a.kode] || 0 }; });
+  if (s['']) out.push({ kode: '', nama: KAL.TANPA_AKUN.nama, jenis: '', ket: KAL.TANPA_AKUN.ket, aktif: true, saldo: s[''] });
+  return out;
+}
+
+// d: {kode, nama, jenis, ket, aktif}
+function waStafKeuAkunSimpan(token, d) {
+  var p = stafDariToken_(token);
+  keuWajib_(p, 'catat');
+  d = d || {};
+  var kode = String(d.kode || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,8}$/.test(kode)) throw new Error('Kode akun 2–8 huruf/angka (mis. BJB, BRI, TUNAI).');
+  var nama = String(d.nama || '').trim().slice(0, 60);
+  if (nama.length < 3) throw new Error('Isi nama akun.');
+  if (KAL.JENIS_AKUN.indexOf(String(d.jenis)) < 0) throw new Error('Pilih jenis akun: Tunai, Bank, atau Gateway.');
+  var akun = kalAkun_(), ada = akun.filter(function(a) { return a.kode === kode; })[0];
+  var isi = { kode: kode, nama: nama, jenis: String(d.jenis), ket: String(d.ket || '').trim().slice(0, 120), aktif: d.aktif !== false };
+  if (ada) Object.keys(isi).forEach(function(k) { ada[k] = isi[k]; }); else akun.push(isi);
+  if (!akun.some(function(a) { return a.aktif !== false; })) throw new Error('Minimal satu akun harus aktif.');
+  PropertiesService.getScriptProperties().setProperty(KAL.PROP_AKUN, JSON.stringify(akun));
+  catat_(p.peran, '-', p.nama, 'Akun kas', kode + ' ' + nama + ' (' + isi.jenis + (isi.aktif ? '' : ', nonaktif') + ')', 'OK');
+  return { sukses: true, akun: kalDaftarAkunSaldo_() };
+}
+function waStafKeuAkun(token) {
+  var p = stafDariToken_(token), r = keuPeran_(p), h = honPeran_(p);
+  if (!r.lihat && !h.bayar) throw new Error('Peran Anda tidak dapat melihat akun kas.');
+  return { akun: kalDaftarAkunSaldo_() };
+}
+
+// Mutasi antar akun. d: {tanggal, dari, ke, jumlah, uraian, bukti?, paksa?}
+function waStafKeuMutasi(token, d) {
+  var p = stafDariToken_(token);
+  keuWajib_(p, 'catat');
+  d = d || {};
+  var tgl = absTglSah_(d.tanggal || absHariIni_());
+  var dari = kalAkunSah_(d.dari), ke = kalAkunSah_(d.ke);
+  if (!dari || !ke) throw new Error('Pilih akun asal dan akun tujuan.');
+  if (dari === ke) throw new Error('Akun asal dan tujuan tidak boleh sama.');
+  var jumlah = Math.round(keuAngka_(d.jumlah));
+  if (jumlah <= 0) throw new Error('Jumlah harus lebih dari 0.');
+  var peta = kalAkunPeta_();
+  var saldo = kalSaldoAkun_(null)[dari] || 0;
+  if (saldo - jumlah < 0) {
+    var pesan = 'Saldo ' + peta[dari].nama + ' ' + kalRp_(saldo) + ', dipindah ' + kalRp_(jumlah) + ', saldo menjadi ' + kalRp_(saldo - jumlah) + '.';
+    if (d.paksa !== true) throw new Error('SALDO_KURANG: ' + pesan);
+    try { catat_(p.peran, '-', p.nama, 'Saldo akun minus (dikonfirmasi)', pesan, 'PERINGATAN'); } catch (e) {}
+  }
+  var uraian = String(d.uraian || '').trim() || ('Pemindahan ' + peta[dari].nama + ' ke ' + peta[ke].nama);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var t = keuTrxTab_(), id = 'TRX-' + absId_().toUpperCase();
+    var isi = {
+      'ID TRANSAKSI': id, 'TANGGAL': tgl, 'JENIS': 'Mutasi', 'KATEGORI KEUANGAN': 'MUT', 'URAIAN': uraian.slice(0, 300), 'JUMLAH': jumlah,
+      'SUMBER DANA': '', 'PIHAK TERKAIT': '', 'STATUS': 'Disetujui', 'TAHUN PELAJARAN': absSim_().tahun, 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_(),
+      'AKUN KAS': dari, 'AKUN TUJUAN': ke
+    };
+    if (d.bukti) isi['BUKTI'] = keuSimpanBukti_(d.bukti, 'MUTASI-' + tgl + '-' + absId_());
+    t.sh.appendRow(absBaris_(t, isi));
+    catat_(p.peran, '-', p.nama, 'Mutasi kas', id + ' ' + dari + '->' + ke + ' ' + jumlah, 'OK');
+    return { sukses: true, id: id };
+  } finally { lock.releaseLock(); }
+}
+
+// Atur akun kas satu transaksi (untuk data lama / salah pilih). Jumlah & status tidak berubah.
+function waStafKeuAturAkun(token, id, akun, akunTujuan) {
+  var p = stafDariToken_(token);
+  keuWajib_(p, 'catat');
+  var a = kalAkunSah_(akun);
+  if (!a) throw new Error('Pilih akun kas.');
+  var o = keuUbahBaris_(keuTrxTab_(), id, function(o) {
+    if (o.status === 'Dibatalkan' || o.status === 'Ditolak') throw new Error('Transaksi ' + o.status + ' tidak perlu diatur.');
+    var isi = { 'AKUN KAS': a };
+    if (o.jenis === 'Mutasi') {
+      var b = kalAkunSah_(akunTujuan) || o.akunTujuan;
+      if (!b || b === a) throw new Error('Akun asal dan tujuan mutasi harus berbeda.');
+      isi['AKUN TUJUAN'] = b;
+    }
+    return isi;
+  });
+  catat_(p.peran, '-', p.nama, 'Atur akun kas', o.id + ': ' + (o.akun || '-') + ' -> ' + a, 'OK');
+  return { sukses: true };
 }

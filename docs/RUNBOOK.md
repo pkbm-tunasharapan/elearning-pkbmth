@@ -120,3 +120,10 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 - Penarikan cashback: Ketua Yayasan menyetujui → Bendahara membayar + bukti (pengeluaran RFL).
 - Pembayaran honor yang salah: Ketua Yayasan → ikon batal di daftar pembayaran (transaksi HON ikut Dibatalkan).
 - Pengeluaran yang membuat saldo sumber dana minus meminta konfirmasi; konfirmasi tercatat di log (PERINGATAN). Pencatatan kas otomatis yang gagal tercatat GAGAL di log dan diulang saat Referral dibuka.
+
+## Akun Kas & Mutasi (v1.45.0, Tahap B)
+- Kolom `AKUN KAS` (dan `AKUN TUJUAN` untuk mutasi) di tab TRANSAKSI. Daftar akun di Script Property `TH_KEU_AKUN` (bawaan: TUNAI, BANK, PG); kelola di Keuangan → Akun Kas & Mutasi.
+- Jenis transaksi `Mutasi` = pindah uang antar akun (mis. pencairan saldo gateway ke bank). Tidak dihitung pemasukan/pengeluaran dan tidak mengubah saldo sumber dana.
+- Pencatatan otomatis: pendaftaran via gateway & biaya layanan → PG; sekretariat → TUNAI; transfer/QRIS statis, penarikan cashback, pengembalian dana → BANK; honor sesuai pilihan saat bayar.
+- Transaksi lama tanpa akun tampil "Belum ditentukan"; atur lewat detail transaksi → Atur akun kas.
+- Gateway: pilihan Midtrans / DOKU. DOKU baru bisa diaktifkan setelah integrasinya dibuat (Tahap E).

@@ -1759,7 +1759,8 @@ function waStafHonorBayar(token, id, d) {
       'ID TRANSAKSI': idTrx, 'TANGGAL': tanggal, 'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': 'HON',
       'URAIAN': 'Honor ' + tutor.nama + ' bulan ' + o.bulan, 'JUMLAH': jumlah, 'SUMBER DANA': sumber, 'PIHAK TERKAIT': tutor.nama,
       'BUKTI': bukti, 'STATUS': 'Disetujui', 'DIPUTUS OLEH': p.nama, 'TANGGAL KEPUTUSAN': tanggal, 'CATATAN KEPUTUSAN': 'Pembayaran honor (otomatis dari TH.E-Course)',
-      'TAHUN PELAJARAN': sim.tahun, 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_()
+      'TAHUN PELAJARAN': sim.tahun, 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_(),
+      'AKUN KAS': kalAkunSah_(d.akun) || kalAkunBawaan_(d.metode || rek.metode || 'transfer')
     }));
     var tb = absBaca_(HON.TAB_BAYAR);
     var idBayar = absId_();
@@ -3124,10 +3125,11 @@ function keuWajib_(p, apa) {
 // ---------- tabel ----------
 function keuTrxTab_() {
   var t = absBaca_(KEU.TAB_TRX);
-  if (absCol_(t, 'TAGIHAN') < 0) {
-    t.sh.getRange(1, t.sh.getLastColumn() + 1).setValue('TAGIHAN').setFontWeight('bold');
+  ['TAGIHAN', 'AKUN KAS', 'AKUN TUJUAN'].forEach(function(k) {   // v1.45.0: AKUN KAS / AKUN TUJUAN (mutasi)
+    if (absCol_(t, k) >= 0) return;
+    t.sh.getRange(1, t.sh.getLastColumn() + 1).setValue(k).setFontWeight('bold');
     t = absBaca_(KEU.TAB_TRX);
-  }
+  });
   return t;
 }
 function keuAngka_(x) {
@@ -3145,7 +3147,8 @@ function keuTrxObj_(t, r, i) {
     jumlah: keuAngka_(g('JUMLAH')), sumber: sTeks_(g('SUMBER DANA')).trim(), pihak: sTeks_(g('PIHAK TERKAIT')), bukti: sTeks_(g('BUKTI')).trim(),
     status: sTeks_(g('STATUS')).trim() || 'Disetujui', diputusOleh: sTeks_(g('DIPUTUS OLEH')), tglPutus: sTeks_(g('TANGGAL KEPUTUSAN')),
     catatanPutus: sTeks_(g('CATATAN KEPUTUSAN')), tahun: sTeks_(g('TAHUN PELAJARAN')), dicatatOleh: sTeks_(g('DICATAT OLEH')),
-    dicatatPada: sTeks_(g('DICATAT PADA')), idTagihan: sTeks_(g('TAGIHAN')).trim()
+    dicatatPada: sTeks_(g('DICATAT PADA')), idTagihan: sTeks_(g('TAGIHAN')).trim(),
+    akun: sTeks_(g('AKUN KAS')).trim(), akunTujuan: sTeks_(g('AKUN TUJUAN')).trim()
   };
 }
 function keuSemua_(t) {
@@ -3189,7 +3192,7 @@ function waStafKeuKonteks(token) {
   KEU.SUMBER.forEach(function(s) { per[s] = 0; });
   semua.forEach(function(x) {
     if (x.status === 'Menunggu') menunggu++;
-    if (!keuSah_(x)) return;
+    if (!keuSah_(x) || x.jenis === 'Mutasi') return;   // mutasi hanya memindah antar akun
     var v = x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
     total += v;
     var s = x.sumber || 'Lainnya';
@@ -3197,7 +3200,8 @@ function waStafKeuKonteks(token) {
   });
   return {
     peran: { catat: r.catat, putus: r.putus, lihat: r.lihat }, kategori: keuKategori_(), sumber: KEU.SUMBER, sumberKat: KEU.SUMBER_KAT,
-    saldo: { total: total, per: per }, menunggu: menunggu, tahun: absSim_().tahun, bulanIni: keuBulanIni_()
+    saldo: { total: total, per: per }, menunggu: menunggu, tahun: absSim_().tahun, bulanIni: keuBulanIni_(),
+    akun: kalDaftarAkunSaldo_(semua), jenisAkun: KAL.JENIS_AKUN
   };
 }
 // q: {dari, sampai, jenis, status, kategori, sumber, cari}
@@ -3214,15 +3218,18 @@ function waStafKeuDaftar(token, q) {
     if (q.jenis && x.jenis !== q.jenis) return false;
     if (q.kategori && x.kategori !== q.kategori) return false;
     if (q.sumber && x.sumber !== q.sumber) return false;
+    if (q.akun && (x.akun || '-') !== q.akun && x.akunTujuan !== q.akun) return false;
     if (cari && (x.uraian + ' ' + x.pihak + ' ' + x.id).toLowerCase().indexOf(cari) < 0) return false;
     return true;
   });
-  var masuk = 0, keluar = 0;
+  var masuk = 0, keluar = 0, ap = kalAkunPeta_();
   out.forEach(function(x) {
-    x.namaKategori = kat[x.kategori] ? kat[x.kategori].nama : x.kategori;
+    x.namaKategori = x.jenis === 'Mutasi' ? 'Mutasi antar akun' : (kat[x.kategori] ? kat[x.kategori].nama : x.kategori);
+    x.namaAkun = x.akun ? (ap[x.akun] ? ap[x.akun].nama : x.akun) : KAL.TANPA_AKUN.nama;
+    x.namaAkunTujuan = x.akunTujuan ? (ap[x.akunTujuan] ? ap[x.akunTujuan].nama : x.akunTujuan) : '';
     x.adaBukti = !!x.bukti;
     delete x.bukti;
-    if (keuSah_(x)) { if (x.jenis === 'Pengeluaran') keluar += x.jumlah; else masuk += x.jumlah; }
+    if (keuSah_(x) && x.jenis !== 'Mutasi') { if (x.jenis === 'Pengeluaran') keluar += x.jumlah; else masuk += x.jumlah; }
   });
   out.sort(function(a, b) { return (b.tanggal + b.dicatatPada).localeCompare(a.tanggal + a.dicatatPada); });
   return { dari: dari, sampai: sampai, transaksi: out.slice(0, 500), masuk: masuk, keluar: keluar };
@@ -3253,12 +3260,14 @@ function waStafKeuSimpan(token, d) {
       'TANGGAL': tgl, 'JENIS': d.jenis, 'KATEGORI KEUANGAN': kat.kode, 'WARGA BELAJAR': String(d.idWb || ''), 'URAIAN': uraian.slice(0, 300),
       'JUMLAH': jumlah, 'SUMBER DANA': sumber, 'PIHAK TERKAIT': String(d.pihak || '').slice(0, 120)
     };
+    if (d.akun !== undefined) isi['AKUN KAS'] = kalAkunSah_(d.akun);   // v1.45.0
     if (d.bukti) isi['BUKTI'] = keuSimpanBukti_(d.bukti, 'TRX-' + tgl + '-' + absId_());
     if (d.id) {
       for (var i = 1; i < t.v.length; i++) {
         var o = keuTrxObj_(t, t.v[i], i);
         if (o.id !== String(d.id)) continue;
         if (o.kategori === 'HON') throw new Error('Transaksi honor diubah dari menu Rekap Honor.');
+        if (o.jenis === 'Mutasi') throw new Error('Mutasi tidak bisa diubah; batalkan lalu catat ulang.');
         if (o.idTagihan) throw new Error('Pembayaran tagihan tidak bisa diubah; batalkan lalu catat ulang.');
         if (o.status !== 'Menunggu' && !(o.jenis === 'Pemasukan' && o.status === 'Disetujui')) throw new Error('Transaksi berstatus ' + o.status + ' tidak bisa diubah.');
         if (d.jenis === 'Pengeluaran') { isi['STATUS'] = 'Menunggu'; isi['DIPUTUS OLEH'] = ''; isi['TANGGAL KEPUTUSAN'] = ''; isi['CATATAN KEPUTUSAN'] = ''; }
@@ -3359,28 +3368,54 @@ function waStafKeuLaporan(token, q) {
   keuWajib_(p, 'lihat');
   q = q || {};
   var bi = keuBulanIni_(), dari = q.dari ? absTglSah_(q.dari) : bi.dari, sampai = q.sampai ? absTglSah_(q.sampai) : bi.sampai;
-  var kat = keuKatPeta_(), semua = keuSemua_(), awal = 0, masuk = 0, keluar = 0, baris = [], perKat = {}, perSum = {}, menunggu = 0;
+  // v1.45.0: q.akun = buku pembantu satu akun ('-' = belum ditentukan); tanpa q.akun = buku kas umum (mutasi tidak dihitung).
+  var akunF = q.akun ? (q.akun === '-' ? '' : String(q.akun)) : null;
+  var kat = keuKatPeta_(), ap = kalAkunPeta_(), semua = keuSemua_(), awal = 0, masuk = 0, keluar = 0, baris = [], perKat = {}, perSum = {}, menunggu = 0, mutasi = [], pa = {};
+  var nAkun = function(k) { return k ? (ap[k] ? ap[k].nama : k) : KAL.TANPA_AKUN.nama; };
+  var akunRow = function(k) { return pa[k] || (pa[k] = { kode: k, nama: nAkun(k), awal: 0, masuk: 0, keluar: 0, mutasiMasuk: 0, mutasiKeluar: 0 }); };
+  kalAkun_().forEach(function(a) { akunRow(a.kode); });
   semua.sort(function(a, b) { return (a.tanggal + a.dicatatPada).localeCompare(b.tanggal + b.dicatatPada); });
   semua.forEach(function(x) {
-    if (q.sumber && x.sumber !== q.sumber) return;
-    if (x.status === 'Menunggu' && x.tanggal <= sampai) menunggu++;
-    if (!keuSah_(x)) return;
-    var v = x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
-    if (x.tanggal < dari) { awal += v; return; }
-    if (x.tanggal > sampai) return;
+    if (x.status === 'Menunggu' && x.tanggal <= sampai && (!q.sumber || x.sumber === q.sumber)) menunggu++;
+    if (!keuSah_(x) || x.tanggal > sampai) return;
+    var sebelum = x.tanggal < dari, ak = x.akun || '', tj = x.akunTujuan || '';
+    // posisi kas per akun (seluruh dana)
+    var A = akunRow(ak);
+    if (x.jenis === 'Mutasi') {
+      var B = akunRow(tj);
+      if (sebelum) { A.awal -= x.jumlah; B.awal += x.jumlah; } else { A.mutasiKeluar += x.jumlah; B.mutasiMasuk += x.jumlah; }
+    } else if (sebelum) A.awal += x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
+    else if (x.jenis === 'Pengeluaran') A.keluar += x.jumlah; else A.masuk += x.jumlah;
+    // buku kas
+    var v = null;
+    if (akunF !== null) {
+      if (x.jenis === 'Mutasi') v = ak === akunF ? -x.jumlah : (tj === akunF ? x.jumlah : null);
+      else if (ak === akunF && (!q.sumber || x.sumber === q.sumber)) v = x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
+    } else if (x.jenis === 'Mutasi') {
+      if (!sebelum) mutasi.push({ id: x.id, tanggal: x.tanggal, uraian: x.uraian, dari: nAkun(ak), ke: nAkun(tj), jumlah: x.jumlah });
+    } else if (!q.sumber || x.sumber === q.sumber) v = x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
+    if (v === null) return;
+    if (sebelum) { awal += v; return; }
     if (v >= 0) masuk += v; else keluar -= v;
-    var k = perKat[x.kategori] || (perKat[x.kategori] = { kode: x.kategori, nama: kat[x.kategori] ? kat[x.kategori].nama : x.kategori, jenis: x.jenis, jumlah: 0 });
-    k.jumlah += x.jumlah;
-    var s = perSum[x.sumber || 'Lainnya'] || (perSum[x.sumber || 'Lainnya'] = { sumber: x.sumber || 'Lainnya', masuk: 0, keluar: 0 });
-    if (v >= 0) s.masuk += v; else s.keluar -= v;
-    baris.push({ id: x.id, tanggal: x.tanggal, jenis: x.jenis, kategori: x.kategori, uraian: x.uraian, pihak: x.pihak, sumber: x.sumber, masuk: v >= 0 ? v : 0, keluar: v < 0 ? -v : 0 });
+    if (x.jenis !== 'Mutasi') {
+      var k = perKat[x.kategori] || (perKat[x.kategori] = { kode: x.kategori, nama: kat[x.kategori] ? kat[x.kategori].nama : x.kategori, jenis: x.jenis, jumlah: 0 });
+      k.jumlah += x.jumlah;
+      var s = perSum[x.sumber || 'Lainnya'] || (perSum[x.sumber || 'Lainnya'] = { sumber: x.sumber || 'Lainnya', masuk: 0, keluar: 0 });
+      if (v >= 0) s.masuk += v; else s.keluar -= v;
+    }
+    baris.push({ id: x.id, tanggal: x.tanggal, jenis: x.jenis, kategori: x.jenis === 'Mutasi' ? 'MUT' : x.kategori,
+      uraian: x.jenis === 'Mutasi' ? x.uraian + ' (' + nAkun(ak) + ' → ' + nAkun(tj) + ')' : x.uraian, pihak: x.pihak, sumber: x.sumber,
+      akun: x.jenis === 'Mutasi' ? '' : nAkun(ak), masuk: v >= 0 ? v : 0, keluar: v < 0 ? -v : 0 });
   });
   var saldo = awal;
   baris.forEach(function(b) { saldo += b.masuk - b.keluar; b.saldo = saldo; });
+  var perAkun = Object.keys(pa).map(function(k) { var a = pa[k]; a.akhir = a.awal + a.masuk - a.keluar + a.mutasiMasuk - a.mutasiKeluar; return a; })
+    .filter(function(a) { return a.kode || a.awal || a.masuk || a.keluar || a.mutasiMasuk || a.mutasiKeluar; });
   return {
-    dari: dari, sampai: sampai, sumber: q.sumber || '', saldoAwal: awal, masuk: masuk, keluar: keluar, saldoAkhir: awal + masuk - keluar,
+    dari: dari, sampai: sampai, sumber: q.sumber || '', akun: akunF === null ? null : akunF, namaAkun: akunF === null ? '' : nAkun(akunF),
+    saldoAwal: awal, masuk: masuk, keluar: keluar, saldoAkhir: awal + masuk - keluar,
     baris: baris, perKategori: Object.keys(perKat).map(function(k) { return perKat[k]; }).sort(function(a, b) { return a.jenis.localeCompare(b.jenis) || b.jumlah - a.jumlah; }),
-    perSumber: Object.keys(perSum).map(function(k) { return perSum[k]; }), menunggu: menunggu, lembaga: nilLembaga_(), tanggal: absHariIni_()
+    perSumber: Object.keys(perSum).map(function(k) { return perSum[k]; }), perAkun: perAkun, mutasi: mutasi, menunggu: menunggu, lembaga: nilLembaga_(), tanggal: absHariIni_()
   };
 }
 
@@ -3507,7 +3542,7 @@ function keuTagCari_(id) {
 function waStafTagihanRinci(token, id) {
   var p = stafDariToken_(token), r = keuWajib_(p, 'lihat');
   var tag = keuTagCari_(id), rows = keuRinci_(tag, keuWbSemua_(), keuBayarPeta_());
-  return { tagihan: tag, wb: rows, catat: r.catat };
+  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }) };
 }
 // d: {idTagihan, idWb, jumlah, tanggal, catatan, bukti?}
 function waStafTagihanBayar(token, d) {
@@ -3530,7 +3565,8 @@ function waStafTagihanBayar(token, d) {
       'ID TRANSAKSI': id, 'TANGGAL': tgl, 'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': tag.kategori, 'WARGA BELAJAR': w.id,
       'URAIAN': ('Pembayaran ' + tag.nama + ' - ' + w.nama + (d.catatan ? ' (' + String(d.catatan).slice(0, 100) + ')' : '')).slice(0, 300),
       'JUMLAH': jumlah, 'SUMBER DANA': KEU.SUMBER_KAT[tag.kategori] || 'Swadaya', 'PIHAK TERKAIT': w.nama, 'STATUS': 'Disetujui',
-      'TAHUN PELAJARAN': absSim_().tahun, 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_(), 'TAGIHAN': tag.id
+      'TAHUN PELAJARAN': absSim_().tahun, 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_(), 'TAGIHAN': tag.id,
+      'AKUN KAS': kalAkunSah_(d.akun)
     };
     if (d.bukti) isi['BUKTI'] = keuSimpanBukti_(d.bukti, 'BAYAR-' + tag.id + '-' + w.id);
     t.sh.appendRow(absBaris_(t, isi));
@@ -3701,7 +3737,7 @@ function brdKas_() {
   var saldo = 0, menunggu = [], semua = keuSemua_();
   semua.forEach(function(x) {
     if (x.status === 'Menunggu') menunggu.push(x);
-    if (keuSah_(x)) saldo += x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
+    if (keuSah_(x) && x.jenis !== 'Mutasi') saldo += x.jenis === 'Pengeluaran' ? -x.jumlah : x.jumlah;
   });
   var tg = keuTagSemua_().data.filter(function(t) { return t.aktif; }), wbs = keuWbSemua_(), pb = keuBayarPeta_(), sisa = 0, nunggak = {};
   tg.forEach(function(t) { keuRinci_(t, wbs, pb).forEach(function(r) { if (r.sisa > 0) { sisa += r.sisa; nunggak[r.idWb] = true; } }); });

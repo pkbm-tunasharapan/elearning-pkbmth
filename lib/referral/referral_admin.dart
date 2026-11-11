@@ -356,6 +356,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
   final _biayaTetap = TextEditingController();
   List<Map<String, TextEditingController>> _rek = [];
   bool _gwAktif = false, _produksi = false;
+  String _penyedia = 'midtrans';
   String? _qrisBaru;
   bool _hapusQris = false;
 
@@ -386,6 +387,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
     _biayaTetap.text = '${g['biayaTetap'] ?? 0}';
     _gwAktif = g['aktif'] == true;
     _produksi = g['produksi'] == true;
+    _penyedia = teks(g['penyedia'], 'midtrans') == 'doku' ? 'doku' : 'midtrans';
     _rek = daftar(a['rekening']).map(peta).map((r) => {
           'bank': TextEditingController(text: teks(r['bank'])),
           'nomor': TextEditingController(text: teks(r['nomor'])),
@@ -417,7 +419,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
             'alamatSekretariat': _alamat.text.trim(),
             'rekening': [for (final x in _rek) {'bank': x['bank']!.text, 'nomor': x['nomor']!.text, 'atasNama': x['atasNama']!.text}],
             if (_qrisBaru != null) 'qris': _qrisBaru else if (_hapusQris) 'qris': '',
-            'gateway': {'aktif': _gwAktif, 'produksi': _produksi, 'penyedia': 'midtrans', 'serverKey': _serverKey.text.trim(), 'clientKey': _clientKey.text.trim(), 'merchantId': _merchant.text.trim(),
+            'gateway': {'aktif': _gwAktif, 'produksi': _produksi, 'penyedia': _penyedia, 'serverKey': _serverKey.text.trim(), 'clientKey': _clientKey.text.trim(), 'merchantId': _merchant.text.trim(),
               'biayaPersen': double.tryParse(_biayaPersen.text.replaceAll(',', '.').trim()) ?? 0, 'biayaTetap': _n(_biayaTetap)},
           }
         ])), teksProses: 'Menyimpan pengaturan...');
@@ -484,10 +486,15 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
         ),
         if (i > 0) TextButton(onPressed: () => setState(() { _qrisBaru = null; _hapusQris = true; }), child: const Text('Hapus')),
       ]),
-      const JudulBagian('QRIS dinamis (Midtrans)'),
+      const JudulBagian('Payment gateway (QRIS dinamis)'),
       Text('Disiapkan untuk pembayaran QRIS otomatis (lunas tanpa verifikasi manual). Biarkan nonaktif sampai akun Midtrans siap.',
           style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-      SwitchListTile(contentPadding: EdgeInsets.zero, value: _gwAktif, onChanged: (v) => setState(() => _gwAktif = v), title: const Text('Aktifkan QRIS dinamis')),
+      SegmentedButton<String>(
+        segments: const [ButtonSegment(value: 'midtrans', label: Text('Midtrans')), ButtonSegment(value: 'doku', label: Text('DOKU (menyusul)'))],
+        selected: {_penyedia},
+        onSelectionChanged: (s) => setState(() { _penyedia = s.first; if (_penyedia == 'doku') _gwAktif = false; }),
+      ),
+      SwitchListTile(contentPadding: EdgeInsets.zero, value: _gwAktif, onChanged: _penyedia == 'doku' ? null : (v) => setState(() => _gwAktif = v), title: const Text('Aktifkan QRIS dinamis')),
       SwitchListTile(contentPadding: EdgeInsets.zero, value: _produksi, onChanged: (v) => setState(() => _produksi = v), title: const Text('Mode produksi (matikan = sandbox/uji)')),
       TextField(controller: _serverKey, decoration: const InputDecoration(labelText: 'Server Key', isDense: true)),
       TextField(controller: _clientKey, decoration: const InputDecoration(labelText: 'Client Key', isDense: true)),

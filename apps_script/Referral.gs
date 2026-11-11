@@ -91,7 +91,7 @@ function rfAturan_() {
 }
 function rfAturanPublik_(a) {
   return { biaya: a.biaya, cashback: a.cashback, minTarik: a.minTarik, rekening: a.rekening || [], adaQris: !!a.qrisFile,
-    qrisDinamis: !!(a.gateway && a.gateway.aktif && a.gateway.serverKey), alamatSekretariat: a.alamatSekretariat || '' };
+    qrisDinamis: !!(a.gateway && a.gateway.aktif && a.gateway.serverKey && String(a.gateway.penyedia || 'midtrans') === 'midtrans'), alamatSekretariat: a.alamatSekretariat || '' };
 }
 
 // ---------------- akun promotor ----------------
@@ -325,7 +325,7 @@ function waRefBayar(token, id, metode, bukti) {
     rfUbah_('DAFTAR', x._baris, { 'METODE BAYAR': 'Sekretariat', 'STATUS BAYAR': 'Belum', 'CATATAN BAYAR': 'Akan membayar langsung di sekretariat', 'DIPERBARUI': rfWaktu_() });
     return { sukses: true, pesan: 'Silakan bayar langsung di sekretariat. Petugas akan menandai lunas.' };
   }
-  if (metode === 'QRIS' && at.gateway.aktif && at.gateway.serverKey && !bukti) return rfQrisDinamis_(x, at);
+  if (metode === 'QRIS' && at.gateway.aktif && at.gateway.serverKey && String(at.gateway.penyedia || 'midtrans') === 'midtrans' && !bukti) return rfQrisDinamis_(x, at);
   if (metode !== 'Transfer' && metode !== 'QRIS') throw new Error('Metode pembayaran tidak dikenal.');
   if (!bukti) throw new Error('Unggah bukti pembayaran.');
   var f = rfSimpanBerkas_(bukti, id + '_bukti_bayar');
@@ -548,7 +548,7 @@ function waStafRefTarikBayar(token, id, bukti, catatan, paksa) {
   var idTrx = '';
   {
     idTrx = rfTrx_({ 'TANGGAL': absHariIni_(), 'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': RF.KAT_RFL, 'URAIAN': 'Penarikan cashback referral ' + t['PROMOTOR NAMA'] + ' (' + id + ')',
-      'JUMLAH': Number(t['JUMLAH']) || 0, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': t['PROMOTOR NAMA'], 'BUKTI': f, 'STATUS': 'Disetujui', 'DIPUTUS OLEH': t['DISETUJUI OLEH'] || r.p.nama,
+      'JUMLAH': Number(t['JUMLAH']) || 0, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': t['PROMOTOR NAMA'], 'BUKTI': f, 'STATUS': 'Disetujui', 'AKUN KAS': kalAkunBawaan_('transfer'), 'DIPUTUS OLEH': t['DISETUJUI OLEH'] || r.p.nama,
       'TANGGAL KEPUTUSAN': String(t['DISETUJUI PADA'] || '').slice(0, 10) || absHariIni_(), 'CATATAN KEPUTUSAN': 'Penarikan cashback referral (disetujui ' + (t['DISETUJUI OLEH'] || '-') + ', dibayar ' + r.p.nama + ')', 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': r.p.nama, 'DICATAT PADA': absWaktu_() });
   }
   rfUbah_('TARIK', t._baris, { 'STATUS': 'Dibayar', 'DIPROSES OLEH': r.p.nama, 'DIPROSES PADA': rfWaktu_(), 'BUKTI': f, 'CATATAN': String(catatan || '').slice(0, 300), 'ID TRANSAKSI': idTrx });
@@ -612,7 +612,9 @@ function waAdminRefAturanSimpan(token, d) {
     if (g.hapusKunci === true) a.gateway.serverKey = '';
     if (g.biayaPersen !== undefined) { var bp = Number(g.biayaPersen); if (!(bp >= 0 && bp <= 10)) throw new Error('Biaya layanan gateway 0–10%.'); a.gateway.biayaPersen = Math.round(bp * 100) / 100; }
     if (g.biayaTetap !== undefined) { var bt = Math.round(Number(g.biayaTetap)); if (!(bt >= 0 && bt <= 100000)) throw new Error('Biaya tetap gateway tidak valid.'); a.gateway.biayaTetap = bt; }
-    if (a.gateway.aktif && !a.gateway.serverKey) throw new Error('Isi Server Key Midtrans sebelum mengaktifkan QRIS dinamis.');
+    a.gateway.penyedia = String(a.gateway.penyedia || 'midtrans').toLowerCase() === 'doku' ? 'doku' : 'midtrans';
+    if (a.gateway.aktif && a.gateway.penyedia === 'doku') throw new Error('Integrasi otomatis DOKU belum tersedia (Tahap E). Simpan dulu kuncinya dengan status nonaktif.');
+    if (a.gateway.aktif && !a.gateway.serverKey) throw new Error('Isi Server Key sebelum mengaktifkan QRIS dinamis.');
   }
   PropertiesService.getScriptProperties().setProperty(RF.PROP, JSON.stringify(a));
   try { catat_(p.peran, '', p.nama, 'Atur referral', 'biaya ' + a.biaya + ', cashback ' + a.cashback + ', min ' + a.minTarik + ', gateway ' + (a.gateway.aktif ? 'aktif' : 'nonaktif'), 'OK'); } catch (e2) {}

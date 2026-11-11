@@ -71,6 +71,19 @@ class _KeuanganScreenState extends State<KeuanganScreen> {
                           child: Text('${e.key}: ${rp(e.value)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
                         ),
                   ]),
+                  if (daftar(d['akun']).isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Wrap(spacing: 8, runSpacing: 6, children: [
+                      for (final a in daftar(d['akun']).map(peta))
+                        if (nilaiNum(a['saldo']) != 0)
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(ikonAkun(teks(a['jenis'])), size: 14, color: Colors.white70),
+                            const SizedBox(width: 4),
+                            Text('${teks(a['nama'])}: ${rp(a['saldo'])}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                          ]),
+                    ]),
+                    const SizedBox(height: 4),
+                  ],
                   Text('Tahun pelajaran ${teks(d['tahun'])}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ]),
               ),
@@ -88,7 +101,8 @@ class _KeuanganScreenState extends State<KeuanganScreen> {
             const SizedBox(height: 4),
             _Ubin(ikon: Icons.receipt_long_rounded, judul: 'Transaksi', sub: 'Pemasukan & pengeluaran', onTap: () => _buka(TransaksiScreen(konteks: d))),
             _Ubin(ikon: Icons.request_quote_rounded, judul: 'Tagihan Warga Belajar', sub: 'Iuran, biaya ujian, tunggakan', onTap: () => _buka(TagihanScreen(konteks: d))),
-            _Ubin(ikon: Icons.menu_book_rounded, judul: 'Laporan Kas', sub: 'Buku kas per periode & sumber dana', onTap: () => _buka(LaporanKasScreen(konteks: d))),
+            _Ubin(ikon: Icons.account_balance_wallet_rounded, judul: 'Akun Kas & Mutasi', sub: 'Tunai, bank, payment gateway; pemindahan antar akun', onTap: () => _buka(AkunKasScreen(konteks: d))),
+            _Ubin(ikon: Icons.menu_book_rounded, judul: 'Laporan Kas', sub: 'Buku kas per periode, sumber dana & akun', onTap: () => _buka(LaporanKasScreen(konteks: d))),
             if (peran['catat'] == true) _Ubin(ikon: Icons.category_rounded, judul: 'Kategori Keuangan', sub: 'Kode & nama kategori', onTap: () => _buka(KategoriKeuScreen(konteks: d))),
           ]),
         );
@@ -145,6 +159,8 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
     final bolehUbah = _peran['catat'] == true && teks(x['kategori']) != 'HON' && teks(x['idTagihan']).isEmpty && (st == 'Menunggu' || (teks(x['jenis']) == 'Pemasukan' && st == 'Disetujui'));
     final bolehBatal = _peran['catat'] == true && teks(x['kategori']) != 'HON' && (st == 'Menunggu' || st == 'Disetujui');
     final bolehPutus = _peran['putus'] == true && st == 'Menunggu';
+    final bolehAkun = _peran['catat'] == true && st != 'Ditolak' && st != 'Dibatalkan';
+    final mutasi = teks(x['jenis']) == 'Mutasi';
     final aksi = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -159,7 +175,8 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
             ]),
             Text(teks(x['uraian']), style: const TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            Text('${teks(x['jenis'])} · ${teks(x['namaKategori'])} · ${teks(x['sumber'])}'),
+            Text(mutasi ? 'Mutasi · ${teks(x['namaAkun'])} → ${teks(x['namaAkunTujuan'])}' : '${teks(x['jenis'])} · ${teks(x['namaKategori'])} · ${teks(x['sumber'])}'),
+            if (!mutasi) Text('Akun kas: ${teks(x['namaAkun'])}'),
             Text('${tglIndo(teks(x['tanggal']))}${teks(x['pihak']).isEmpty ? '' : ' · ${teks(x['pihak'])}'}'),
             Text('No. ${teks(x['id'])} · dicatat ${teks(x['dicatatOleh'])}', style: const TextStyle(fontSize: 12)),
             if (teks(x['diputusOleh']).isNotEmpty || teks(x['catatanPutus']).isNotEmpty)
@@ -170,6 +187,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
               if (bolehPutus) FilledButton.icon(onPressed: () => Navigator.pop(c, 'setuju'), icon: const Icon(Icons.check_rounded), label: const Text('Setujui')),
               if (bolehPutus) OutlinedButton.icon(onPressed: () => Navigator.pop(c, 'tolak'), icon: const Icon(Icons.close_rounded), label: const Text('Tolak')),
               if (bolehUbah) OutlinedButton.icon(onPressed: () => Navigator.pop(c, 'ubah'), icon: const Icon(Icons.edit_outlined), label: const Text('Ubah')),
+              if (bolehAkun) OutlinedButton.icon(onPressed: () => Navigator.pop(c, 'akun'), icon: const Icon(Icons.account_balance_wallet_outlined), label: const Text('Atur akun kas')),
               if (bolehBatal) TextButton.icon(onPressed: () => Navigator.pop(c, 'batal'), icon: const Icon(Icons.block_rounded), label: const Text('Batalkan')),
             ]),
           ]),
@@ -181,6 +199,17 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       await lihatFoto(context, () async => peta(await Api.instance('waStafKeuBukti', [_t, teks(x['id'])])));
     } else if (aksi == 'ubah') {
       await _form(x);
+    } else if (aksi == 'akun') {
+      final akun = daftar(widget.konteks['akun']).map(peta).toList();
+      final a = await pilihAkunKas(context, akun, judul: mutasi ? 'Akun asal' : 'Akun kas transaksi ini', awal: teks(x['akun']));
+      if (a == null || !mounted) return;
+      String? b;
+      if (mutasi) {
+        b = await pilihAkunKas(context, akun, judul: 'Akun tujuan', awal: teks(x['akunTujuan']));
+        if (b == null || !mounted) return;
+      }
+      final r = await jalankan(context, () => Api.instance('waStafKeuAturAkun', [_t, teks(x['id']), a, b]), teksProses: 'Menyimpan...');
+      if (r.ok && mounted) setState(() => _v++);
     } else if (aksi == 'batal') {
       final a = await mintaTeks(context, 'Batalkan transaksi?', label: 'Alasan pembatalan');
       if (a == null || !mounted) return;
@@ -221,7 +250,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                   IconButton(onPressed: () => setState(() => _bulan = DateTime(_bulan.year, _bulan.month + 1)), icon: const Icon(Icons.chevron_right_rounded)),
                 ]),
                 Wrap(spacing: 6, children: [
-                  for (final j in ['', 'Pemasukan', 'Pengeluaran'])
+                  for (final j in ['', 'Pemasukan', 'Pengeluaran', 'Mutasi'])
                     ChoiceChip(label: Text(j.isEmpty ? 'Semua' : j), selected: _jenis == j, onSelected: (_) => setState(() => _jenis = j)),
                   ActionChip(avatar: const Icon(Icons.hourglass_top_rounded, size: 16), label: const Text('Menunggu'), onPressed: () => setState(() => _menunggu = true)),
                 ]),
@@ -238,9 +267,11 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
                     for (final x in trx)
                       ListTile(
                         onTap: () => _detail(x),
-                        leading: Icon(teks(x['jenis']) == 'Pengeluaran' ? Icons.call_made_rounded : Icons.call_received_rounded, color: teks(x['jenis']) == 'Pengeluaran' ? cs.error : Colors.green),
+                        leading: teks(x['jenis']) == 'Mutasi'
+                            ? Icon(Icons.swap_horiz_rounded, color: cs.primary)
+                            : Icon(teks(x['jenis']) == 'Pengeluaran' ? Icons.call_made_rounded : Icons.call_received_rounded, color: teks(x['jenis']) == 'Pengeluaran' ? cs.error : Colors.green),
                         title: Text(teks(x['uraian']), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text('${tglIndo(teks(x['tanggal']))} · ${teks(x['namaKategori'])}'),
+                        subtitle: Text('${tglIndo(teks(x['tanggal']))} · ${teks(x['namaKategori'])} · ${teks(x['jenis']) == 'Mutasi' ? '${teks(x['namaAkun'])} → ${teks(x['namaAkunTujuan'])}' : teks(x['namaAkun'])}'),
                         trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                           Text(rp(x['jumlah']), style: TextStyle(fontWeight: FontWeight.w800, decoration: ['Ditolak', 'Dibatalkan'].contains(teks(x['status'])) ? TextDecoration.lineThrough : null)),
                           if (teks(x['status']) != 'Disetujui') Text(teks(x['status']), style: TextStyle(fontSize: 11, color: warnaTrx(context, teks(x['status'])))),
@@ -269,6 +300,7 @@ class _FormTransaksiState extends State<FormTransaksi> {
   String _jenis = 'Pengeluaran';
   String? _kategori;
   String? _sumber;
+  String? _akun;
   late String _tgl;
   final _jumlah = TextEditingController();
   final _uraian = TextEditingController();
@@ -284,6 +316,7 @@ class _FormTransaksiState extends State<FormTransaksi> {
       _jenis = teks(x['jenis'], _jenis);
       _kategori = teks(x['kategori']);
       _sumber = teks(x['sumber']);
+      _akun = teks(x['akun']).isEmpty ? null : teks(x['akun']);
       _tgl = teks(x['tanggal'], _tgl);
       _jumlah.text = '${angka(x['jumlah'])}';
       _uraian.text = teks(x['uraian']);
@@ -351,6 +384,17 @@ class _FormTransaksiState extends State<FormTransaksi> {
           onChanged: (v) => setState(() => _sumber = v),
         ),
         const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: _akun,
+          decoration: InputDecoration(labelText: _jenis == 'Pemasukan' ? 'Diterima di akun' : 'Dibayar dari akun'),
+          items: [
+            for (final a in daftar(widget.konteks['akun']).map(peta).where((a) => a['aktif'] != false && teks(a['kode']).isNotEmpty))
+              DropdownMenuItem(value: teks(a['kode']), child: Row(children: [Icon(ikonAkun(teks(a['jenis'])), size: 18), const SizedBox(width: 8), Expanded(child: Text(teks(a['nama']), overflow: TextOverflow.ellipsis))])),
+          ],
+          onChanged: (v) => setState(() => _akun = v),
+        ),
+        const SizedBox(height: 12),
         TextField(controller: _pihak, decoration: InputDecoration(labelText: _jenis == 'Pemasukan' ? 'Dari (pihak terkait)' : 'Dibayarkan kepada')),
         const SizedBox(height: 12),
         OutlinedButton.icon(
@@ -366,12 +410,13 @@ class _FormTransaksiState extends State<FormTransaksi> {
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
           onPressed: () async {
             if (_kategori == null) return kabar(context, 'Pilih kategori.', galat: true);
+            if (_akun == null) return kabar(context, 'Pilih akun kas (tunai / bank / gateway).', galat: true);
             final r = await jalankan(context, () => Api.instance('waStafKeuSimpan', [
                   _t,
                   {
                     if (widget.x != null) 'id': teks(widget.x!['id']),
                     'tanggal': _tgl, 'jenis': _jenis, 'kategori': _kategori, 'jumlah': _angka(_jumlah.text), 'uraian': _uraian.text,
-                    'sumber': _sumber ?? '', 'pihak': _pihak.text, if (_bukti != null) 'bukti': _bukti
+                    'sumber': _sumber ?? '', 'pihak': _pihak.text, 'akun': _akun, if (_bukti != null) 'bukti': _bukti
                   }
                 ], const Duration(minutes: 2)), teksProses: 'Menyimpan...');
             if (r.ok && context.mounted) {
@@ -618,7 +663,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
   String _filter = 'Belum lunas';
   String _cari = '';
 
-  Future<void> _aksi(Map<String, dynamic> tag, Map<String, dynamic> w, bool catat) async {
+  Future<void> _aksi(Map<String, dynamic> tag, Map<String, dynamic> w, bool catat, List<Map<String, dynamic>> akun) async {
     if (!catat) return;
     final a = await showModalBottomSheet<String>(
       context: context,
@@ -635,7 +680,12 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
     if (a == 'bayar') {
       final s = await mintaTeks(context, 'Pembayaran ${teks(w['nama'])}', label: 'Jumlah (Rp)', awal: '${angka(w['sisa'])}');
       if (s == null || !mounted) return;
-      final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanBayar', [_t, {'idTagihan': widget.id, 'idWb': teks(w['idWb']), 'jumlah': _angka(s)}])), teksProses: 'Mencatat pembayaran...');
+      String? ak;
+      if (akun.isNotEmpty) {
+        ak = await pilihAkunKas(context, akun, judul: 'Diterima di akun');
+        if (ak == null || !mounted) return;
+      }
+      final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanBayar', [_t, {'idTagihan': widget.id, 'idWb': teks(w['idWb']), 'jumlah': _angka(s), 'akun': ak}])), teksProses: 'Mencatat pembayaran...');
       if (!r.ok || !mounted) return;
       setState(() => _v++);
       final k = r.data!;
@@ -691,7 +741,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
                     for (final w in wb)
                       ListTile(
                         dense: true,
-                        onTap: () => _aksi(tag, w, d['catat'] == true),
+                        onTap: () => _aksi(tag, w, d['catat'] == true, daftar(d['akun']).map(peta).toList()),
                         title: Text(teks(w['nama'])),
                         subtitle: Text('${teks(w['namaRombel'])} · dibayar ${rp(w['dibayar'])}${angka(w['keringanan']) > 0 ? ' · keringanan ${rp(w['keringanan'])}' : ''}'),
                         trailing: Lencana(teks(w['status']) == 'Lunas' ? 'Lunas' : rp(w['sisa']), warna: warnaTrx(context, teks(w['status']))),
@@ -755,6 +805,7 @@ class LaporanKasScreen extends StatefulWidget {
 class _LaporanKasScreenState extends State<LaporanKasScreen> {
   DateTime _bulan = DateTime.now();
   String _sumber = '';
+  String _akun = '';   // '' = buku kas umum; kode = buku pembantu akun; '-' = belum ditentukan
   Map<String, dynamic>? _d;
 
   @override
@@ -766,9 +817,9 @@ class _LaporanKasScreenState extends State<LaporanKasScreen> {
         IconButton(tooltip: 'Excel', icon: const Icon(Icons.grid_on_rounded), onPressed: () => _d == null ? null : bagikanExcel(context, bukuKasHtml(_d!, excel: true), 'Buku_Kas_${_awalBulan(_bulan).substring(0, 7)}.xls')),
       ]),
       body: Muatan<Map<String, dynamic>>(
-        key: ValueKey('$_bulan|$_sumber'),
+        key: ValueKey('$_bulan|$_sumber|$_akun'),
         muat: () async {
-          final d = peta(await Api.instance('waStafKeuLaporan', [_t, {'dari': _awalBulan(_bulan), 'sampai': _akhirBulan(_bulan), if (_sumber.isNotEmpty) 'sumber': _sumber}]));
+          final d = peta(await Api.instance('waStafKeuLaporan', [_t, {'dari': _awalBulan(_bulan), 'sampai': _akhirBulan(_bulan), if (_sumber.isNotEmpty) 'sumber': _sumber, if (_akun.isNotEmpty) 'akun': _akun}]));
           _d = d;
           return d;
         },
@@ -784,7 +835,19 @@ class _LaporanKasScreenState extends State<LaporanKasScreen> {
             Wrap(spacing: 6, children: [
               for (final s in ['', ...sumber]) ChoiceChip(label: Text(s.isEmpty ? 'Semua dana' : s), selected: _sumber == s, onSelected: (_) => setState(() => _sumber = s)),
             ]),
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              ChoiceChip(label: const Text('Buku kas umum'), selected: _akun.isEmpty, onSelected: (_) => setState(() => _akun = '')),
+              for (final a in daftar(widget.konteks['akun']).map(peta))
+                ChoiceChip(
+                  avatar: Icon(ikonAkun(teks(a['jenis'])), size: 16),
+                  label: Text(teks(a['nama'])),
+                  selected: _akun == (teks(a['kode']).isEmpty ? '-' : teks(a['kode'])),
+                  onSelected: (_) => setState(() => _akun = teks(a['kode']).isEmpty ? '-' : teks(a['kode'])),
+                ),
+            ]),
             const SizedBox(height: 8),
+            if (teks(d['namaAkun']).isNotEmpty) Text('Buku pembantu: ${teks(d['namaAkun'])} (termasuk mutasi masuk/keluar)', style: const TextStyle(fontWeight: FontWeight.w700)),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -798,6 +861,36 @@ class _LaporanKasScreenState extends State<LaporanKasScreen> {
                 ]),
               ),
             ),
+            if (teks(d['namaAkun']).isEmpty && daftar(d['perAkun']).isNotEmpty) ...[
+              const JudulBagian('Posisi kas per akun'),
+              Card(
+                child: Column(children: [
+                  for (final a in daftar(d['perAkun']).map(peta))
+                    ListTile(
+                      dense: true,
+                      title: Text(teks(a['nama'])),
+                      subtitle: Text('Awal ${rp(a['awal'])} · +${rp(a['masuk'])} −${rp(a['keluar'])}'
+                          '${nilaiNum(a['mutasiMasuk']) + nilaiNum(a['mutasiKeluar']) != 0 ? ' · mutasi +${rp(a['mutasiMasuk'])} −${rp(a['mutasiKeluar'])}' : ''}'),
+                      trailing: Text(rp(a['akhir']), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                ]),
+              ),
+            ],
+            if (daftar(d['mutasi']).isNotEmpty) ...[
+              const JudulBagian('Mutasi antar akun'),
+              Card(
+                child: Column(children: [
+                  for (final m in daftar(d['mutasi']).map(peta))
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.swap_horiz_rounded),
+                      title: Text('${teks(m['dari'])} → ${teks(m['ke'])}'),
+                      subtitle: Text('${tglIndo(teks(m['tanggal']))} · ${teks(m['uraian'])}'),
+                      trailing: Text(rp(m['jumlah']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                ]),
+              ),
+            ],
             if (kat.isNotEmpty) ...[
               const JudulBagian('Per kategori'),
               Card(child: Column(children: [for (final k in kat) ListTile(dense: true, title: Text(teks(k['nama'])), subtitle: Text(teks(k['jenis'])), trailing: Text(rp(k['jumlah']), style: const TextStyle(fontWeight: FontWeight.w700)))])),
@@ -811,7 +904,7 @@ class _LaporanKasScreenState extends State<LaporanKasScreen> {
                     ListTile(
                       dense: true,
                       title: Text(teks(b['uraian']), maxLines: 2, overflow: TextOverflow.ellipsis),
-                      subtitle: Text('${tglIndo(teks(b['tanggal']))} · ${teks(b['kategori'])} · ${teks(b['sumber'])}'),
+                      subtitle: Text('${tglIndo(teks(b['tanggal']))} · ${teks(b['kategori'])}${teks(b['sumber']).isEmpty ? '' : ' · ${teks(b['sumber'])}'}${teks(b['akun']).isEmpty ? '' : ' · ${teks(b['akun'])}'}'),
                       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text(nilaiNum(b['masuk']) > 0 ? '+${rp(b['masuk'])}' : '-${rp(b['keluar'])}', style: TextStyle(fontWeight: FontWeight.w700, color: nilaiNum(b['masuk']) > 0 ? Colors.green : Theme.of(context).colorScheme.error)),
                         Text(rp(b['saldo']), style: const TextStyle(fontSize: 11)),
@@ -840,18 +933,36 @@ String bukuKasHtml(Map<String, dynamic> d, {bool excel = false}) {
   final l = peta(d['lembaga']);
   final b = StringBuffer();
   if (!excel) b.write(_kopKeu(l));
-  b.write('<h2>BUKU KAS UMUM${teks(d['sumber']).isEmpty ? '' : ' · DANA ${escHtml(teks(d['sumber']).toUpperCase())}'}</h2>');
+  final namaAkun = teks(d['namaAkun']);
+  b.write('<h2>${namaAkun.isEmpty ? 'BUKU KAS UMUM' : 'BUKU PEMBANTU ${escHtml(namaAkun.toUpperCase())}'}${teks(d['sumber']).isEmpty ? '' : ' · DANA ${escHtml(teks(d['sumber']).toUpperCase())}'}</h2>');
   b.write('<p>Periode ${escHtml(tglIndo(teks(d['dari'])))} s.d. ${escHtml(tglIndo(teks(d['sampai'])))}</p>');
-  b.write('<table><tr><th>No</th><th>Tanggal</th><th>No. Bukti</th><th>Uraian</th><th>Kategori</th><th>Sumber</th><th>Masuk</th><th>Keluar</th><th>Saldo</th></tr>');
-  b.write('<tr><td></td><td></td><td></td><td><i>Saldo awal</i></td><td></td><td></td><td></td><td></td><td class="r">${excel ? nilaiNum(d['saldoAwal']) : rp(d['saldoAwal'])}</td></tr>');
+  b.write('<table><tr><th>No</th><th>Tanggal</th><th>No. Bukti</th><th>Uraian</th><th>Kategori</th><th>Sumber</th><th>Akun</th><th>Masuk</th><th>Keluar</th><th>Saldo</th></tr>');
+  b.write('<tr><td></td><td></td><td></td><td><i>Saldo awal</i></td><td></td><td></td><td></td><td></td><td></td><td class="r">${excel ? nilaiNum(d['saldoAwal']) : rp(d['saldoAwal'])}</td></tr>');
   var i = 0;
   String uang(dynamic v) => excel ? '${nilaiNum(v)}' : (nilaiNum(v) == 0 ? '' : rp(v));
   for (final x in baris) {
     i++;
     b.write('<tr><td class="c">$i</td><td>${escHtml(teks(x['tanggal']))}</td><td>${escHtml(teks(x['id']))}</td><td>${escHtml(teks(x['uraian']))}</td><td>${escHtml(teks(x['kategori']))}</td>'
-        '<td>${escHtml(teks(x['sumber']))}</td><td class="r">${uang(x['masuk'])}</td><td class="r">${uang(x['keluar'])}</td><td class="r">${excel ? nilaiNum(x['saldo']) : rp(x['saldo'])}</td></tr>');
+        '<td>${escHtml(teks(x['sumber']))}</td><td>${escHtml(teks(x['akun']))}</td><td class="r">${uang(x['masuk'])}</td><td class="r">${uang(x['keluar'])}</td><td class="r">${excel ? nilaiNum(x['saldo']) : rp(x['saldo'])}</td></tr>');
   }
-  b.write('<tr><th colspan="6">Jumlah</th><th class="r">${uang(d['masuk'])}</th><th class="r">${uang(d['keluar'])}</th><th class="r">${excel ? nilaiNum(d['saldoAkhir']) : rp(d['saldoAkhir'])}</th></tr></table>');
+  b.write('<tr><th colspan="7">Jumlah</th><th class="r">${uang(d['masuk'])}</th><th class="r">${uang(d['keluar'])}</th><th class="r">${excel ? nilaiNum(d['saldoAkhir']) : rp(d['saldoAkhir'])}</th></tr></table>');
+  final perAkun = daftar(d['perAkun']).map(peta).toList();
+  if (namaAkun.isEmpty && perAkun.isNotEmpty) {
+    b.write('<h2 style="font-size:11pt;text-align:left;margin-top:14px">Posisi kas per akun</h2><table><tr><th>Akun</th><th>Saldo awal</th><th>Masuk</th><th>Keluar</th><th>Mutasi masuk</th><th>Mutasi keluar</th><th>Saldo akhir</th></tr>');
+    for (final a in perAkun) {
+      b.write('<tr><td>${escHtml(teks(a['nama']))}</td><td class="r">${uang(a['awal'])}</td><td class="r">${uang(a['masuk'])}</td><td class="r">${uang(a['keluar'])}</td>'
+          '<td class="r">${uang(a['mutasiMasuk'])}</td><td class="r">${uang(a['mutasiKeluar'])}</td><td class="r">${excel ? nilaiNum(a['akhir']) : rp(a['akhir'])}</td></tr>');
+    }
+    b.write('</table>');
+  }
+  final mutasi = daftar(d['mutasi']).map(peta).toList();
+  if (mutasi.isNotEmpty) {
+    b.write('<h2 style="font-size:11pt;text-align:left;margin-top:14px">Mutasi antar akun</h2><table><tr><th>Tanggal</th><th>No. Bukti</th><th>Dari</th><th>Ke</th><th>Uraian</th><th>Jumlah</th></tr>');
+    for (final m in mutasi) {
+      b.write('<tr><td>${escHtml(teks(m['tanggal']))}</td><td>${escHtml(teks(m['id']))}</td><td>${escHtml(teks(m['dari']))}</td><td>${escHtml(teks(m['ke']))}</td><td>${escHtml(teks(m['uraian']))}</td><td class="r">${uang(m['jumlah'])}</td></tr>');
+    }
+    b.write('</table>');
+  }
   if (kat.isNotEmpty) {
     b.write('<h2 style="font-size:11pt;text-align:left;margin-top:14px">Rekap per kategori</h2><table><tr><th>Kode</th><th>Kategori</th><th>Jenis</th><th>Jumlah</th></tr>');
     for (final k in kat) {
@@ -934,6 +1045,222 @@ class _KategoriKeuScreenState extends State<KategoriKeuScreen> {
           ]);
         },
       ),
+    );
+  }
+}
+
+// ───────────────────────── akun kas & mutasi (v1.45.0) ─────────────────────────
+
+IconData ikonAkun(String jenis) => switch (jenis) {
+      'Tunai' => Icons.payments_rounded,
+      'Bank' => Icons.account_balance_rounded,
+      'Gateway' => Icons.qr_code_2_rounded,
+      _ => Icons.help_outline_rounded,
+    };
+
+/// Pilih akun kas (tempat uang) dari daftar akun aktif. null = batal.
+Future<String?> pilihAkunKas(BuildContext context, List<Map<String, dynamic>> akun, {String judul = 'Akun kas', String? awal}) {
+  final aktif = akun.where((a) => a['aktif'] != false && teks(a['kode']).isNotEmpty).toList();
+  return showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (c) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 6), child: Text(judul, style: const TextStyle(fontWeight: FontWeight.w800))),
+        for (final a in aktif)
+          ListTile(
+            leading: Icon(ikonAkun(teks(a['jenis']))),
+            title: Text(teks(a['nama'])),
+            subtitle: Text([teks(a['jenis']), teks(a['ket'])].where((x) => x.isNotEmpty).join(' · ')),
+            trailing: teks(a['kode']) == awal ? const Icon(Icons.check_rounded) : null,
+            onTap: () => Navigator.pop(c, teks(a['kode'])),
+          ),
+        const SizedBox(height: 8),
+      ]),
+    ),
+  );
+}
+
+class AkunKasScreen extends StatefulWidget {
+  const AkunKasScreen({super.key, required this.konteks});
+  final Map<String, dynamic> konteks;
+
+  @override
+  State<AkunKasScreen> createState() => _AkunKasScreenState();
+}
+
+class _AkunKasScreenState extends State<AkunKasScreen> {
+  int _v = 0;
+  bool get _catat => peta(widget.konteks['peran'])['catat'] == true;
+
+  Future<void> _ubah([Map<String, dynamic>? a]) async {
+    final kode = TextEditingController(text: teks(a?['kode']));
+    final nama = TextEditingController(text: teks(a?['nama']));
+    final ket = TextEditingController(text: teks(a?['ket']));
+    var jenis = teks(a?['jenis'], 'Bank');
+    var aktif = a?['aktif'] != false;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, atur) => AlertDialog(
+          title: Text(a == null ? 'Akun kas baru' : 'Ubah akun kas'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: kode, enabled: a == null, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kode (mis. BJB, BRI, DOKU)')),
+              TextField(controller: nama, decoration: const InputDecoration(labelText: 'Nama (mis. Bank BJB a.n. PKBM)')),
+              TextField(controller: ket, decoration: const InputDecoration(labelText: 'Keterangan (no. rekening, dsb.)')),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const [ButtonSegment(value: 'Tunai', label: Text('Tunai')), ButtonSegment(value: 'Bank', label: Text('Bank')), ButtonSegment(value: 'Gateway', label: Text('Gateway'))],
+                selected: {jenis},
+                onSelectionChanged: (s) => atur(() => jenis = s.first),
+              ),
+              SwitchListTile(contentPadding: EdgeInsets.zero, value: aktif, onChanged: (v) => atur(() => aktif = v), title: const Text('Aktif')),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Simpan')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafKeuAkunSimpan', [_t, {'kode': kode.text, 'nama': nama.text, 'jenis': jenis, 'ket': ket.text, 'aktif': aktif}]), teksProses: 'Menyimpan...');
+    if (r.ok && mounted) setState(() => _v++);
+  }
+
+  Future<void> _mutasi(List<Map<String, dynamic>> akun) async {
+    final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => FormMutasi(akun: akun)));
+    if (ok == true && mounted) setState(() => _v++);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Akun Kas & Mutasi'), actions: [
+        if (_catat) IconButton(tooltip: 'Akun baru', icon: const Icon(Icons.add_card_rounded), onPressed: () => _ubah()),
+      ]),
+      body: Muatan<Map<String, dynamic>>(
+        key: ValueKey(_v),
+        muat: () async => peta(await Api.instance('waStafKeuAkun', [_t])),
+        bangun: (context, d, segarkan) {
+          final akun = daftar(d['akun']).map(peta).toList();
+          final total = akun.fold<num>(0, (s, a) => s + nilaiNum(a['saldo']));
+          return RefreshIndicator(
+            onRefresh: segarkan,
+            child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 32), children: [
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.savings_rounded),
+                  title: Text('Total kas ${rp(total)}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: const Text('Posisi uang per tempat penyimpanan (transaksi disetujui).'),
+                ),
+              ),
+              for (final a in akun)
+                Card(
+                  child: ListTile(
+                    onTap: _catat && teks(a['kode']).isNotEmpty ? () => _ubah(a) : null,
+                    leading: Icon(ikonAkun(teks(a['jenis'])), color: a['aktif'] == false ? Colors.grey : null),
+                    title: Text('${teks(a['nama'])}${a['aktif'] == false ? ' (nonaktif)' : ''}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text([teks(a['kode']), teks(a['jenis']), teks(a['ket'])].where((x) => x.isNotEmpty).join(' · ')),
+                    trailing: Text(rp(a['saldo']), style: TextStyle(fontWeight: FontWeight.w800, color: nilaiNum(a['saldo']) < 0 ? Theme.of(context).colorScheme.error : null)),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              if (_catat)
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                  onPressed: () => _mutasi(akun),
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  label: const Text('Catat mutasi antar akun'),
+                ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Mutasi = memindah uang antar tempat (mis. pencairan saldo gateway ke bank, setor tunai ke bank). '
+                    'Tidak dihitung sebagai pemasukan/pengeluaran dan tidak mengubah saldo sumber dana.', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class FormMutasi extends StatefulWidget {
+  const FormMutasi({super.key, required this.akun});
+  final List<Map<String, dynamic>> akun;
+
+  @override
+  State<FormMutasi> createState() => _FormMutasiState();
+}
+
+class _FormMutasiState extends State<FormMutasi> {
+  String? _dari, _ke;
+  String _tgl = tglIso(DateTime.now());
+  final _jumlah = TextEditingController();
+  final _uraian = TextEditingController();
+  String? _bukti;
+
+  @override
+  void dispose() {
+    _jumlah.dispose();
+    _uraian.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final aktif = widget.akun.where((a) => a['aktif'] != false && teks(a['kode']).isNotEmpty).toList();
+    DropdownMenuItem<String> item(Map<String, dynamic> a) =>
+        DropdownMenuItem(value: teks(a['kode']), child: Text('${teks(a['nama'])} (${rp(a['saldo'])})', overflow: TextOverflow.ellipsis));
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mutasi antar akun')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        DropdownButtonFormField<String>(isExpanded: true, initialValue: _dari, decoration: const InputDecoration(labelText: 'Dari akun'), items: [for (final a in aktif) item(a)], onChanged: (v) => setState(() => _dari = v)),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(isExpanded: true, initialValue: _ke, decoration: const InputDecoration(labelText: 'Ke akun'), items: [for (final a in aktif) item(a)], onChanged: (v) => setState(() => _ke = v)),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final n = DateTime.now();
+            final p = await showDatePicker(context: context, firstDate: DateTime(n.year - 2), lastDate: n, initialDate: DateTime.tryParse(_tgl) ?? n);
+            if (p != null) setState(() => _tgl = tglIso(p));
+          },
+          icon: const Icon(Icons.event_rounded),
+          label: Text(tglIndo(_tgl)),
+        ),
+        const SizedBox(height: 12),
+        TextField(controller: _jumlah, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah (Rp)', prefixText: 'Rp ')),
+        const SizedBox(height: 12),
+        TextField(controller: _uraian, decoration: const InputDecoration(labelText: 'Uraian (opsional)', hintText: 'mis. Pencairan saldo DOKU ke rekening BJB')),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final f = await ambilFoto(bolehGaleri: true, context: context);
+            if (f != null) setState(() => _bukti = f);
+          },
+          icon: Icon(_bukti == null ? Icons.add_a_photo_outlined : Icons.check_circle_rounded),
+          label: Text(_bukti == null ? 'Bukti mutasi / slip (opsional)' : 'Bukti terlampir — ganti'),
+        ),
+        const SizedBox(height: 20),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+          onPressed: () async {
+            if (_dari == null || _ke == null) return kabar(context, 'Pilih akun asal dan tujuan.', galat: true);
+            final r = await jalankanSaldo(context, (paksa) => Api.instance('waStafKeuMutasi', [
+                  _t,
+                  {'tanggal': _tgl, 'dari': _dari, 'ke': _ke, 'jumlah': _angka(_jumlah.text), 'uraian': _uraian.text, if (_bukti != null) 'bukti': _bukti, 'paksa': paksa}
+                ], const Duration(minutes: 2)), teksProses: 'Menyimpan mutasi...');
+            if (r.ok && context.mounted) {
+              kabar(context, 'Mutasi tercatat.');
+              Navigator.pop(context, true);
+            }
+          },
+          child: const Text('Simpan mutasi'),
+        ),
+      ]),
     );
   }
 }
