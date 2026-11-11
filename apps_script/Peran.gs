@@ -641,6 +641,20 @@ function waAdminSetEnrollment(token, idPengguna, daftarIdMapel) {
 
     var sheet = getSheet(PERAN.SHEET_ENROLLMENT);
     var v = sheet.getDataRange().getValues();
+    // v1.51.0: satu mapel-rombel satu tutor pengampu. Mapel yang sudah diampu tutor lain harus dilepas dulu dari tutor itu.
+    // (Data lama yang terlanjur dobel tetap boleh dipertahankan oleh tutor ini.)
+    var milikSendiri = {}, milikLain = {};
+    for (var j = 1; j < v.length; j++) {
+      var idP = sTeks_(v[j][0]).trim(), idM = sTeks_(v[j][2]).trim();
+      if (!idP || !idM) continue;
+      if (idP === idPengguna) milikSendiri[idM] = true; else (milikLain[idM] = milikLain[idM] || []).push(sTeks_(v[j][1]).trim() || idP);
+    }
+    var bentrok = baru.filter(function(id) { return !milikSendiri[id] && milikLain[id]; });
+    if (bentrok.length) {
+      throw new Error('Mapel berikut sudah diampu tutor lain. Lepas (uncheck) dulu dari tutor pengampunya: ' +
+        bentrok.slice(0, 8).map(function(id) { return peta[id].namaMapel + ' ' + peta[id].namaRombel + ' (' + milikLain[id].join(', ') + ')'; }).join('; ') +
+        (bentrok.length > 8 ? ' dan ' + (bentrok.length - 8) + ' lainnya' : '') + '.');
+    }
     var terdampak = baru.slice();
     for (var i = v.length - 1; i >= 1; i--) {
       if (sTeks_(v[i][0]).trim() === idPengguna) {

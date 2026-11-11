@@ -45,10 +45,16 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
     }
   }
 
-  Future<void> _aturMapel(Map<String, dynamic> p, List<Map<String, dynamic>> mapel, List<Map<String, dynamic>> enr) async {
+  Future<void> _aturMapel(Map<String, dynamic> p, List<Map<String, dynamic>> mapel, List<Map<String, dynamic>> enr, List<Map<String, dynamic>> pengguna) async {
     final dipilih = enr.where((e) => teks(e['idPengguna']) == teks(p['id'])).map((e) => teks(e['idMapel'])).toSet();
+    // v1.51.0: mapel-rombel yang sudah diampu tutor lain -> tidak bisa dipilih sebelum dilepas dari tutor itu
+    final namaP = {for (final x in pengguna) teks(x['id']): teks(x['nama'])};
+    final pemilikLain = <String, List<String>>{};
+    for (final e in enr.where((e) => teks(e['idPengguna']) != teks(p['id']))) {
+      pemilikLain.putIfAbsent(teks(e['idMapel']), () => []).add(namaP[teks(e['idPengguna'])] ?? teks(e['idPengguna']));
+    }
     final hasil = await Navigator.of(context).push<Set<String>>(MaterialPageRoute(
-      builder: (_) => _PilihMapel(nama: teks(p['nama']), mapel: mapel, awal: dipilih),
+      builder: (_) => _PilihMapel(nama: teks(p['nama']), mapel: mapel, awal: dipilih, pemilikLain: pemilikLain),
     ));
     if (hasil == null || !mounted) return;
     final r = await jalankan(context, () => Api.instance('waAdminSetEnrollment', [Sesi.instance.token, teks(p['id']), hasil.toList()]), teksProses: 'Menyimpan enrollment...');
@@ -131,7 +137,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                       ]),
                       Wrap(spacing: 4, children: [
                         if (teks(p['peranDasar'], teks(p['peran'])) == 'Tutor')
-                          TextButton.icon(onPressed: () => _aturMapel(p, mapel, enr), icon: const Icon(Icons.library_add_check_outlined, size: 18), label: const Text('Atur Mapel')),
+                          TextButton.icon(onPressed: () => _aturMapel(p, mapel, enr, semua), icon: const Icon(Icons.library_add_check_outlined, size: 18), label: const Text('Atur Mapel')),
                         TextButton.icon(onPressed: () => _ubah(p), icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('Ubah')),
                         TextButton.icon(onPressed: () => _resetKode(p), icon: const Icon(Icons.key_outlined, size: 18), label: const Text('Reset Kode')),
                       ]),
@@ -202,10 +208,12 @@ class _DialogPenggunaState extends State<_DialogPengguna> {
 }
 
 class _PilihMapel extends StatefulWidget {
-  const _PilihMapel({required this.nama, required this.mapel, required this.awal});
+  const _PilihMapel({required this.nama, required this.mapel, required this.awal, this.pemilikLain = const {}});
   final String nama;
   final List<Map<String, dynamic>> mapel;
   final Set<String> awal;
+  /// idMapel -> nama tutor lain yang sudah mengampu (v1.51.0)
+  final Map<String, List<String>> pemilikLain;
 
   @override
   State<_PilihMapel> createState() => _PilihMapelState();
@@ -216,6 +224,9 @@ String _kunciMapel(String n) => n.trim().toLowerCase().replaceAll(RegExp(r'\s+')
 class _PilihMapelState extends State<_PilihMapel> {
   late final Set<String> _pilih = {...widget.awal};
   String _cari = '';
+
+  /// Terkunci: diampu tutor lain dan bukan milik tutor ini sejak awal.
+  bool _terkunci(String id) => widget.pemilikLain[id] != null && !widget.awal.contains(id);
 
   @override
   Widget build(BuildContext context) {
@@ -237,12 +248,16 @@ class _PilihMapelState extends State<_PilihMapel> {
         const SizedBox(height: 6),
         Text('${kunci.length} mata pelajaran · ${_pilih.length} rombel dipilih. Mapel dengan nama sama dihitung satu; centang rombel yang diampu.',
             style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+        Text('Rombel bertanda gembok sudah diampu tutor lain. Untuk memindahkannya, buka tutor pengampu itu lalu hilangkan centangnya terlebih dahulu.',
+            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
         const SizedBox(height: 6),
         for (final k in kunci)
           if (q.isEmpty || k.contains(q))
             Builder(builder: (_) {
               final daftarM = [...grup[k]!]..sort((a, b) => teks(a['namaRombel']).compareTo(teks(b['namaRombel'])));
               final ids = daftarM.map((m) => teks(m['idMapel'])).toList();
+              final bebas = ids.where((id) => !_terkunci(id)).toList();
+              final nKunci = ids.length - bebas.length;
               final n = ids.where(_pilih.contains).length;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -250,18 +265,24 @@ class _PilihMapelState extends State<_PilihMapel> {
                   shape: const Border(),
                   leading: Checkbox(
                     tristate: true,
-                    value: n == 0 ? false : (n == ids.length ? true : null),
-                    onChanged: (_) => setState(() => n == ids.length ? _pilih.removeAll(ids) : _pilih.addAll(ids)),
+                    value: n == 0 ? false : (n == bebas.length ? true : null),
+                    onChanged: bebas.isEmpty ? null : (_) => setState(() => n >= bebas.length ? _pilih.removeAll(ids) : _pilih.addAll(bebas)),
                   ),
                   title: Text(teks(daftarM.first['namaMapel']), style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${ids.length} rombel${n > 0 ? ' · $n diampu' : ''}'),
+                  subtitle: Text('${ids.length} rombel${n > 0 ? ' · $n diampu' : ''}${nKunci > 0 ? ' · $nKunci diampu tutor lain' : ''}'),
                   children: [
                     for (final m in daftarM)
                       CheckboxListTile(
                         dense: true,
                         value: _pilih.contains(teks(m['idMapel'])),
                         title: Text(teks(m['namaRombel'], 'Tanpa rombel')),
-                        onChanged: (v) => setState(() => v == true ? _pilih.add(teks(m['idMapel'])) : _pilih.remove(teks(m['idMapel']))),
+                        secondary: _terkunci(teks(m['idMapel'])) ? Icon(Icons.lock_outline_rounded, size: 18, color: cs.outline) : null,
+                        subtitle: widget.pemilikLain[teks(m['idMapel'])] == null
+                            ? null
+                            : Text(_terkunci(teks(m['idMapel']))
+                                ? 'Diampu ${widget.pemilikLain[teks(m['idMapel'])]!.join(', ')} — lepas dulu dari tutor tersebut'
+                                : 'Juga diampu ${widget.pemilikLain[teks(m['idMapel'])]!.join(', ')}'),
+                        onChanged: _terkunci(teks(m['idMapel'])) ? null : (v) => setState(() => v == true ? _pilih.add(teks(m['idMapel'])) : _pilih.remove(teks(m['idMapel']))),
                       ),
                   ],
                 ),
