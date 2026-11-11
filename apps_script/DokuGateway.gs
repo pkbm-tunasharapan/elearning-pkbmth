@@ -222,7 +222,14 @@ function gwCatatLain_(x, bayar, kanal, fee, catatan) {
 function dokuNotif_(body) {
   var inv = String(((body || {}).order || {}).invoice_number || '');
   if (!inv || !gwCari_(inv)) return { ok: false };
-  return gwPeriksa_(inv);
+  // v1.48.2: notifikasi datang ±2 detik setelah bayar, saat cek status DOKU kadang masih PENDING.
+  // Bila notifikasi menyatakan SUCCESS, cek ulang sampai 3 kali dengan jeda (tetap dikonfirmasi ke DOKU).
+  var h = gwPeriksa_(inv), sukses = String(((body || {}).transaction || {}).status || '').toUpperCase() === 'SUCCESS';
+  for (var i = 0; i < 3 && sukses && h.status === 'Menunggu'; i++) {
+    Utilities.sleep(3000 + i * 2000);
+    h = gwPeriksa_(inv);
+  }
+  return h;
 }
 // Pemicu tiap jam: periksa order yang masih menunggu (maks. 3 hari).
 function gwRekonsiliasi_() {
