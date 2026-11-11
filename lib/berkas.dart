@@ -257,9 +257,13 @@ Future<void> _unduhWeb(BuildContext context, List<int> bytes, String nama, Strin
   if (context.mounted) kabar(context, '$nama diunduh ke folder Unduhan.');
 }
 
+// v1.39.3: setiap berkas disimpan di folder baru (nama berkas tetap rapi). Bila memakai jalur yang sama, penampil PDF
+// di HP sering menampilkan salinan lama dari cache (mis. rapor semester berjalan padahal yang dicetak semester lain).
 Future<String> _simpan(List<int> bytes, String nama) async {
   final dir = await getTemporaryDirectory();
-  final f = File('${dir.path}/$nama');
+  final folder = Directory('${dir.path}/berkas_${DateTime.now().microsecondsSinceEpoch}');
+  await folder.create(recursive: true);
+  final f = File('${folder.path}/$nama');
   await f.writeAsBytes(bytes, flush: true);
   return f.path;
 }

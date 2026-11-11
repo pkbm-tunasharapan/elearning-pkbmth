@@ -477,7 +477,12 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
       return;
     }
   }
-  await htmlKePdf(context, nama: namaBerkas, args: [_t, raporHtml(data, siswa, opsi: o)]);
+  // nama berkas memuat semester yang benar-benar dicetak (mis. Rapor_Nama_Genap_2025-2026.pdf)
+  final pc = peta(data['periode']);
+  final akhiran = '_${teks(pc['semester'])}_${teks(pc['tahun']).replaceAll('/', '-')}';
+  final nama = namaBerkas.toLowerCase().endsWith('.pdf') ? '${namaBerkas.substring(0, namaBerkas.length - 4)}$akhiran.pdf' : '$namaBerkas$akhiran.pdf';
+  await htmlKePdf(context, nama: nama, args: [_t, raporHtml(data, siswa, opsi: o)]);
+  if (context.mounted) kabar(context, 'Rapor ${_periodeTeks(pc)} (${teks(peta(data['rombel'])['nama'])}) dibuat.');
 }
 
 String _idRombelKini(Map<String, dynamic> d) => teks(peta(d['rombelKini'])['id'], teks(peta(d['rombel'])['id']));
