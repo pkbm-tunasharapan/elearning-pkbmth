@@ -119,7 +119,6 @@ class _TinjauanPelanggaranScreenState extends State<TinjauanPelanggaranScreen> {
         title: Text('${teks(x['nama'])} · ${teks(x['rombel'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text('${teks(x['mapel'])} · ${teks(x['masa'], teks(x['jenis']))} · ${teks(x['tanggal'])} ${teks(x['jam'])}\n'
             '${menunggu ? 'Nilai sementara: ${x['nilai'] ?? '-'} · menunggu keputusan' : '${teks(kp['jenis'])} (${teks(kp['oleh'])})'}'),
-        isThreeLine: true,
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         children: [
           for (final l in log)
