@@ -66,7 +66,7 @@ var IZN = {
     ['daftar', 'Pendaftaran Siswa', 'Warga Belajar', ['Admin'], /^waAdmin(DaftarPendaftaran|AturDaftar)$/],
     ['ganda', 'Sinkron & Data Ganda', 'Warga Belajar', ['Admin'], /^waAdmin(Ganda\w*|Sinkron\w*|KirimKeMenu|SamakanInduk)$/],
     ['referral', 'Referral Pendaftaran', 'Warga Belajar', ['Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara'], /^waStafRef(Aturan|Berkas)$/],
-    ['referralAdmin', 'Kelola Referral & Pendaftaran', 'Warga Belajar', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], /^wa(StafRef(Admin|Verif\w*|Tarik\w*|Kembali\w*)|AdminRefAturanSimpan)$/],
+    ['referralAdmin', 'Kelola Referral & Pendaftaran', 'Warga Belajar', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], /^wa(StafRef(Admin|Verif\w*|Tarik\w*|Kembali\w*)|AdminRef(AturanSimpan|GatewayTes))$/],
     ['keuangan', 'Keuangan & Tagihan', 'Keuangan', ['Admin', 'Bendahara', 'Superadmin', 'Kepala Sekolah'], /^waStaf(Keu\w*|Tagihan\w*|TunggakanWb)$/],
     ['rekapHonor', 'Rekap Honor', 'Keuangan', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Bendahara'], /^waStafHonor(Rekap|Hitung|Setujui|BatalSetuju|Bayar|BayarBatal|Bukti|Tunggakan|Aturan)$/],
     ['honorSaya', 'Saldo Honor (tutor)', 'Keuangan', ['Tutor'], /^waStafHonorSaya$/],

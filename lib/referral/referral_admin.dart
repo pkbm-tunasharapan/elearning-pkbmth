@@ -419,6 +419,43 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
 
   int _n(TextEditingController c) => int.tryParse(c.text.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
 
+  /// v1.50.1: uji kunci & mode gateway tanpa membuat pembayaran (memakai isian form, termasuk yang belum disimpan).
+  Future<void> _tesKoneksi() async {
+    final r = await jalankan(context, () async => peta(await Api.instance('waAdminRefGatewayTes', [
+          _t,
+          {
+            'penyedia': _penyedia,
+            'produksi': _produksi,
+            'dokuClientId': _dokuClient.text.trim(),
+            'dokuSecretKey': _dokuSecret.text.trim(),
+            'serverKey': _serverKey.text.trim(),
+          }
+        ], const Duration(minutes: 1))), teksProses: 'Menghubungi ${_penyedia == 'doku' ? 'DOKU' : 'Midtrans'}...');
+    if (!r.ok || !mounted) return;
+    final h = r.data!;
+    final ok = h['ok'] == true;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        icon: Icon(ok ? Icons.check_circle_rounded : Icons.error_rounded, color: ok ? Colors.green : Theme.of(c).colorScheme.error, size: 40),
+        title: Text(ok ? 'Koneksi berhasil' : 'Koneksi gagal'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(teks(h['pesan'])),
+          const SizedBox(height: 8),
+          Text('${teks(h['penyedia'])} · mode ${teks(h['mode'])}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          if (teks(h['detail']).isNotEmpty) Text(teks(h['detail']), style: const TextStyle(fontSize: 11.5)),
+          if (ok)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Tes ini memeriksa kunci & mode saja. Metode bayar (VA, QRIS, …) diuji dengan satu pembayaran percobaan; '
+                  'jangan lupa tekan Simpan bila kunci baru diubah.', style: TextStyle(fontSize: 12)),
+            ),
+        ]),
+        actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup'))],
+      ),
+    );
+  }
+
   Future<void> _simpan() async {
     final r = await jalankan(context, () async => peta(await Api.instance('waAdminRefAturanSimpan', [
           _t,
@@ -538,6 +575,12 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
       Text('Pemasukan dicatat sebesar yang dibayar pendaftar. Biaya layanan dicatat terpisah sebagai pengeluaran ADM dengan nomor order yang sama, '
           'sehingga terlihat jumlah kotor, biaya, dan dana bersih. Sesuaikan dengan tarif di kontrak Midtrans (QRIS umumnya 0,7%).',
           style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: _tesKoneksi,
+        icon: const Icon(Icons.wifi_tethering_rounded),
+        label: Text('Tes koneksi ${_penyedia == 'doku' ? 'DOKU' : 'Midtrans'} (${_produksi ? 'produksi' : 'sandbox'})'),
+      ),
       const SizedBox(height: 6),
       SelectableText('${_penyedia == 'doku' ? 'Notification URL (isi di dashboard DOKU untuk tiap metode pembayaran)' : 'Payment Notification URL (isi di dasbor Midtrans)'}:\n${teks(d['webhook'])}', style: const TextStyle(fontSize: 12)),
       if (_penyedia == 'doku')

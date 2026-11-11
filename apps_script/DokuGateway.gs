@@ -392,3 +392,54 @@ function gwCatatAdminBayar_(x, jumlah, kanal, sumber) {
     'CATATAN KEPUTUSAN': 'Dibebankan ke pembayar; menutup biaya layanan DOKU (ADM) dengan invoice yang sama'
   }));
 }
+
+// ============================================================================
+// TES KONEKSI PAYMENT GATEWAY (v1.50.1) - Admin, tanpa membuat order/pembayaran.
+// DOKU: cek status invoice fiktif bertanda tangan -> 404 "tidak ditemukan" = kunci & mode benar; 401/signature = salah.
+// Midtrans: GET /v2/{order fiktif}/status dengan Server Key -> status_code 404 = kunci benar; 401 = salah.
+// d (opsional) = isian form yang belum disimpan: {penyedia, produksi, dokuClientId, dokuSecretKey, serverKey};
+// nilai bertanda •••• memakai yang tersimpan.
+// ============================================================================
+function waAdminRefGatewayTes(token, d) {
+  var p = wajibAdmin_(token);
+  d = d || {};
+  var g = rfAturan_().gateway || {}, pilih = function(baru, lama) { var s = String(baru === undefined || baru === null ? '' : baru).trim(); return s && s.indexOf('••••') !== 0 ? s : (lama || ''); };
+  var penyedia = String(d.penyedia || g.penyedia || 'midtrans').toLowerCase() === 'doku' ? 'doku' : 'midtrans';
+  var produksi = d.produksi !== undefined ? d.produksi === true : !!g.produksi;
+  var mode = produksi ? 'produksi' : 'sandbox', inv = 'TES-KONEKSI-' + absId_().toUpperCase(), h;
+  try {
+    if (penyedia === 'doku') {
+      var dk = { clientId: pilih(d.dokuClientId, g.dokuClientId), secret: pilih(d.dokuSecretKey, g.dokuSecretKey), produksi: produksi };
+      if (!dk.clientId || !dk.secret) return { ok: false, penyedia: 'DOKU', mode: mode, pesan: 'Client ID dan Secret Key DOKU belum diisi.' };
+      var r = gwPanggil_(dk, 'get', '/orders/v1/status/' + inv, null), teks = String(r.teks || ''), low = teks.toLowerCase();
+      var gagalKunci = r.kode === 401 || r.kode === 403 || /signature|client[ -]?id|unauthori|invalid key/.test(low);
+      h = gagalKunci
+        ? { ok: false, pesan: 'Kunci ditolak DOKU (HTTP ' + r.kode + '). Periksa Client ID / Secret Key dan pastikan saklar Mode produksi sesuai jenis kunci (' + mode + ').' }
+        : (r.kode === 404 || r.kode === 200 || r.kode === 400)
+          ? { ok: true, pesan: 'Terhubung ke DOKU ' + mode + '. Client ID dan Secret Key diterima.' }
+          : { ok: false, pesan: 'Jawaban DOKU tidak terduga (HTTP ' + r.kode + ').' };
+      h.detail = 'HTTP ' + r.kode + ' ' + teks.replace(/\s+/g, ' ').slice(0, 200);
+      h.penyedia = 'DOKU';
+    } else {
+      var sk = pilih(d.serverKey, g.serverKey);
+      if (!sk) return { ok: false, penyedia: 'Midtrans', mode: mode, pesan: 'Server Key Midtrans belum diisi.' };
+      var res = UrlFetchApp.fetch(rfMidtransBase_({ produksi: produksi }) + '/v2/' + inv + '/status', {
+        method: 'get', muteHttpExceptions: true, headers: { Authorization: 'Basic ' + Utilities.base64Encode(sk + ':'), Accept: 'application/json' } });
+      var j = rfJson_(res.getContentText(), {}), sc = String(j.status_code || res.getResponseCode());
+      h = sc === '401' || res.getResponseCode() === 401
+        ? { ok: false, pesan: 'Server Key ditolak Midtrans. Periksa kunci dan saklar Mode produksi (' + mode + ').' }
+        : sc === '404' || sc === '200'
+          ? { ok: true, pesan: 'Terhubung ke Midtrans ' + mode + '. Server Key diterima.' }
+          : { ok: false, pesan: 'Jawaban Midtrans tidak terduga (' + sc + ': ' + String(j.status_message || '').slice(0, 120) + ').' };
+      h.detail = 'HTTP ' + res.getResponseCode() + ' · ' + sc + ' ' + String(j.status_message || '').slice(0, 150);
+      h.penyedia = 'Midtrans';
+    }
+  } catch (e) {
+    h = { ok: false, penyedia: penyedia === 'doku' ? 'DOKU' : 'Midtrans', pesan: 'Tidak dapat menghubungi server gateway: ' + String((e && e.message) || e).slice(0, 150) };
+  }
+  h.mode = mode;
+  h.webhook = '';
+  try { h.webhook = ScriptApp.getService().getUrl(); } catch (eU) {}
+  try { catat_(p.peran, '', p.nama, 'Tes koneksi gateway', h.penyedia + ' ' + mode + ': ' + (h.ok ? 'OK' : h.pesan), h.ok ? 'OK' : 'GAGAL'); } catch (eL) {}
+  return h;
+}
