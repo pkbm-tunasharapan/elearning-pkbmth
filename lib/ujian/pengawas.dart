@@ -461,6 +461,7 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
                 title: Text(teks(s['nama']), style: TextStyle(fontWeight: _bobot(s, now) < 3 ? FontWeight.w800 : FontWeight.w500)),
                 subtitle: Text([
                   if (s['berat'] == true) 'PELANGGARAN BERAT',
+                  if (s['kurangHadir'] != null) 'kehadiran ${peta(s['kurangHadir'])['persen']}%: perlu persetujuan KS',
                   if (angka(s['kunciKe']) > 0 && s['berat'] != true) 'kunci ke-${s['kunciKe']}${s['perluPimpinan'] == true ? ' (pimpinan)' : ''}',
                   if (_bobot(s, now) == 2 && teks(s['pelanggaranTerakhir']).isNotEmpty) '${teks(s['pelanggaranTerakhir'])} ${_jamDari(angka(s['pelanggaranTerakhirMs']))}',
                   if (teks(s['mulai']).isNotEmpty) 'mulai ${teks(s['mulai'])}',

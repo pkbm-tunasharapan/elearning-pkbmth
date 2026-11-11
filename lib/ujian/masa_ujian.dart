@@ -585,6 +585,11 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
               icon: const Icon(Icons.badge_outlined),
               label: const Text('Atur pengawas'),
             ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => KehadiranPesertaScreen(idMasa: widget.id))),
+              icon: const Icon(Icons.how_to_reg_outlined),
+              label: const Text('Syarat kehadiran'),
+            ),
           ]),
           const SizedBox(height: 8),
           JudulBagian('Slot jadwal (${_slot.length})', sub: draft ? 'Setiap slot berlaku serentak untuk semua rombel peserta.' : 'Terkunci. Batalkan penetapan untuk mengubah.'),
@@ -833,6 +838,124 @@ class _KesiapanScreen extends StatelessWidget {
             ),
           ),
       ]),
+    );
+  }
+}
+
+// ---------------------------------------------------------------- syarat kehadiran (v1.56.0)
+/// Peserta dengan kehadiran di bawah syarat (bawaan 80%): perlu persetujuan Kepala Sekolah untuk ikut ujian.
+class KehadiranPesertaScreen extends StatefulWidget {
+  const KehadiranPesertaScreen({super.key, required this.idMasa});
+  final String idMasa;
+
+  @override
+  State<KehadiranPesertaScreen> createState() => _KehadiranPesertaScreenState();
+}
+
+class _KehadiranPesertaScreenState extends State<KehadiranPesertaScreen> {
+  int _v = 0;
+  final Set<String> _pilih = {};
+
+  String _kunci(Map<String, dynamic> x) => '${teks(x['idRombelSim'])}|${teks(x['idWb'])}|${teks(x['kode'])}';
+
+  Future<void> _aksi(Map<String, dynamic> d, bool setuju) async {
+    final item = daftar(d['daftar']).map(peta).where((x) => _pilih.contains(_kunci(x))).map((x) => {'idRombelSim': x['idRombelSim'], 'idWb': x['idWb'], 'kode': x['kode']}).toList();
+    if (item.isEmpty) return kabar(context, 'Centang siswa dulu.', galat: true);
+    final c = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dl) => AlertDialog(
+        title: Text(setuju ? 'Setujui ${item.length} siswa ikut ujian?' : 'Ajukan ${item.length} siswa ke Kepala Sekolah?'),
+        content: TextField(controller: c, maxLines: 3, decoration: const InputDecoration(labelText: 'Alasan (wajib, dicatat)', border: OutlineInputBorder())),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dl, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(dl, true), child: Text(setuju ? 'Setujui' : 'Ajukan')),
+        ],
+      ),
+    );
+    final a = c.text.trim();
+    c.dispose();
+    if (ok != true || !mounted) return;
+    if (a.length < 5) return kabar(context, 'Tulis alasan minimal 5 huruf.', galat: true);
+    final r = await jalankan(context, () => Api.instance(setuju ? 'waStafMasaHadirSetujui' : 'waStafMasaHadirAjukan', [_t, widget.idMasa, item, a]),
+        teksProses: setuju ? 'Menyimpan persetujuan...' : 'Mengirim pengajuan...');
+    if (!r.ok || !mounted) return;
+    kabar(context, setuju ? '${peta(r.data)['jumlah']} siswa disetujui ikut ujian.' : 'Pengajuan terkirim ke Kepala Sekolah.');
+    setState(() { _pilih.clear(); _v++; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Syarat kehadiran peserta')),
+      body: Muatan<Map<String, dynamic>>(
+        key: ValueKey('kh$_v'),
+        muat: () async => peta(await Api.instance('waStafMasaHadir', [_t, widget.idMasa], const Duration(minutes: 3))),
+        bangun: (c, d, segar) {
+          final isi = daftar(d['daftar']).map(peta).toList();
+          final bisa = d['bisaSetuju'] == true;
+          final terbuka = isi.where((x) => x['dispensasi'] == null).toList();
+          return Stack(children: [
+            RefreshIndicator(
+              onRefresh: segar,
+              child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), children: [
+                Text(
+                    d['tryout'] == true
+                        ? 'Tryout tidak memakai syarat kehadiran: semua peserta boleh ikut.'
+                        : d['blokir'] != true
+                            ? 'Pemblokiran karena kehadiran sedang dimatikan di Aturan Nilai: semua peserta boleh ikut.'
+                            : 'Kehadiran gabungan (absensi TH.E-Course + tatap muka) per mapel semester ini. ${d['syarat']}% ke atas otomatis boleh ujian; '
+                                'di bawah ${d['syarat']}% perlu persetujuan Kepala Sekolah. Siswa tanpa persetujuan tidak bisa memulai ujian mapel itu.',
+                    style: const TextStyle(fontSize: 12.5)),
+                const SizedBox(height: 8),
+                if (isi.isEmpty) const Kosong(pesan: 'Semua peserta memenuhi syarat kehadiran.', ikon: Icons.verified_rounded),
+                if (terbuka.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() {
+                        final semua = terbuka.every((x) => _pilih.contains(_kunci(x)));
+                        if (semua) {
+                          _pilih.clear();
+                        } else {
+                          _pilih.addAll(terbuka.map(_kunci));
+                        }
+                      }),
+                      icon: const Icon(Icons.select_all_rounded),
+                      label: Text('Pilih semua yang belum disetujui (${terbuka.length})'),
+                    ),
+                  ),
+                for (final x in isi)
+                  Card(
+                    margin: const EdgeInsets.symmetric(vertical: 3),
+                    child: CheckboxListTile(
+                      dense: true,
+                      value: _pilih.contains(_kunci(x)),
+                      onChanged: x['dispensasi'] != null ? null : (v) => setState(() => v == true ? _pilih.add(_kunci(x)) : _pilih.remove(_kunci(x))),
+                      title: Text('${teks(x['nama'])} · ${teks(x['rombel'])}'),
+                      subtitle: Text('${teks(x['mapel'])} · hadir ${x['hadir']}/${x['total']} = ${x['persen']}%'
+                          '${x['dispensasi'] != null ? '\nDisetujui ${teks(peta(x['dispensasi'])['oleh'])} ${teks(peta(x['dispensasi'])['pada'])}' : (teks(x['diajukan']).isNotEmpty ? '\nDiajukan ${teks(x['diajukan'])}' : '')}'),
+                      secondary: Lencana(
+                        x['dispensasi'] != null ? 'Disetujui KS' : (teks(x['diajukan']).isNotEmpty ? 'Diajukan' : 'Perlu KS'),
+                        warna: x['dispensasi'] != null ? Colors.green.shade700 : (teks(x['diajukan']).isNotEmpty ? Colors.orange.shade800 : Colors.red.shade700),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+            if (terbuka.isNotEmpty)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.extended(
+                  onPressed: () => _aksi(d, bisa),
+                  icon: Icon(bisa ? Icons.verified_rounded : Icons.send_rounded),
+                  label: Text(bisa ? 'Setujui terpilih (${_pilih.length})' : 'Ajukan ke KS (${_pilih.length})'),
+                ),
+              ),
+          ]);
+        },
+      ),
     );
   }
 }

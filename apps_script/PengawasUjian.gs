@@ -230,6 +230,19 @@ function pwLog_(idUjianSet) {
 function pwMs_(v) { return v instanceof Date ? v.getTime() : ujMsTeks_(v); }
 function pwJam_(ms) { return ms ? Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), 'HH:mm') : ''; }
 
+// v1.56.0: siswa ruang ini yang kehadirannya di bawah syarat dan belum disetujui KS (disimpan 5 menit).
+function pwKurangHadir_(cx) {
+  var c = CacheService.getScriptCache(), k = 'pw_kh_' + cx.s.id + '_' + cx.idRombelSim, s = c.get(k);
+  if (s) { try { return JSON.parse(s); } catch (e) {} }
+  var o = {};
+  try {
+    muKurangHadir_(cx.m).daftar.forEach(function(x) {
+      if (x.idRombelSim === cx.idRombelSim && x.kode === cx.s.kode && !x.dispensasi) o[normNama_(x.nama)] = { persen: x.persen, syarat: nilAturan_().syaratHadir };
+    });
+  } catch (e2) {}
+  try { c.put(k, JSON.stringify(o), 300); } catch (e3) {}
+  return o;
+}
 function pwSekolah_() {
   var kep = { nama: 'PKBM Tunas Harapan' };
   try { var ids = getIdentitasSekolah_() || {}; kep = { nama: ids.namaSatuan || kep.nama, alamat: ids.alamat || '', kota: ids.kotaTtd || '', kepala: ids.namaKepala || '' }; } catch (e) {}
@@ -243,7 +256,7 @@ function pwRuang_(cx) {
     var k = pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']);
     (lg[k] = lg[k] || []).push({ waktu: r['WAKTU'], jenis: r['JENIS'], detail: r['DETAIL'], oleh: r['OLEH'] });
   });
-  var model = pwModelTerdaftar_(), sk = pwSanksi_();
+  var model = pwModelTerdaftar_(), sk = pwSanksi_(), kh = pwKurangHadir_(cx);
   var kunciDetak = peserta.map(function(x) { return 'pw_d_' + pwKunciSiswa_(x.idUjian, x.idRombel, x.nama); });
   var detak = {};
   try { for (var i = 0; i < kunciDetak.length; i += 100) { var g = CacheService.getScriptCache().getAll(kunciDetak.slice(i, i + 100)); Object.keys(g).forEach(function(k) { detak[k] = Number(g[k]); }); } } catch (e) {}
@@ -261,6 +274,7 @@ function pwRuang_(cx) {
       percobaan: se ? Number(se.row[se.c.percobaan - 1]) || 0 : 0, pelanggaran: pel.length, mulai: pwJam_(mulai), selesai: st === 'Selesai' ? pwJam_(selesai) : '',
       sisaMenit: status === 'Mengerjakan' || status === 'Terputus' ? Math.max(0, Math.ceil((akhir - now) / 60000)) : null, tambahMenit: tw,
       detak: dt ? pwJam_(dt) : '', perangkat: model[k] || '', log: lg[k] || [],
+      kurangHadir: kh[normNama_(x.nama)] || null,
       kunciKe: rs.kunci, berat: rs.berat, minta: rs.minta, perluPimpinan: cx.m.jenis !== 'TRYOUT' && rs.kunci >= sk.pimpinanMulai,
       pelanggaranTerakhirMs: isNaN(akhirPel) ? 0 : akhirPel, pelanggaranTerakhir: pel.length ? pel[pel.length - 1].jenis : '' };
   });

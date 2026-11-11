@@ -338,3 +338,90 @@ function muGerbang_(j, idRombel, nama) {
   if (w && m.peserta.siswa.indexOf(w.id) >= 0) return '';
   return 'Anda tidak terdaftar sebagai peserta ' + m.nama + '.';
 }
+
+// ============================================================================
+// v1.56.0: SYARAT KEHADIRAN PESERTA MASA UJIAN
+// Kehadiran gabungan (absensi TH.E-Course + tatap muka) per mapel pada semester berjalan >= syarat (Aturan Nilai, bawaan 80%)
+// -> otomatis boleh ujian. Kurang dari syarat -> perlu persetujuan Kepala Sekolah (dispensasi). Tryout tanpa syarat kehadiran.
+// ============================================================================
+function muJenisDis_(jenis) { return jenis === 'UTS' || jenis === 'UAS' ? jenis : '*'; }
+// Daftar peserta di bawah syarat untuk masa ini: [{idWb, nama, idRombelSim, rombel, kode, mapel, persen, hadir, total, dispensasi}]
+function muKurangHadir_(m) {
+  var at = nilAturan_(), out = [];
+  if (m.jenis === 'TRYOUT' || !at.blokir) return { at: at, daftar: out };
+  var per = nilPeriode_(), dis = nilDisBaca_(per), rb = honProgramRombel_(), nm = muNamaMapel_();
+  var kode = {};
+  muSlot_(m.id).forEach(function(s) { kode[s.kode] = true; });
+  var pilih = null;
+  if (m.peserta.mode === 'siswa') { pilih = {}; m.peserta.siswa.forEach(function(x) { pilih[x] = true; }); }
+  var sudah = {};
+  muKelas_(m).forEach(function(k) {
+    if (!kode[k.kode] || sudah[k.key]) return;
+    sudah[k.key] = true;
+    var hk = nilHadirKelas_(per, k.key);
+    (absWbRombel_(k.idRombelSim) || []).forEach(function(w) {
+      if (pilih && !pilih[w.id]) return;
+      var g = hk.gabung(w.id);
+      if (!g.total || g.persen >= at.syaratHadir) return;
+      var d = nilDisCari_(dis, w.id, k.idRombelSim, k.kode, m.jenis);
+      out.push({ idWb: w.id, nama: w.nama, idRombelSim: k.idRombelSim, rombel: rb[k.idRombelSim] ? rb[k.idRombelSim].nama : k.idRombelSim, kode: k.kode,
+        mapel: nm[k.kode] || k.kode, persen: g.persen, hadir: g.hadir, total: g.total, dispensasi: d ? { oleh: d.oleh, pada: d.pada, alasan: d.alasan } : null });
+    });
+  });
+  out.sort(function(a, b) { return (a.rombel + a.nama + a.mapel).localeCompare(b.rombel + b.nama + b.mapel); });
+  return { at: at, daftar: out };
+}
+function waStafMasaHadir(token, idMasa) {
+  var p = stafDariToken_(token);
+  var m = muCari_(idMasa);
+  if (!ujtKelola_(p) && !nilPeran_(p).dispensasi) throw new Error('Peran Anda tidak dapat melihat syarat kehadiran peserta.');
+  var r = muKurangHadir_(m), minta = {};
+  try {
+    pwBaca_(PW.TAB_LG, PW.HDR_LG).forEach(function(x) {
+      if (x['JENIS'] === 'Permintaan dispensasi kehadiran' && x['ID UJIAN'] === m.id) minta[x['ID ROMBEL'] + '|' + x['NAMA SISWA']] = x['OLEH'] + ' ' + x['WAKTU'];
+    });
+  } catch (e) {}
+  r.daftar.forEach(function(x) { x.diajukan = minta[x.idRombelSim + '|' + x.idWb + '|' + x.kode] || ''; });
+  return { masa: m, syarat: r.at.syaratHadir, blokir: r.at.blokir, tryout: m.jenis === 'TRYOUT', daftar: r.daftar, bisaSetuju: !!nilPeran_(p).dispensasi,
+    jenisDis: muJenisDis_(m.jenis) };
+}
+// Ajukan persetujuan KS untuk beberapa siswa: item [{idWb, idRombelSim, kode}], alasan wajib.
+function waStafMasaHadirAjukan(token, idMasa, item, alasan) {
+  var p = stafDariToken_(token);
+  muWajib_(p);
+  var m = muCari_(idMasa), a = pwAlasan_(alasan), kurang = {}, n = 0;
+  muKurangHadir_(m).daftar.forEach(function(x) { kurang[x.idRombelSim + '|' + x.idWb + '|' + x.kode] = x; });
+  var nama = [];
+  (Array.isArray(item) ? item : []).forEach(function(i) {
+    var x = kurang[String(i.idRombelSim) + '|' + String(i.idWb) + '|' + String(i.kode)];
+    if (!x || x.dispensasi) return;
+    pwCatat_(m.id, x.idRombelSim + '|' + x.idWb + '|' + x.kode, x.nama, 'Permintaan dispensasi kehadiran', x.mapel + ' ' + x.persen + '%: ' + a, p.nama);
+    nama.push(x.nama + ' (' + x.mapel + ' ' + x.persen + '%)');
+    n++;
+  });
+  if (!n) throw new Error('Tidak ada siswa yang perlu diajukan.');
+  npKirim_('ujian_dispensasi_minta', { judul: 'Persetujuan ikut ujian (kehadiran kurang)', isi: p.nama + ' mengajukan ' + n + ' siswa untuk ' + m.nama + ': ' + nama.slice(0, 5).join(', ') +
+    (nama.length > 5 ? ', dan ' + (nama.length - 5) + ' lainnya' : '') + '. Alasan: ' + a, aksi: 'masa_ujian', ref: 'dis|' + m.id + '|' + Date.now() });
+  return { sukses: true, jumlah: n };
+}
+// Kepala Sekolah menyetujui beberapa siswa sekaligus (dispensasi per mapel untuk jenis ujian masa ini).
+function waStafMasaHadirSetujui(token, idMasa, item, alasan) {
+  var p = stafDariToken_(token);
+  if (!nilPeran_(p).dispensasi) throw new Error('Persetujuan ikut ujian dengan kehadiran kurang diberikan Kepala Sekolah.');
+  var m = muCari_(idMasa), a = pwAlasan_(alasan), kurang = {}, n = 0;
+  muKurangHadir_(m).daftar.forEach(function(x) { kurang[x.idRombelSim + '|' + x.idWb + '|' + x.kode] = x; });
+  var per = nilPeriode_(), t = absBaca_(NIL.TAB_DIS, NIL.HDR_DIS), jenis = muJenisDis_(m.jenis);
+  (Array.isArray(item) ? item : []).forEach(function(i) {
+    var x = kurang[String(i.idRombelSim) + '|' + String(i.idWb) + '|' + String(i.kode)];
+    if (!x || x.dispensasi) return;
+    t.sh.appendRow(absBaris_(t, {
+      'ID': absId_(), 'WARGA BELAJAR': x.idWb, 'NAMA WB': x.nama, 'ROMBEL': x.idRombelSim, 'MAPEL': x.kode, 'JENIS': jenis,
+      'TAHUN PELAJARAN': per.tahun, 'SEMESTER': per.semester, 'ALASAN': ('Masa ujian ' + m.nama + ' (kehadiran ' + x.persen + '%): ' + a).slice(0, 300), 'AKTIF': true,
+      'DIBERI OLEH': p.nama, 'DIBERI PADA': absWaktu_()
+    }));
+    n++;
+  });
+  if (!n) throw new Error('Tidak ada siswa yang perlu disetujui.');
+  catat_(p.peran, '-', p.nama, 'Setujui ikut ujian (kehadiran kurang)', m.nama + ': ' + n + ' siswa - ' + a, 'OK');
+  return { sukses: true, jumlah: n };
+}
