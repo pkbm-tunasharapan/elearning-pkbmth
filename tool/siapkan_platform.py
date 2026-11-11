@@ -113,6 +113,20 @@ if kunci.exists():
     }""" % (berkas, SANDI, ALIAS, SANDI), 1)
             gro.write_text(g)
         print('Gradle (groovy) memakai kunci tetap.')
+# v1.58.0: matikan lint rilis (lintVital). Alat lint Android sempat crash pada plugin pihak ketiga
+# (image_picker_android: java.util.List.removeLast) sehingga APK gagal dibuat; lint hanya analisis statis.
+if kts.exists():
+    g = kts.read_text()
+    if 'checkReleaseBuilds' not in g:
+        g = g.replace('android {', 'android {\n    lint {\n        checkReleaseBuilds = false\n        abortOnError = false\n    }', 1)
+        kts.write_text(g)
+        print('Gradle (kts): lint rilis dimatikan.')
+elif gro.exists():
+    g = gro.read_text()
+    if 'checkReleaseBuilds' not in g:
+        g = g.replace('android {', 'android {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }', 1)
+        gro.write_text(g)
+        print('Gradle (groovy): lint rilis dimatikan.')
 # Halaman statis tambahan untuk situs web (mis. kebijakan privasi untuk layar izin Google).
 halaman = akar / 'tool/web'
 if halaman.exists() and (akar / 'web').exists():
