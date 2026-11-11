@@ -12,7 +12,9 @@
 // - Admin bawaan selalu penuh dan tidak dapat diubah/dihapus. Semua perubahan tercatat di Log Aktivitas.
 // ============================================================================
 var IZN = {
-  TAB_PERAN: 'Peran', HDR_PERAN: ['NAMA', 'PERAN DASAR', 'DESKRIPSI', 'STATUS', 'DIUBAH OLEH', 'DIUBAH PADA'],
+  TAB_PERAN: 'Peran', HDR_PERAN: ['NAMA', 'PERAN DASAR', 'DESKRIPSI', 'STATUS', 'DIUBAH OLEH', 'DIUBAH PADA', 'CAKUPAN'],
+  // v1.41.2 (Tahap 3): cakupan data peran kustom: '' = sesuai peran dasar, 'semua' = semua rombel untuk MELIHAT
+  CAKUPAN_LUAS: ['Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Admin'],
   TAB_IZIN: 'Izin Peran', HDR_IZIN: ['PERAN', 'FITUR', 'TINGKAT', 'DIUBAH OLEH', 'DIUBAH PADA'],
   BAWAAN: ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Dinas Pendidikan'],
   CK: 'izn_v1', TINGKAT: ['tidak', 'lihat', 'ubah'],
@@ -94,7 +96,8 @@ function izProksi_(f, tingkat) {
   for (var i = 0; i < urut.length; i++) if (f[3].indexOf(urut[i]) >= 0) return urut[i];
   return '';
 }
-function izBisaTambah_(f, dasar) { return !IZN.KUNCI[f[0]] && dasar !== 'Dinas Pendidikan' && f[3].indexOf(dasar) < 0 && !!izProksi_(f, 'lihat'); }
+function izBisaTambah_(f, dasar) { return !IZN.KUNCI[f[0]] && f[3].indexOf(dasar) < 0 && !!izProksi_(f, 'lihat'); }
+function izMaks_(dasar) { return dasar === 'Dinas Pendidikan' ? 'lihat' : 'ubah'; }   // Dinas selalu hanya lihat
 
 // ---------- katalog ----------
 function izFitur_(fn) {
@@ -119,7 +122,7 @@ function izData_() {
       var nm = sTeks_(absNilai_(tp, tp.v[i], 'NAMA')).trim();
       if (!nm) continue;
       out.peran[nm.toLowerCase()] = { nama: nm, dasar: sTeks_(absNilai_(tp, tp.v[i], 'PERAN DASAR')).trim(), deskripsi: sTeks_(absNilai_(tp, tp.v[i], 'DESKRIPSI')),
-        status: sTeks_(absNilai_(tp, tp.v[i], 'STATUS')).trim() || 'Aktif' };
+        status: sTeks_(absNilai_(tp, tp.v[i], 'STATUS')).trim() || 'Aktif', cakupan: sTeks_(absNilai_(tp, tp.v[i], 'CAKUPAN')).trim() === 'semua' ? 'semua' : '' };
     }
     var ti = absBaca_(IZN.TAB_IZIN, IZN.HDR_IZIN);
     for (var j = 1; j < ti.v.length; j++) {
@@ -150,7 +153,7 @@ function izPetaPeran_(kunci, dasar) {
   IZN.FITUR.forEach(function(f) {
     if (f[3].indexOf(dasar) < 0) {
       // v1.41.1 (Tahap 2): fitur tambahan hanya bila diberikan admin ('lihat' / 'ubah')
-      if (izBisaTambah_(f, dasar) && izNilai_(simpan[f[0]]) > 0) out[f[0]] = simpan[f[0]];
+      if (izBisaTambah_(f, dasar) && izNilai_(simpan[f[0]]) > 0) out[f[0]] = izNilai_(simpan[f[0]]) > izNilai_(izMaks_(dasar)) ? izMaks_(dasar) : simpan[f[0]];
       return;
     }
     var bawaan = dasar === 'Dinas Pendidikan' ? 'lihat' : 'ubah';
@@ -190,11 +193,26 @@ function izPeriksa_(p) {
     globalThis.__IZN_OK = fn;
     return p;
   }
+  if (izNilai_(punya) >= izNilai_(perlu) && perlu === 'lihat' && p.peranKustom && dasar !== 'Dinas Pendidikan') {
+    var kp = izData_().peran[String(p.peranKustom).toLowerCase()], pl = ftr ? izProksi_(ftr, 'lihat') : '';
+    if (kp && kp.cakupan === 'semua' && pl && pl !== dasar && IZN.CAKUPAN_LUAS.indexOf(pl) >= 0 && IZN.CAKUPAN_LUAS.indexOf(dasar) < 0) {
+      var prc = { fitur: fitur, peran: pl };
+      globalThis.__IZN_OK = fn; globalThis.__IZN_PROKSI = prc;
+      return izTerapkanProksi_(p, prc);
+    }
+  }
   if (izNilai_(punya) < izNilai_(perlu)) {
     throw new Error('Peran ' + (p.peranKustom || dasar) + ' tidak memiliki izin ' + (perlu === 'ubah' ? 'mengubah' : 'membuka') + ' fitur "' + (ftr ? ftr[1] : fitur) + '". Hubungi admin.');
   }
   globalThis.__IZN_OK = fn;
   return p;
+}
+// v1.41.2: Dinas (atau peran berdasar Dinas) boleh memanggil fungsi BACA dari fitur yang izinnya >= lihat.
+function izDinasBoleh_(fn, p) {
+  var fitur = izFitur_(fn);
+  if (!fitur || fitur === 'umum' || IZN.KUNCI[fitur] || izAksi_(fn) !== 'lihat') return false;
+  var peta = izPetaPeran_((p && p.peranKustom) || 'Dinas Pendidikan', 'Dinas Pendidikan');
+  return izNilai_(peta[fitur]) >= izNilai_('lihat');
 }
 function izTerapkanProksi_(p, prx) {
   var q = {};
@@ -218,7 +236,7 @@ function izRingkasPeran_() {
   var out = IZN.BAWAAN.map(function(n) { return { nama: n, dasar: n, deskripsi: '', status: 'Aktif', bawaan: true, terkunci: n === 'Admin', pengguna: jumlah[n] || 0 }; });
   Object.keys(d.peran).forEach(function(k) {
     var r = d.peran[k];
-    out.push({ nama: r.nama, dasar: r.dasar, deskripsi: r.deskripsi, status: r.status, bawaan: false, terkunci: false, pengguna: jumlah[r.nama] || 0 });
+    out.push({ nama: r.nama, dasar: r.dasar, deskripsi: r.deskripsi, status: r.status, cakupan: r.cakupan || '', bawaan: false, terkunci: false, pengguna: jumlah[r.nama] || 0 });
   });
   return out;
 }
@@ -259,9 +277,11 @@ function waAdminPeranSimpan(token, d) {
       if (IZN.BAWAAN.indexOf(dasar) < 0) throw new Error('Pilih peran dasar.');
       var ada = dataLama.peran[nama.toLowerCase()], lama = d.namaLama ? dataLama.peran[String(d.namaLama).toLowerCase()] : null;
       if (ada && (!lama || lama.nama.toLowerCase() !== nama.toLowerCase())) throw new Error('Peran "' + nama + '" sudah ada.');
+      izPastikanKolom_(absTab_(IZN.TAB_PERAN, IZN.HDR_PERAN), IZN.HDR_PERAN);
       var tp = absBaca_(IZN.TAB_PERAN, IZN.HDR_PERAN), baris = 0;
       for (var i = 1; i < tp.v.length; i++) if (sTeks_(absNilai_(tp, tp.v[i], 'NAMA')).trim().toLowerCase() === String(d.namaLama || nama).toLowerCase()) baris = i + 1;
-      var row = absBaris_(tp, { 'NAMA': nama, 'PERAN DASAR': dasar, 'DESKRIPSI': String(d.deskripsi || '').slice(0, 200), 'STATUS': d.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif', 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': absWaktu_() });
+      var row = absBaris_(tp, { 'NAMA': nama, 'PERAN DASAR': dasar, 'DESKRIPSI': String(d.deskripsi || '').slice(0, 200), 'STATUS': d.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif', 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': absWaktu_(),
+        'CAKUPAN': d.cakupan === 'semua' && dasar !== 'Dinas Pendidikan' && dasar !== 'Admin' ? 'semua' : '' });
       if (baris) { sebelum = JSON.stringify(lama || {}); tp.sh.getRange(baris, 1, 1, row.length).setValues([row]); }
       else tp.sh.appendRow(row);
       // ganti nama: ikut ganti di Pengguna & Izin
@@ -276,6 +296,7 @@ function waAdminPeranSimpan(token, d) {
       if (f[3].indexOf(dasar) < 0) {
         var tt = String(izin[f[0]] || '').toLowerCase();
         if (!izBisaTambah_(f, dasar) || izNilai_(tt) <= 0) return;   // fitur tambahan disimpan hanya bila diberikan
+        if (izNilai_(tt) > izNilai_(izMaks_(dasar))) tt = izMaks_(dasar);
         baru.push(absBaris_(ti, { 'PERAN': nama, 'FITUR': f[0], 'TINGKAT': tt, 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': absWaktu_() }));
         ringkas.push('+' + f[0] + '=' + tt);
         return;
@@ -292,6 +313,10 @@ function waAdminPeranSimpan(token, d) {
     catat_(p.peran, '', p.nama, d.namaLama ? 'Ubah peran & izin' : 'Tambah peran', nama + ' (dasar ' + dasar + ') · izin diubah: ' + (ringkas.join(', ') || 'tidak ada') + (sebelum ? ' · sebelum: ' + sebelum.slice(0, 150) : ''), 'OK');
     return { sukses: true, nama: nama };
   } finally { lock.releaseLock(); }
+}
+function izPastikanKolom_(sh, hdr) {
+  var ada = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(function(x) { return String(x).trim().toUpperCase(); });
+  hdr.forEach(function(h) { if (ada.indexOf(h) < 0) { ada.push(h); sh.getRange(1, ada.length).setValue(h).setFontWeight('bold'); } });
 }
 function izGantiNamaPeran_(lama, baru) {
   var sh = getSheet(PERAN.SHEET_PENGGUNA), v = sh.getDataRange().getValues();

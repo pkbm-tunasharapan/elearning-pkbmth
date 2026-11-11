@@ -101,3 +101,14 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
   sebagai hash, berbatas waktu, dapat dicabut). Semua tindakan di tab `Log Arsip` (termasuk nilai sebelum/sesudah).
 - **Memulihkan baris yang sudah dipindah:** buka spreadsheet arsip semester itu, salin baris dari tab yang sama ke
   tab database utama (kolom sama urutannya).
+
+## Peran & Izin (v1.41.x)
+
+- Tab `Peran` (peran kustom: nama, peran dasar, cakupan) dan `Izin Peran` (peran × fitur × tingkat). Hanya yang
+  berbeda dari bawaan yang disimpan; tanpa baris = perilaku lama. Cache 10 menit.
+- Penegakan di `stafDariToken_` → `izPeriksa_` (PeranIzin.gs) memakai peta fungsi → fitur (`IZN.FITUR`). Fungsi baru
+  WAJIB dipetakan; tes `node tool/tes_backend.js` gagal bila ada fungsi waStaf/waAdmin tanpa fitur.
+- Fitur tambahan (di luar peran dasar) dijalankan sebagai "peran pelaksana" hanya untuk fungsi fitur itu.
+  Fitur terkunci (`IZN.KUNCI`) tidak dapat diberikan. Dinas selalu hanya lihat.
+- Darurat (admin terkunci keluar dari sebuah fitur): hapus baris terkait di tab `Izin Peran`, lalu tunggu ≤10 menit
+  atau jalankan `izHapusCache_()` dari editor Apps Script. Admin bawaan tidak pernah dibatasi.

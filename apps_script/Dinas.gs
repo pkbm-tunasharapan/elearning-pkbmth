@@ -43,7 +43,8 @@ var DINAS = {
 function dinasSaring_(p) {
   var fn = String(globalThis.__API_FN || '');
   if (!fn) throw new Error('Akun Dinas Pendidikan hanya dapat dipakai lewat aplikasi TH.E-Course (Android atau web).');
-  if (DINAS.BACA[fn] !== true) throw new Error('Akun Dinas Pendidikan hanya dapat melihat data untuk pengawasan. Tindakan ini tidak diizinkan.');
+  // v1.41.2: selain daftar baca bawaan, fungsi BACA dari fitur yang diberikan admin (menu Peran & Izin, hanya lihat)
+  if (DINAS.BACA[fn] !== true && !(typeof izDinasBoleh_ === 'function' && izDinasBoleh_(fn, p))) throw new Error('Akun Dinas Pendidikan hanya dapat melihat data untuk pengawasan. Tindakan ini tidak diizinkan.');
   var args = globalThis.__API_ARGS || [];
   if (fn === 'waStafIndukDaftar' && DINAS.TABEL_INDUK_DILARANG[String(args[1] || '')]) throw new Error('Data pengaturan tidak tersedia untuk akun Dinas Pendidikan.');
   if (DINAS.SEMESTER_KINI[fn]) args.forEach(function(a) { if (a && typeof a === 'object' && !Array.isArray(a)) { delete a.tahun; delete a.semester; } });

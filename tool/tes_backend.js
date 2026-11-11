@@ -573,8 +573,33 @@ tes('izin tahap 2: fitur tambahan di luar peran dasar berjalan dengan peran pela
     g.izPeriksa_(fo);
     sama(g.izPeriksa_(fo).peran, 'Kepala Sekolah', 'panggilan kedua');
     g.__API_FN = '';
-    const dinas = g.izPetaPeran_('Dinas Pendidikan', 'Dinas Pendidikan');
-    sama(dinas.keuangan, undefined, 'Dinas tidak dapat diberi fitur tambahan');
+  } finally { g.izData_ = simpan; g.__IZN_PROKSI = null; }
+});
+
+tes('izin tahap 3: Dinas diberi fitur tambahan (hanya lihat), diturunkan admin, cakupan "semua rombel"', () => {
+  const simpan = g.izData_;
+  try {
+    g.izData_ = () => ({
+      peran: { 'operator nilai': { nama: 'Operator Nilai', dasar: 'Tutor', status: 'Aktif', cakupan: 'semua' } },
+      izin: { 'Dinas Pendidikan': { keuangan: 'ubah', rpp: 'tidak' } }
+    });
+    const peta = g.izPetaPeran_('Dinas Pendidikan', 'Dinas Pendidikan');
+    sama([peta.keuangan, peta.rpp, peta.pengguna], ['lihat', 'tidak', undefined], 'Dinas: tambahan dibatasi lihat; fitur terkunci tidak');
+    const pd = { id: 'D1', nama: 'Bidang PNF', peran: 'Dinas Pendidikan' };
+    sama([g.izDinasBoleh_('waStafKeuDaftar', pd), g.izDinasBoleh_('waStafKeuSimpan', pd), g.izDinasBoleh_('waAdminDaftar', pd)], [true, false, false], 'Dinas baca keuangan boleh, ubah tidak');
+    const coba = (fn, orang) => { g.__API_FN = fn; g.__IZN_OK = ''; g.__IZN_PROKSI = null; try { return g.dinasSaring_(orang); } catch (e) { return 'tolak'; } };
+    sama(coba('waStafKeuDaftar', pd).peran, 'Kepala Sekolah', 'lolos saringan Dinas');
+    sama(coba('waStafKeuSimpan', pd), 'tolak', 'tulis tetap ditolak');
+    // RPP diturunkan ke "tidak": walau ada di daftar baca Dinas, penjaga menolak
+    g.__API_FN = 'waStafRppBaca'; g.__IZN_OK = ''; g.__IZN_PROKSI = null;
+    let galat = '';
+    try { g.izPeriksa_(g.dinasSaring_(pd)); } catch (e) { galat = e.message; }
+    sama(/tidak memiliki izin/.test(galat), true, 'fitur Dinas yang diturunkan admin ditolak');
+    // cakupan semua: peran Tutor membaca leger semua rombel sebagai Kepala Sekolah, tetapi mengubah tetap sebagai Tutor
+    const op = { id: 'U9', nama: 'Bu Op', peran: 'Tutor', peranKustom: 'Operator Nilai' };
+    const jalan = (fn) => { g.__API_FN = fn; g.__IZN_OK = ''; g.__IZN_PROKSI = null; return g.izPeriksa_(op); };
+    sama([jalan('waStafLeger').peran, jalan('waStafNilaiInput').peran, jalan('waStafMateriLengkap').peran], ['Kepala Sekolah', 'Tutor', 'Kepala Sekolah']);
+    g.__API_FN = '';
   } finally { g.izData_ = simpan; g.__IZN_PROKSI = null; }
 });
 

@@ -97,6 +97,8 @@ class _EditorPeranState extends State<_EditorPeran> {
   late final TextEditingController _desk = TextEditingController(text: teks((widget.peran ?? widget.salinDari)?['deskripsi']));
   late String _dasar = teks((widget.peran ?? widget.salinDari)?['dasar'], 'Tutor');
   late bool _aktif = teks(widget.peran?['status'], 'Aktif') != 'Nonaktif';
+  // v1.41.2 (Tahap 3): cakupan data peran kustom: '' = sesuai peran dasar, 'semua' = semua rombel (hanya lihat)
+  late String _cakupan = teks((widget.peran ?? widget.salinDari)?['cakupan']) == 'semua' ? 'semua' : '';
   Map<String, String> _izin = {};
   bool _muat = true;
   String? _galat;
@@ -132,10 +134,12 @@ class _EditorPeranState extends State<_EditorPeran> {
   List<Map<String, dynamic>> get _fiturDasar => widget.fitur.where((f) => daftar(f['peran']).map(teks).contains(_dasar)).toList();
 
   /// v1.41.1 (Tahap 2): fitur di luar peran dasar yang boleh diberikan (bukan fitur terkunci; bukan peran Dinas).
-  List<Map<String, dynamic>> get _fiturTambahan => _dasar == 'Dinas Pendidikan'
-      ? const []
-      : widget.fitur.where((f) => !daftar(f['peran']).map(teks).contains(_dasar) && f['kunci'] != true && teks(f['pelaksanaLihat']).isNotEmpty).toList();
-  String _tingkatTambahan(String id) => _izin[id] ?? 'tidak';
+  List<Map<String, dynamic>> get _fiturTambahan =>
+      widget.fitur.where((f) => !daftar(f['peran']).map(teks).contains(_dasar) && f['kunci'] != true && teks(f['pelaksanaLihat']).isNotEmpty).toList();
+  String _tingkatTambahan(String id) {
+    final t = _izin[id] ?? 'tidak';
+    return t == 'ubah' && _maks == 'lihat' ? 'lihat' : t;   // Dinas: hanya lihat
+  }
 
   String _tingkat(String id) {
     final t = _izin[id] ?? _maks;
@@ -149,6 +153,7 @@ class _EditorPeranState extends State<_EditorPeran> {
       'dasar': _bawaan ? teks(widget.peran!['nama']) : _dasar,
       'deskripsi': _desk.text.trim(),
       'status': _aktif ? 'Aktif' : 'Nonaktif',
+      'cakupan': _cakupan,
       'izin': {
         for (final f in _fiturDasar) teks(f['id']): _tingkat(teks(f['id'])),
         for (final f in _fiturTambahan) teks(f['id']): _tingkatTambahan(teks(f['id'])),
@@ -237,6 +242,17 @@ class _EditorPeranState extends State<_EditorPeran> {
                 ),
                 const SizedBox(height: 10),
                 TextField(controller: _desk, decoration: const InputDecoration(labelText: 'Deskripsi (opsional)')),
+                if (_dasar != 'Admin' && _dasar != 'Dinas Pendidikan' && _dasar != 'Kepala Sekolah' && _dasar != 'Superadmin' && _dasar != 'Koordinator Kurikulum')
+                  DropdownButtonFormField<String>(
+                    initialValue: _cakupan,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Cakupan data'),
+                    items: [
+                      DropdownMenuItem(value: '', child: Text('Sesuai peran dasar ($_dasar)')),
+                      const DropdownMenuItem(value: 'semua', child: Text('Semua rombel — hanya untuk melihat')),
+                    ],
+                    onChanged: (v) => setState(() => _cakupan = v ?? ''),
+                  ),
                 SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Aktif'), value: _aktif, onChanged: (v) => setState(() => _aktif = v)),
               ],
               const JudulBagian('Izin per fitur', sub: 'Tidak = menu disembunyikan & ditolak server · Lihat = hanya membuka · Ubah = penuh'),
@@ -295,10 +311,10 @@ class _EditorPeranState extends State<_EditorPeran> {
                           SegmentedButton<String>(
                             showSelectedIcon: false,
                             style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                            segments: const [
-                              ButtonSegment(value: 'tidak', label: Text('Tidak')),
-                              ButtonSegment(value: 'lihat', label: Text('Lihat')),
-                              ButtonSegment(value: 'ubah', label: Text('Ubah')),
+                            segments: [
+                              const ButtonSegment(value: 'tidak', label: Text('Tidak')),
+                              const ButtonSegment(value: 'lihat', label: Text('Lihat')),
+                              if (_maks == 'ubah') const ButtonSegment(value: 'ubah', label: Text('Ubah')),
                             ],
                             selected: {_tingkatTambahan(teks(f['id']))},
                             onSelectionChanged: (v) => setState(() => _izin[teks(f['id'])] = v.first),
