@@ -15,7 +15,7 @@ var UJ = {
   SH: { JADWAL: 'Jadwal Ujian', AJU: 'Pengajuan Ujian', PERM: 'Permohonan Ujian', AKSES: 'Akses Ujian', HASIL: 'Hasil Ujian' },
   H: {
     JADWAL: ['Kunci', 'ID Mapel', 'Semester', 'Jenis', 'ID Ujian', 'Tanggal', 'Jam Mulai', 'Durasi Menit', 'KKM', 'Jumlah Soal',
-      'Mudah', 'Sedang', 'Sulit', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Oleh', 'Diubah Pada', 'Catatan', 'Mode', 'Terpusat', 'Judul'],
+      'Mudah', 'Sedang', 'Sulit', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Oleh', 'Diubah Pada', 'Catatan', 'Mode', 'Terpusat', 'Judul', 'Masa', 'Cakupan'],
     AJU: ['ID', 'Waktu', 'Jenis', 'ID Mapel', 'Semester', 'Jenis Ujian', 'ID Ujian', 'ID Rombel', 'Nama Siswa', 'Alasan',
       'Status', 'Tutor', 'Waktu Tutor', 'Catatan Tutor', 'ID Permohonan'],
     PERM: ['ID', 'Waktu', 'Jenis', 'ID Mapel', 'Semester', 'Jenis Ujian', 'ID Ujian', 'Diajukan Oleh', 'Siswa', 'Alasan',
@@ -132,6 +132,9 @@ function ujJadwalObj_(r) {
     kkm: parseFloat(r['KKM']) || 0, jumlah: parseInt(r['Jumlah Soal'], 10) || 0,
     komposisi: { mudah: parseInt(r['Mudah'], 10) || 0, sedang: parseInt(r['Sedang'], 10) || 0, sulit: parseInt(r['Sulit'], 10) || 0 },
     mode: r['Mode'] === 'Kertas' ? 'Kertas' : 'APK', terpusat: r['Terpusat'] === 'Ya', judulKhusus: r['Judul'] || '',
+    masa: r['Masa'] || '', cakupan: r['Cakupan'] || '',
+    // v1.52.0: Tryout / Ujian Lainnya dari Masa Ujian memakai cakupan bank soal UTS atau UAS
+    jenisPool: r['Jenis'] === 'UTS' || r['Jenis'] === 'UAS' ? r['Jenis'] : (r['Cakupan'] === 'UTS' ? 'UTS' : (r['Cakupan'] === 'UAS' ? 'UAS' : r['Jenis'])),
     dibuatOleh: r['Dibuat Oleh'], dibuatPada: r['Dibuat Pada'], diubahOleh: r['Diubah Oleh'], diubahPada: r['Diubah Pada'], catatan: r['Catatan'],
     mulaiMs: mulaiMs, masukSampaiMs: mulaiMs + UJ.MASUK_MENIT * 60000, akhirMs: mulaiMs + durasi * 60000
   };
@@ -149,7 +152,7 @@ function ujJadwalDariUjian_(idUjian) {
 // dipakai taGerbang_: ujian yang dikelola jadwal tidak memakai gerbang sesi mingguan
 function ujKelola_(idUjian) { return !!ujJadwalDariUjian_(idUjian); }
 
-function ujJudul_(jenis, smt) { if (jenis === 'LAIN') return 'Ujian Lainnya Semester ' + smt; return (jenis === 'UTS' ? 'Ujian Tengah Semester ' : 'Ujian Akhir Semester ') + smt; }
+function ujJudul_(jenis, smt) { if (jenis === 'LAIN') return 'Ujian Lainnya Semester ' + smt; if (jenis === 'TRYOUT') return 'Tryout Semester ' + smt; return (jenis === 'UTS' ? 'Ujian Tengah Semester ' : 'Ujian Akhir Semester ') + smt; }
 
 // ---------------- bank soal dan undian ----------------
 function ujPool_(idMapel, smt, jenis) {
@@ -246,7 +249,7 @@ function ujJenisSitting_(idUjian, idRombel, nama) {
 function ujSoalSiswa_(idUjian, idRombel, nama, lengkap) {
   var j = ujJadwalDariUjian_(idUjian);
   if (!j) return lengkap ? getSoalLengkapUntukUjian_(idUjian) : getSoalUntukUjian_(idUjian);
-  var pool = ujPool_(j.idMapel, j.smt, j.jenis);
+  var pool = ujPool_(j.idMapel, j.smt, j.jenisPool);
   if (!pool.sesi.length) return [];
   var maksOpsi = kurPaket_(getNamaRombel_(idRombel)) === 'A' ? 4 : 5;
   var benih = [idUjian, idRombel, ujNormNama_(nama), ujRonde_(idUjian, idRombel, nama)].join('|');
@@ -452,7 +455,7 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
     try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - ' + g.pesan, 'GAGAL'); } catch (e) {}
     return { sukses: false, pesan: g.pesan };
   }
-  if (j && !g.lanjutMs && String(j.idMapel) === String(idMapel) && !ujPool_(j.idMapel, j.smt, j.jenis).sesi.length) {
+  if (j && !g.lanjutMs && String(j.idMapel) === String(idMapel) && !ujPool_(j.idMapel, j.smt, j.jenisPool).sesi.length) {
     if (g.akses) ujUbah_('AKSES', g.akses._baris, { 'Status': 'Terbuka' });
     return { sukses: false, pesan: 'Soal ujian ini belum disiapkan oleh tutor. Hubungi tutor Anda.' };
   }
@@ -477,6 +480,8 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
 // {lanjutMs} bila siswa melanjutkan sitting yang sedang berjalan.
 function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses) {
   if (String(j.idMapel) !== String(idMapel)) return { pesan: '' };
+  var psMasa = muGerbang_(j, idRombel, nama);   // v1.52.0: peserta "siswa tertentu"
+  if (psMasa) return { pesan: psMasa };
   if (j.mode === 'Kertas') return { pesan: 'Ujian ini dikerjakan di kertas, di kelas, bersama pengawas. Tidak dikerjakan di aplikasi.' };
   var now = Date.now();
   var sesi = cariBarisSesiUjian_(j.idUjian, idRombel, nama);

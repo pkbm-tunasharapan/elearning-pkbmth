@@ -667,5 +667,18 @@ tes('notifikasi: sasaran siswa, tutor, dan peran', () => {
   sama(g.npCocok_(ev('bayar_online_masuk'), sa, at, ctxS), false, 'jenis dimatikan admin');
 });
 
+// 19. masa ujian serentak: cakupan bank soal & kolom jadwal (v1.52.0)
+tes('masa ujian: cakupan tryout/lainnya dan kolom Masa', () => {
+  sama(g.muJenisPool_('UTS', 'UAS'), 'UTS', 'uts tetap uts');
+  sama(g.muJenisPool_('TRYOUT', 'UTS'), 'UTS', 'tryout cakupan uts');
+  sama(g.muJenisPool_('LAIN', ''), 'UAS', 'lainnya bawaan seluruh semester');
+  sama(g.UJ.H.JADWAL.indexOf('Masa') > 0 && g.UJ.H.JADWAL.indexOf('Cakupan') > 0, true, 'kolom jadwal');
+  const j = g.ujJadwalObj_({ 'Jenis': 'TRYOUT', 'Cakupan': 'UTS', 'Masa': 'MU-1', 'Tanggal': '2026-11-16', 'Jam Mulai': '07:30', 'Durasi Menit': 90 });
+  sama(j.jenisPool, 'UTS', 'pool jadwal tryout');
+  sama(j.masa, 'MU-1', 'masa terbaca');
+  sama(g.ujJadwalObj_({ 'Jenis': 'UAS', 'Cakupan': 'UTS' }).jenisPool, 'UAS', 'uas abaikan cakupan');
+  sama(g.nilGerbangUjian_({ jenis: 'TRYOUT' }, 'R', 'N'), '', 'tryout tanpa syarat hadir');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

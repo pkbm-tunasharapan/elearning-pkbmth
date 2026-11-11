@@ -268,7 +268,7 @@ function waStafUjtNaskah(token, idUjian, kunciJawaban) {
   var j = ujtCariJadwal_(idUjian);
   if (!ujtKelola_(p) && ujMapelTutor_(p)[String(j.idMapel)] !== true) throw new Error('Anda tidak berhak mencetak naskah ujian ini.');
   var m = ujtPetaMapel_()[String(j.idMapel)] || { namaMapel: j.idMapel, namaRombel: '', idRombel: '' };
-  var pool = ujPool_(j.idMapel, j.smt, j.jenis);
+  var pool = ujPool_(j.idMapel, j.smt, j.jenisPool);
   if (!pool.sesi.length) throw new Error('Bank soal untuk ujian ini belum ada. Susun soal di tab Kurikulum dulu.');
   var maksOpsi = 5;
   try { maksOpsi = kurPaket_(getNamaRombel_(m.idRombel)) === 'A' ? 4 : 5; } catch (e) {}

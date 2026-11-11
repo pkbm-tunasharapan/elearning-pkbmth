@@ -3082,6 +3082,7 @@ function waStafKartuPeserta(token, idRombel) {
 
 // ---------- gerbang ujian online (dipanggil dari waMulaiUjian) ----------
 function nilGerbangUjian_(j, idRombelBm, namaBm) {
+  if (j && j.jenis === 'TRYOUT') return '';   // v1.52.0: tryout tanpa syarat kehadiran
   var at = nilAturan_();
   if (!at.blokir) return '';
   var peta = nilPetaBm_(), key = '';
