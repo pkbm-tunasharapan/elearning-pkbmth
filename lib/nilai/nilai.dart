@@ -592,6 +592,16 @@ class RaporRombelScreen extends StatelessWidget {
                 child: Text('Kelas pada semester ini: ${teks(peta(d['rombel'])['nama'])} (sekarang ${teks(peta(d['rombelKini'])['nama'])}). Rapor dicetak sebagai rapor kelas tersebut.',
                     style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
               ),
+            // v1.40.0: data semester ini dari hardcopy (sebelum sistem diterapkan)
+            if (teks(d['catatanOffline']).isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.description_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(teks(d['catatanOffline']), style: const TextStyle(fontSize: 12.5))),
+                ]),
+              ),
             if (daftar(d['tanpaKelas']).isNotEmpty)
               Text('Kelas tidak dapat ditentukan untuk: ${daftar(d['tanpaKelas']).join(', ')}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
             if (Sesi.instance.isAdmin && d['lampau'] == true && angka(d['kosong']) > 0)
@@ -779,6 +789,7 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs, {OpsiRa
     b.write('<table style="width:55%"><tr><th colspan="2">Ketidakhadiran tatap muka</th></tr><tr><td>Sakit</td><td class="c">${angka(h['Sakit'])} hari</td></tr>'
         '<tr><td>Izin</td><td class="c">${angka(h['Izin'])} hari</td></tr><tr><td>Tanpa keterangan</td><td class="c">${angka(h['Alpa'])} hari</td></tr></table>');
     if (kn.isNotEmpty) b.write(_kotakKeputusan(peta(kn['info']), teks(peta(kn['keputusan'])[teks(w['idWb'])])));
+    if (teks(d['catatanOffline']).isNotEmpty) b.write('<p class="kecil">${escHtml(teks(d['catatanOffline']))}</p>');
     b.write('<table class="ttd"><tr><td>Orang Tua/Wali<br><br><br><br><br>(..............................)</td>'
         '<td>${escHtml(kota)}${kota.isEmpty ? '' : ', '}${escHtml(tglTtd)}<br>Wali Kelas<br><br><br><br><b><u>${escHtml(teks(peta(d['wali'])['nama'], '..............................'))}</u></b></td></tr>'
         '<tr><td colspan="2" style="padding-top:14px">Mengetahui,<br>Kepala ${escHtml(teks(l['nama'], 'PKBM'))}<br><br><br><br><b><u>${escHtml(kepala)}</u></b>'

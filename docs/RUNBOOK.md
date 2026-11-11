@@ -83,3 +83,21 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 
 - `npm install -g @google/clasp`, `clasp login`, lalu di root repo: `clasp push` / `clasp deploy -i ...`
 - Tes backend: `node tool/tes_backend.js`
+
+## Arsip per semester (v1.40.0)
+
+- **Folder Drive:** `Arsip TH.E-Course / 2026-2027 / Semester Ganjil / [Data Semester ...] / A1…C12 / Rapor | Foto | Lainnya`
+  (folder induk dibuat di samping spreadsheet database; ID di Script Properties `ARSIP_FOLDER`).
+- **Otomatis:** pemicu `pemicuArsipHarian` (01.00) mengarsipkan semester sebelumnya setelah semester berganti, lalu
+  memindahkan baris semester itu dari tab transaksi (Jawaban, Absensi, Chat, Notifikasi, Log Aktivitas, Hasil/Percobaan
+  Ujian, Penilaian Diskusi, Baca Materi, PRESENSI HARIAN, SESI BELAJAR, PRESENSI WB). Sebelum dihapus: nilai sistem dan
+  rekap kehadiran dibekukan ke tab `NILAI` / `KEHADIRAN OFFLINE` (keterangan "Dibekukan saat arsip"), data disalin
+  ulang, dan jumlah barisnya diperiksa. Tab induk, NILAI, KENAIKAN KELAS, PRESENSI KS tetap di database utama.
+- **Manual:** menu *Arsip Data* → *Arsipkan semester* (Admin). Proses bertahap tiap ±1 menit (batas 6 menit Apps Script);
+  progres & galat di tab `Indeks Arsip`. Bila status *Gagal*: perbaiki penyebab (lihat kolom CATATAN), tekan *Lanjutkan proses*.
+- **Data offline (hardcopy):** *Arsip Data* → *Data offline* → unduh template per rombel sekarang + semester lampau,
+  tutor mengisi nilai akhir/kehadiran/kenaikan, admin unggah (pratinjau → simpan). Arsip semester itu dibuat otomatis.
+- **Membuka arsip:** Admin & Kepala Sekolah, hanya baca. Ubah data: kode akses dari admin (tab `Kode Arsip`, disimpan
+  sebagai hash, berbatas waktu, dapat dicabut). Semua tindakan di tab `Log Arsip` (termasuk nilai sebelum/sesudah).
+- **Memulihkan baris yang sudah dipindah:** buka spreadsheet arsip semester itu, salin baris dari tab yang sama ke
+  tab database utama (kolom sama urutannya).

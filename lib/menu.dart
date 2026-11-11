@@ -36,6 +36,7 @@ import 'screens/susulan.dart';
 import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
+import 'arsip/arsip.dart';
 import 'pemeliharaan/sistem.dart';
 import 'session.dart';
 import 'siswa/kartu_qr_massal.dart';
@@ -115,6 +116,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'ruangStaf', judul: 'Ruang Staf', ikon: Icons.forum_outlined, peran: _semua, native: () => const RuangStafScreen()),
   MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, native: () => const PengajuanTutorScreen()),
   MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, native: () => const PengaturanAiScreen()),
+  MenuApp(id: 'arsip', judul: 'Arsip Data', ikon: Icons.inventory_2_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const ArsipScreen()),
   MenuApp(id: 'pemeliharaan', judul: 'Pemeliharaan Sistem', ikon: Icons.health_and_safety_outlined, peran: _admin, native: () => const PemeliharaanScreen()),
   MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
   MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, native: () => const KerangkaScreen()),
@@ -137,7 +139,7 @@ const _grupMenu = <String, String>{
   'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
-  'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'maintenance': 'Sistem',
+  'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'maintenance': 'Sistem',
 };
 
 /// Kata kunci tambahan agar pencarian menemukan menu dengan istilah sehari-hari.
@@ -161,6 +163,7 @@ const _kataKunci = <String, String>{
   'referralAdmin': 'verifikasi pendaftaran berkas pembayaran penarikan cashback qris',
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',
+  'arsip': 'arsip backup cadangan semester lampau data offline hardcopy kode akses',
   'otoNilai': 'ajaib otomatis selesaikan penilaian belum dinilai kkm',
   'kinerja': 'poin minus penilaian kinerja tutor terlambat',
 };

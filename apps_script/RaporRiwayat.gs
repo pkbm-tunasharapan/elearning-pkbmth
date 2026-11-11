@@ -128,7 +128,7 @@ function nilKeputusanLampau_(h, idRombelKini, per) {
 
 // Leger semester lampau (bentuk hasil sama dengan waStafLeger).
 function nilLegerLampau_(idRombelKini, per, kini, admin) {
-  var h = nilHitungLampau_(idRombelKini, per, kini), k = h.k, baris = {}, kosong = 0;
+  var h = nilHitungLampau_(idRombelKini, per, kini), k = h.k, baris = {}, kosong = 0, adaOffline = Object.keys(k.hadirOffline || {}).length > 0;
   h.wbs.forEach(function(w) {
     baris[w.id] = { idWb: w.id, nisn: w.nisn, nama: w.nama, nilai: {}, predikat: {}, jumlah: 0, n: 0, belumTuntas: 0,
       kehadiran: k.rekapHadir[w.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 } };
@@ -136,8 +136,9 @@ function nilLegerLampau_(idRombelKini, per, kini, admin) {
   h.rekap.forEach(function(z) {
     var b = baris[z.x.idWb], x = z.x;
     if (!b) return;
-    if (x.uts.nilai === null) kosong++;
-    if (x.uas.nilai === null) kosong++;
+    if (!x.akhirManual && x.uts.nilai === null) kosong++;
+    if (!x.akhirManual && x.uas.nilai === null) kosong++;
+    if (x.offline) adaOffline = true;
     b.nilai[z.kl.kodeMapel] = x.akhir; b.predikat[z.kl.kodeMapel] = x.predikat;
     if (x.akhir !== null) { b.jumlah += x.akhir; b.n++; if (!x.tuntas) b.belumTuntas++; }
   });
@@ -156,6 +157,7 @@ function nilLegerLampau_(idRombelKini, per, kini, admin) {
     tanpaKelas: (h.grup[''] || []).map(function(w) { return w.nama; })
   };
   if (admin) hasil.kosong = kosong;
+  if (adaOffline) { hasil.offline = true; hasil.catatanOffline = OFL.CATATAN; }
   if (per.semester === 'Genap') hasil.kenaikan = nilKeputusanLampau_(h, idRombelKini, per);
   return hasil;
 }
@@ -170,7 +172,7 @@ function waAdminNilaiOtomatis(token, q, terapkan) {
   var h = nilHitungLampau_(String(q.idRombel || ''), per, kini), at = h.k.at, isi = [];
   h.rekap.forEach(function(z) {
     [['UTS', z.x.uts], ['UAS', z.x.uas]].forEach(function(c) {
-      if (c[1].nilai === null) isi.push({ idWb: z.x.idWb, nama: z.x.nama, g: z.g, kl: z.kl, jenis: c[0] });
+      if (c[1].nilai === null && !z.x.akhirManual) isi.push({ idWb: z.x.idWb, nama: z.x.nama, g: z.g, kl: z.kl, jenis: c[0] });
     });
   });
   var rentang = { dari: Math.ceil(Number(at.kkm) || 0), sampai: Math.max(Math.ceil(Number(at.kkm) || 0), NRW.MAKS) };

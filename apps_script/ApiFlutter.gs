@@ -2448,6 +2448,9 @@ function nilKtx_(per) {
     var y = k.rekapHadir[idW] || (k.rekapHadir[idW] = { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 });
     y[st] = (y[st] || 0) + 1;
   }
+  // v1.40.0: rekap kehadiran offline (hardcopy) / dibekukan saat arsip menggantikan rekap bila ada
+  k.hadirOffline = {};
+  try { var oh = oflHadir_(per); Object.keys(oh).forEach(function(id) { k.rekapHadir[id] = oh[id]; k.hadirOffline[id] = oh[id]; }); } catch (eOh) {}
   k.dis = nilDisBaca_(per);
   var tn = absBaca_(NIL.TAB_NILAI, NIL.HDR_NILAI);
   for (var n = 1; n < tn.v.length; n++) {
@@ -2518,6 +2521,9 @@ function nilRekapKelas_(k, kelas) {
     var dsum = 0, djml = 0;
     if (c) bm.forEach(function(b) { var x = k.disk[b.idMapel + '|' + nn]; if (x) { dsum += x.sum; djml += x.jml; } });
     var diskusi = djml ? nilBulat_(dsum / djml) : null;
+    // v1.40.0: nilai tugas/diskusi dari data offline (hardcopy) atau dibekukan saat arsip, bila tidak ada nilai online
+    var mTugas = k.manual[w.id + '|' + key + '|Tugas'], mAkhir = k.manual[w.id + '|' + key + '|Akhir'];
+    if (diskusi === null && mTugas) diskusi = mTugas.nilai;
     var komp = {};
     NIL.JENIS.forEach(function(jn) {
       var on = null;
@@ -2532,7 +2538,11 @@ function nilRekapKelas_(k, kelas) {
       komp[jn] = { online: on, manual: man ? man.nilai : null, nilai: man ? man.nilai : on, ket: man ? man.ket : '', boleh: bolehJ };
     });
     var ak = nilAkhir_(k.at, diskusi, komp.UTS.nilai, komp.UAS.nilai);
+    // v1.40.0: nilai akhir rapor dari hardcopy (bila hanya nilai akhir yang tersedia) menggantikan hitungan komponen
+    if (mAkhir) ak = { akhir: Math.round(mAkhir.nilai), predikat: nilPredikat_(k.at, Math.round(mAkhir.nilai)), lengkap: true, tuntas: Math.round(mAkhir.nilai) >= k.at.kkm };
+    var offline = [mTugas, mAkhir, k.manual[w.id + '|' + key + '|UTS'], k.manual[w.id + '|' + key + '|UAS']].some(function(m) { return m && /offline/i.test(String(m.ket || '')); });
     return {
+      akhirManual: !!mAkhir, offline: offline,
       idWb: w.id, nisn: w.nisn, nama: w.nama, terhubung: !!c,
       hadir: h, totalSesi: totalG, persen: persen, hadirOnline: g.online, hadirTatapMuka: g.tatapMuka,
       syarat: lolos ? (totalG ? 'Memenuhi' : 'Belum ada sesi') : (dis ? 'Dispensasi' : 'Kurang'),
@@ -2787,7 +2797,12 @@ function waStafLeger(token, q) {
   var kiniL = nilPeriode_(), perL = nilPeriode_(q);
   if (nilUrutPer_(perL) > nilUrutPer_(kiniL)) throw new Error('Semester ' + perL.semester + ' ' + perL.tahun + ' belum berjalan.');
   if (nilUrutPer_(perL) < nilUrutPer_(kiniL)) return nilLegerLampau_(String(q.idRombel), perL, kiniL, r.admin);
-  var kelas = nilKelasRapor_(q.idRombel);
+  return nilLegerKini_(String(q.idRombel), q);
+}
+// Leger semester berjalan satu rombel (dipakai waStafLeger dan arsip semester).
+function nilLegerKini_(idRombel, q) {
+  q = q || {};
+  var kelas = nilKelasRapor_(idRombel);
   if (!kelas.length) throw new Error('Rombel tidak ditemukan atau belum punya mapel.');
   var per = nilPeriode_(q), k = nilKtx_(per), baris = {};
   kelas = nilSaringAktif_(kelas, k.peta);

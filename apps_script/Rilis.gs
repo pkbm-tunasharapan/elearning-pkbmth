@@ -193,7 +193,7 @@ function rlsPastikanPemicu_(paksaCek) {
   var ada = {};
   ScriptApp.getProjectTriggers().forEach(function(t) {
     var h = t.getHandlerFunction();
-    if (h !== RLS.PEMICU && h !== CDG.PEMICU) return;
+    if (h !== RLS.PEMICU && h !== CDG.PEMICU && h !== ARS.PEMICU_HARIAN) return;
     if (ada[h]) ScriptApp.deleteTrigger(t); else ada[h] = true;   // buang pemicu ganda
   });
   if (!ada[RLS.PEMICU] && rlsProp_('GITHUB_TOKEN')) {
@@ -203,6 +203,10 @@ function rlsPastikanPemicu_(paksaCek) {
   if (!ada[CDG.PEMICU]) {
     ScriptApp.newTrigger(CDG.PEMICU).timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(2).create();
     try { catat_('Sistem', '', 'Cadangan', 'Pasang pemicu cadangan', 'tiap Minggu pukul 02.00', 'OK'); } catch (e1) {}
+  }
+  if (!ada[ARS.PEMICU_HARIAN]) {
+    ScriptApp.newTrigger(ARS.PEMICU_HARIAN).timeBased().everyDays(1).atHour(1).create();
+    try { catat_('Sistem', '', 'Arsip', 'Pasang pemicu arsip', 'tiap hari pukul 01.00', 'OK'); } catch (e3) {}
   }
   try { c.put('rls_pemicu_ok', '1', 21600); } catch (e2) {}
   return true;

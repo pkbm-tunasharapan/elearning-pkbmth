@@ -410,5 +410,72 @@ tes('nilUrutPer_: urutan semester', () => {
   sama(g.nilUrutPer_({ tahun: '2026/2027', semester: 'Ganjil' }) < g.nilUrutPer_({ tahun: '2026/2027', semester: 'Genap' }), true);
 });
 
+// 11. arsip per semester & data offline (v1.40.0)
+tes('arsSebelum_ & kode template offline', () => {
+  sama(g.arsSebelum_({ tahun: '2026/2027', semester: 'Ganjil' }), { tahun: '2025/2026', semester: 'Genap' });
+  sama(g.arsSebelum_({ tahun: '2026/2027', semester: 'Genap' }), { tahun: '2026/2027', semester: 'Ganjil' });
+  const kode = g.oflKode_('a12', { tahun: '2025/2026', semester: 'Genap' }), b = kode.split('|');
+  sama([b.length, b[0], g.nxlTandaTangan_(b.slice(0, 4)) === b[4]], [5, 'OFFv1', true]);
+  sama(g.nxlTandaTangan_(['OFFv1', 'a11', '2025/2026', 'Genap']) === b[4], false, 'rombel diubah -> tanda tangan beda');
+});
+tes('arsBarisPeriode_: tanggal, sesi tatap muka, nilai per periode', () => {
+  const per = { tahun: '2026/2027', semester: 'Ganjil', dari: '2026-07-01', sampai: '2026-12-31' };
+  const t = { v: [['ID Rombel', 'Waktu Kirim'], ['R', '2026-08-01 10:00'], ['R', '2027-01-05 09:00'], ['R', ''], ['R', '2026-12-31 23:00']] };
+  sama(g.arsBarisPeriode_(t, { tab: 'Jawaban', tgl: 'Waktu Kirim' }, per), [1, 4]);
+  const simpan = g.arsBacaTab_;
+  try {
+    g.arsBacaTab_ = () => ({ v: [['ID SESI', 'TANGGAL'], ['S1', '2026-09-01'], ['S2', '2027-02-01']] });
+    const pw = { v: [['ID PRESENSI', 'JADWAL'], ['p1', 'S1'], ['p2', 'S2'], ['p3', 'S1']] };
+    sama(g.arsBarisPeriode_(pw, { tab: 'PRESENSI WB', tgl: '*SESI' }, per), [1, 3]);
+  } finally { g.arsBacaTab_ = simpan; }
+  const n = { v: [['ID NILAI', 'TAHUN PELAJARAN', 'SEMESTER'], ['a', '2026/2027', 'Ganjil'], ['b', '2026/2027', 'Genap'], ['c', '2025/2026', 'Ganjil']] };
+  sama(g.arsBarisPeriode_(n, { tab: 'NILAI', nilai: true }, per), [1]);
+  const k = { v: [['TAHUN', 'ID ROMBEL'], ['2026/2027', 'x'], ['2025/2026', 'y']] };
+  sama(g.arsBarisPeriode_(k, { tab: 'KENAIKAN KELAS', naik: true }, per), [1]);
+});
+tes('arsRaporHtml_: kelas saat itu, keputusan naik, catatan data offline', () => {
+  const d = { lembaga: { nama: 'PKBM TH', npsn: '1', alamat: 'Jl. X, Kab. Bandung', kepala: 'Bu KS' }, rombel: { nama: 'C11', program: 'PKT-C' },
+    periode: { tahun: '2025/2026', semester: 'Genap', sampai: '2026-06-30' }, aturan: { kkm: 70 }, wali: { nama: 'Pak Wali' }, offline: true,
+    mapel: [{ kode: 'MTK', nama: 'Matematika' }], wb: [{ idWb: 'W1', nama: 'Ani', nisn: '123', nilai: { MTK: 82 }, predikat: { MTK: 'B' }, rata: 82, peringkat: 1, kehadiran: { Sakit: 1, Izin: 0, Alpa: 2 } }],
+    kenaikan: { info: { kelas: 11, akhir: false, kelasBerikut: 12, tingkatRomawi: 'V', tingkatBerikutRomawi: 'VI' }, keputusan: { W1: 'Naik' } } };
+  const h = g.arsRaporHtml_(d, d.wb);
+  sama(/Rombel<\/td><td>: C11/.test(h), true, 'rombel C11');
+  sama(/<b>NAIK<\/b> ke kelas 12/.test(h), true, 'naik ke 12');
+  sama(h.includes('30 Juni 2026'), true, 'tanggal akhir semester');
+  sama(h.includes('hardcopy'), true, 'catatan offline');
+  d.kenaikan = { info: { kelas: 12, akhir: true }, keputusan: { W1: 'Lulus' } };
+  sama(/<b>LULUS<\/b>/.test(g.arsRaporHtml_(d, d.wb)), true, 'kelulusan');
+});
+tes('kode akses arsip: dibuat admin, salah ditolak, benar membuka mode ubah, khusus pengguna tertentu', () => {
+  const simpan = {};
+  ['absBaca_', 'wajibAdmin_', 'arsWajib_', 'arsAmbil_', 'arsLog_', 'bacaPengguna_'].forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const lembar = lembarTiruan(g.ARS.HDR_KODE);
+    lembar.appendRow = (r) => lembar.v.push(r.slice());
+    g.absBaca_ = (nama) => {
+      const v = lembar.v, h = {};
+      v[0].forEach((x, i) => { h[String(x).trim().toUpperCase()] = i; });
+      return { sh: { appendRow: (r) => v.push(r.slice()), getRange: (r, c) => ({ setValue: (x) => { v[r - 1][c - 1] = x; } }) }, v: v.map((b) => b.slice()), h };
+    };
+    const admin = { id: 'A1', nama: 'Admin', peran: 'Admin' }, ks = { id: 'K1', nama: 'Bu KS', peran: 'Kepala Sekolah' };
+    g.wajibAdmin_ = () => admin;
+    g.arsWajib_ = (tok) => (tok === 'TA' ? admin : ks);
+    g.arsAmbil_ = () => ({ id: 'ARS-2025-2026-Genap', tahun: '2025/2026', semester: 'Genap' });
+    g.arsLog_ = () => {};
+    g.bacaPengguna_ = () => [{ id: 'K1', nama: 'Bu KS', peran: 'Kepala Sekolah', status: 'Aktif' }];
+    ['arsgagal_K1', 'arsgagal_A1'].forEach((k) => cache.remove(k));
+    const k1 = g.waAdminArsipKodeBuat('TA', 'ARS-2025-2026-Genap', { jam: 2, untuk: 'K1' });
+    sama([k1.kode.length, /^[A-Z2-9]{8}$/.test(k1.kode)], [8, true]);
+    let galat = '';
+    try { g.waStafArsipBukaUbah('TK', 'x', 'SALAH123'); } catch (e) { galat = e.message; }
+    sama(/salah/.test(galat), true, 'kode salah');
+    try { g.waStafArsipBukaUbah('TA', 'x', k1.kode); galat = ''; } catch (e) { galat = e.message; }
+    sama(/bukan untuk Anda/.test(galat), true, 'kode khusus KS tidak berlaku untuk admin');
+    sama(g.waStafArsipBukaUbah('TK', 'x', k1.kode.toLowerCase()).sukses, true, 'kode benar (huruf kecil pun)');
+    sama(g.arsBolehUbah_('TK', { id: 'ARS-2025-2026-Genap' }), true, 'mode ubah terbuka');
+    sama(g.arsBolehUbah_('TX', { id: 'ARS-2025-2026-Genap' }), false, 'sesi lain tetap hanya baca');
+  } finally { Object.keys(simpan).forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
