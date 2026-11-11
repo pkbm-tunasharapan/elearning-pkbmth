@@ -5,6 +5,7 @@ import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
 import 'pengawas.dart';
+import 'tinjauan.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -78,7 +79,18 @@ class _MasaUjianScreenState extends State<MasaUjianScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Masa Ujian Serentak')),
+      appBar: AppBar(title: const Text('Masa Ujian Serentak'), actions: [
+        IconButton(
+          tooltip: 'Tinjauan pelanggaran berat',
+          icon: const Icon(Icons.gavel_rounded),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TinjauanPelanggaranScreen())),
+        ),
+        IconButton(
+          tooltip: 'Aturan sanksi',
+          icon: const Icon(Icons.rule_rounded),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AturanSanksiScreen())),
+        ),
+      ]),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey('mu$_ulang'),
         muat: _muat,

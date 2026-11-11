@@ -891,6 +891,7 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
           title: const Text('Ujian selesai'),
           content: Text(hasil['sukses'] == true
               ? 'Nilai Anda: ${teks(hasil['nilaiTotal'])} dari ${teks(hasil['nilaiMaks'], '100')}\n${teks(hasil['jumlahBenar'])} dari ${teks(hasil['totalSoal'])} soal benar.'
+                  '${hasil['pelanggaranBerat'] == true ? '\n\nKarena pelanggaran berat, nilai ini akan ditinjau Kepala Sekolah: bisa tetap, diulang lewat susulan, atau dibatalkan.' : ''}'
               : teks(hasil['pesan'], 'Jawaban belum terkirim.')),
           actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('OK'))],
         ),
@@ -1072,8 +1073,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
       final d = peta(r);
       if (!mounted || _kirim) return;
       if (d['terkunci'] == true) {
-        _kirim = true;
-        Navigator.pop(context, {'sukses': false, 'pesan': 'Ujian terkunci karena pelanggaran berulang. Hubungi pengawas.'});
+        _tanganiKunci(d, 'Ujian terkunci karena pelanggaran berulang.');
       } else if (angka(d['percobaan']) > 0) {
         kabar(context, 'Peringatan: layar terbagi / jendela mengambang terdeteksi (${angka(d['percobaan'])}/${angka(d['batasPercobaan'])}). Tutup aplikasi lain.', galat: true);
       }
@@ -1110,8 +1110,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
         final d = peta(r);
         if (!mounted) return;
         if (d['terkunci'] == true) {
-          _kirim = true;
-          Navigator.pop(context, {'sukses': false, 'pesan': 'Ujian terkunci karena Anda keluar dari aplikasi terlalu sering. Hubungi tutor.'});
+          _tanganiKunci(d, 'Ujian terkunci karena Anda keluar dari aplikasi terlalu sering.');
         } else if (angka(d['percobaan']) > 0) {
           kabar(context, 'Peringatan: Anda keluar dari aplikasi (${angka(d['percobaan'])}/${angka(d['batasPercobaan'])}).', galat: true);
         }
@@ -1119,7 +1118,22 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     }
   }
 
-  Future<void> _kirimJawaban({bool otomatis = false}) async {
+  // v1.55.0: sanksi bertingkat. Pelanggaran berat -> jawaban dikirim otomatis apa adanya (ditinjau Kepala Sekolah).
+  void _tanganiKunci(Map<String, dynamic> d, String dasar) {
+    if (d['kirimOtomatis'] == true) {
+      kabar(context, 'Pelanggaran berat: jawaban Anda dikirim otomatis dan akan ditinjau Kepala Sekolah.', galat: true);
+      _kirimJawaban(otomatis: true, paksa: true);
+      return;
+    }
+    _kirim = true;
+    final ke = angka(d['kunciKe']);
+    final pesan = d['perluPimpinan'] == true
+        ? '$dasar Ini kunci ke-$ke, sehingga hanya bisa dibuka Koordinator Kurikulum, Kepala Sekolah, atau Admin. Lapor ke pengawas.'
+        : '$dasar${ke > 0 ? ' (kunci ke-$ke)' : ''} Lapor ke pengawas untuk dibukakan.';
+    Navigator.pop(context, {'sukses': false, 'pesan': pesan});
+  }
+
+  Future<void> _kirimJawaban({bool otomatis = false, bool paksa = false}) async {
     if (_kirim) return;
     if (!otomatis) {
       final kosong = _soal.length - _jawab.length;
@@ -1133,6 +1147,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     final r = await jalankan(context, () => Api.instance('waSubmitUjian', [
           {
             'perangkat': pd,
+            if (paksa) 'paksa': true,
             'idUjian': widget.idUjian,
             'idRombel': SesiSiswa.instance.idRombel,
             'idMapel': widget.idMapel,

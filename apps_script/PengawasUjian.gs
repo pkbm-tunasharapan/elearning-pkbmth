@@ -243,7 +243,7 @@ function pwRuang_(cx) {
     var k = pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']);
     (lg[k] = lg[k] || []).push({ waktu: r['WAKTU'], jenis: r['JENIS'], detail: r['DETAIL'], oleh: r['OLEH'] });
   });
-  var model = pwModelTerdaftar_();
+  var model = pwModelTerdaftar_(), sk = pwSanksi_();
   var kunciDetak = peserta.map(function(x) { return 'pw_d_' + pwKunciSiswa_(x.idUjian, x.idRombel, x.nama); });
   var detak = {};
   try { for (var i = 0; i < kunciDetak.length; i += 100) { var g = CacheService.getScriptCache().getAll(kunciDetak.slice(i, i + 100)); Object.keys(g).forEach(function(k) { detak[k] = Number(g[k]); }); } } catch (e) {}
@@ -256,10 +256,13 @@ function pwRuang_(cx) {
     if (status === 'Mengerjakan' && akhir && now > akhir + UJ.GRACE_MENIT * 60000) status = 'Waktu habis';
     if (status === 'Mengerjakan' && (dt ? now - dt > PW.PUTUS_MENIT * 60000 : now - mulai > PW.PUTUS_MENIT * 60000)) status = 'Terputus';
     var pel = (lg[k] || []).filter(function(l) { return l.oleh === 'Sistem'; });
+    var rs = pwRingkasSanksi_(lg[k] || []), akhirPel = pel.length ? ujMsTeks_(pel[pel.length - 1].waktu) : 0;
     return { nama: x.nama, nisn: x.nisn, idRombel: x.idRombel, idUjian: x.idUjian, status: status, terkunci: terkunci,
       percobaan: se ? Number(se.row[se.c.percobaan - 1]) || 0 : 0, pelanggaran: pel.length, mulai: pwJam_(mulai), selesai: st === 'Selesai' ? pwJam_(selesai) : '',
       sisaMenit: status === 'Mengerjakan' || status === 'Terputus' ? Math.max(0, Math.ceil((akhir - now) / 60000)) : null, tambahMenit: tw,
-      detak: dt ? pwJam_(dt) : '', perangkat: model[k] || '', log: lg[k] || [] };
+      detak: dt ? pwJam_(dt) : '', perangkat: model[k] || '', log: lg[k] || [],
+      kunciKe: rs.kunci, berat: rs.berat, minta: rs.minta, perluPimpinan: cx.m.jenis !== 'TRYOUT' && rs.kunci >= sk.pimpinanMulai,
+      pelanggaranTerakhirMs: isNaN(akhirPel) ? 0 : akhirPel, pelanggaranTerakhir: pel.length ? pel[pel.length - 1].jenis : '' };
   });
   var hitung = {};
   siswa.forEach(function(x) { hitung[x.status] = (hitung[x.status] || 0) + 1; });
@@ -269,7 +272,8 @@ function pwRuang_(cx) {
       mulaiMs: j0 ? j0.mulaiMs : ujMs_(cx.s.tanggal, cx.s.jam), masukSampaiMs: j0 ? j0.masukSampaiMs : 0, akhirMs: j0 ? j0.akhirMs : 0 },
     masa: { id: cx.m.id, nama: cx.m.nama, jenis: cx.m.jenis, smt: cx.m.smt }, rombel: cx.idRombelSim, namaRombel: cx.namaRombel,
     ruang: cx.ef ? cx.ef.ruang : '', pengawas: cx.ef ? cx.ef.namaPengawas : '', idPengawas: cx.ef ? cx.ef.idPengawas : '', milik: cx.milik,
-    siswa: siswa, ringkas: hitung, sekarangMs: now, jumlahJadwal: cx.jadwal.length, log: log, sekolah: pwSekolah_()
+    siswa: siswa, ringkas: hitung, sekarangMs: now, jumlahJadwal: cx.jadwal.length, log: log, sekolah: pwSekolah_(),
+    sanksi: sk, pimpinan: PW.PIMPINAN.indexOf(cx.p.peran) >= 0, tryout: cx.m.jenis === 'TRYOUT'
   };
 }
 
@@ -299,6 +303,12 @@ function pwAlasan_(a) {
 function waStafPengawasBukaKunci(token, idSlot, idRombelSim, idUjian, idRombel, nama, alasan) {
   var p = stafDariToken_(token);
   var cx = pwKonteks_(p, idSlot, idRombelSim), x = pwSiswaRuang_(cx, idUjian, idRombel, nama), a = pwAlasan_(alasan);
+  // v1.55.0: sanksi bertingkat
+  if (cx.m.jenis !== 'TRYOUT') {
+    var sk = pwSanksi_(), rs = pwRingkasSanksi_(pwLogSiswa_(x.idUjian, x.idRombel, x.nama));
+    if (rs.berat) throw new Error('Pelanggaran berat: jawaban sudah dikirim otomatis. Keputusan diambil Kepala Sekolah di Tinjauan Pelanggaran Berat.');
+    if (rs.kunci >= sk.pimpinanMulai && PW.PIMPINAN.indexOf(p.peran) < 0) throw new Error('Ini kunci ke-' + rs.kunci + '. Hanya Koordinator Kurikulum, Kepala Sekolah, atau Admin yang dapat membukanya. Gunakan "Minta pimpinan membuka".');
+  }
   var kunci = LockService.getScriptLock();
   kunci.waitLock(15000);
   try {
@@ -422,4 +432,170 @@ function waStafPengawasIzinPerangkat(token, idSlot, idRombelSim, idUjian, idRomb
   pwCatat_(x.idUjian, x.idRombel, x.nama, 'Perangkat baru diizinkan pengawas', a, p.nama);
   catat_(p.peran, p.id, p.nama, 'Pengawas izinkan perangkat baru', x.nama + ' (ujian ' + x.idUjian + '): ' + a, 'OK');
   return { sukses: true, direset: n };
+}
+
+// ============================================================================
+// v1.55.0: SANKSI BERTINGKAT
+// Hitungan kunci per siswa per ujian (dari log PELANGGARAN UJIAN; direset oleh keputusan pimpinan):
+//   kunci ke < pimpinanMulai : pengawas boleh membuka (alasan wajib)
+//   kunci ke >= pimpinanMulai: hanya pimpinan (Koordinator Kurikulum / Kepala Sekolah / Admin / Superadmin); pengawas bisa meminta
+//   kunci ke >= beratMulai   : jawaban dikirim otomatis apa adanya, ditandai "Pelanggaran berat - perlu ditinjau";
+//                              Kepala Sekolah / Admin memutuskan: nilai tetap, susulan, atau dibatalkan.
+// Tryout: hanya catatan (pengawas tetap boleh membuka, tanpa kirim otomatis).
+// ============================================================================
+PW.PIMPINAN = ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'];
+PW.PEMUTUS = ['Admin', 'Superadmin', 'Kepala Sekolah'];
+PW.SANKSI_BAWAAN = { pimpinanMulai: 2, beratMulai: 3 };
+PW.J_KUNCI = 'ujian terkunci';
+PW.J_BERAT = 'Pelanggaran berat - perlu ditinjau';
+PW.J_PUTUS = 'Keputusan pimpinan';
+
+function pwSanksi_() {
+  var s = {};
+  try { s = JSON.parse(PropertiesService.getScriptProperties().getProperty('pw_sanksi') || '{}') || {}; } catch (e) {}
+  var a = parseInt(s.pimpinanMulai, 10), b = parseInt(s.beratMulai, 10);
+  a = a >= 1 && a <= 9 ? a : PW.SANKSI_BAWAAN.pimpinanMulai;
+  b = b >= 1 && b <= 9 ? b : PW.SANKSI_BAWAAN.beratMulai;
+  if (b < a) b = a;
+  return { pimpinanMulai: a, beratMulai: b, batasKeluar: CONFIG.BATAS_PERCOBAAN_PINDAH_TAB };
+}
+function waStafMasaSanksi(token) {
+  var p = stafDariToken_(token);
+  muWajib_(p);
+  return { sanksi: pwSanksi_(), bisaUbah: p.peran === 'Admin' || p.peran === 'Superadmin' };
+}
+function waStafMasaSanksiSimpan(token, d) {
+  var p = stafDariToken_(token);
+  if (p.peran !== 'Admin' && p.peran !== 'Superadmin') throw new Error('Aturan sanksi hanya dapat diubah Admin atau Superadmin.');
+  d = d || {};
+  var a = parseInt(d.pimpinanMulai, 10), b = parseInt(d.beratMulai, 10);
+  if (!(a >= 1 && a <= 9) || !(b >= 1 && b <= 9)) throw new Error('Isi angka 1 sampai 9.');
+  if (b < a) throw new Error('Kunci "pelanggaran berat" tidak boleh lebih kecil dari kunci "dibuka pimpinan".');
+  PropertiesService.getScriptProperties().setProperty('pw_sanksi', JSON.stringify({ pimpinanMulai: a, beratMulai: b }));
+  catat_(p.peran, p.id, p.nama, 'Aturan sanksi ujian', 'dibuka pimpinan mulai kunci ke-' + a + ', pelanggaran berat mulai kunci ke-' + b, 'OK');
+  return { sukses: true, sanksi: pwSanksi_() };
+}
+
+// Ringkasan sanksi per siswa dari baris log (urut waktu): kunci sejak keputusan terakhir, berat, menunggu pimpinan.
+function pwRingkasSanksi_(baris) {
+  var o = { kunci: 0, berat: false, minta: false, kunciTotal: 0 };
+  baris.slice().sort(function(a, b) { return String(a.waktu || a['WAKTU']).localeCompare(String(b.waktu || b['WAKTU'])); }).forEach(function(r) {
+    var j = String(r.jenis || r['JENIS'] || '');
+    if (j.indexOf(PW.J_PUTUS) === 0) { o.kunci = 0; o.berat = false; o.minta = false; return; }
+    if (j.indexOf(PW.J_KUNCI) >= 0) { o.kunci++; o.kunciTotal++; o.minta = false; }
+    if (j === PW.J_BERAT) o.berat = true;
+    if (j === 'Permintaan buka kunci ke pimpinan') o.minta = true;
+    if (j === 'Kunci dibuka pengawas') o.minta = false;
+  });
+  return o;
+}
+function pwLogSiswa_(idUjian, idRombel, nama) {
+  var k = pwKunciSiswa_(idUjian, idRombel, nama);
+  return pwBaca_(PW.TAB_LG, PW.HDR_LG).filter(function(r) { return pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']) === k; });
+}
+// Dipanggil waLaporPindahTab sesudah ujian terkunci. Mengembalikan {kunciKe, kirimOtomatis, perluPimpinan}.
+function pwSetelahKunci_(idUjian, idRombel, nama) {
+  var j = ujJadwalDariUjian_(idUjian), sk = pwSanksi_(), rs = pwRingkasSanksi_(pwLogSiswa_(idUjian, idRombel, nama));
+  var tryout = !!(j && j.jenis === 'TRYOUT');
+  var out = { kunciKe: rs.kunci, kirimOtomatis: false, perluPimpinan: !tryout && rs.kunci >= sk.pimpinanMulai, berat: false };
+  if (rs.kunci >= sk.beratMulai && !rs.berat) {
+    pwCatat_(idUjian, idRombel, nama, tryout ? 'Pelanggaran berat (Tryout - hanya catatan)' : PW.J_BERAT, 'Ujian terkunci ' + rs.kunci + ' kali');
+    if (!tryout) {
+      out.kirimOtomatis = true; out.berat = true;
+      try { CacheService.getScriptCache().put('pw_berat_' + pwKunciSiswa_(idUjian, idRombel, nama), '1', 21600); } catch (e) {}
+      try {
+        var m = j ? (ujtPetaMapel_()[String(j.idMapel)] || {}) : {};
+        npKirim_('ujian_pelanggaran_berat', { judul: 'Pelanggaran berat saat ujian', isi: nama + ' (' + (m.namaRombel || idRombel) + ') terkunci ' + rs.kunci + ' kali pada ' +
+          (m.namaMapel || 'ujian') + '. Jawaban dikirim otomatis dan perlu ditinjau.', aksi: 'tinjau_ujian', ref: 'berat|' + pwKunciSiswa_(idUjian, idRombel, nama) + '|' + rs.kunciTotal });
+      } catch (e2) {}
+    }
+  } else if (rs.berat && !tryout) {
+    out.kirimOtomatis = true; out.berat = true;
+  }
+  return out;
+}
+function pwBerat_(idUjian, idRombel, nama) {
+  var k = pwKunciSiswa_(idUjian, idRombel, nama);
+  try { if (CacheService.getScriptCache().get('pw_berat_' + k) === '1') return true; } catch (e) {}
+  return pwRingkasSanksi_(pwLogSiswa_(idUjian, idRombel, nama)).berat;
+}
+// Kirim otomatis jawaban sesudah pelanggaran berat: kunci sementara dilepas agar jawaban bisa dinilai.
+function pwLepasUntukKirim_(payload) {
+  if (!payload || payload.paksa !== true || !pwBerat_(payload.idUjian, payload.idRombel, payload.nama)) return false;
+  var b = cariBarisSesiUjian_(payload.idUjian, payload.idRombel, payload.nama);
+  if (!b || String(b.row[b.cols.status - 1]) !== 'Berlangsung') return false;
+  b.sheet.getRange(b.rowIndex, b.cols.terkunci).setValue(false);
+  return true;
+}
+
+function waStafPengawasMintaBuka(token, idSlot, idRombelSim, idUjian, idRombel, nama, alasan) {
+  var p = stafDariToken_(token);
+  var cx = pwKonteks_(p, idSlot, idRombelSim), x = pwSiswaRuang_(cx, idUjian, idRombel, nama), a = pwAlasan_(alasan);
+  var rs = pwRingkasSanksi_(pwLogSiswa_(x.idUjian, x.idRombel, x.nama));
+  pwCatat_(x.idUjian, x.idRombel, x.nama, 'Permintaan buka kunci ke pimpinan', a, p.nama);
+  npKirim_('ujian_minta_buka', { judul: 'Permintaan buka kunci ujian', isi: p.nama + ' meminta kunci ' + x.nama + ' (' + cx.namaRombel + ', ' + cx.s.namaMapel + ', kunci ke-' + rs.kunci + ') dibuka: ' + a +
+    '. Buka di menu Pengawas Ujian.', aksi: 'pengawas_ujian', ref: 'mb|' + pwKunciSiswa_(x.idUjian, x.idRombel, x.nama) + '|' + rs.kunciTotal });
+  return { sukses: true };
+}
+
+// ---------- tinjauan pelanggaran berat (Kepala Sekolah / Admin) ----------
+function waStafMasaTinjau(token) {
+  var p = stafDariToken_(token);
+  muWajib_(p);
+  var log = pwBaca_(PW.TAB_LG, PW.HDR_LG), per = {};
+  log.forEach(function(r) { (per[pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA'])] = per[pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA'])] || []).push(r); });
+  var mapel = ujtPetaMapel_(), jad = {}, masa = {}, out = [], riwayat = [];
+  ujJadwalSemua_().forEach(function(j) { jad[String(j.idUjian)] = j; });
+  try { muSemua_().forEach(function(m) { masa[m.id] = m.nama; }); } catch (e) {}
+  Object.keys(per).forEach(function(k) {
+    var rows = per[k], rs = pwRingkasSanksi_(rows), r0 = rows[0], j = jad[String(r0['ID UJIAN'])];
+    var adaBerat = rows.some(function(r) { return r['JENIS'] === PW.J_BERAT; });
+    if (!adaBerat || !j) return;
+    var m = mapel[String(j.idMapel)] || {}, h = ujHasilSiswa_(j.idUjian, r0['ID ROMBEL'], r0['NAMA SISWA']);
+    var putus = rows.filter(function(r) { return String(r['JENIS']).indexOf(PW.J_PUTUS) === 0; }).pop();
+    var o = { idUjian: String(j.idUjian), idRombel: r0['ID ROMBEL'], nama: r0['NAMA SISWA'], mapel: m.namaMapel || j.idMapel, rombel: m.namaRombel || r0['ID ROMBEL'],
+      masa: masa[j.masa] || '', jenis: j.jenis, tanggal: j.tanggal, jam: j.jam, durasi: j.durasi, nilai: h.terbaik ? h.terbaik.persen : null,
+      log: rows.map(function(r) { return { waktu: r['WAKTU'], jenis: r['JENIS'], detail: r['DETAIL'], oleh: r['OLEH'] }; }),
+      menunggu: rs.berat, keputusan: putus ? { jenis: putus['JENIS'], detail: putus['DETAIL'], oleh: putus['OLEH'], waktu: putus['WAKTU'] } : null };
+    (rs.berat ? out : riwayat).push(o);
+  });
+  var urut = function(a, b) { return (b.tanggal + b.jam).localeCompare(a.tanggal + a.jam); };
+  return { menunggu: out.sort(urut), riwayat: riwayat.sort(urut).slice(0, 50), bisaPutus: PW.PEMUTUS.indexOf(p.peran) >= 0 };
+}
+// keputusan: 'tetap' | 'batal' | 'susulan' (d.tanggal, d.jam). catatan wajib.
+function waStafMasaTinjauPutus(token, idUjian, idRombel, nama, keputusan, catatan, d) {
+  var p = stafDariToken_(token);
+  muWajib_(p);
+  if (PW.PEMUTUS.indexOf(p.peran) < 0) throw new Error('Keputusan pelanggaran berat diambil Kepala Sekolah atau Admin.');
+  var a = pwAlasan_(catatan), j = ujJadwalDariUjian_(idUjian);
+  if (!j) throw new Error('Jadwal ujian tidak ditemukan.');
+  if (!pwRingkasSanksi_(pwLogSiswa_(idUjian, idRombel, nama)).berat) throw new Error('Kasus ini sudah diputuskan.');
+  var teks = '';
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    if (keputusan === 'batal' || keputusan === 'susulan') {
+      ujHasilSiswa_(idUjian, idRombel, nama).baris.forEach(function(h) { ujUbah_('HASIL', h._baris, { 'Nilai': 0, 'Persen': 0, 'Jenis': 'Dibatalkan' }); });
+      try { ujTulisJawaban_(j, idRombel, nama, 'Nilai dibatalkan karena pelanggaran berat: ' + a, 0); } catch (e) {}
+    }
+    if (keputusan === 'susulan') {
+      var mulai = ujMs_(d && d.tanggal, d && d.jam);
+      if (isNaN(mulai) || mulai < Date.now() - 60000) throw new Error('Isi tanggal dan jam susulan yang akan datang.');
+      var selesai = mulai + (j.durasi + 30) * 60000;
+      ujAksesSiswa_(idUjian, idRombel, nama).forEach(function(x) { if (x['Status'] === 'Terbuka') ujUbah_('AKSES', x._baris, { 'Status': 'Dicabut' }); });
+      ujTambah_('AKSES', { 'ID': generateId_('AKS-'), 'ID Ujian': idUjian, 'ID Rombel': idRombel, 'Nama Siswa': nama, 'Jenis': 'Susulan',
+        'Mulai': ujFmt_(mulai, 'yyyy-MM-dd HH:mm'), 'Selesai': ujFmt_(selesai, 'yyyy-MM-dd HH:mm'), 'Status': 'Terbuka', 'Dibuka Oleh': p.nama, 'Waktu Dibuka': ujNow_() });
+      var b = cariBarisSesiUjian_(idUjian, idRombel, nama);
+      if (b) { b.sheet.getRange(b.rowIndex, b.cols.terkunci).setValue(false); b.sheet.getRange(b.rowIndex, b.cols.percobaan).setValue(0); }
+      teks = 'susulan ' + ujTeksWaktu_(mulai);
+    } else if (keputusan === 'batal') {
+      teks = 'nilai dibatalkan';
+    } else if (keputusan === 'tetap') {
+      teks = 'nilai tetap';
+    } else throw new Error('Pilih keputusan.');
+  } finally { kunci.releaseLock(); }
+  pwCatat_(idUjian, idRombel, nama, PW.J_PUTUS + ': ' + teks, a, p.nama);
+  try { CacheService.getScriptCache().remove('pw_berat_' + pwKunciSiswa_(idUjian, idRombel, nama)); } catch (e2) {}
+  catat_(p.peran, p.id, p.nama, 'Keputusan pelanggaran berat ujian', nama + ' (ujian ' + idUjian + '): ' + teks + ' - ' + a, 'OK');
+  return { sukses: true, keputusan: teks };
 }

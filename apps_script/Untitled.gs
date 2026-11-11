@@ -529,6 +529,8 @@ function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian) {
 function waSubmitUjian(payload) {
   var j = payload ? ujJadwalDariUjian_(payload.idUjian) : null;
   if (!j) return waSubmitUjianLama_(payload);
+  var otomatisBerat = false;
+  try { otomatisBerat = pwLepasUntukKirim_(payload); } catch (eB) {}   // v1.55.0: kirim otomatis sesudah pelanggaran berat
   var gs = ujGerbangKirim_(j, payload) || (String(j.idMapel) === String(payload.idMapel) ? pwPerangkat_(j, payload.idRombel, payload.nama, payload.perangkat, false) : '');
   if (gs) {
     try { catat_('Siswa', payload.idRombel, payload.nama, 'Kirim ujian', 'ujian ' + payload.idUjian + ' - ' + gs, 'GAGAL'); } catch (e) {}
@@ -537,6 +539,10 @@ function waSubmitUjian(payload) {
   var lama = ujNilaiJawabanLama_(payload.idUjian, payload.nama);
   var r = waSubmitUjianAsli_(payload);
   if (r && r.sukses) r = ujSetelahKirim_(j, payload, r, lama);
+  if (otomatisBerat) {
+    try { pwCatat_(payload.idUjian, payload.idRombel, payload.nama, 'Jawaban dikirim otomatis (pelanggaran berat)', r && r.sukses ? 'Nilai sementara ' + r.nilaiTotal + ', menunggu tinjauan' : 'Gagal: ' + (r && r.pesan)); } catch (eC) {}
+    if (r && r.sukses) r.pelanggaranBerat = true;
+  }
   try { catat_('Siswa', payload.idRombel, payload.nama, 'Kirim ujian', 'ujian ' + payload.idUjian + (r && r.sukses ? ' · nilai ' + r.nilaiTotal : ''), r && r.sukses ? 'OK' : 'GAGAL'); } catch (e) {}
   return r;
 }

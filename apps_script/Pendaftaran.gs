@@ -495,6 +495,9 @@ function waLaporPindahTab(idUjian, idRombel, nama, kodeAkses, jenis) {
   }
   var r = waLaporPindahTabAsli_(idUjian, idRombel, nama);
   try { pwCatat_(idUjian, idRombel, nama, (jenis === 'layar_terbagi' ? 'Layar terbagi / jendela mengambang' : 'Keluar aplikasi') + (r.terkunci ? ' - ujian terkunci' : ''), 'Pelanggaran ke-' + r.percobaan + ' dari batas ' + r.batasPercobaan); } catch (ePw) {}
+  if (r.terkunci) {   // v1.55.0: sanksi bertingkat
+    try { var sx = pwSetelahKunci_(idUjian, idRombel, nama); r.kunciKe = sx.kunciKe; r.kirimOtomatis = sx.kirimOtomatis; r.perluPimpinan = sx.perluPimpinan; } catch (eSx) {}
+  }
   try { catat_('Siswa', idRombel, nama, 'Pindah tab saat ujian', 'ujian ' + idUjian, 'GAGAL'); } catch (e) {}
   return r;
 }

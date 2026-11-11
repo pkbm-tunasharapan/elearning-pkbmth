@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../berkas.dart';
@@ -139,7 +140,7 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
   void initState() {
     super.initState();
     _muat();
-    _ulang = Timer.periodic(const Duration(seconds: 20), (_) => _muat(diam: true));
+    _ulang = Timer.periodic(const Duration(seconds: 15), (_) => _muat(diam: true));
   }
 
   @override
@@ -153,13 +154,68 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
     _sibuk = true;
     try {
       final d = peta(await Api.instance('waStafPengawasPantau', [_t, widget.idSlot, widget.idRombel], const Duration(seconds: 60)));
-      if (mounted) setState(() { _d = d; _galat = null; });
+      if (!mounted) return;
+      _periksaBaru(d);
+      setState(() { _d = d; _galat = null; });
     } on ApiException catch (e) {
       if (mounted && (!diam || _d == null)) setState(() => _galat = e.ramah);
     } catch (_) {
     } finally {
       _sibuk = false;
     }
+  }
+
+  // v1.55.0: peringatan pelanggaran baru (getar + pemberitahuan) dibanding pemuatan sebelumnya.
+  final Map<String, int> _pelLama = {};
+  final Map<String, String> _stLama = {};
+  bool _awal = true;
+
+  void _periksaBaru(Map<String, dynamic> d) {
+    final baru = <String>[];
+    for (final s in daftar(d['siswa']).map(peta)) {
+      final k = '${teks(s['idUjian'])}|${teks(s['nama'])}';
+      final n = angka(s['pelanggaran']);
+      final st = teks(s['status']);
+      if (!_awal) {
+        if (n > (_pelLama[k] ?? 0)) {
+          baru.add('${teks(s['nama'])}: ${teks(s['pelanggaranTerakhir'], 'pelanggaran')} (${angka(s['percobaan'])}/${angka(peta(d['sanksi'])['batasKeluar'], 3)})'
+              '${_jamDari(angka(s['pelanggaranTerakhirMs'])).isEmpty ? '' : ' · ${_jamDari(angka(s['pelanggaranTerakhirMs']))}'}');
+        } else if (st == 'Terputus' && _stLama[k] != 'Terputus') {
+          baru.add('${teks(s['nama'])}: aplikasi terputus');
+        }
+      }
+      _pelLama[k] = n;
+      _stLama[k] = st;
+    }
+    _awal = false;
+    if (baru.isEmpty) return;
+    HapticFeedback.vibrate();
+    Future<void>.delayed(const Duration(milliseconds: 350), HapticFeedback.heavyImpact);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        backgroundColor: Colors.red.shade800,
+        duration: const Duration(seconds: 8),
+        content: Text(baru.take(4).join('\n') + (baru.length > 4 ? '\n+${baru.length - 4} lainnya' : '')),
+      ));
+  }
+
+  // urutan perhatian: pelanggaran berat / terkunci, terputus, baru melanggar (10 menit), lainnya
+  int _bobot(Map<String, dynamic> s, int now) {
+    if (s['berat'] == true || s['terkunci'] == true) return 0;
+    if (teks(s['status']) == 'Terputus') return 1;
+    final t = angka(s['pelanggaranTerakhirMs']);
+    if (t > 0 && now - t < 10 * 60000) return 2;
+    return 3;
+  }
+
+  Future<void> _mintaPimpinan(Map<String, dynamic> s) async {
+    final a = await _mintaAlasan('Minta pimpinan membuka kunci ${teks(s['nama'])}?',
+        'Ini kunci ke-${angka(s['kunciKe'])}. Koordinator Kurikulum, Kepala Sekolah, dan Admin akan menerima notifikasi untuk membukanya.');
+    if (a == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafPengawasMintaBuka', [_t, widget.idSlot, widget.idRombel, s['idUjian'], s['idRombel'], s['nama'], a]),
+        teksProses: 'Mengirim permintaan...');
+    if (r.ok && mounted) { kabar(context, 'Permintaan terkirim ke pimpinan.'); _muat(); }
   }
 
   Future<String?> _mintaAlasan(String judul, String isi, {bool menit = false, void Function(int)? padaMenit}) async {
@@ -251,9 +307,31 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
                 '${teks(s['detak']).isEmpty ? '' : ' · tersambung terakhir ${teks(s['detak'])}'}'
                 '${teks(s['perangkat']).isEmpty ? '' : ' · perangkat ${teks(s['perangkat'])}'}'),
             const SizedBox(height: 10),
+            if (angka(s['kunciKe']) > 0 || s['berat'] == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+                  child: Text(
+                    s['berat'] == true
+                        ? 'PELANGGARAN BERAT: terkunci ${angka(s['kunciKe'])} kali. Jawaban dikirim otomatis apa adanya dan menunggu keputusan Kepala Sekolah (nilai tetap, susulan, atau dibatalkan).'
+                        : 'Sudah terkunci ${angka(s['kunciKe'])} kali.${s['perluPimpinan'] == true ? ' Kunci ini hanya dapat dibuka pimpinan.' : ''}'
+                            '${s['minta'] == true ? ' Permintaan buka sudah dikirim ke pimpinan.' : ''}',
+                    style: TextStyle(color: Colors.red.shade900, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
-              if (s['terkunci'] == true)
+              if (s['terkunci'] == true && s['berat'] != true && (s['perluPimpinan'] != true || _d?['pimpinan'] == true))
                 FilledButton.icon(onPressed: () { Navigator.pop(c); _bukaKunci(s); }, icon: const Icon(Icons.lock_open_rounded), label: const Text('Buka kunci')),
+              if (s['terkunci'] == true && s['berat'] != true && s['perluPimpinan'] == true && _d?['pimpinan'] != true)
+                FilledButton.icon(
+                  onPressed: () { Navigator.pop(c); _mintaPimpinan(s); },
+                  icon: const Icon(Icons.support_agent_rounded),
+                  label: Text(s['minta'] == true ? 'Kirim ulang permintaan' : 'Minta pimpinan membuka'),
+                ),
               if (teks(s['status']) == 'Mengerjakan' || teks(s['status']) == 'Terputus' || s['terkunci'] == true)
                 OutlinedButton.icon(onPressed: () { Navigator.pop(c); _tambahWaktu(s); }, icon: const Icon(Icons.more_time_rounded), label: const Text('Tambah waktu')),
               if (teks(s['perangkat']).isNotEmpty && teks(s['status']) != 'Selesai')
@@ -292,7 +370,12 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
     final rk = peta(d['ringkas']);
     final now = angka(d['sekarangMs']);
     final dibuka = now >= angka(sl['mulaiMs']) - 30 * 60000;
-    final tampil = _saring.isEmpty ? siswa : siswa.where((s) => teks(s['status']) == _saring).toList();
+    final tampil = (_saring.isEmpty ? [...siswa] : siswa.where((s) => teks(s['status']) == _saring).toList())
+      ..sort((a, b) {
+        final x = _bobot(a, now).compareTo(_bobot(b, now));
+        return x != 0 ? x : teks(a['nama']).compareTo(teks(b['nama']));
+      });
+    final perhatian = siswa.where((s) => _bobot(s, now) < 3).length;
     return Scaffold(
       appBar: AppBar(
         title: Text('${teks(sl['mapel'])} · ${teks(d['namaRombel'])}', overflow: TextOverflow.ellipsis),
@@ -351,15 +434,35 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
                 ChoiceChip(label: Text('$s ${rk[s]}'), selected: _saring == s, onSelected: (_) => setState(() => _saring = _saring == s ? '' : s)),
           ]),
           const SizedBox(height: 6),
+          if (perhatian > 0)
+            Card(
+              color: Colors.red.shade50,
+              child: ListTile(
+                dense: true,
+                leading: Icon(Icons.notification_important_rounded, color: Colors.red.shade800),
+                title: Text('Perlu perhatian: $perhatian siswa', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.red.shade900)),
+                subtitle: const Text('Terkunci, terputus, atau baru melanggar dalam 10 menit terakhir. Ditampilkan paling atas.'),
+              ),
+            ),
           if (siswa.isEmpty) const Kosong(pesan: 'Tidak ada peserta di ruang ini.'),
           for (final s in tampil)
             Card(
               margin: const EdgeInsets.symmetric(vertical: 3),
+              color: switch (_bobot(s, now)) {
+                0 => Colors.red.withValues(alpha: 0.10),
+                1 => Colors.orange.withValues(alpha: 0.10),
+                2 => Colors.amber.withValues(alpha: 0.12),
+                _ => null,
+              },
+              shape: _bobot(s, now) == 0 ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.red.shade400, width: 1.5)) : null,
               child: ListTile(
                 dense: true,
                 onTap: () => _rinci(s),
-                title: Text(teks(s['nama'])),
+                title: Text(teks(s['nama']), style: TextStyle(fontWeight: _bobot(s, now) < 3 ? FontWeight.w800 : FontWeight.w500)),
                 subtitle: Text([
+                  if (s['berat'] == true) 'PELANGGARAN BERAT',
+                  if (angka(s['kunciKe']) > 0 && s['berat'] != true) 'kunci ke-${s['kunciKe']}${s['perluPimpinan'] == true ? ' (pimpinan)' : ''}',
+                  if (_bobot(s, now) == 2 && teks(s['pelanggaranTerakhir']).isNotEmpty) '${teks(s['pelanggaranTerakhir'])} ${_jamDari(angka(s['pelanggaranTerakhirMs']))}',
                   if (teks(s['mulai']).isNotEmpty) 'mulai ${teks(s['mulai'])}',
                   if (s['sisaMenit'] != null) 'sisa ${s['sisaMenit']} mnt',
                   if (teks(s['selesai']).isNotEmpty) 'selesai ${teks(s['selesai'])}',
@@ -373,7 +476,7 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
               ),
             ),
           const SizedBox(height: 10),
-          Text('Diperbarui otomatis tiap 20 detik. "Terputus" = aplikasi siswa tidak tersambung lebih dari 3 menit saat mengerjakan.',
+          Text('Diperbarui otomatis tiap 15 detik; ponsel bergetar saat ada pelanggaran baru. "Terputus" = aplikasi siswa tidak tersambung lebih dari 3 menit saat mengerjakan.',
               style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]),
       ),

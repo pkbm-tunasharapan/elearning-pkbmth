@@ -713,5 +713,18 @@ tes('perangkat: aplikasi lama tanpa ID perangkat', () => {
   sama(g.pwPerangkat_(null, 'R', 'N', 'x|y', true), '', 'tanpa jadwal');
 });
 
+// 22. sanksi bertingkat (v1.55.0)
+tes('sanksi: hitungan kunci, berat, dan reset oleh keputusan', () => {
+  const L = (w, j) => ({ waktu: '2026-11-16 08:' + w, jenis: j });
+  const a = g.pwRingkasSanksi_([L('01', 'Keluar aplikasi'), L('02', 'Keluar aplikasi - ujian terkunci'), L('05', 'Kunci dibuka pengawas'), L('09', 'Keluar aplikasi - ujian terkunci')]);
+  sama(a.kunci, 2, 'dua kali terkunci'); sama(a.berat, false, 'belum berat');
+  const b = g.pwRingkasSanksi_([L('09', 'Keluar aplikasi - ujian terkunci'), L('10', 'Permintaan buka kunci ke pimpinan')]);
+  sama(b.minta, true, 'menunggu pimpinan');
+  const c = g.pwRingkasSanksi_([L('09', 'Layar terbagi / jendela mengambang - ujian terkunci'), L('10', 'Pelanggaran berat - perlu ditinjau'), L('20', 'Keputusan pimpinan: susulan 17 Nov'), L('30', 'Keluar aplikasi - ujian terkunci')]);
+  sama(c.berat, false, 'keputusan menghapus status berat'); sama(c.kunci, 1, 'hitungan mulai lagi'); sama(c.kunciTotal, 2, 'total tetap');
+  const s = g.pwSanksi_();
+  sama(s.pimpinanMulai <= s.beratMulai, true, 'urutan aturan');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
