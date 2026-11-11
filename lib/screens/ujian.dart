@@ -417,6 +417,7 @@ class KotakUjianScreen extends StatefulWidget {
 class _KotakUjianScreenState extends State<KotakUjianScreen> {
   int _versi = 0;
   final Set<String> _pilih = {};
+  final Map<String, String> _jenisAju = {};
 
   void _muatUlang() => setState(() {
         _versi++;
@@ -439,12 +440,25 @@ class _KotakUjianScreenState extends State<KotakUjianScreen> {
     return ok == true ? c.text : null;
   }
 
+  // v1.57.0: remedial disetujui langsung dengan membuka akses remedial (pilih waktu); susulan tetap diteruskan ke admin.
   Future<void> _prosesAju(String keputusan) async {
-    final cat = await _mintaCatatan(keputusan == 'setuju' ? 'Teruskan ke admin' : 'Tolak pengajuan', wajib: keputusan == 'tolak');
+    final adaRemedial = _pilih.any((id) => _jenisAju[id] == 'Remedial');
+    final adaSusulan = _pilih.any((id) => _jenisAju[id] != 'Remedial');
+    Map<String, dynamic>? jadwal;
+    if (keputusan == 'setuju' && adaRemedial) {
+      final a = await pilihWaktu(context, judul: 'Akses remedial dibuka mulai');
+      if (a == null || !mounted) return;
+      final b = await pilihWaktu(context, mulai: _dariIso(a.$1), judul: 'Akses remedial ditutup pada');
+      if (b == null || !mounted) return;
+      jadwal = {'mulaiTanggal': a.$1, 'mulaiJam': a.$2, 'selesaiTanggal': b.$1, 'selesaiJam': b.$2};
+    }
+    final judul = keputusan == 'tolak' ? 'Tolak pengajuan' : (adaRemedial && adaSusulan ? 'Setujui (remedial dibuka, susulan diteruskan ke admin)' : (adaRemedial ? 'Setujui remedial' : 'Teruskan ke admin'));
+    final cat = await _mintaCatatan(judul, wajib: keputusan == 'tolak');
     if (cat == null || !mounted) return;
-    final r = await jalankan(context, () => Api.instance('waStafAjuTutorProses', [_t, _pilih.toList(), keputusan, cat]), teksProses: 'Memproses...');
+    final r = await jalankan(context, () => Api.instance('waStafAjuTutorProses', [_t, _pilih.toList(), keputusan, cat, jadwal]), teksProses: 'Memproses...');
     if (r.ok && mounted) {
-      kabar(context, '${angka(peta(r.data)['diproses'])} pengajuan diproses.');
+      final dib = angka(peta(r.data)['remedialDibuka']);
+      kabar(context, '${angka(peta(r.data)['diproses'])} pengajuan diproses${dib > 0 ? ' · $dib akses remedial dibuka' : ''}.');
       _muatUlang();
     }
   }
@@ -507,6 +521,10 @@ class _KotakUjianScreenState extends State<KotakUjianScreen> {
         final ajuLain = aju.where((a) => teks(a['status']) != 'Menunggu Tutor').toList();
         final perm = daftar(d['perm']).map(peta).toList();
         final h = peta(d['hitung']);
+        final rem = daftar(d['remedial']).map(peta).toList();
+        for (final a in [...aju, ...rem]) {
+          _jenisAju[teks(a['id'])] = teks(a['jenis']);
+        }
         return Scaffold(
           backgroundColor: Colors.transparent,
           bottomNavigationBar: _pilih.isEmpty
@@ -521,7 +539,7 @@ class _KotakUjianScreenState extends State<KotakUjianScreen> {
                       Text('${_pilih.length} dipilih', style: TextStyle(color: cs.onInverseSurface, fontWeight: FontWeight.w700)),
                       const Spacer(),
                       TextButton(onPressed: () => _prosesAju('tolak'), child: const Text('Tolak')),
-                      FilledButton(onPressed: () => _prosesAju('setuju'), child: const Text('Teruskan')),
+                      FilledButton(onPressed: () => _prosesAju('setuju'), child: Text(_pilih.every((id) => _jenisAju[id] == 'Remedial') ? 'Setujui' : 'Setujui / teruskan')),
                     ]),
                   ),
                 ),
@@ -545,6 +563,27 @@ class _KotakUjianScreenState extends State<KotakUjianScreen> {
                         '${a['persen'] != null ? '\nNilai terbaik ${a['persen']} (KKM ${a['kkm'] ?? '-'})' : ''}'),
                     isThreeLine: true,
                   ),
+                ),
+            ],
+            if (d['remedial'] != null) ...[
+              JudulBagian('Remedial menunggu tutor', sub: 'Lewat 2 hari tanpa keputusan tutor: Anda dapat menyetujui atau menolak (${angka(h['remedialLewat'])})'),
+              if (rem.isEmpty) const Kosong(pesan: 'Tidak ada remedial yang menunggu.', ikon: Icons.inbox_rounded),
+              for (final a in rem)
+                Card(
+                  child: a['bolehPutus'] == true
+                      ? CheckboxListTile(
+                          value: _pilih.contains(teks(a['id'])),
+                          onChanged: (v) => setState(() => v == true ? _pilih.add(teks(a['id'])) : _pilih.remove(teks(a['id']))),
+                          title: Text('${teks(a['nama'])} · Remedial'),
+                          subtitle: Text('${teks(a['namaMapel'])} ${teks(a['namaRombel'])} · ${teks(a['judul'])}\nMenunggu ${angka(a['jamMenunggu'])} jam'
+                              '${a['persen'] != null ? ' · nilai ${a['persen']} (KKM ${a['kkm'] ?? '-'})' : ''}'),
+                          isThreeLine: true,
+                        )
+                      : ListTile(
+                          title: Text('${teks(a['nama'])} · Remedial'),
+                          subtitle: Text('${teks(a['namaMapel'])} ${teks(a['namaRombel'])} · menunggu tutor ${angka(a['jamMenunggu'])} jam'),
+                          trailing: const Lencana('Menunggu tutor', warna: Color(0xFFE9A23B)),
+                        ),
                 ),
             ],
             JudulBagian('Permohonan', sub: '${perm.length} permohonan'),

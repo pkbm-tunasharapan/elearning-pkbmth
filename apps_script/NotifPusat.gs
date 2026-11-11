@@ -38,6 +38,9 @@ var NP = {
     { kode: 'ujian_minta_buka', nama: 'Pengawas meminta kunci ujian dibuka', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Kepala Sekolah', 'Admin'], fitur: 'pengawasUjian' },
     { kode: 'ujian_pelanggaran_berat', nama: 'Pelanggaran berat saat ujian (perlu ditinjau)', grup: 'Ujian', sasaran: 'peran', peran: ['Kepala Sekolah', 'Admin'], fitur: 'masaUjian' },
     { kode: 'ujian_dispensasi_minta', nama: 'Pengajuan ikut ujian (kehadiran kurang dari syarat)', grup: 'Ujian', sasaran: 'peran', peran: ['Kepala Sekolah'], fitur: 'dispensasi' },
+    { kode: 'remedial_diajukan', nama: 'Pengajuan remedial siswa (tutor mapel + pemantau)', grup: 'Ujian', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'] },
+    { kode: 'remedial_lewat', nama: 'Remedial belum diputuskan tutor lebih dari 2 hari', grup: 'Ujian', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'] },
+    { kode: 'remedial_diputus', nama: 'Remedial disetujui / ditolak', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };
@@ -195,6 +198,7 @@ function npPastikanPemicu_(paksa) {
   pr.setProperty('np_pemicu', '1');
 }
 function pemicuNotifHarian() {
+  try { sbPengingatRemedial_(); } catch (eR) {}   // v1.57.0
   try { npPengingatTagihan_(); } catch (e) { try { pmlCatatGalat_('pemicu', NP.PEMICU, String(e && e.message || e), e && e.stack, '', ''); } catch (e1) {} }
   try { if (new Date().getDay() === 1) npMingguan_(); } catch (e2) { try { pmlCatatGalat_('pemicu', NP.PEMICU, String(e2 && e2.message || e2), e2 && e2.stack, '', ''); } catch (e3) {} }
 }

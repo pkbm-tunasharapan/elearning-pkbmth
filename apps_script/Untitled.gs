@@ -407,6 +407,9 @@ function ujStatus_(j, idRombel, nama) {
     aksesNanti: aksesNanti ? { jenis: aksesNanti['Jenis'], mulaiMs: ujMsTeks_(aksesNanti['Mulai']), selesaiMs: ujMsTeks_(aksesNanti['Selesai']), mulai: aksesNanti['Mulai'], selesai: aksesNanti['Selesai'] } : null,
     pengajuan: aju ? { id: aju['ID'], jenis: aju['Jenis'], status: aju['Status'], teks: ujStatusAju_(aju, perm), waktu: aju['Waktu'], terbuka: ajuTerbuka } : null
   };
+  var th = null;   // v1.57.0: nilai ditahan sampai biaya ujian lunas
+  try { th = sbTertahan_(j, idRombel, nama); } catch (eTh) {}
+  if (th) { out.nilai = null; out.lulus = false; out.nilaiTertahan = th; if (String(out.tombol).indexOf('remedial') === 0) out.tombol = ''; }
   return out;
 }
 
@@ -423,6 +426,7 @@ function waStatusUjian(idUjian, idRombel, idMapel, nama) {
   r.selesai = !st.berlangsung && st.sudahMengerjakan && !st.bolehMulai;
   if (st.berlangsung) r.selesai = false;
   r.aktif = true;
+  if (st.nilaiTertahan) { r.nilaiTotal = null; r.nilaiTertahan = st.nilaiTertahan; }
   return r;
 }
 
@@ -449,6 +453,12 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUji
     if (nilSy) {
       try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - syarat kehadiran', 'GAGAL'); } catch (e) {}
       return { sukses: false, pesan: nilSy };
+    }
+    var bySy = '';   // v1.57.0: syarat pembayaran biaya ujian
+    try { if (!(sxNil && String(sxNil.row[sxNil.cols.status - 1]) === 'Berlangsung')) bySy = sbGerbang_(j, idRombel, nama); } catch (eBy) {}
+    if (bySy) {
+      try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - syarat pembayaran', 'GAGAL'); } catch (e) {}
+      return { sukses: false, pesan: bySy };
     }
   }
   if (j) g = ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian);
@@ -542,6 +552,11 @@ function waSubmitUjian(payload) {
   if (otomatisBerat) {
     try { pwCatat_(payload.idUjian, payload.idRombel, payload.nama, 'Jawaban dikirim otomatis (pelanggaran berat)', r && r.sukses ? 'Nilai sementara ' + r.nilaiTotal + ', menunggu tinjauan' : 'Gagal: ' + (r && r.pesan)); } catch (eC) {}
     if (r && r.sukses) r.pelanggaranBerat = true;
+  }
+  if (r && r.sukses) {   // v1.57.0: nilai ditahan bila biaya ujian belum lunas
+    var thK = null;
+    try { thK = sbTertahan_(j, payload.idRombel, payload.nama); } catch (eK) {}
+    if (thK) { r.nilaiTotal = null; r.jumlahBenar = null; r.nilaiTertahan = thK; }
   }
   try { catat_('Siswa', payload.idRombel, payload.nama, 'Kirim ujian', 'ujian ' + payload.idUjian + (r && r.sukses ? ' · nilai ' + r.nilaiTotal : ''), r && r.sukses ? 'OK' : 'GAGAL'); } catch (e) {}
   return r;

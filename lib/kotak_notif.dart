@@ -6,6 +6,8 @@ import 'keuangan/keuangan.dart';
 import 'pemberitahuan.dart';
 import 'referral/referral_admin.dart';
 import 'screens/admin_lain.dart' show PengajuanTutorScreen;
+import 'screens/ujian.dart' show KotakUjianScreen;
+import 'siswa/pencapaian_siswa.dart';
 import 'ujian/masa_ujian.dart' show MasaUjianScreen;
 import 'ujian/pengawas.dart' show PengawasScreen;
 import 'ujian/tinjauan.dart' show TinjauanPelanggaranScreen;
@@ -62,6 +64,10 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
       if (!siswa) layar = const TransferTagihanScreen();
     case 'referral_admin':
       if (!siswa) layar = _bungkus('Kelola Referral', const ReferralAdminScreen());
+    case 'kotak_ujian':
+      if (!siswa) layar = _bungkus('Kotak Ujian', const KotakUjianScreen());
+    case 'rekap_nilai':
+      if (siswa) layar = const PencapaianSiswaScreen();
     case 'masa_ujian':
       if (!siswa) layar = const MasaUjianScreen();
     case 'pengawas_ujian':

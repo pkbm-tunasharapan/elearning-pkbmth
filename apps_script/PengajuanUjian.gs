@@ -107,6 +107,14 @@ function waStafUjianKotak(token) {
   });
   out.hitung.total = out.hitung.menungguTutor + out.hitung.menungguAdmin + out.hitung.siapDibuka + out.hitung.menungguPutusan;
   if (p.peran === 'Admin') out.pimpinan = ujPimpinanAda_();
+  if (['Admin', 'Kepala Sekolah', 'Superadmin'].indexOf(p.peran) >= 0) {   // v1.57.0: pantau remedial; lewat 2 hari boleh diputuskan
+    out.remedial = ujBaca_('AJU').filter(function (a) { return a['Jenis'] === 'Remedial' && a['Status'] === 'Menunggu Tutor'; }).map(function (a) {
+      var o = ujAjuObj_(a, peta, jpeta, hasil), jam = sbJamSejak_(a['Waktu']);
+      o.jamMenunggu = Math.floor(jam); o.bolehPutus = jam >= SB.REMEDIAL_JAM;
+      return o;
+    }).sort(function (a, b) { return String(a.waktu).localeCompare(String(b.waktu)); });
+    out.hitung.remedialLewat = out.remedial.filter(function (x) { return x.bolehPutus; }).length;
+  }
   return out;
 }
 
@@ -323,6 +331,7 @@ function waUjianAjukan(idRombel, nama, idUjian, alasan) {
       'Nama Siswa': nama, 'Alasan': teks, 'Status': 'Menunggu Tutor'
     });
     try { catat_('Siswa', idRombel, nama, 'Ajukan ' + jenis.toLowerCase() + ' ujian', j.jenis + ' Semester ' + j.smt, 'OK'); } catch (e) {}
+    if (jenis === 'Remedial') sbNotifRemedialBaru_(j, idRombel, nama, id);   // v1.57.0
     return { sukses: true, id: id, jenis: jenis, uj: ujStatus_(j, idRombel, nama) };
   } finally {
     kunci.releaseLock();
@@ -330,9 +339,14 @@ function waUjianAjukan(idRombel, nama, idUjian, alasan) {
 }
 
 // ---------------- tutor memproses pengajuan siswa ----------------
-function waStafAjuTutorProses(token, ids, keputusan, catatan) {
+// v1.57.0: remedial langsung diputuskan tutor (setuju = akses remedial dibuka, jadwal wajib). Lewat 2 hari tanpa keputusan,
+// Admin / Kepala Sekolah / Superadmin dapat memutuskan. Susulan tetap diteruskan ke admin seperti sebelumnya.
+function waStafAjuTutorProses(token, ids, keputusan, catatan, jadwal) {
   var p = stafDariToken_(token);
-  if (p.peran !== 'Tutor' && p.peran !== 'Admin') throw new Error('Hanya tutor pengampu yang dapat memproses pengajuan siswa.');
+  var pimpinanRem = ['Admin', 'Kepala Sekolah', 'Superadmin'].indexOf(p.peran) >= 0;
+  if (p.peran !== 'Tutor' && !pimpinanRem) throw new Error('Hanya tutor pengampu yang dapat memproses pengajuan siswa.');
+  var milik = {};
+  bacaEnrollment_().forEach(function (e) { if (e.idPengguna === p.id) milik[e.idMapel] = true; });
   ids = (ids || []).map(String);
   if (!ids.length) throw new Error('Centang minimal satu siswa.');
   keputusan = String(keputusan || '');
@@ -348,16 +362,32 @@ function waStafAjuTutorProses(token, ids, keputusan, catatan) {
       var a = null;
       semua.forEach(function (x) { if (x['ID'] === id) a = x; });
       if (!a) throw new Error('Pengajuan tidak ditemukan.');
-      if (boleh[a['ID Mapel']] !== true) throw new Error('Pengajuan ' + a['Nama Siswa'] + ' bukan untuk mapel yang Anda ampu.');
+      if (a['Jenis'] === 'Remedial') {
+        if (milik[a['ID Mapel']] !== true && !(pimpinanRem && sbJamSejak_(a['Waktu']) >= SB.REMEDIAL_JAM)) {
+          throw new Error(pimpinanRem ? 'Remedial ' + a['Nama Siswa'] + ' masih menunggu tutor. Admin / Kepala Sekolah baru dapat memutuskan setelah 2 hari.' : 'Pengajuan ' + a['Nama Siswa'] + ' bukan untuk mapel yang Anda ampu.');
+        }
+      } else if (boleh[a['ID Mapel']] !== true || p.peran === 'Kepala Sekolah' || p.peran === 'Superadmin') throw new Error('Pengajuan ' + a['Nama Siswa'] + ' bukan untuk mapel yang Anda ampu.');
       if (a['Status'] !== 'Menunggu Tutor') throw new Error('Pengajuan ' + a['Nama Siswa'] + ' sudah diproses.');
       pilih.push(a);
     });
     var now = ujNow_(), permBaru = [];
+    var dibuka = 0;
     if (keputusan === 'tolak') {
-      pilih.forEach(function (a) { ujUbah_('AJU', a._baris, { 'Status': 'Ditolak Tutor', 'Tutor': p.nama, 'Waktu Tutor': now, 'Catatan Tutor': catatan }); });
+      pilih.forEach(function (a) {
+        ujUbah_('AJU', a._baris, { 'Status': 'Ditolak Tutor', 'Tutor': p.nama, 'Waktu Tutor': now, 'Catatan Tutor': catatan });
+        if (a['Jenis'] === 'Remedial') sbNotifRemedialPutus_(a, false, 'Ditolak ' + p.nama + (catatan ? ': ' + catatan : '.'));
+      });
     } else {
+      var rem = pilih.filter(function (a) { return a['Jenis'] === 'Remedial'; });
+      rem.forEach(function (a) {
+        var tk = sbBukaRemedial_(a, jadwal, p);
+        ujUbah_('AJU', a._baris, { 'Status': 'Akses Dibuka', 'Tutor': p.nama, 'Waktu Tutor': now, 'Catatan Tutor': catatan });
+        sbNotifRemedialPutus_(a, true, 'Akses remedial dibuka ' + tk + '.');
+        dibuka++;
+      });
       var grup = {};
       pilih.forEach(function (a) {
+        if (a['Jenis'] === 'Remedial') return;
         var k = a['ID Ujian'] + '|' + a['Jenis'];
         (grup[k] = grup[k] || []).push(a);
       });
@@ -373,7 +403,7 @@ function waStafAjuTutorProses(token, ids, keputusan, catatan) {
       });
     }
     kmCatat_(p, pilih[0]['ID Mapel'], keputusan === 'setuju' ? 'Setujui pengajuan ujian' : 'Tolak pengajuan ujian', pilih.length + ' siswa', 'OK');
-    return { sukses: true, diproses: pilih.length, permohonan: permBaru };
+    return { sukses: true, diproses: pilih.length, permohonan: permBaru, remedialDibuka: dibuka };
   } finally {
     kunci.releaseLock();
   }

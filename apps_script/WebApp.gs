@@ -113,6 +113,7 @@ function waGetRiwayatJawaban(idMapel, nama) {
     }
   }
   try { if (typeof abRiwayatSiswa_ === 'function') { var ab = abRiwayatSiswa_(idMapel, nama); Object.keys(ab).forEach(function(k) { out[k] = ab[k]; }); } } catch (e) {}
+  try { sbSaringRiwayat_(out, idMapel, nama); } catch (eSb) {}   // v1.57.0
   out.__buka = taDibukaUntuk_(idMapel, nama);
   out.__sekarang = new Date().getTime();
   return out;

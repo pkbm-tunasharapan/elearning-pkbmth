@@ -12,7 +12,7 @@
 // ============================================================================
 var MU = {
   TAB: 'MASA UJIAN',
-  HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN'],
+  HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN', 'SYARAT BAYAR', 'KATEGORI BAYAR', 'ID TAGIHAN'],
   TAB_SLOT: 'SLOT UJIAN',
   HDR_SLOT: ['ID', 'MASA', 'TANGGAL', 'JAM', 'DURASI', 'KODE MAPEL', 'NAMA MAPEL', 'JUMLAH SOAL', 'MUDAH', 'SEDANG', 'SULIT', 'CATATAN', 'TOKEN'],
   JENIS: ['UTS', 'UAS', 'LAIN', 'TRYOUT'],
@@ -49,7 +49,7 @@ function muObj_(r) {
   return { id: r['ID'], nama: r['NAMA'], jenis: r['JENIS'], smt: parseInt(r['SEMESTER'], 10) || 1, dari: ujTgl_(r['DARI']), sampai: ujTgl_(r['SAMPAI']),
     peserta: { mode: ps.mode || 'semua', rombel: ps.rombel || [], siswa: ps.siswa || [] }, cakupan: r['CAKUPAN'] || '', kkm: parseFloat(r['KKM']) || 0,
     status: r['STATUS'] || 'Draft', dibuatOleh: r['DIBUAT OLEH'], dibuatPada: r['DIBUAT PADA'], ditetapkanOleh: r['DITETAPKAN OLEH'], ditetapkanPada: r['DITETAPKAN PADA'],
-    catatan: r['CATATAN'], baris: r._baris };
+    catatan: r['CATATAN'], syaratBayar: parseFloat(r['SYARAT BAYAR']) || 0, kategoriBayar: r['KATEGORI BAYAR'] || '', idTagihan: r['ID TAGIHAN'] || '', baris: r._baris };
 }
 function muSlotObj_(r) {
   return { id: r['ID'], masa: r['MASA'], tanggal: ujTgl_(r['TANGGAL']), jam: ujJam_(r['JAM']), durasi: parseInt(r['DURASI'], 10) || 0, kode: r['KODE MAPEL'],
@@ -140,6 +140,7 @@ function waStafMasaSimpan(token, d) {
     var m = muCari_(d.id);
     if (m.status !== 'Draft') throw new Error('Masa ujian yang sudah ditetapkan tidak bisa diubah. Batalkan penetapannya dulu.');
     Object.keys(isi).forEach(function(k) { sh.getRange(m.baris, MU.HDR.indexOf(k) + 1).setValue(isi[k]); });
+    try { var m2 = muCari_(m.id), b2 = sbMasaBayar_(m2); if (b2.aktif) sbTulisTagihan_(m2, b2.nominal, b2.kategori, p); } catch (eB) {}   // v1.57.0
     catat_(p.peran, '', p.nama, 'Ubah masa ujian', m.id + ' ' + nama, 'OK');
     return { sukses: true, id: m.id };
   }
@@ -383,7 +384,10 @@ function waStafMasaHadir(token, idMasa) {
   } catch (e) {}
   r.daftar.forEach(function(x) { x.diajukan = minta[x.idRombelSim + '|' + x.idWb + '|' + x.kode] || ''; });
   return { masa: m, syarat: r.at.syaratHadir, blokir: r.at.blokir, tryout: m.jenis === 'TRYOUT', daftar: r.daftar, bisaSetuju: !!nilPeran_(p).dispensasi,
-    jenisDis: muJenisDis_(m.jenis) };
+    jenisDis: muJenisDis_(m.jenis),
+    // v1.57.0: syarat pembayaran
+    bayar: sbMasaBayar_(m), bayarDaftar: sbDaftarMasa_(m), bisaAturBayar: SB.PENGATUR.indexOf(p.peran) >= 0,
+    kategori: keuKategori_().filter(function(k) { return k.jenis === 'Pemasukan'; }).map(function(k) { return { kode: k.kode, nama: k.nama }; }), kategoriBawaan: sbKategoriBawaan_() };
 }
 // Ajukan persetujuan KS untuk beberapa siswa: item [{idWb, idRombelSim, kode}], alasan wajib.
 function waStafMasaHadirAjukan(token, idMasa, item, alasan) {

@@ -4,6 +4,7 @@ import '../api.dart';
 import '../nilai/opsi_rapor.dart' show semesterRapor;
 import '../widgets.dart';
 import 'sesi_siswa.dart';
+import 'tagihan_siswa.dart';
 
 /// Kartu Pencapaian Studi (siswa): nilai per mapel pada semester berjalan dan semester sebelumnya.
 /// Angka dihitung server dengan rumus yang sama dengan rapor (waSiswaPencapaian).
@@ -16,6 +17,48 @@ class PencapaianSiswaScreen extends StatefulWidget {
 
 class _PencapaianSiswaScreenState extends State<PencapaianSiswaScreen> {
   Map<String, String>? _per; // null = semester berjalan
+  int _v = 0;
+
+  Future<void> _bayar() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TagihanSiswaScreen()));
+    if (mounted) setState(() => _v++);
+  }
+
+  // v1.57.0: remedial diajukan langsung ke tutor mapel (Admin & Kepala Sekolah menerima notifikasi)
+  Future<void> _ajukanRemedial(Map<String, dynamic> u) async {
+    final c = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dl) => AlertDialog(
+        title: Text('Ajukan remedial ${teks(u['mapel'])}?'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${teks(u['judul'])} · nilai ${_n(u['persen'])} (KKM ${_n(u['kkm'])}). Pengajuan dikirim ke tutor mapel. Bila dalam 2 hari belum diputuskan, Admin atau Kepala Sekolah yang memutuskan.',
+              style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 10),
+          TextField(controller: c, maxLines: 3, decoration: const InputDecoration(labelText: 'Catatan untuk tutor (opsional)', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dl, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(dl, true), child: const Text('Ajukan')),
+        ],
+      ),
+    );
+    final a = c.text.trim();
+    c.dispose();
+    if (ok != true || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waUjianAjukan', [SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, u['idUjian'], a]), teksProses: 'Mengirim pengajuan...');
+    if (r.ok && mounted) {
+      kabar(context, 'Pengajuan remedial terkirim ke tutor.');
+      setState(() => _v++);
+    }
+  }
+
+  Color _warnaUjian(String st) => switch (st) {
+        'Lulus' => Colors.green.shade700,
+        'Remedial' => Colors.red.shade700,
+        'Tertahan' => Colors.orange.shade800,
+        _ => Colors.grey.shade700,
+      };
   List<Map<String, String>> _pilihan = const [];
 
   String _n(dynamic v) {
@@ -33,7 +76,7 @@ class _PencapaianSiswaScreenState extends State<PencapaianSiswaScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Kartu Pencapaian Studi')),
       body: Muatan<Map<String, dynamic>>(
-        key: ValueKey('${_per?['tahun']}|${_per?['semester']}'),
+        key: ValueKey('${_per?['tahun']}|${_per?['semester']}|$_v'),
         muat: () async => peta(await Api.instance('waSiswaPencapaian', [SesiSiswa.instance.token, {...?_per}], const Duration(minutes: 3))),
         bangun: (context, d, segarkan) {
           if (_pilihan.isEmpty) _pilihan = semesterRapor(peta(d['periodeKini']));
@@ -42,6 +85,7 @@ class _PencapaianSiswaScreenState extends State<PencapaianSiswaScreen> {
           final ringkas = peta(d['ringkas']);
           final hadir = peta(d['kehadiran']);
           final mapel = daftar(d['mapel']).map(peta).toList();
+          final ujian = daftar(d['ujian']).map(peta).toList();
           final idx = _pilihan.indexWhere((x) => x['tahun'] == teks(per['tahun']) && x['semester'] == teks(per['semester']));
           return RefreshIndicator(
             onRefresh: segarkan,
@@ -82,12 +126,54 @@ class _PencapaianSiswaScreenState extends State<PencapaianSiswaScreen> {
                       Text('Diskusi ${_n(m['diskusi'])} · UTS ${_n(m['uts'])} · UAS ${_n(m['uas'])}'
                           '${m['persenHadir'] == null ? '' : ' · Hadir ${_n(m['persenHadir'])}%'}',
                           style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-                      if (m['akhir'] != null)
+                      if (m['tertahan'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(children: [
+                            Expanded(child: Text(teks(peta(m['tertahan'])['pesan'], 'Nilai terbuka setelah biaya ujian dilunasi.'), style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.orange.shade900))),
+                            TextButton.icon(onPressed: _bayar, icon: const Icon(Icons.payments_outlined, size: 18), label: const Text('Bayar')),
+                          ]),
+                        ),
+                      if (m['akhir'] != null && m['tertahan'] == null)
                         Text(m['tuntas'] == true ? 'Tuntas' : 'Belum tuntas (di bawah KKM)',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: m['tuntas'] == true ? Colors.green.shade700 : cs.error)),
                     ]),
                   ),
                 ),
+              if (ujian.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const JudulBagian('Rekap nilai ujian', sub: 'Lulus KKM atau perlu remedial; remedial diajukan langsung ke tutor'),
+                for (final u in ujian)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Expanded(child: Text('${teks(u['mapel'])} · ${teks(u['judul'])}', style: const TextStyle(fontWeight: FontWeight.w700))),
+                          Text(u['tertahan'] != null ? '**' : _n(u['persen']), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                          const SizedBox(width: 6),
+                          Lencana(teks(u['status']) == 'Tertahan' ? 'Belum lunas' : teks(u['status']), warna: _warnaUjian(teks(u['status']))),
+                        ]),
+                        Text('KKM ${_n(u['kkm'])}${teks(u['tanggal']).isEmpty ? '' : ' · ${teks(u['tanggal'])}'}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                        if (u['tertahan'] != null)
+                          Row(children: [
+                            Expanded(child: Text(teks(peta(u['tertahan'])['pesan']), style: TextStyle(fontSize: 12.5, color: Colors.orange.shade900))),
+                            TextButton.icon(onPressed: _bayar, icon: const Icon(Icons.payments_outlined, size: 18), label: const Text('Bayar')),
+                          ]),
+                        if (u['pengajuan'] != null)
+                          Text('Pengajuan ${teks(peta(u['pengajuan'])['jenis']).toLowerCase()}: ${teks(peta(u['pengajuan'])['teks'], teks(peta(u['pengajuan'])['status']))}', style: const TextStyle(fontSize: 12.5)),
+                        if (u['akses'] != null)
+                          Text('Akses ${teks(peta(u['akses'])['jenis']).toLowerCase()}: ${teks(peta(u['akses'])['mulai'])} s.d. ${teks(peta(u['akses'])['selesai'])}. Kerjakan dari halaman ujian mapel.',
+                              style: TextStyle(fontSize: 12.5, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+                        if (u['bolehRemedial'] == true)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.tonalIcon(onPressed: () => _ajukanRemedial(u), icon: const Icon(Icons.replay_rounded), label: const Text('Ajukan remedial')),
+                          ),
+                      ]),
+                    ),
+                  ),
+              ],
               const SizedBox(height: 8),
               Card(
                 child: Padding(

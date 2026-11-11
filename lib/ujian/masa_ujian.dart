@@ -588,7 +588,7 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => KehadiranPesertaScreen(idMasa: widget.id))),
               icon: const Icon(Icons.how_to_reg_outlined),
-              label: const Text('Syarat kehadiran'),
+              label: const Text('Syarat ujian'),
             ),
           ]),
           const SizedBox(height: 8),
@@ -842,8 +842,9 @@ class _KesiapanScreen extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------- syarat kehadiran (v1.56.0)
-/// Peserta dengan kehadiran di bawah syarat (bawaan 80%): perlu persetujuan Kepala Sekolah untuk ikut ujian.
+// ---------------------------------------------------------------- syarat ujian (v1.56.0 kehadiran, v1.57.0 pembayaran)
+/// Syarat ikut ujian: kehadiran (>= syarat, bawaan 80%) dan, bila dicentang Admin, pembayaran biaya ujian (tagihan di Keuangan).
+/// Yang belum memenuhi perlu persetujuan (dispensasi) Kepala Sekolah.
 class KehadiranPesertaScreen extends StatefulWidget {
   const KehadiranPesertaScreen({super.key, required this.idMasa});
   final String idMasa;
@@ -855,28 +856,47 @@ class KehadiranPesertaScreen extends StatefulWidget {
 class _KehadiranPesertaScreenState extends State<KehadiranPesertaScreen> {
   int _v = 0;
   final Set<String> _pilih = {};
+  final Set<String> _pilihBayar = {};
+  final _nominal = TextEditingController();
+  bool? _bayarAktif;
+  String? _kategori;
+
+  @override
+  void dispose() {
+    _nominal.dispose();
+    super.dispose();
+  }
 
   String _kunci(Map<String, dynamic> x) => '${teks(x['idRombelSim'])}|${teks(x['idWb'])}|${teks(x['kode'])}';
 
-  Future<void> _aksi(Map<String, dynamic> d, bool setuju) async {
-    final item = daftar(d['daftar']).map(peta).where((x) => _pilih.contains(_kunci(x))).map((x) => {'idRombelSim': x['idRombelSim'], 'idWb': x['idWb'], 'kode': x['kode']}).toList();
-    if (item.isEmpty) return kabar(context, 'Centang siswa dulu.', galat: true);
+  Future<String?> _alasan(String judul) async {
     final c = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (dl) => AlertDialog(
-        title: Text(setuju ? 'Setujui ${item.length} siswa ikut ujian?' : 'Ajukan ${item.length} siswa ke Kepala Sekolah?'),
+        title: Text(judul),
         content: TextField(controller: c, maxLines: 3, decoration: const InputDecoration(labelText: 'Alasan (wajib, dicatat)', border: OutlineInputBorder())),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dl, false), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(dl, true), child: Text(setuju ? 'Setujui' : 'Ajukan')),
+          FilledButton(onPressed: () => Navigator.pop(dl, true), child: const Text('Kirim')),
         ],
       ),
     );
     final a = c.text.trim();
     c.dispose();
-    if (ok != true || !mounted) return;
-    if (a.length < 5) return kabar(context, 'Tulis alasan minimal 5 huruf.', galat: true);
+    if (ok != true || !mounted) return null;
+    if (a.length < 5) {
+      kabar(context, 'Tulis alasan minimal 5 huruf.', galat: true);
+      return null;
+    }
+    return a;
+  }
+
+  Future<void> _aksi(Map<String, dynamic> d, bool setuju) async {
+    final item = daftar(d['daftar']).map(peta).where((x) => _pilih.contains(_kunci(x))).map((x) => {'idRombelSim': x['idRombelSim'], 'idWb': x['idWb'], 'kode': x['kode']}).toList();
+    if (item.isEmpty) return kabar(context, 'Centang siswa dulu.', galat: true);
+    final a = await _alasan(setuju ? 'Setujui ${item.length} siswa ikut ujian (kehadiran kurang)?' : 'Ajukan ${item.length} siswa ke Kepala Sekolah?');
+    if (a == null || !mounted) return;
     final r = await jalankan(context, () => Api.instance(setuju ? 'waStafMasaHadirSetujui' : 'waStafMasaHadirAjukan', [_t, widget.idMasa, item, a]),
         teksProses: setuju ? 'Menyimpan persetujuan...' : 'Mengirim pengajuan...');
     if (!r.ok || !mounted) return;
@@ -884,76 +904,206 @@ class _KehadiranPesertaScreenState extends State<KehadiranPesertaScreen> {
     setState(() { _pilih.clear(); _v++; });
   }
 
+  Future<void> _aksiBayar(bool setuju) async {
+    final ids = _pilihBayar.toList();
+    if (ids.isEmpty) return kabar(context, 'Centang siswa dulu.', galat: true);
+    final a = await _alasan(setuju ? 'Beri dispensasi pembayaran untuk ${ids.length} siswa?' : 'Ajukan dispensasi pembayaran ${ids.length} siswa ke Kepala Sekolah?');
+    if (a == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance(setuju ? 'waStafMasaBayarSetujui' : 'waStafMasaBayarAjukan', [_t, widget.idMasa, ids, a]),
+        teksProses: setuju ? 'Menyimpan dispensasi...' : 'Mengirim pengajuan...');
+    if (!r.ok || !mounted) return;
+    kabar(context, setuju ? 'Dispensasi pembayaran diberikan. Nilai siswa tetap ** sampai biaya dilunasi.' : 'Pengajuan terkirim ke Kepala Sekolah.');
+    setState(() { _pilihBayar.clear(); _v++; });
+  }
+
+  Future<void> _simpanBayar() async {
+    final aktif = _bayarAktif == true;
+    final n = int.tryParse(_nominal.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    if (aktif && n <= 0) return kabar(context, 'Isi nominal biaya ujian.', galat: true);
+    if (!await konfirmasi(
+        context,
+        aktif ? 'Simpan syarat pembayaran?' : 'Matikan syarat pembayaran?',
+        aktif
+            ? 'Tagihan "Biaya Ujian" Rp$n dibuat / diperbarui di Keuangan untuk semua peserta masa ini dan muncul di menu Tagihan siswa. '
+                'Pembayaran lewat payment gateway, transfer, atau dicatat Bendahara sama-sama dihitung.'
+            : 'Tagihan biaya ujian dinonaktifkan (pembayaran yang sudah masuk tetap tercatat). Pembayaran tidak lagi menjadi syarat ujian.',
+        ya: 'Simpan')) {
+      return;
+    }
+    if (!mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafMasaBayarSimpan', [_t, widget.idMasa, {'aktif': aktif, 'nominal': n, 'kategori': _kategori}]),
+        teksProses: 'Menyimpan...');
+    if (r.ok && mounted) {
+      kabar(context, aktif ? 'Syarat pembayaran disimpan dan tagihan dibuat.' : 'Syarat pembayaran dimatikan.');
+      setState(() { _bayarAktif = null; _v++; });
+    }
+  }
+
+  void _awalBayar(Map<String, dynamic> d) {
+    if (_bayarAktif != null) return;
+    final b = peta(d['bayar']);
+    final kat = daftar(d['kategori']).map(peta).toList();
+    _bayarAktif = b['aktif'] == true;
+    _nominal.text = angka(b['nominal']) > 0 ? '${angka(b['nominal'])}' : '';
+    final k = teks(b['kategori'], teks(d['kategoriBawaan']));
+    _kategori = kat.any((x) => teks(x['kode']) == k) ? k : (kat.isEmpty ? null : teks(kat.first['kode']));
+  }
+
+  Widget _kartuBayar(Map<String, dynamic> d) {
+    final b = peta(d['bayar']);
+    final bisa = d['bisaAturBayar'] == true;
+    final kat = daftar(d['kategori']).map(peta).toList();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _bayarAktif == true,
+            onChanged: bisa ? (v) => setState(() => _bayarAktif = v == true) : null,
+            title: const Text('Tambahkan syarat pembayaran biaya ujian', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(bisa ? 'Tagihan otomatis di Keuangan; lunas = boleh ujian.' : 'Diatur Admin atau Superadmin.'),
+          ),
+          if (_bayarAktif == true) ...[
+            TextField(
+              controller: _nominal,
+              enabled: bisa,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Nominal biaya ujian (Rp)', prefixText: 'Rp '),
+            ),
+            const SizedBox(height: 8),
+            if (kat.isNotEmpty)
+              DropdownButtonFormField<String>(
+                initialValue: _kategori,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Kategori pemasukan'),
+                items: [for (final k in kat) DropdownMenuItem(value: teks(k['kode']), child: Text(teks(k['nama'])))],
+                onChanged: bisa ? (v) => setState(() => _kategori = v) : null,
+              ),
+          ],
+          if (teks(b['idTagihan']).isNotEmpty && b['aktif'] == true)
+            Padding(padding: const EdgeInsets.only(top: 6), child: Text('Tagihan aktif: ${teks(b['idTagihan'])}', style: const TextStyle(fontSize: 12))),
+          if (bisa) ...[
+            const SizedBox(height: 8),
+            Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: _simpanBayar, icon: const Icon(Icons.save_rounded), label: const Text('Simpan syarat'))),
+          ],
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Syarat kehadiran peserta')),
+      appBar: AppBar(title: const Text('Syarat ujian')),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey('kh$_v'),
-        muat: () async => peta(await Api.instance('waStafMasaHadir', [_t, widget.idMasa], const Duration(minutes: 3))),
+        muat: () async {
+          final d = peta(await Api.instance('waStafMasaHadir', [_t, widget.idMasa], const Duration(minutes: 3)));
+          _awalBayar(d);
+          return d;
+        },
         bangun: (c, d, segar) {
           final isi = daftar(d['daftar']).map(peta).toList();
           final bisa = d['bisaSetuju'] == true;
           final terbuka = isi.where((x) => x['dispensasi'] == null).toList();
-          return Stack(children: [
-            RefreshIndicator(
-              onRefresh: segar,
-              child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), children: [
+          final bayar = daftar(d['bayarDaftar']).map(peta).toList();
+          final bayarTerbuka = bayar.where((x) => x['dispensasi'] == null).toList();
+          return RefreshIndicator(
+            onRefresh: segar,
+            child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
+              const Text('Siswa yang memenuhi semua syarat otomatis boleh ujian. Yang belum memenuhi perlu persetujuan (dispensasi) Kepala Sekolah.',
+                  style: TextStyle(fontSize: 12.5)),
+              const SizedBox(height: 8),
+              // ---------------- pembayaran
+              const JudulBagian('Syarat pembayaran'),
+              _kartuBayar(d),
+              if (peta(d['bayar'])['aktif'] == true) ...[
                 Text(
-                    d['tryout'] == true
-                        ? 'Tryout tidak memakai syarat kehadiran: semua peserta boleh ikut.'
-                        : d['blokir'] != true
-                            ? 'Pemblokiran karena kehadiran sedang dimatikan di Aturan Nilai: semua peserta boleh ikut.'
-                            : 'Kehadiran gabungan (absensi TH.E-Course + tatap muka) per mapel semester ini. ${d['syarat']}% ke atas otomatis boleh ujian; '
-                                'di bawah ${d['syarat']}% perlu persetujuan Kepala Sekolah. Siswa tanpa persetujuan tidak bisa memulai ujian mapel itu.',
+                    'Belum lunas: ${bayar.length} siswa. Siswa yang ikut ujian karena dispensasi pembayaran tetap melihat nilainya sebagai ** sampai biaya dilunasi.',
                     style: const TextStyle(fontSize: 12.5)),
-                const SizedBox(height: 8),
-                if (isi.isEmpty) const Kosong(pesan: 'Semua peserta memenuhi syarat kehadiran.', ikon: Icons.verified_rounded),
-                if (terbuka.isNotEmpty)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () => setState(() {
-                        final semua = terbuka.every((x) => _pilih.contains(_kunci(x)));
-                        if (semua) {
-                          _pilih.clear();
-                        } else {
-                          _pilih.addAll(terbuka.map(_kunci));
-                        }
-                      }),
-                      icon: const Icon(Icons.select_all_rounded),
-                      label: Text('Pilih semua yang belum disetujui (${terbuka.length})'),
-                    ),
-                  ),
-                for (final x in isi)
+                for (final x in bayar)
                   Card(
                     margin: const EdgeInsets.symmetric(vertical: 3),
                     child: CheckboxListTile(
                       dense: true,
-                      value: _pilih.contains(_kunci(x)),
-                      onChanged: x['dispensasi'] != null ? null : (v) => setState(() => v == true ? _pilih.add(_kunci(x)) : _pilih.remove(_kunci(x))),
+                      value: _pilihBayar.contains(teks(x['idWb'])),
+                      onChanged: x['dispensasi'] != null ? null : (v) => setState(() => v == true ? _pilihBayar.add(teks(x['idWb'])) : _pilihBayar.remove(teks(x['idWb']))),
                       title: Text('${teks(x['nama'])} · ${teks(x['rombel'])}'),
-                      subtitle: Text('${teks(x['mapel'])} · hadir ${x['hadir']}/${x['total']} = ${x['persen']}%'
-                          '${x['dispensasi'] != null ? '\nDisetujui ${teks(peta(x['dispensasi'])['oleh'])} ${teks(peta(x['dispensasi'])['pada'])}' : (teks(x['diajukan']).isNotEmpty ? '\nDiajukan ${teks(x['diajukan'])}' : '')}'),
-                      secondary: Lencana(
-                        x['dispensasi'] != null ? 'Disetujui KS' : (teks(x['diajukan']).isNotEmpty ? 'Diajukan' : 'Perlu KS'),
-                        warna: x['dispensasi'] != null ? Colors.green.shade700 : (teks(x['diajukan']).isNotEmpty ? Colors.orange.shade800 : Colors.red.shade700),
-                      ),
+                      subtitle: Text('Sisa Rp${angka(x['sisa'])}${angka(x['dibayar']) > 0 ? ' (sudah bayar Rp${angka(x['dibayar'])})' : ''}'
+                          '${x['dispensasi'] != null ? '\nDispensasi ${teks(peta(x['dispensasi'])['oleh'])} ${teks(peta(x['dispensasi'])['pada'])}' : ''}'),
+                      secondary: Lencana(x['dispensasi'] != null ? 'Dispensasi KS' : 'Belum lunas',
+                          warna: x['dispensasi'] != null ? Colors.green.shade700 : Colors.red.shade700),
                     ),
                   ),
-              ]),
-            ),
-            if (terbuka.isNotEmpty)
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: FloatingActionButton.extended(
-                  onPressed: () => _aksi(d, bisa),
-                  icon: Icon(bisa ? Icons.verified_rounded : Icons.send_rounded),
-                  label: Text(bisa ? 'Setujui terpilih (${_pilih.length})' : 'Ajukan ke KS (${_pilih.length})'),
+                if (bayarTerbuka.isNotEmpty)
+                  Wrap(spacing: 8, children: [
+                    TextButton(
+                      onPressed: () => setState(() {
+                        if (bayarTerbuka.every((x) => _pilihBayar.contains(teks(x['idWb'])))) {
+                          _pilihBayar.clear();
+                        } else {
+                          _pilihBayar.addAll(bayarTerbuka.map((x) => teks(x['idWb'])));
+                        }
+                      }),
+                      child: Text('Pilih semua (${bayarTerbuka.length})'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _aksiBayar(bisa),
+                      icon: Icon(bisa ? Icons.verified_rounded : Icons.send_rounded),
+                      label: Text(bisa ? 'Beri dispensasi (${_pilihBayar.length})' : 'Ajukan ke KS (${_pilihBayar.length})'),
+                    ),
+                  ]),
+              ],
+              const SizedBox(height: 16),
+              // ---------------- kehadiran
+              const JudulBagian('Syarat kehadiran'),
+              Text(
+                  d['tryout'] == true
+                      ? 'Tryout tidak memakai syarat kehadiran: semua peserta boleh ikut.'
+                      : d['blokir'] != true
+                          ? 'Pemblokiran karena kehadiran sedang dimatikan di Aturan Nilai.'
+                          : 'Kehadiran gabungan (absensi TH.E-Course + tatap muka) per mapel semester ini. ${d['syarat']}% ke atas otomatis boleh ujian; '
+                              'di bawah ${d['syarat']}% perlu persetujuan Kepala Sekolah.',
+                  style: const TextStyle(fontSize: 12.5)),
+              const SizedBox(height: 6),
+              if (isi.isEmpty) const Kosong(pesan: 'Semua peserta memenuhi syarat kehadiran.', ikon: Icons.verified_rounded),
+              for (final x in isi)
+                Card(
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  child: CheckboxListTile(
+                    dense: true,
+                    value: _pilih.contains(_kunci(x)),
+                    onChanged: x['dispensasi'] != null ? null : (v) => setState(() => v == true ? _pilih.add(_kunci(x)) : _pilih.remove(_kunci(x))),
+                    title: Text('${teks(x['nama'])} · ${teks(x['rombel'])}'),
+                    subtitle: Text('${teks(x['mapel'])} · hadir ${x['hadir']}/${x['total']} = ${x['persen']}%'
+                        '${x['dispensasi'] != null ? '\nDisetujui ${teks(peta(x['dispensasi'])['oleh'])} ${teks(peta(x['dispensasi'])['pada'])}' : (teks(x['diajukan']).isNotEmpty ? '\nDiajukan ${teks(x['diajukan'])}' : '')}'),
+                    secondary: Lencana(
+                      x['dispensasi'] != null ? 'Disetujui KS' : (teks(x['diajukan']).isNotEmpty ? 'Diajukan' : 'Perlu KS'),
+                      warna: x['dispensasi'] != null ? Colors.green.shade700 : (teks(x['diajukan']).isNotEmpty ? Colors.orange.shade800 : Colors.red.shade700),
+                    ),
+                  ),
                 ),
-              ),
-          ]);
+              if (terbuka.isNotEmpty)
+                Wrap(spacing: 8, children: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      if (terbuka.every((x) => _pilih.contains(_kunci(x)))) {
+                        _pilih.clear();
+                      } else {
+                        _pilih.addAll(terbuka.map(_kunci));
+                      }
+                    }),
+                    child: Text('Pilih semua (${terbuka.length})'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _aksi(d, bisa),
+                    icon: Icon(bisa ? Icons.verified_rounded : Icons.send_rounded),
+                    label: Text(bisa ? 'Setujui terpilih (${_pilih.length})' : 'Ajukan ke KS (${_pilih.length})'),
+                  ),
+                ]),
+            ]),
+          );
         },
       ),
     );

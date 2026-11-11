@@ -12,6 +12,7 @@ import '../ujian_aman.dart';
 import '../widgets.dart';
 import '../ruang.dart';
 import 'sesi_siswa.dart';
+import 'tagihan_siswa.dart';
 
 SesiSiswa get _s => SesiSiswa.instance;
 
@@ -889,7 +890,9 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
         context: context,
         builder: (c) => AlertDialog(
           title: const Text('Ujian selesai'),
-          content: Text(hasil['sukses'] == true
+          content: Text(hasil['sukses'] == true && hasil['nilaiTertahan'] != null
+              ? 'Jawaban terkirim.\n\n${teks(peta(hasil['nilaiTertahan'])['pesan'], 'Nilai terbuka setelah biaya ujian dilunasi.')} Lunasi lewat menu Tagihan.'
+              : hasil['sukses'] == true
               ? 'Nilai Anda: ${teks(hasil['nilaiTotal'])} dari ${teks(hasil['nilaiMaks'], '100')}\n${teks(hasil['jumlahBenar'])} dari ${teks(hasil['totalSoal'])} soal benar.'
                   '${hasil['pelanggaranBerat'] == true ? '\n\nKarena pelanggaran berat, nilai ini akan ditinjau Kepala Sekolah: bisa tetap, diulang lewat susulan, atau dibatalkan.' : ''}'
               : teks(hasil['pesan'], 'Jawaban belum terkirim.')),
@@ -954,7 +957,27 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
                 style: TextStyle(color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 20),
-              if (selesai || d['nilaiTotal'] != null)
+              // v1.57.0: nilai ditahan sampai biaya ujian dilunasi
+              if (d['nilaiTertahan'] != null)
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(Gaya.radius)),
+                  child: Column(children: [
+                    const Text('Nilai Anda', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text('**', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 40)),
+                    Text(teks(peta(d['nilaiTertahan'])['pesan'], 'Nilai terbuka setelah biaya ujian dilunasi.'), textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TagihanSiswaScreen()));
+                        if (mounted) setState(() => _versi++);
+                      },
+                      icon: const Icon(Icons.payments_outlined),
+                      label: const Text('Bayar biaya ujian'),
+                    ),
+                  ]),
+                )
+              else if (selesai || d['nilaiTotal'] != null)
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),

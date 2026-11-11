@@ -2902,9 +2902,10 @@ function waSiswaPencapaian(token, q) {
   var s = siswaDariSesi_(token), nn = normNama_(s.nama);
   q = q || {};
   var kini = nilPeriode_(), per = nilPeriode_(q);
-  var ck = 'kps_' + Utilities.base64EncodeWebSafe([s.idRombel, nn, per.tahun, per.semester].join('|')).slice(0, 200), c = CacheService.getScriptCache();
-  try { var lama = c.get(ck); if (lama) return JSON.parse(lama); } catch (e0) {}
-  var peta = nilPetaBm_(), simR = '', wb = null;
+  var peta = nilPetaBm_(), uj = sbUjianSiswa_(s, per, peta);   // v1.57.0: status ujian, nilai ditahan, remedial
+  var ck = 'kps_' + Utilities.base64EncodeWebSafe([s.idRombel, nn, per.tahun, per.semester, uj.kunci].join('|')).slice(0, 200), c = CacheService.getScriptCache();
+  try { var lama = c.get(ck); if (lama) { var lm = JSON.parse(lama); lm.ujian = uj.daftar; return lm; } } catch (e0) {}
+  var simR = '', wb = null;
   Object.keys(peta.rombel).forEach(function(r) { if (peta.rombel[r][s.idRombel]) simR = r; });
   if (simR) {
     var nisn = '';
@@ -2918,11 +2919,16 @@ function waSiswaPencapaian(token, q) {
   mapel.forEach(function(m) { if (m.akhir !== null && m.akhir !== undefined && m.akhir !== '') { n++; jml += Number(m.akhir) || 0; if (m.tuntas) tuntas++; } });
   var out = {
     nama: d.nama, nisn: d.nisn, rombel: h.rombel, periode: h.periode, periodeKini: kini, kkm: h.aturan.kkm, lembaga: h.lembaga,
-    mapel: mapel.map(function(m) { return { kode: m.kode, nama: m.nama, diskusi: m.diskusi, uts: m.uts, uas: m.uas, akhir: m.akhir, predikat: m.predikat, tuntas: m.tuntas, persenHadir: m.persenHadir }; }),
+    mapel: mapel.map(function(m) {
+      var tU = uj.tahan[m.kode + '|UTS'], tA = uj.tahan[m.kode + '|UAS'];
+      if (tU || tA) return { kode: m.kode, nama: m.nama, diskusi: m.diskusi, uts: tU ? '**' : m.uts, uas: tA ? '**' : m.uas, akhir: '**', predikat: '**', tuntas: null, persenHadir: m.persenHadir, tertahan: tU || tA };
+      return { kode: m.kode, nama: m.nama, diskusi: m.diskusi, uts: m.uts, uas: m.uas, akhir: m.akhir, predikat: m.predikat, tuntas: m.tuntas, persenHadir: m.persenHadir };
+    }),
     ringkas: { jumlahMapel: mapel.length, dinilai: n, tuntas: tuntas, rata: n ? nilBulat_(jml / n) : null },
     kehadiran: h.kehadiran
   };
   try { c.put(ck, JSON.stringify(out), 600); } catch (e1) {}
+  out.ujian = uj.daftar;
   return out;
 }
 
@@ -3962,6 +3968,9 @@ function waSiswaBeranda(token, paksa) {
     });
     Object.keys(best).forEach(function(id) {
       var j = jad[id];
+      var thB = null;
+      try { thB = sbTertahan_(j, s.idRombel, s.nama); } catch (eTb) {}   // v1.57.0
+      if (thB) { out.push({ t: j.jenis + ' ' + mapelKu[j.idMapel].nama, s: 'nilai terbuka setelah biaya ujian lunas', n: '**', w: 'kuning', tgl: j.tanggal }); return; }
       out.push({ t: j.jenis + ' ' + mapelKu[j.idMapel].nama, s: 'ujian online · KKM ' + j.kkm, n: String(Math.round(best[id] * 10) / 10), w: best[id] >= j.kkm ? 'hijau' : 'merah', tgl: j.tanggal });
     });
     if (wb) {

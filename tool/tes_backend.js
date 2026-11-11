@@ -726,5 +726,17 @@ tes('sanksi: hitungan kunci, berat, dan reset oleh keputusan', () => {
   sama(s.pimpinanMulai <= s.beratMulai, true, 'urutan aturan');
 });
 
+// 23. syarat pembayaran ujian & remedial (v1.57.0)
+tes('syarat bayar: konfigurasi masa dan batas 2 hari remedial', () => {
+  sama(g.sbMasaBayar_({ syaratBayar: 50000, kategoriBayar: 'UJN', idTagihan: 'TAG-1' }).aktif, true, 'aktif bila nominal > 0');
+  sama(g.sbMasaBayar_({ syaratBayar: 0 }).aktif, false, 'nonaktif bila 0');
+  sama(g.sbMasaBayar_(null).aktif, false, 'tanpa masa');
+  sama(g.sbStatusWb_({ syaratBayar: 0 }, { id: 'W1' }).lunas, true, 'tanpa syarat dianggap lunas');
+  sama(g.sbGerbang_({ masa: '' }, 'R', 'N'), '', 'ujian tanpa masa tidak dicek');
+  sama(g.sbTertahan_(null, 'R', 'N'), null, 'tanpa jadwal');
+  sama(g.SB.REMEDIAL_JAM, 48, 'remedial 2 hari');
+  sama(g.sbJamSejak_('bukan tanggal'), 0, 'waktu tidak sah');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
