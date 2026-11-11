@@ -19,6 +19,8 @@ var API_FLUTTER = {
     waSiswaPencapaian: true,
     // PIN warga belajar (PinSiswa.gs)
     waSiswaPinBuat: true,
+    // cek NISN/NIK saat mendaftar (IdentitasSiswa.gs)
+    waDaftarCekIdentitas: true,
     // siswa (fungsi yang sama dengan yang dipakai halaman web siswa)
     waLogin: true, waPulihSesiSiswa: true, waKeluarSiswa: true, waGetMateri: true, waGetRiwayatJawaban: true, waSubmitJawaban: true, waSimpanDraftDiskusi: true, waGetDraftDiskusi: true, waTandaiBaca: true, waStatusUjian: true, waMulaiUjian: true, waSubmitUjian: true, waLaporPindahTab: true, waUjianAjukan: true, waAbsenIsi: true, waRuangPoll: true, waRuangKirim: true, waRuangCek: true, waSiswaKalender: true, waDaftarRombel: true, waDaftarMulai: true, waDaftarKirimUlang: true, waDaftarVerifikasi: true, waProfilSiswa: true, waProfilSiswaSimpan: true, waDaftarTutorStatus: true, waDaftarTutorCek: true, waDaftarTutorMulaiUndangan: true, waDaftarTutorKirimUlang: true, waDaftarTutorVerifikasiUndangan: true, waStafMasukGoogle: true, waKartuSiswa: true, waSiswaBeranda: true
   }
@@ -635,7 +637,9 @@ function absNamaRombel_(idRombel) {
 // Isi QR = NISN (bila ada) atau ID WB: sama dengan kartu siswa digital dan dikenali pemindai absensi/ujian/keuangan.
 // idRombel: '' = hanya daftar rombel, '*' = semua rombel aktif, selain itu satu rombel.
 function waAdminKartuQr(token, idRombel) {
-  var p = wajibAdmin_(token);
+  // v1.40.2: Front Office juga boleh melihat & mengunduh QR siswa (untuk mencetak kartu siswa)
+  var p = stafDariToken_(token);
+  if (p.peran !== 'Admin' && p.peran !== 'Front Office') throw new Error('Kartu QR siswa hanya untuk Admin dan Front Office.');
   idRombel = String(idRombel || '').trim();
   var rb = absBaca_('ROMBEL'), rombel = [], namaRb = {};
   for (var i = 1; i < rb.v.length; i++) {

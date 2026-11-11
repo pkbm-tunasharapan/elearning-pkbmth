@@ -78,10 +78,17 @@ class SesiSiswa extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// v1.40.2: saran nama dari server bila nama salah ketik tetapi tanggal lahir cocok ("Maksud Anda: ...?").
+  String saranNama = '';
+
   /// Mengembalikan pesan galat, atau null bila berhasil.
   Future<String?> masukSiswa(String nama, String kataSandi) async {
+    saranNama = '';
     final r = peta(await Api.instance('waLogin', [nama.trim(), kataSandi.trim().toUpperCase()]));
-    if (r['sukses'] != true) return teks(r['pesan'], 'Nama atau kata sandi tidak cocok.');
+    if (r['sukses'] != true) {
+      saranNama = teks(r['saran']);
+      return teks(r['pesan'], 'Nama atau kata sandi tidak cocok.');
+    }
     data = r;
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kunci, jsonEncode(r));

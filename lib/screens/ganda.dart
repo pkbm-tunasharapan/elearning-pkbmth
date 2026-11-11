@@ -49,6 +49,21 @@ class _GandaScreenState extends State<GandaScreen> {
     }
   }
 
+  Future<void> _samakan(Map<String, dynamic> x) async {
+    if (!await konfirmasi(context, 'Samakan dengan Data Induk',
+        '${teks(x['kolom'])} "${teks(x['bm'])}" di Belajar Mandiri diganti menjadi "${teks(x['menu'])}" sesuai Data Induk (nama dan rombel). '
+            'Jawaban, absensi, chat, hasil ujian, profil, dan PIN siswa ini ikut dipindah. Siswa yang sedang masuk akan diperbarui otomatis.',
+        ya: 'Samakan')) {
+      return;
+    }
+    if (!mounted) return;
+    final r = await jalankan(context, () => Api.instance('waAdminSamakanInduk', [_t, teks(x['kunci'])], const Duration(minutes: 3)), teksProses: 'Menyamakan...');
+    if (r.ok && mounted) {
+      kabar(context, teks(peta(r.data)['ket'], 'Disamakan dengan Data Induk.'));
+      _cek();
+    }
+  }
+
   Future<void> _kirim(Map<String, dynamic> c) async {
     if (!await konfirmasi(context, 'Kirim ke Data Induk', 'Kirim ${teks(c['nama'])} (${teks(c['rombel'])}, lahir ${teks(c['tgl'])}) ke tab WARGA BELAJAR di Data Induk?', ya: 'Kirim')) return;
     if (!mounted) return;
@@ -122,10 +137,25 @@ class _GandaScreenState extends State<GandaScreen> {
               lipat('Tanggal lahir disamakan dengan Data Induk (${daftar(r['tglDibetulkan']).length})',
                   tabel(['Nama', 'Di BM', 'Di Data Induk'], daftar(r['tglDibetulkan']).map(peta).map((x) => [teks(x['nama']), teks(x['lama']), teks(x['baru'])]).toList())),
             if (daftar(r['perluCek']).isNotEmpty)
-              lipat('Perlu dicek admin (${daftar(r['perluCek']).length})',
-                  tabel(['Nama', 'Kolom', 'Di BM', 'Di Data Induk', 'Ket'],
-                      daftar(r['perluCek']).map(peta).map((x) => [teks(x['nama']), teks(x['kolom']), teks(x['bm']), teks(x['menu']), teks(x['ket'])]).toList()),
-                  buka: true),
+              lipat(
+                'Perlu dicek admin (${daftar(r['perluCek']).length})',
+                Column(children: [
+                  for (final x in daftar(r['perluCek']).map(peta))
+                    ListTile(
+                      dense: true,
+                      title: Text(teks(x['nama'])),
+                      subtitle: Text([
+                        teks(x['kolom']),
+                        'BM: ${teks(x['bm'])}',
+                        'Data Induk: ${teks(x['menu'])}',
+                        if (teks(x['ket']).isNotEmpty) teks(x['ket']),
+                      ].join(' · ')),
+                      // v1.40.2: samakan nama/rombel dengan Data Induk; jejak belajar ikut dipindah
+                      trailing: x['bisaSamakan'] == true ? TextButton(onPressed: () => _samakan(x), child: const Text('Samakan')) : null,
+                    ),
+                ]),
+                buka: true,
+              ),
             if (daftar(r['calonKeMenu']).isNotEmpty)
               lipat(
                 'Hanya ada di Belajar Mandiri (${daftar(r['calonKeMenu']).length})',
@@ -320,7 +350,7 @@ class _GabungScreenState extends State<_GabungScreen> {
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Text('Satu baris dipertahankan, baris lainnya dihapus (salinannya disimpan di tab "Cadangan_Hapus_Siswa"). Kolom kosong pada baris yang dipertahankan diisi dari baris yang dihapus.'),
+          child: Text('Satu baris dipertahankan, baris lainnya dihapus (salinannya disimpan di tab "Cadangan_Hapus_Siswa"). Kolom kosong pada baris yang dipertahankan diisi dari baris yang dihapus. Jawaban, absensi, chat, hasil ujian, profil, dan PIN ikut dipindah ke data yang dipertahankan.'),
         ),
         _grup('Baris yang dipertahankan', [
           MapEntry('a', 'A: ${teks(a['nama'])} (${teks(a['namaRombel'])}, ${teks(a['tgl'])})${a['terdaftar'] == true ? ' — sudah dipakai login' : ''}'),

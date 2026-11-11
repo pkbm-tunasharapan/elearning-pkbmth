@@ -85,7 +85,7 @@ function sswBacaMenu_() {
     var idR = K.rombel >= 0 ? String(r[K.rombel] || '').trim() : '';
     wb.push({
       baris: i + 1, id: K.id >= 0 ? String(r[K.id] || '').trim() : '', nama: nama,
-      nisn: K.nisn >= 0 ? sswNisn_(r[K.nisn]) : '', tgl: sswTgl_(r[K.tgl], tz),
+      nisn: K.nisn >= 0 ? sswNisn_(r[K.nisn]) : '', nik: K.nik >= 0 ? String(r[K.nik] == null ? '' : r[K.nik]).replace(/\D/g, '') : '', tgl: sswTgl_(r[K.tgl], tz),
       idRombel: idR, namaRombel: rombel[idR] || '', hp: K.hp >= 0 ? String(r[K.hp] || '').trim() : '',
       email: K.email >= 0 ? String(r[K.email] || '').trim() : '', status: K.status >= 0 ? String(r[K.status] || '').trim() : ''
     });
@@ -157,8 +157,8 @@ function sswRencana_() {
     // perbedaan yang tidak boleh diputuskan otomatis
     if (r.nisn && w.nisn && r.nisn !== w.nisn) rencana.perluCek.push({ nama: r.nama, kolom: 'NISN', bm: r.nisn, menu: w.nisn, ket: '' });
     if (sel > 1 || (sel === 1 && (r.terdaftar || adaKembar))) rencana.perluCek.push({ nama: r.nama, kolom: 'Tanggal Lahir', bm: r.tgl, menu: w.tgl, ket: adaKembar ? 'Ada data ganda, selesaikan lewat Analisa Data Ganda' : (r.terdaftar ? 'Baris BM sudah dipakai login (kata sandi = tanggal ini)' : '') });
-    if (w.namaRombel && sswKunciKelas_(w.namaRombel) !== sswKunciKelas_(r.namaRombel)) rencana.perluCek.push({ nama: r.nama, kolom: 'Rombel', bm: r.namaRombel, menu: w.namaRombel, ket: '' });
-    if (sswKompak_(r.nama) !== sswKompak_(w.nama)) rencana.perluCek.push({ nama: r.nama, kolom: 'Nama', bm: r.nama, menu: w.nama, ket: 'Ejaan nama berbeda' });
+    if (w.namaRombel && sswKunciKelas_(w.namaRombel) !== sswKunciKelas_(r.namaRombel)) rencana.perluCek.push({ nama: r.nama, kolom: 'Rombel', bm: r.namaRombel, menu: w.namaRombel, ket: '', kunci: r.kunci, bisaSamakan: true });
+    if (normNama_(r.nama) !== normNama_(w.nama)) rencana.perluCek.push({ nama: r.nama, kolom: 'Nama', bm: r.nama, menu: w.nama, ket: 'Ejaan nama berbeda', kunci: r.kunci, bisaSamakan: true });
   });
   // BM -> MENU: lengkapi yang kosong (ambil dari baris BM yang sudah terdaftar lebih dulu)
   menu.wb.forEach(function (w) {
@@ -409,7 +409,14 @@ function waAdminGandaGabung(token, pilihan) {
     if (pilihan.tgl && pilihan.tgl !== simpan.tgl) sh.getRange(simpan.baris, SSW.S_TGL + 1).setNumberFormat('@').setValue(pilihan.tgl);
     if (pilihan.idRombel && pilihan.idRombel !== simpan.rombel) sh.getRange(simpan.baris, SSW.S_ROMBEL + 1).setNumberFormat('@').setValue(pilihan.idRombel);
     sh.deleteRow(hapus.baris);
-    var ket = hapus.nama + ' (' + hapus.namaRombel + ', ' + hapus.tgl + ') digabung ke ' + (pilihan.nama || simpan.nama);
+    // v1.40.2: jawaban, absensi, chat, ujian, profil, PIN, perangkat ikut dipindah ke identitas yang dipertahankan
+    var akhir = { nama: pilihan.nama || simpan.nama, rombel: pilihan.idRombel || simpan.rombel }, jejak = {};
+    try {
+      jejak = idsPindahJejak_({ nama: hapus.nama, rombel: hapus.rombel }, akhir);
+      var j2 = idsPindahJejak_({ nama: simpan.nama, rombel: simpan.rombel }, akhir);
+      Object.keys(j2).forEach(function(k) { jejak[k] = (jejak[k] || 0) + j2[k]; });
+    } catch (eJ) {}
+    var ket = hapus.nama + ' (' + hapus.namaRombel + ', ' + hapus.tgl + ') digabung ke ' + (pilihan.nama || simpan.nama) + (Object.keys(jejak).length ? ' · jejak dipindah: ' + JSON.stringify(jejak) : '');
     sswRiwayat_([[waktuSekarang_(), 'Gabung data ganda', pilihan.nama || simpan.nama, 'Nama/Tgl/Rombel', [lama.nama, lama.tgl, lama.rombel].join(' · '), [pilihan.nama || lama.nama, pilihan.tgl || lama.tgl, pilihan.idRombel || lama.rombel].join(' · '), adm.nama || 'Admin']]);
     catat_('Admin', adm.id, adm.nama, 'Gabung data siswa ganda', ket, 'OK');
     return { ok: true, ket: ket };

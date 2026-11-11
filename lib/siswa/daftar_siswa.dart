@@ -15,7 +15,10 @@ class DaftarSiswaScreen extends StatefulWidget {
 }
 
 class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
-  int _langkah = 1;
+  // v1.40.2: langkah 0 = cek NISN/NIK + tanggal lahir ke Data Induk (cegah data ganda)
+  int _langkah = 0;
+  final _nomor = TextEditingController();
+  Map<String, dynamic>? _idt;
   final _nama = TextEditingController();
   final _email = TextEditingController();
   final _otp = TextEditingController();
@@ -41,6 +44,7 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _nomor.dispose();
     _nama.dispose();
     _email.dispose();
     _otp.dispose();
@@ -78,17 +82,22 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
   Future<void> _mulai() async {
     setState(() => _pesan = null);
     final nama = _nama.text.trim(), email = _email.text.trim();
-    if (nama.length < 3) return _galat('Tulis nama lengkap Anda.');
-    if (_lahir == null) return _galat('Pilih tanggal lahir Anda.');
+    final idt = _idt;
+    if (idt == null && nama.length < 3) return _galat('Tulis nama lengkap Anda.');
+    if (idt == null && _lahir == null) return _galat('Pilih tanggal lahir Anda.');
     if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$').hasMatch(email)) return _galat('Alamat email belum benar.');
-    if (_rombel.isEmpty) return _galat('Pilih kelas (rombel) Anda.');
+    if (idt == null && _rombel.isEmpty) return _galat('Pilih kelas (rombel) Anda.');
     setState(() => _sibuk = true);
     try {
       final h = peta(await Api.instance('waDaftarMulai', [
-        {'nama': nama, 'tanggalLahir': _isoLahir(), 'email': email, 'idRombel': _rombel}
+        idt != null ? {'kunciIdentitas': teks(idt['kunci']), 'email': email} : {'nama': nama, 'tanggalLahir': _isoLahir(), 'email': email, 'idRombel': _rombel}
       ]));
       if (!mounted) return;
-      if (h['sukses'] != true) return _galat(teks(h['pesan'], 'Pendaftaran gagal. Coba lagi.'));
+      if (h['sukses'] != true) {
+        _galat(teks(h['pesan'], 'Pendaftaran gagal. Coba lagi.'));
+        if (h['mirip'] == true) setState(() => _langkah = 0);
+        return;
+      }
       _sesi = teks(h['sesi']);
       _emailMasked = teks(h['emailMasked']);
       _otp.clear();
@@ -144,20 +153,33 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
     }
   }
 
-  Widget _petunjuk(String t) => Padding(
-        padding: const EdgeInsets.only(top: 6, bottom: 14),
-        child: Text(t, style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4)),
-      );
+  Future<void> _cekIdentitas() async {
+    setState(() => _pesan = null);
+    final nomor = _nomor.text.replaceAll(RegExp(r'\D'), '');
+    if (nomor.length < 8) return _galat('Tulis NISN (10 angka) atau NIK (16 angka).');
+    if (_lahir == null) return _galat('Pilih tanggal lahir Anda.');
+    setState(() => _sibuk = true);
+    try {
+      final h = peta(await Api.instance('waDaftarCekIdentitas', [{'nomor': nomor, 'tanggalLahir': _isoLahir()}]));
+      if (!mounted) return;
+      if (h['ada'] != true) return _galat(teks(h['pesan'], 'Data tidak ditemukan.'));
+      if (h['sudahAkun'] == true) {
+        _galat(teks(h['pesan']), info: true);
+        setState(() => _idt = null);
+        return;
+      }
+      setState(() {
+        _idt = h;
+        _langkah = 1;
+      });
+    } on ApiException catch (e) {
+      if (mounted) _galat('Terjadi kesalahan: ${e.ramah}');
+    } finally {
+      if (mounted) setState(() => _sibuk = false);
+    }
+  }
 
-  Widget _langkah1() {
-    final rb = _daftarRombel;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const Text('Langkah 1 dari 2 - isi data diri', style: TextStyle(fontWeight: FontWeight.w700)),
-      const SizedBox(height: 14),
-      TextField(controller: _nama, maxLength: 80, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Nama Lengkap', counterText: '')),
-      _petunjuk('Penting: tulis nama persis seperti di data kependudukan (KTP/Kartu Keluarga/akta lahir), tanpa singkatan atau nama panggilan. '
-          'Jika nama Anda sudah ada di daftar kelas, Anda hanya perlu memverifikasi email.'),
-      InkWell(
+  Widget _tanggalLahir() => InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () async {
           final kini = DateTime.now();
@@ -174,7 +196,84 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
           decoration: const InputDecoration(labelText: 'Tanggal Lahir', suffixIcon: Icon(Icons.calendar_month_rounded)),
           child: Text(_lahir == null ? 'Pilih tanggal' : '${_lahir!.day.toString().padLeft(2, '0')}-${_lahir!.month.toString().padLeft(2, '0')}-${_lahir!.year}'),
         ),
+      );
+
+  Widget _langkah0() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Text('Cari data Anda di sekolah', style: TextStyle(fontWeight: FontWeight.w700)),
+      _petunjuk('Bila Anda sudah tercatat di PKBM, isi NISN atau NIK beserta tanggal lahir. Nama dan kelas diambil otomatis dari data sekolah, '
+          'jadi tidak perlu diketik dan tidak akan tercatat ganda.'),
+      TextField(
+        controller: _nomor,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(16)],
+        decoration: const InputDecoration(labelText: 'NISN atau NIK', hintText: '10 angka (NISN) / 16 angka (NIK)'),
       ),
+      const SizedBox(height: 12),
+      _tanggalLahir(),
+      const SizedBox(height: 16),
+      FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        onPressed: _sibuk ? null : _cekIdentitas,
+        child: _sibuk ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Cari data saya'),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton(
+        onPressed: _sibuk
+            ? null
+            : () => setState(() {
+                  _idt = null;
+                  _pesan = null;
+                  _langkah = 1;
+                }),
+        child: const Text('Saya siswa baru / belum punya NISN atau NIK'),
+      ),
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Sudah punya akun? Masuk di sini')),
+    ]);
+  }
+
+  Widget _petunjuk(String t) => Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 14),
+        child: Text(t, style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4)),
+      );
+
+  Widget _langkah1() {
+    final rb = _daftarRombel;
+    final idt = _idt;
+    if (idt != null) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('Langkah 1 dari 2 - data Anda ditemukan', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.verified_user_rounded, color: Colors.green),
+            title: Text(teks(idt['namaSamar']), style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text('Kelas ${teks(idt['rombel'])} · data dari sekolah'),
+          ),
+        ),
+        _petunjuk('Benar ini data Anda? Bila bukan, tekan "Bukan saya" dan periksa NISN/NIK serta tanggal lahir.'),
+        TextField(controller: _email, maxLength: 120, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', hintText: 'nama@gmail.com', counterText: '')),
+        _petunjuk('Kode verifikasi 6 angka akan dikirim ke email ini. Kata sandi masuk: TH- diikuti tanggal lahir (ddmmyyyy).'),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+          onPressed: _sibuk ? null : _mulai,
+          child: _sibuk ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Ini saya · Kirim Kode ke Email'),
+        ),
+        TextButton(
+            onPressed: () => setState(() {
+                  _idt = null;
+                  _langkah = 0;
+                }),
+            child: const Text('Bukan saya')),
+      ]);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const Text('Langkah 1 dari 2 - isi data diri', style: TextStyle(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 14),
+      TextField(controller: _nama, maxLength: 80, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Nama Lengkap', counterText: '')),
+      _petunjuk('Penting: tulis nama persis seperti di data kependudukan (KTP/Kartu Keluarga/akta lahir), tanpa singkatan atau nama panggilan. '
+          'Jika nama Anda sudah ada di daftar kelas, Anda hanya perlu memverifikasi email.'),
+      _tanggalLahir(),
       _petunjuk('Tanggal lahir ini menjadi kata sandi Anda saat masuk, dengan format TH-ddmmyyyy (contoh lahir 3 Maret 2009: TH-03032009).'),
       TextField(controller: _email, maxLength: 120, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', hintText: 'nama@gmail.com', counterText: '')),
       _petunjuk('Kode verifikasi 6 angka akan dikirim ke email ini. Pakai email yang aktif dan bisa Anda buka sekarang. Kode ini hanya diminta sekali, saat mendaftar.'),
@@ -198,7 +297,7 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
         child: _sibuk ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Kirim Kode ke Email'),
       ),
       const SizedBox(height: 8),
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Sudah punya akun? Masuk di sini')),
+      TextButton(onPressed: () => setState(() => _langkah = 0), child: const Text('Kembali: cari data dengan NISN/NIK')),
     ]);
   }
 
@@ -241,7 +340,7 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
           setState(() {
             _pesan = null;
             _sesi = '';
-            _langkah = 1;
+            _langkah = _idt == null ? 1 : 1;
           });
         },
         child: const Text('Ubah data / email'),
@@ -301,9 +400,9 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return PopScope(
-      canPop: _langkah != 2,
+      canPop: _langkah == 0 || _langkah == 3,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _langkah == 2) setState(() => _langkah = 1);
+        if (!didPop) setState(() => _langkah = _langkah == 2 ? 1 : 0);
       },
       child: Scaffold(
         appBar: AppBar(title: const Text('Daftar Siswa Baru')),
@@ -315,7 +414,7 @@ class _DaftarSiswaScreenState extends State<DaftarSiswaScreen> {
               decoration: BoxDecoration(color: _pesanInfo ? cs.primaryContainer : cs.errorContainer, borderRadius: BorderRadius.circular(14)),
               child: Text(_pesan!, style: TextStyle(color: _pesanInfo ? cs.onPrimaryContainer : cs.onErrorContainer)),
             ),
-          if (_langkah == 1) _langkah1() else if (_langkah == 2) _langkah2() else _langkah3(),
+          if (_langkah == 0) _langkah0() else if (_langkah == 1) _langkah1() else if (_langkah == 2) _langkah2() else _langkah3(),
         ]),
       ),
     );

@@ -66,6 +66,27 @@ class _LoginScreenState extends State<LoginScreen> {
           ? await SesiSiswa.instance.masukSiswa(_nama.text, angkaLahir.length == 6 ? angkaLahir : 'TH-$angkaLahir')
           : await Sesi.instance.masukKode(_nama.text, _kode.text);
       if (mounted && g != null) setState(() => _galat = g);
+      // v1.40.2: nama salah ketik tetapi tanggal lahir cocok -> tawarkan nama yang terdaftar
+      final saran = _siswa ? SesiSiswa.instance.saranNama : '';
+      if (mounted && g != null && saran.isNotEmpty) {
+        final ya = await showDialog<bool>(
+          context: context,
+          builder: (c) => AlertDialog(
+            icon: const Icon(Icons.person_search_rounded),
+            title: const Text('Maksud Anda:'),
+            content: Text(saran, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Bukan')),
+              FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Ya, masuk')),
+            ],
+          ),
+        );
+        if (ya == true && mounted) {
+          _nama.text = saran;
+          final g2 = await SesiSiswa.instance.masukSiswa(saran, angkaLahir.length == 6 ? angkaLahir : 'TH-$angkaLahir');
+          if (mounted) setState(() => _galat = g2);
+        }
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _galat = e.ramah);
     } catch (e) {

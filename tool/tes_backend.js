@@ -479,5 +479,54 @@ tes('kode akses arsip: dibuat admin, salah ditolak, benar membuka mode ubah, khu
   } finally { Object.keys(simpan).forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 12. cegah data ganda siswa (v1.40.2)
+tes('idsMirip_/idsSama_/idsSamar_: kasus Yogi (spasi bergeser), salah huruf, urutan kata', () => {
+  sama(g.idsSama_('Yogi Janui Saputra', 'YOGI JANU ISAPUTRA'), true, 'spasi bergeser = sama');
+  sama(g.idsMirip_('Yogi Janui Saputra', 'YOGI JANU ISAPUTRA'), true);
+  sama(g.idsMirip_('Muhamad Ridho', 'MUHAMMAD RIDHO'), true, 'salah 1 huruf');
+  sama(g.idsMirip_('Saputra Yogi', 'Yogi Saputra'), true, 'urutan kata');
+  sama(g.idsMirip_('Ahmad Faisal', 'Ahmad Naufal'), false, 'orang lain');
+  sama(g.idsSamar_('YOGI JANU ISAPUTRA'), 'YOGI J*** I*******');
+});
+tes('idsSaranLogin_: hanya bila tanggal lahir cocok dan tepat satu nama mirip', () => {
+  const simpan = g.getSheetData;
+  try {
+    g.getSheetData = () => [['ID Rombel', 'Nama Siswa', 'Tanggal Lahir'], ['ROM-KELASC11', 'YOGI JANU ISAPUTRA', '2008-01-11'], ['ROM-KELASC12', 'Ari Setiawan', '1999-06-13']];
+    sama(g.idsSaranLogin_('Yogi Janui Saputra', '2008-01-11'), 'YOGI JANU ISAPUTRA');
+    sama(g.idsSaranLogin_('Yogi Janui Saputra', '2008-01-12'), '', 'tanggal lahir salah -> tanpa saran');
+    sama(g.idsSaranLogin_('Budi', '2008-01-11'), '', 'nama jauh -> tanpa saran');
+  } finally { g.getSheetData = simpan; }
+});
+tes('waDaftarCekIdentitas: NISN/NIK + tanggal lahir harus cocok, nama disamarkan', () => {
+  const simpan = {};
+  ['sswBacaMenu_', 'idsElRombel_', 'cariSiswa_', 'sswBacaBm_', 'catat_'].forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.sswBacaMenu_ = () => ({ wb: [{ id: 'W1', nama: 'YOGI JANU ISAPUTRA', nisn: '0081234567', nik: '3209011101080001', tgl: '2008-01-11', namaRombel: 'C11', status: 'Aktif' }] });
+    g.idsElRombel_ = () => 'ROM-KELASC11';
+    g.cariSiswa_ = () => null;
+    g.sswBacaBm_ = () => ({ rows: [] });
+    g.catat_ = () => {};
+    cache.remove('idsglobal');
+    const a = g.waDaftarCekIdentitas({ nomor: '0081234567', tanggalLahir: '2008-01-11' });
+    sama([a.ada, a.namaSamar, a.rombel, a.kelasSiap, a.sudahAkun], [true, 'YOGI J*** I*******', 'C11', true, false]);
+    sama(g.idsAmbilKunci_(a.kunci).nama, 'YOGI JANU ISAPUTRA', 'identitas tersimpan di server');
+    sama(g.waDaftarCekIdentitas({ nomor: '3209011101080001', tanggalLahir: '2008-01-11' }).ada, true, 'lewat NIK');
+    sama(g.waDaftarCekIdentitas({ nomor: '0081234567', tanggalLahir: '2008-01-12' }).ada, false, 'tanggal lahir salah');
+    sama(g.waDaftarCekIdentitas({ nomor: '0081234567', tanggalLahir: '2008-01-12' }).namaSamar, undefined, 'tidak membocorkan nama');
+  } finally { Object.keys(simpan).forEach((k) => { g[k] = simpan[k]; }); }
+});
+tes('idsIdentitasTerbaru_: sesi lama ikut ganti nama / pindah rombel (kasus Nadin)', () => {
+  const simpan = { gsd: g.getSheetData, st: g.siswaTerdaftar_ };
+  try {
+    g.getSheetData = () => [['ID Rombel', 'Nama Siswa'], ['ROM-KELASB7', 'Nadin'], ['ROM-KELASC11', 'YOGI JANU ISAPUTRA']];
+    g.siswaTerdaftar_ = (n, r) => (r === 'ROM-KELASC11' && n === 'YOGI JANU ISAPUTRA') || (r === 'ROM-KELASB7' && n === 'Nadin');
+    sama(g.idsIdentitasTerbaru_('Nadin', 'ROM-KELASB8'), { nama: 'Nadin', idRombel: 'ROM-KELASB7' }, 'pindah rombel, nama unik');
+    props.deleteProperty(g.IDS.PROP_GANTI);
+    g.idsCatatGanti_({ nama: 'Yogi Janui Saputra', rombel: 'ROM-KELASC11' }, { nama: 'YOGI JANU ISAPUTRA', rombel: 'ROM-KELASC11' });
+    sama(g.idsIdentitasTerbaru_('Yogi Janui Saputra', 'ROM-KELASC11'), { nama: 'YOGI JANU ISAPUTRA', idRombel: 'ROM-KELASC11' }, 'peta ganti nama');
+    sama(g.idsIdentitasTerbaru_('Orang Lain', 'ROM-KELASB7'), null);
+  } finally { g.getSheetData = simpan.gsd; g.siswaTerdaftar_ = simpan.st; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

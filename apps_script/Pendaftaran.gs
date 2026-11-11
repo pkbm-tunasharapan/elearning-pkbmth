@@ -301,15 +301,35 @@ function waDaftarMulai(data) {
   var tgl = String(data.tanggalLahir || '').trim();
   var email = String(data.email || '').trim().toLowerCase();
   var idDipilih = String(data.idRombel || '').trim();
-  if (!/^[À-ɏA-Za-z][À-ɏA-Za-z\s.'’,\-]{2,79}$/.test(nama)) {
+  // v1.40.2 (lapis 1): daftar lewat NISN/NIK -> nama, tanggal lahir, rombel dari Data Induk
+  var idt = data.kunciIdentitas ? idsAmbilKunci_(data.kunciIdentitas) : null, nisnInduk = '';
+  if (data.kunciIdentitas && !idt) return { sukses: false, pesan: 'Pemeriksaan NISN/NIK sudah kedaluwarsa. Ulangi dari langkah pertama.' };
+  if (idt) {
+    if (!idt.elRombel) return { sukses: false, pesan: 'Kelas Anda (' + idt.namaRombel + ') belum tersedia di TH.E-Course. Hubungi admin.' };
+    nama = idt.nama; tgl = idt.tgl; idDipilih = idt.elRombel; nisnInduk = idt.nisn || '';
+  }
+  if (!idt && !/^[À-ɏA-Za-z][À-ɏA-Za-z\s.'’,\-]{2,79}$/.test(nama)) {
     return { sukses: false, pesan: 'Tulis nama lengkap (minimal 3 huruf, tanpa angka).' };
   }
   if (!tanggalLahirValid_(tgl)) return { sukses: false, pesan: 'Tanggal lahir tidak valid.' };
   if (!emailValid_(email)) return { sukses: false, pesan: 'Alamat email tidak valid.' };
+  // v1.40.2 (lapis 2): daftar manual -> cocokkan ke Data Induk (tanggal lahir sama + nama mirip)
+  if (!idt) {
+    var miripInduk = idsMiripInduk_(nama, tgl);
+    var persis = miripInduk.filter(function(w) { return idsSama_(w.nama, nama); });
+    if (persis.length === 1 && idsElRombel_(persis[0].namaRombel)) {
+      nama = persis[0].nama; idDipilih = idsElRombel_(persis[0].namaRombel); nisnInduk = persis[0].nisn || ''; idt = { induk: true };
+    } else if (miripInduk.length) {
+      catat_('Calon siswa', '', nama, 'Daftar', 'Ditahan: mirip Data Induk ' + miripInduk[0].nama, 'GAGAL');
+      return { sukses: false, mirip: true, pesan: 'Data Anda kemungkinan sudah ada di sekolah sebagai "' + idsSamar_(miripInduk[0].nama) + '" (' + miripInduk[0].namaRombel + '). ' +
+        'Daftar memakai NISN/NIK di langkah pertama agar tersambung ke data itu, atau hubungi admin. Jangan mendaftar sebagai siswa baru.' };
+    }
+  }
   var adaDaftar = cariSiswa_(nama, tgl); if (!idDipilih && !adaDaftar) return { sukses: false, pesan: 'Pilih kelas (rombel) Anda.' };
 
   var idRombel = '';
-  rombelTerbuka_().forEach(function(r) { if (r.idRombel === idDipilih) idRombel = r.idRombel; });
+  if (idt) idRombel = idDipilih;   // terverifikasi Data Induk: tidak perlu menunggu pendaftaran rombel dibuka
+  else rombelTerbuka_().forEach(function(r) { if (r.idRombel === idDipilih) idRombel = r.idRombel; });
   if (adaDaftar && !adaDaftar.email && adaDaftar.idRombel) idRombel = adaDaftar.idRombel;
   if (!idRombel) {
     catat_('Calon siswa', '', nama, 'Daftar', 'Rombel tidak tersedia atau ditutup: ' + idDipilih.slice(0, 40), 'GAGAL');
@@ -339,7 +359,7 @@ function waDaftarMulai(data) {
   }
   hitung_('otpglobal', 3600);
   CacheService.getScriptCache().put('otpdaftar_' + sesi, JSON.stringify({
-    h: hashOtp_(sesi, otp), a: 0, kirim: 1, t: Date.now(), d: { nama: nama, tgl: tgl, email: email, idRombel: idRombel }
+    h: hashOtp_(sesi, otp), a: 0, kirim: 1, t: Date.now(), d: { nama: nama, tgl: tgl, email: email, idRombel: idRombel, nisn: nisnInduk }
   }), PEND.OTP_DETIK);
   catat_('Calon siswa', idRombel, nama, 'Daftar - OTP dikirim', maskEmail_(email), 'OK');
   return { sukses: true, sesi: sesi, emailMasked: maskEmail_(email) };
@@ -390,8 +410,9 @@ function waDaftarVerifikasi(sesi, kodeOtp) {
     kodeAkses = buatKodeAkses_(CONFIG.PANJANG_KODE_AKSES);
     var sheet = getSheet(CONFIG.SHEETS.SISWA);
     var b = adaV ? adaV.baris : sheet.getLastRow() + 1;
-    if (!adaV) sheet.getRange(b, 1, 1, 6).setNumberFormat('@');
-    if (adaV) { sheet.getRange(b, 4, 1, 3).setNumberFormat('@'); sheet.getRange(b, 4, 1, 3).setValues([[kodeAkses, o.d.email, waktuSekarang_()]]); o.d.nama = adaV.nama; o.d.idRombel = adaV.idRombel; } else { sheet.getRange(b, 1, 1, 6).setValues([[o.d.idRombel, o.d.nama, o.d.tgl, kodeAkses, o.d.email, waktuSekarang_()]]); }
+    if (!adaV) sheet.getRange(b, 1, 1, 7).setNumberFormat('@');
+    if (adaV) { sheet.getRange(b, 4, 1, 3).setNumberFormat('@'); sheet.getRange(b, 4, 1, 3).setValues([[kodeAkses, o.d.email, waktuSekarang_()]]); o.d.nama = adaV.nama; o.d.idRombel = adaV.idRombel; } else { sheet.getRange(b, 1, 1, 7).setValues([[o.d.idRombel, o.d.nama, o.d.tgl, kodeAkses, o.d.email, waktuSekarang_(), o.d.nisn || '']]); }
+    if (adaV && o.d.nisn && !String(sheet.getRange(b, 7).getValue()).trim()) sheet.getRange(b, 7).setNumberFormat('@').setValue(o.d.nisn);
   } finally {
     kunci.releaseLock();
   }
@@ -417,6 +438,10 @@ function waLogin(nama, kataSandi) {
   if (!res || !res.sukses) {
     hitung_(kunciGagalMasuk, PEND.GAGAL_MASUK_DETIK);
     catat_('Siswa', '', nama, 'Masuk', 'Nama atau kata sandi tidak cocok', 'GAGAL');
+    // v1.40.2 (lapis 3): tanggal lahir cocok dengan tepat satu siswa bernama mirip -> sarankan namanya
+    var saran = '';
+    try { saran = idsSaranLogin_(nama, tgl); } catch (eS) {}
+    if (saran && normNama_(saran) !== normNama_(nama)) return { sukses: false, saran: saran, pesan: 'Nama tidak cocok. Maksud Anda: ' + saran + '?' };
     return { sukses: false, pesan: 'Nama atau kata sandi tidak cocok. Periksa kembali, atau tanyakan ke tutor.' };
   }
   // v1.39.0: WB yang sudah punya PIN tidak bisa lagi masuk dengan TH-ddmmyyyy
@@ -511,6 +536,11 @@ function waPulihSesiSiswa(token, kunciPerangkat) {
     }
   }
   if (!d) return gagal;
+  if (!siswaTerdaftar_(d.nama, d.idRombel)) {
+    var baru = null;
+    try { baru = idsIdentitasTerbaru_(d.nama, d.idRombel); } catch (eB) {}
+    if (baru) { d = baru; token = ssBuat_(d); }
+  }
   var ada = false;
   getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
     if (i > 0 && sTeks_(r[0]).trim() === d.idRombel && normNama_(r[1]) === normNama_(d.nama)) ada = true;
@@ -556,7 +586,7 @@ function cariSiswa_(nama, tglText) {
   var v = getSheetData(CONFIG.SHEETS.SISWA);
   for (var i = 1; i < v.length; i++) {
     if (!String(v[i][1]).trim()) continue;
-    if (normNama_(v[i][1]) === normNama_(nama) && formatTanggalUntukBanding_(v[i][2]) === tglText) {
+    if ((normNama_(v[i][1]) === normNama_(nama) || sswKompak_(v[i][1]) === sswKompak_(nama)) && formatTanggalUntukBanding_(v[i][2]) === tglText) {
       return { baris: i + 1, nama: String(v[i][1]).trim(), idRombel: String(v[i][0]).trim(), email: String(v[i][4] || '').trim() };
     }
   }
