@@ -1849,6 +1849,8 @@ function waAdminTutorKeputusan(token, daftar, catatan) {
 // Pembungkus berbasis nama: fungsi asli di Peran.gs dinamai ulang menjadi waStafProfilAsliDt_ (urutan berkas tidak berpengaruh).
 function waStafProfil(token) {
   var r = waStafProfilAsliDt_(token);
+  // v1.41.0: izin per fitur untuk menu aplikasi + nama peran kustom
+  try { var pz = stafDariToken_(token); if (r && typeof r === 'object') { r.izin = izPetaPengguna_(pz); r.peranKustom = pz.peranKustom || ''; } } catch (eZ) {}
   try {
     if (r && r.peran === 'Tutor') {
       var p = stafDariToken_(token);

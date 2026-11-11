@@ -18,11 +18,13 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
   int _versi = 0;
   String _cari = '';
   final Set<String> _kodeTampil = {};
+  // v1.41.0: peran bawaan + peran kustom dari menu Peran & Izin
+  List<String> _peranTersedia = _daftarPeran;
 
   void _muatUlang() => setState(() => _versi++);
 
   Future<void> _ubah(Map<String, dynamic>? p) async {
-    final hasil = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _DialogPengguna(awal: p));
+    final hasil = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _DialogPengguna(awal: p, daftarPeran: _peranTersedia));
     if (hasil == null || !mounted) return;
     final ok = await jalankan(context, () => Api.instance('waAdminSimpanPengguna', [Sesi.instance.token, hasil]), teksProses: 'Menyimpan pengguna...');
     if (ok.ok) {
@@ -81,6 +83,8 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
         key: ValueKey(_versi),
         muat: () async => peta(await Api.instance('waAdminDaftar', [Sesi.instance.token])),
         bangun: (context, d, segarkan) {
+          final pt = daftar(d['peranTersedia']).map(peta).map((x) => teks(x['nama'])).where((x) => x.isNotEmpty).toList();
+          if (pt.isNotEmpty) _peranTersedia = pt;
           final semua = daftar(d['pengguna']).map(peta).toList();
           final mapel = daftar(d['mapel']).map(peta).toList();
           final enr = daftar(d['enrollment']).map(peta).toList();
@@ -109,7 +113,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                       ]),
                       const SizedBox(height: 4),
                       Text(
-                        teks(p['peran']) == 'Tutor'
+                        teks(p['peranDasar'], teks(p['peran'])) == 'Tutor'
                             ? _ringkasAmpu(p, mapel, enr)
                             : (teks(p['peran']) == 'Admin' ? 'Akses penuh' : 'Pemantauan'),
                         style: Theme.of(context).textTheme.bodySmall,
@@ -126,7 +130,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                         ),
                       ]),
                       Wrap(spacing: 4, children: [
-                        if (teks(p['peran']) == 'Tutor')
+                        if (teks(p['peranDasar'], teks(p['peran'])) == 'Tutor')
                           TextButton.icon(onPressed: () => _aturMapel(p, mapel, enr), icon: const Icon(Icons.library_add_check_outlined, size: 18), label: const Text('Atur Mapel')),
                         TextButton.icon(onPressed: () => _ubah(p), icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('Ubah')),
                         TextButton.icon(onPressed: () => _resetKode(p), icon: const Icon(Icons.key_outlined, size: 18), label: const Text('Reset Kode')),
@@ -143,8 +147,9 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
 }
 
 class _DialogPengguna extends StatefulWidget {
-  const _DialogPengguna({this.awal});
+  const _DialogPengguna({this.awal, this.daftarPeran = _daftarPeran});
   final Map<String, dynamic>? awal;
+  final List<String> daftarPeran;
 
   @override
   State<_DialogPengguna> createState() => _DialogPenggunaState();
@@ -153,7 +158,7 @@ class _DialogPengguna extends StatefulWidget {
 class _DialogPenggunaState extends State<_DialogPengguna> {
   late final TextEditingController _nama = TextEditingController(text: teks(widget.awal?['nama']));
   late final TextEditingController _hp = TextEditingController(text: teks(widget.awal?['hp']));
-  late String _peran = _daftarPeran.contains(teks(widget.awal?['peran'])) ? teks(widget.awal?['peran']) : 'Tutor';
+  late String _peran = widget.daftarPeran.contains(teks(widget.awal?['peran'])) ? teks(widget.awal?['peran']) : 'Tutor';
   late bool _aktif = widget.awal == null || teks(widget.awal?['status']) == 'Aktif';
 
   @override
@@ -167,7 +172,7 @@ class _DialogPenggunaState extends State<_DialogPengguna> {
           DropdownButtonFormField<String>(
             initialValue: _peran,
             decoration: const InputDecoration(labelText: 'Peran'),
-            items: [for (final p in _daftarPeran) DropdownMenuItem(value: p, child: Text(p))],
+            items: [for (final p in widget.daftarPeran) DropdownMenuItem(value: p, child: Text(p))],
             onChanged: (v) => setState(() => _peran = v ?? _peran),
           ),
           const SizedBox(height: 12),

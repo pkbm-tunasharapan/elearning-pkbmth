@@ -18,6 +18,13 @@ class Sesi extends ChangeNotifier {
 
   String get nama => teks(profil['nama'], '-');
   String get peran => teks(profil['peran'], '-');
+
+  /// v1.41.0: nama peran kustom (menu Peran & Izin); kosong = peran bawaan. [peran] tetap peran dasarnya.
+  String get peranKustom => teks(profil['peranKustom']);
+  String get namaPeran => peranKustom.isNotEmpty ? peranKustom : peran;
+
+  /// Izin per fitur dari server: 'tidak' | 'lihat' | 'ubah' (fitur yang tidak ada = aturan lama).
+  Map<String, dynamic> get izin => peta(profil['izin']);
   bool get isAdmin => peran == 'Admin';
 
   /// Kepala Sekolah / Koordinator Kurikulum: melihat semua mapel tanpa mengubah.

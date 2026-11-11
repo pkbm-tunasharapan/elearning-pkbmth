@@ -341,7 +341,7 @@ class Beranda extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
-                      child: Text(s.peran, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                      child: Text(s.namaPeran, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
                     ),
                   ]),
                 ),

@@ -528,5 +528,31 @@ tes('idsIdentitasTerbaru_: sesi lama ikut ganti nama / pindah rombel (kasus Nadi
   } finally { g.getSheetData = simpan.gsd; g.siswaTerdaftar_ = simpan.st; }
 });
 
+// 13. peran & izin (v1.41.0)
+tes('izin: setiap fungsi staf/admin punya fitur; fungsi baca Dinas tetap "lihat"', () => {
+  const nama = Object.keys(g).filter((k) => /^wa(Staf|Admin)[A-Za-z0-9]+$/.test(k) && typeof g[k] === 'function');
+  sama(nama.length > 250, true, 'fungsi termuat');
+  const tanpa = nama.filter((n) => !g.izFitur_(n));
+  sama(tanpa, [], 'fungsi tanpa fitur (tambahkan polanya di IZN.FITUR)');
+  const dinasUbah = Object.keys(g.DINAS.BACA).filter((n) => g.izFitur_(n) !== 'umum' && g.izAksi_(n) !== 'lihat');
+  sama(dinasUbah, [], 'fungsi baca Dinas tergolong ubah');
+  sama([g.izAksi_('waStafMateriSimpan'), g.izAksi_('waStafMateriLengkap'), g.izAksi_('waStafMateriStatus')], ['ubah', 'lihat', 'ubah']);
+});
+tes('izin: peran kustom dibatasi di bawah peran dasar, Admin bawaan selalu penuh', () => {
+  const simpan = g.izData_;
+  try {
+    g.izData_ = () => ({ peran: { 'wali kelas': { nama: 'Wali Kelas', dasar: 'Tutor', status: 'Aktif' } }, izin: { 'Wali Kelas': { nilaiRapor: 'lihat', ruangStaf: 'tidak' }, 'Front Office': { kartuQr: 'tidak' } } });
+    const p = { id: 'U1', nama: 'Bu Wali', peran: 'Tutor', peranKustom: 'Wali Kelas' };
+    const peta = g.izPetaPengguna_(p);
+    sama([peta.nilaiRapor, peta.ruangStaf, peta.mapelSaya, peta.keuangan], ['lihat', 'tidak', 'ubah', undefined]);
+    const coba = (fn, orang) => { g.__API_FN = fn; g.__IZN_OK = ''; try { g.izPeriksa_(orang); return 'boleh'; } catch (e) { return 'tolak'; } };
+    sama([coba('waStafLeger', p), coba('waStafNilaiInput', p), coba('waStafRuangKirim', p), coba('waStafMateriSimpan', p), coba('waStafProfil', p)], ['boleh', 'tolak', 'tolak', 'boleh', 'boleh']);
+    sama(coba('waStafKeuSimpan', p), 'boleh', 'fitur di luar peran dasar: diserahkan ke pemeriksaan lama');
+    sama(coba('waAdminKartuQr', { id: 'F1', peran: 'Front Office' }), 'tolak', 'peran bawaan pun bisa dibatasi');
+    sama(coba('waAdminPeranSimpan', { id: 'A1', peran: 'Admin' }), 'boleh', 'Admin bawaan penuh');
+    g.__API_FN = '';
+  } finally { g.izData_ = simpan; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

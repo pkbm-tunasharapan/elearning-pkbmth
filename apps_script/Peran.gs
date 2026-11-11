@@ -102,7 +102,8 @@ function bacaPengguna_() {
       baris: i + 1,
       id: sTeks_(r[0]).trim() || ('BARIS' + (i + 1)),
       nama: sTeks_(r[1]).trim(),
-      peran: normPeran_(r[2]),
+      peran: normPeran_(r[2]) || (function() { var k = typeof izPeranKustom_ === 'function' ? izPeranKustom_(r[2]) : null; return k ? k.dasar : ''; })(),
+      peranKustom: normPeran_(r[2]) ? '' : (function() { var k = typeof izPeranKustom_ === 'function' ? izPeranKustom_(r[2]) : null; return k ? k.nama : ''; })(),
       kode: sTeks_(r[3]).trim(),
       hp: sTeks_(r[4]),
       status: sTeks_(r[5]).trim() || 'Aktif',
@@ -202,8 +203,9 @@ function stafDariToken_(token) {
       // Sesi diperpanjang tiap ada aktivitas (6 jam sejak aktivitas terakhir, bukan sejak masuk).
       try { CacheService.getScriptCache().put('staf_' + token, id, PERAN.DURASI_SESI_DETIK); } catch (e) {}
       if (daftar[i].peran !== 'Admin' && mtAktif_()) throw new Error('MAINTENANCE');
-      if (daftar[i].peran === 'Dinas Pendidikan' && typeof dinasSaring_ === 'function') return dinasSaring_(daftar[i]);
-      return daftar[i];
+      var hasilU = (daftar[i].peran === 'Dinas Pendidikan' && typeof dinasSaring_ === 'function') ? dinasSaring_(daftar[i]) : daftar[i];
+      if (typeof izPeriksa_ === 'function') izPeriksa_(hasilU);   // v1.41.0: izin per fitur (Peran & Izin)
+      return hasilU;
     }
   }
   throw new Error('SESI_HABIS');
@@ -458,8 +460,9 @@ function waAdminDaftar(token) {
   enr.forEach(function(e) { jumlah[e.idPengguna] = (jumlah[e.idPengguna] || 0) + 1; });
   return {
     pengguna: bacaPengguna_().map(function(p) {
-      return { id: p.id, nama: p.nama, peran: p.peran, kode: p.kode, hp: p.hp, status: p.status, jumlahMapel: jumlah[p.id] || 0 };
+      return { id: p.id, nama: p.nama, peran: p.peranKustom || p.peran, peranDasar: p.peran, kode: p.kode, hp: p.hp, status: p.status, jumlahMapel: jumlah[p.id] || 0 };
     }),
+    peranTersedia: (function() { try { return izRingkasPeran_().filter(function(r) { return r.status !== 'Nonaktif'; }).map(function(r) { return { nama: r.nama, dasar: r.dasar, bawaan: r.bawaan }; }); } catch (e) { return []; } })(),
     mapel: mapelAktifSemua_().map(function(m) {
       return { idMapel: m.idMapel, namaMapel: m.namaMapel, idRombel: m.idRombel, namaRombel: m.namaRombel };
     }),
@@ -478,10 +481,12 @@ function jumlahAdminAktif_(kecualiId) {
 function waAdminSimpanPengguna(token, data) {
   var me = wajibAdmin_(token);
   var nama = String(data.nama || '').trim();
-  var peran = normPeran_(data.peran);
+  var peran = normPeran_(data.peran), kustom = peran ? null : izPeranKustom_(data.peran);
+  if (kustom) peran = kustom.nama;                                   // v1.41.0: peran kustom (Peran & Izin)
+  var dasarP = kustom ? kustom.dasar : peran;
   var status = data.status === 'Nonaktif' ? 'Nonaktif' : 'Aktif';
   if (!nama) throw new Error('Nama wajib diisi.');
-  if (!peran) throw new Error('Peran harus Admin, Superadmin, Tutor, Kepala Sekolah, Koordinator Kurikulum, Front Office, atau Bendahara.');
+  if (!peran) throw new Error('Peran tidak dikenal. Pilih peran bawaan atau peran yang dibuat di menu Peran & Izin.');
   var kunci = LockService.getScriptLock(), idBaru = '';
   kunci.waitLock(15000);
   try {
@@ -499,7 +504,7 @@ function waAdminSimpanPengguna(token, data) {
       var ada = null;
       daftar.forEach(function(p) { if (p.id === data.id) ada = p; });
       if (!ada) throw new Error('Pengguna tidak ditemukan.');
-      var tetapAdmin = peran === 'Admin' && status === 'Aktif';
+      var tetapAdmin = peran === 'Admin' && status === 'Aktif';   // hanya Admin bawaan yang dihitung sebagai admin utama
       if (ada.peran === 'Admin' && ada.status === 'Aktif' && !tetapAdmin && jumlahAdminAktif_(ada.id) === 0) {
         throw new Error('Tidak bisa: ini satu-satunya admin aktif. Tambahkan admin lain dulu.');
       }
@@ -508,7 +513,7 @@ function waAdminSimpanPengguna(token, data) {
       sheet.getRange(ada.baris, 5).setValue(String(data.hp || ''));
       sheet.getRange(ada.baris, 6).setValue(status);
       if (!ada.kode) sheet.getRange(ada.baris, 4).setValue(buatKodeStaf_());
-      if (peran !== 'Tutor' || status !== 'Aktif') hapusEnrollmentPengguna_(ada.id);
+      if (dasarP !== 'Tutor' || status !== 'Aktif') hapusEnrollmentPengguna_(ada.id);
       else segarkanNamaEnrollment_(ada.id, nama);
     } else {
       var baris = sheet.getLastRow() + 1;
@@ -521,7 +526,7 @@ function waAdminSimpanPengguna(token, data) {
   }
   catat_('Admin', me.id, me.nama, data.id ? 'Ubah pengguna' : 'Tambah pengguna', nama + ' (' + peran + ', ' + status + ')', 'OK');
   // v1.38.5: tutor yang dibuat/diubah di e-learning langsung tercatat di Data Induk (IndukTutor.gs)
-  if (peran === 'Tutor') indukSelarasTutor_(data.id || idBaru);
+  if (dasarP === 'Tutor') indukSelarasTutor_(data.id || idBaru);
   return true;
 }
 

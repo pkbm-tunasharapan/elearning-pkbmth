@@ -37,7 +37,9 @@ import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
 import 'arsip/arsip.dart';
+import 'pengguna/peran_izin.dart';
 import 'pemeliharaan/sistem.dart';
+import 'api.dart';
 import 'session.dart';
 import 'siswa/kartu_qr_massal.dart';
 
@@ -117,12 +119,20 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, native: () => const PengajuanTutorScreen()),
   MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, native: () => const PengaturanAiScreen()),
   MenuApp(id: 'arsip', judul: 'Arsip Data', ikon: Icons.inventory_2_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const ArsipScreen()),
+  MenuApp(id: 'peranIzin', judul: 'Peran & Izin', ikon: Icons.admin_panel_settings_outlined, peran: _admin, native: () => const PeranIzinScreen()),
   MenuApp(id: 'pemeliharaan', judul: 'Pemeliharaan Sistem', ikon: Icons.health_and_safety_outlined, peran: _admin, native: () => const PemeliharaanScreen()),
   MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
   MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, native: () => const KerangkaScreen()),
 ];
 
-List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran)).toList();
+// v1.41.0: menu juga mengikuti izin per fitur (menu Peran & Izin). Menu yang memakai fitur lain: lihat _aliasFitur.
+const _aliasFitur = {'rppSemua': 'rpp'};
+bool izinkanMenu(Sesi s, String id) {
+  if (id == 'peranIzin' && s.peranKustom.isNotEmpty) return false;   // hanya Admin utama
+  return teks(s.izin[_aliasFitur[id] ?? id]) != 'tidak';
+}
+
+List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran) && izinkanMenu(s, m.id)).toList();
 
 // ───────────────────────── pengelompokan & pencarian menu ─────────────────────────
 
@@ -139,7 +149,7 @@ const _grupMenu = <String, String>{
   'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
-  'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'maintenance': 'Sistem',
+  'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'peranIzin': 'Sistem', 'maintenance': 'Sistem',
 };
 
 /// Kata kunci tambahan agar pencarian menemukan menu dengan istilah sehari-hari.
@@ -164,6 +174,7 @@ const _kataKunci = <String, String>{
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',
   'arsip': 'arsip backup cadangan semester lampau data offline hardcopy kode akses',
+  'peranIzin': 'peran role izin permission hak akses',
   'otoNilai': 'ajaib otomatis selesaikan penilaian belum dinilai kkm',
   'kinerja': 'poin minus penilaian kinerja tutor terlambat',
 };
