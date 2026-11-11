@@ -1754,14 +1754,21 @@ function waStafHonorBayar(token, id, d) {
     var sumber = String(d.sumberDana || aturan.sumberDana || '').slice(0, 40);
     kalCekSaldo_(sumber, jumlah, d.paksa === true, p, 'Honor ' + tutor.nama + ' ' + o.bulan);   // v1.44.0
     var idTrx = absId_();
-    var tx = absBaca_(HON.TAB_TRX);
-    tx.sh.appendRow(absBaris_(tx, {
+    var tx = keuTrxTab_();
+    var pphH = pjkHitung_(jumlah, null, d.pph && d.pph.tarif ? { jenis: 'PPh 21', tarif: d.pph.tarif } : null, 'Pengeluaran');   // v1.46.0
+    var akunH = kalAkunSah_(d.akun) || kalAkunBawaan_(d.metode || rek.metode || 'transfer');
+    var rowH = {
       'ID TRANSAKSI': idTrx, 'TANGGAL': tanggal, 'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': 'HON',
-      'URAIAN': 'Honor ' + tutor.nama + ' bulan ' + o.bulan, 'JUMLAH': jumlah, 'SUMBER DANA': sumber, 'PIHAK TERKAIT': tutor.nama,
+      'URAIAN': 'Honor ' + tutor.nama + ' bulan ' + o.bulan + (pphH.pph ? ' (dipotong PPh 21 ' + honRp_(pphH.pph) + ', dibayar bersih ' + honRp_(jumlah - pphH.pph) + ')' : ''), 'JUMLAH': jumlah, 'SUMBER DANA': sumber, 'PIHAK TERKAIT': tutor.nama,
       'BUKTI': bukti, 'STATUS': 'Disetujui', 'DIPUTUS OLEH': p.nama, 'TANGGAL KEPUTUSAN': tanggal, 'CATATAN KEPUTUSAN': 'Pembayaran honor (otomatis dari TH.E-Course)',
       'TAHUN PELAJARAN': sim.tahun, 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_(),
-      'AKUN KAS': kalAkunSah_(d.akun) || kalAkunBawaan_(d.metode || rek.metode || 'transfer')
-    }));
+      'AKUN KAS': akunH
+    };
+    var kp = pjkKeKolom_(pphH);
+    Object.keys(kp).forEach(function(k) { rowH[k] = kp[k]; });
+    tx.sh.appendRow(absBaris_(tx, rowH));
+    if (pphH.pph) pjkPungut_({ id: idTrx, jenis: 'Pengeluaran', pph: pphH.pph, pphJenis: 'PPh 21', tarifPph: pphH.tarifPph, tanggal: tanggal, uraian: rowH['URAIAN'],
+      sumber: sumber, pihak: tutor.nama, akun: akunH, tahun: sim.tahun });
     var tb = absBaca_(HON.TAB_BAYAR);
     var idBayar = absId_();
     tb.sh.appendRow(absBaris_(tb, {
@@ -3125,7 +3132,7 @@ function keuWajib_(p, apa) {
 // ---------- tabel ----------
 function keuTrxTab_() {
   var t = absBaca_(KEU.TAB_TRX);
-  ['TAGIHAN', 'AKUN KAS', 'AKUN TUJUAN'].forEach(function(k) {   // v1.45.0: AKUN KAS / AKUN TUJUAN (mutasi)
+  ['TAGIHAN', 'AKUN KAS', 'AKUN TUJUAN'].concat(PJK.KOLOM).forEach(function(k) {   // v1.46.0: kolom pajak   // v1.45.0: AKUN KAS / AKUN TUJUAN (mutasi)
     if (absCol_(t, k) >= 0) return;
     t.sh.getRange(1, t.sh.getLastColumn() + 1).setValue(k).setFontWeight('bold');
     t = absBaca_(KEU.TAB_TRX);
@@ -3148,7 +3155,9 @@ function keuTrxObj_(t, r, i) {
     status: sTeks_(g('STATUS')).trim() || 'Disetujui', diputusOleh: sTeks_(g('DIPUTUS OLEH')), tglPutus: sTeks_(g('TANGGAL KEPUTUSAN')),
     catatanPutus: sTeks_(g('CATATAN KEPUTUSAN')), tahun: sTeks_(g('TAHUN PELAJARAN')), dicatatOleh: sTeks_(g('DICATAT OLEH')),
     dicatatPada: sTeks_(g('DICATAT PADA')), idTagihan: sTeks_(g('TAGIHAN')).trim(),
-    akun: sTeks_(g('AKUN KAS')).trim(), akunTujuan: sTeks_(g('AKUN TUJUAN')).trim()
+    akun: sTeks_(g('AKUN KAS')).trim(), akunTujuan: sTeks_(g('AKUN TUJUAN')).trim(),
+    dpp: keuAngka_(g('DPP')), ppn: keuAngka_(g('PPN')), tarifPpn: keuAngka_(g('TARIF PPN')), pphJenis: sTeks_(g('PPH JENIS')).trim(),
+    tarifPph: keuAngka_(g('TARIF PPH')), pph: keuAngka_(g('PPH')), induk: sTeks_(g('INDUK')).trim(), disetor: sTeks_(g('DISETOR')).trim(), ntpn: sTeks_(g('NTPN')).trim()
   };
 }
 function keuSemua_(t) {
@@ -3201,7 +3210,7 @@ function waStafKeuKonteks(token) {
   return {
     peran: { catat: r.catat, putus: r.putus, lihat: r.lihat }, kategori: keuKategori_(), sumber: KEU.SUMBER, sumberKat: KEU.SUMBER_KAT,
     saldo: { total: total, per: per }, menunggu: menunggu, tahun: absSim_().tahun, bulanIni: keuBulanIni_(),
-    akun: kalDaftarAkunSaldo_(semua), jenisAkun: KAL.JENIS_AKUN
+    akun: kalDaftarAkunSaldo_(semua), jenisAkun: KAL.JENIS_AKUN, pajak: pjkAturan_()
   };
 }
 // q: {dari, sampai, jenis, status, kategori, sumber, cari}
@@ -3247,6 +3256,7 @@ function waStafKeuSimpan(token, d) {
   if (!kat) throw new Error('Pilih kategori.');
   if (kat.jenis && kat.jenis !== d.jenis) throw new Error('Kategori ' + kat.nama + ' untuk ' + kat.jenis + '.');
   if (kat.kode === 'HON') throw new Error('Pengeluaran honor dicatat otomatis dari menu Rekap Honor.');
+  if (kat.kode === PJK.KAT) throw new Error('Pajak dipungut/disetor dicatat dari menu Pajak.');
   var jumlah = Math.round(keuAngka_(d.jumlah));
   if (jumlah <= 0) throw new Error('Jumlah harus lebih dari 0.');
   var uraian = String(d.uraian || '').trim();
@@ -3261,6 +3271,10 @@ function waStafKeuSimpan(token, d) {
       'JUMLAH': jumlah, 'SUMBER DANA': sumber, 'PIHAK TERKAIT': String(d.pihak || '').slice(0, 120)
     };
     if (d.akun !== undefined) isi['AKUN KAS'] = kalAkunSah_(d.akun);   // v1.45.0
+    if (d.ppn !== undefined || d.pph !== undefined) {   // v1.46.0: PPN termasuk harga / PPh dipotong
+      var hp = pjkKeKolom_(pjkHitung_(jumlah, d.ppn, d.pph, d.jenis));
+      Object.keys(hp).forEach(function(k) { isi[k] = hp[k]; });
+    }
     if (d.bukti) isi['BUKTI'] = keuSimpanBukti_(d.bukti, 'TRX-' + tgl + '-' + absId_());
     if (d.id) {
       for (var i = 1; i < t.v.length; i++) {
@@ -3311,6 +3325,7 @@ function waStafKeuBatal(token, id, alasan) {
   var o = keuUbahBaris_(keuTrxTab_(), id, function(o) {
     if (o.kategori === 'HON') throw new Error('Transaksi honor dibatalkan dari menu Rekap Honor.');
     if (o.status === 'Dibatalkan' || o.status === 'Ditolak') throw new Error('Transaksi sudah ' + o.status + '.');
+    pjkBolehBatal_(o);   // v1.46.0
     return { 'STATUS': 'Dibatalkan', 'CATATAN KEPUTUSAN': 'Dibatalkan ' + p.nama + ': ' + alasan.slice(0, 200), 'TANGGAL KEPUTUSAN': absWaktu_() };
   });
   catat_(p.peran, '-', p.nama, 'Batal transaksi', o.id + ': ' + alasan, 'OK');
@@ -3372,6 +3387,7 @@ function waStafKeuLaporan(token, q) {
   var akunF = q.akun ? (q.akun === '-' ? '' : String(q.akun)) : null;
   var kat = keuKatPeta_(), ap = kalAkunPeta_(), semua = keuSemua_(), awal = 0, masuk = 0, keluar = 0, baris = [], perKat = {}, perSum = {}, menunggu = 0, mutasi = [], pa = {};
   var nAkun = function(k) { return k ? (ap[k] ? ap[k].nama : k) : KAL.TANPA_AKUN.nama; };
+  var pj = { ppnMasukan: 0, ppnKeluaran: 0, dipungut: 0, disetor: 0, titipan: 0 };   // v1.46.0
   var akunRow = function(k) { return pa[k] || (pa[k] = { kode: k, nama: nAkun(k), awal: 0, masuk: 0, keluar: 0, mutasiMasuk: 0, mutasiKeluar: 0 }); };
   kalAkun_().forEach(function(a) { akunRow(a.kode); });
   semua.sort(function(a, b) { return (a.tanggal + a.dicatatPada).localeCompare(b.tanggal + b.dicatatPada); });
@@ -3379,6 +3395,11 @@ function waStafKeuLaporan(token, q) {
     if (x.status === 'Menunggu' && x.tanggal <= sampai && (!q.sumber || x.sumber === q.sumber)) menunggu++;
     if (!keuSah_(x) || x.tanggal > sampai) return;
     var sebelum = x.tanggal < dari, ak = x.akun || '', tj = x.akunTujuan || '';
+    if (x.kategori === PJK.KAT) pj.titipan += x.jenis === 'Pemasukan' ? x.jumlah : -x.jumlah;
+    if (!sebelum) {
+      if (Number(x.ppn) > 0) { if (x.jenis === 'Pengeluaran') pj.ppnMasukan += Number(x.ppn); else pj.ppnKeluaran += Number(x.ppn); }
+      if (x.kategori === PJK.KAT) { if (x.jenis === 'Pemasukan') pj.dipungut += x.jumlah; else pj.disetor += x.jumlah; }
+    }
     // posisi kas per akun (seluruh dana)
     var A = akunRow(ak);
     if (x.jenis === 'Mutasi') {
@@ -3415,7 +3436,7 @@ function waStafKeuLaporan(token, q) {
     dari: dari, sampai: sampai, sumber: q.sumber || '', akun: akunF === null ? null : akunF, namaAkun: akunF === null ? '' : nAkun(akunF),
     saldoAwal: awal, masuk: masuk, keluar: keluar, saldoAkhir: awal + masuk - keluar,
     baris: baris, perKategori: Object.keys(perKat).map(function(k) { return perKat[k]; }).sort(function(a, b) { return a.jenis.localeCompare(b.jenis) || b.jumlah - a.jumlah; }),
-    perSumber: Object.keys(perSum).map(function(k) { return perSum[k]; }), perAkun: perAkun, mutasi: mutasi, menunggu: menunggu, lembaga: nilLembaga_(), tanggal: absHariIni_()
+    perSumber: Object.keys(perSum).map(function(k) { return perSum[k]; }), perAkun: perAkun, mutasi: mutasi, pajak: pj, menunggu: menunggu, lembaga: nilLembaga_(), tanggal: absHariIni_()
   };
 }
 

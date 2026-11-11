@@ -442,6 +442,8 @@ class _FormBayarState extends State<_FormBayar> {
   late final TextEditingController _rekening;
   final _sumber = TextEditingController(text: 'BOP');
   final _catatan = TextEditingController();
+  final _tarifPph = TextEditingController(text: '2,5');
+  bool _pph = false;   // v1.46.0: potong PPh 21
   DateTime _tgl = DateTime.now();
   String? _bukti;
 
@@ -456,7 +458,7 @@ class _FormBayarState extends State<_FormBayar> {
 
   @override
   void dispose() {
-    for (final c in [_jumlah, _metode, _rekening, _sumber, _catatan]) {
+    for (final c in [_jumlah, _metode, _rekening, _sumber, _catatan, _tarifPph]) {
       c.dispose();
     }
     super.dispose();
@@ -478,7 +480,8 @@ class _FormBayarState extends State<_FormBayar> {
     final h = await jalankanSaldo(context, (paksa) => Api.instance('waStafHonorBayar', [
           _t,
           teks(widget.r['id']),
-          {'jumlah': j, 'tanggal': tglIso(_tgl), 'metode': _metode.text, 'rekening': _rekening.text, 'sumberDana': _sumber.text, 'catatan': _catatan.text, if (_bukti != null) 'bukti': _bukti, if (akun != null) 'akun': akun, 'paksa': paksa}
+          {'jumlah': j, 'tanggal': tglIso(_tgl), 'metode': _metode.text, 'rekening': _rekening.text, 'sumberDana': _sumber.text, 'catatan': _catatan.text, if (_bukti != null) 'bukti': _bukti, if (akun != null) 'akun': akun,
+            if (_pph) 'pph': {'tarif': double.tryParse(_tarifPph.text.replaceAll(',', '.').trim()) ?? 0}, 'paksa': paksa}
         ], const Duration(seconds: 150)), teksProses: 'Mencatat pembayaran...');
     if (h.ok && mounted) {
       kabar(context, 'Pembayaran tercatat.');
@@ -495,7 +498,18 @@ class _FormBayarState extends State<_FormBayar> {
         Text('${teks(r['nama'])} · ${bulanIndo(teks(r['bulan']))}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
         Text('Total ${rp(r['total'])} · sudah dibayar ${rp(r['dibayar'])} · sisa ${rp(r['sisa'])}'),
         const SizedBox(height: 14),
-        TextField(controller: _jumlah, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah dibayar (Rp)')),
+        TextField(controller: _jumlah, onChanged: (_) => setState(() {}), keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah dibayar (Rp, bruto)')),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _pph,
+          onChanged: (v) => setState(() => _pph = v),
+          title: const Text('Potong PPh 21'),
+          subtitle: Text(_pph
+              ? 'PPh ${rp(((int.tryParse(_jumlah.text.replaceAll(RegExp(r'[^\d]'), '')) ?? 0) * (double.tryParse(_tarifPph.text.replaceAll(',', '.')) ?? 0) / 100).round())} '
+                  'menjadi titipan pajak (wajib disetor, menu Keuangan → Pajak). Transfer ke tutor = jumlah − PPh.'
+              : 'Bila dipotong, tercatat otomatis sebagai pajak dipungut.'),
+        ),
+        if (_pph) TextField(controller: _tarifPph, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Tarif PPh 21 (%)', isDense: true)),
         const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: () async {

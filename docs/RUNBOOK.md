@@ -127,3 +127,9 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 - Pencatatan otomatis: pendaftaran via gateway & biaya layanan → PG; sekretariat → TUNAI; transfer/QRIS statis, penarikan cashback, pengembalian dana → BANK; honor sesuai pilihan saat bayar.
 - Transaksi lama tanpa akun tampil "Belum ditentukan"; atur lewat detail transaksi → Atur akun kas.
 - Gateway: pilihan Midtrans / DOKU. DOKU baru bisa diaktifkan setelah integrasinya dibuat (Tahap E).
+
+## Pajak (v1.46.0, Tahap C)
+- Kolom pajak di TRANSAKSI: DPP, PPN, TARIF PPN, PPH JENIS, TARIF PPH, PPH, INDUK, DISETOR, NTPN. Tarif bawaan di Script Property `TH_KEU_PAJAK` (Keuangan → Pajak → pengaturan).
+- PPN "termasuk harga": JUMLAH tetap, dipisah DPP + PPN (informasi; lembaga non-PKP tidak memungut PPN).
+- PPh dipotong pada pengeluaran: JUMLAH = bruto. Saat disetujui, otomatis tercatat Pemasukan kategori PJK "Pajak dipungut" (INDUK = transaksi asal). Honor: centang Potong PPh 21 saat bayar.
+- Setor: Keuangan → Pajak → pilih potongan → NTPN + akun → Pengeluaran PJK; potongan ditandai DISETOR. Batalkan setoran dulu sebelum membatalkan transaksi asal.

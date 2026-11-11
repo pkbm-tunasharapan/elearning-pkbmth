@@ -102,6 +102,7 @@ class _KeuanganScreenState extends State<KeuanganScreen> {
             _Ubin(ikon: Icons.receipt_long_rounded, judul: 'Transaksi', sub: 'Pemasukan & pengeluaran', onTap: () => _buka(TransaksiScreen(konteks: d))),
             _Ubin(ikon: Icons.request_quote_rounded, judul: 'Tagihan Warga Belajar', sub: 'Iuran, biaya ujian, tunggakan', onTap: () => _buka(TagihanScreen(konteks: d))),
             _Ubin(ikon: Icons.account_balance_wallet_rounded, judul: 'Akun Kas & Mutasi', sub: 'Tunai, bank, payment gateway; pemindahan antar akun', onTap: () => _buka(AkunKasScreen(konteks: d))),
+            _Ubin(ikon: Icons.receipt_rounded, judul: 'Pajak', sub: 'PPN, potongan PPh, setoran & buku pembantu pajak', onTap: () => _buka(PajakScreen(konteks: d))),
             _Ubin(ikon: Icons.menu_book_rounded, judul: 'Laporan Kas', sub: 'Buku kas per periode, sumber dana & akun', onTap: () => _buka(LaporanKasScreen(konteks: d))),
             if (peran['catat'] == true) _Ubin(ikon: Icons.category_rounded, judul: 'Kategori Keuangan', sub: 'Kode & nama kategori', onTap: () => _buka(KategoriKeuScreen(konteks: d))),
           ]),
@@ -157,7 +158,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   Future<void> _detail(Map<String, dynamic> x) async {
     final st = teks(x['status']);
     final bolehUbah = _peran['catat'] == true && teks(x['kategori']) != 'HON' && teks(x['idTagihan']).isEmpty && (st == 'Menunggu' || (teks(x['jenis']) == 'Pemasukan' && st == 'Disetujui'));
-    final bolehBatal = _peran['catat'] == true && teks(x['kategori']) != 'HON' && (st == 'Menunggu' || st == 'Disetujui');
+    final bolehBatal = _peran['catat'] == true && teks(x['kategori']) != 'HON' && !(teks(x['kategori']) == 'PJK' && teks(x['jenis']) == 'Pemasukan') && (st == 'Menunggu' || st == 'Disetujui');
     final bolehPutus = _peran['putus'] == true && st == 'Menunggu';
     final bolehAkun = _peran['catat'] == true && st != 'Ditolak' && st != 'Dibatalkan';
     final mutasi = teks(x['jenis']) == 'Mutasi';
@@ -177,6 +178,10 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
             const SizedBox(height: 6),
             Text(mutasi ? 'Mutasi · ${teks(x['namaAkun'])} → ${teks(x['namaAkunTujuan'])}' : '${teks(x['jenis'])} · ${teks(x['namaKategori'])} · ${teks(x['sumber'])}'),
             if (!mutasi) Text('Akun kas: ${teks(x['namaAkun'])}'),
+            if (nilaiNum(x['ppn']) > 0) Text('Termasuk PPN ${_pctTeks(x['tarifPpn'])}%: DPP ${rp(x['dpp'])} + PPN ${rp(x['ppn'])}'),
+            if (nilaiNum(x['pph']) > 0) Text('Dipotong ${teks(x['pphJenis'])} ${_pctTeks(x['tarifPph'])}%: ${rp(x['pph'])} · diterima penerima ${rp(nilaiNum(x['jumlah']) - nilaiNum(x['pph']))}'),
+            if (teks(x['ntpn']).isNotEmpty) Text('NTPN ${teks(x['ntpn'])}'),
+            if (teks(x['kategori']) == 'PJK' && teks(x['jenis']) == 'Pemasukan') Text(teks(x['disetor']).isEmpty ? 'Titipan pajak, belum disetor' : 'Sudah disetor (${teks(x['disetor'])})'),
             Text('${tglIndo(teks(x['tanggal']))}${teks(x['pihak']).isEmpty ? '' : ' · ${teks(x['pihak'])}'}'),
             Text('No. ${teks(x['id'])} · dicatat ${teks(x['dicatatOleh'])}', style: const TextStyle(fontSize: 12)),
             if (teks(x['diputusOleh']).isNotEmpty || teks(x['catatanPutus']).isNotEmpty)
@@ -301,6 +306,10 @@ class _FormTransaksiState extends State<FormTransaksi> {
   String? _kategori;
   String? _sumber;
   String? _akun;
+  bool _ppn = false;
+  String _pphJenis = '';
+  final _tarifPpn = TextEditingController();
+  final _tarifPph = TextEditingController();
   late String _tgl;
   final _jumlah = TextEditingController();
   final _uraian = TextEditingController();
@@ -317,6 +326,10 @@ class _FormTransaksiState extends State<FormTransaksi> {
       _kategori = teks(x['kategori']);
       _sumber = teks(x['sumber']);
       _akun = teks(x['akun']).isEmpty ? null : teks(x['akun']);
+      _ppn = nilaiNum(x['ppn']) > 0;
+      if (_ppn) _tarifPpn.text = _pctTeks(x['tarifPpn']);
+      _pphJenis = teks(x['pphJenis']);
+      if (_pphJenis.isNotEmpty) _tarifPph.text = _pctTeks(x['tarifPph']);
       _tgl = teks(x['tanggal'], _tgl);
       _jumlah.text = '${angka(x['jumlah'])}';
       _uraian.text = teks(x['uraian']);
@@ -329,12 +342,67 @@ class _FormTransaksiState extends State<FormTransaksi> {
     _jumlah.dispose();
     _uraian.dispose();
     _pihak.dispose();
+    _tarifPpn.dispose();
+    _tarifPph.dispose();
     super.dispose();
+  }
+
+  Map<String, dynamic> get _aturanPajak => peta(widget.konteks['pajak']);
+  num _tarifBawaan(String j) => nilaiNum(_aturanPajak[switch (j) { 'PPh 21' => 'pph21Tarif', 'PPh 23' => 'pph23Tarif', 'PPh 4(2)' => 'pph42Tarif', _ => '-' }]);
+
+  Widget _pajak() {
+    final j = _angka(_jumlah.text);
+    final tp = _pct(_tarifPpn.text) ?? nilaiNum(_aturanPajak['ppnTarif']).toDouble();
+    final dpp = _ppn && tp > 0 ? (j * 100 / (100 + tp)).round() : j;
+    final tr = _pct(_tarifPph.text) ?? 0;
+    final pph = _jenis == 'Pengeluaran' && _pphJenis.isNotEmpty ? (dpp * tr / 100).round() : 0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _ppn,
+            onChanged: (v) => setState(() {
+              _ppn = v;
+              if (v && _tarifPpn.text.isEmpty) _tarifPpn.text = _pctTeks(_aturanPajak['ppnTarif'] ?? 11);
+            }),
+            title: const Text('Harga sudah termasuk PPN'),
+            subtitle: Text(_jenis == 'Pemasukan' ? 'Jasa pendidikan dibebaskan PPN; centang hanya bila memang ada PPN.' : 'Dipisah menjadi DPP + PPN untuk laporan.'),
+          ),
+          if (_ppn) TextField(controller: _tarifPpn, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Tarif PPN efektif (%)', isDense: true)),
+          if (_jenis == 'Pengeluaran') ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _pphJenis,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Potong PPh', isDense: true),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('Tidak dipotong')),
+                for (final p in daftar(_aturanPajak['jenisPph']).map(teks)) DropdownMenuItem(value: p, child: Text(p)),
+              ],
+              onChanged: (v) => setState(() {
+                _pphJenis = v ?? '';
+                if (_pphJenis.isNotEmpty) _tarifPph.text = _pctTeks(_tarifBawaan(_pphJenis));
+              }),
+            ),
+            if (_pphJenis.isNotEmpty) TextField(controller: _tarifPph, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Tarif PPh (%)', isDense: true)),
+          ],
+          if (_ppn || pph > 0) ...[
+            const SizedBox(height: 8),
+            Text([
+              if (_ppn) 'DPP ${rp(dpp)} + PPN ${rp(j - dpp)}',
+              if (pph > 0) 'PPh ${rp(pph)} dipotong → penerima menerima ${rp(j - pph)}; PPh menjadi titipan yang wajib disetor (menu Pajak).',
+            ].join('\n'), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ],
+        ]),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final kat = daftar(widget.konteks['kategori']).map(peta).where((k) => teks(k['jenis']) == _jenis && teks(k['kode']) != 'HON').toList();
+    final kat = daftar(widget.konteks['kategori']).map(peta).where((k) => teks(k['jenis']) == _jenis && teks(k['kode']) != 'HON' && teks(k['kode']) != 'PJK').toList();
     final sumber = daftar(widget.konteks['sumber']).map((e) => teks(e)).toList();
     final sumberKat = peta(widget.konteks['sumberKat']);
     return Scaffold(
@@ -372,7 +440,9 @@ class _FormTransaksiState extends State<FormTransaksi> {
           }),
         ),
         const SizedBox(height: 12),
-        TextField(controller: _jumlah, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah (Rp)', prefixText: 'Rp ')),
+        TextField(controller: _jumlah, onChanged: (_) => setState(() {}), keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _jenis == 'Pengeluaran' ? 'Jumlah bruto (Rp)' : 'Jumlah (Rp)', prefixText: 'Rp ')),
+        const SizedBox(height: 8),
+        _pajak(),
         const SizedBox(height: 12),
         TextField(controller: _uraian, decoration: const InputDecoration(labelText: 'Uraian'), maxLines: 2),
         const SizedBox(height: 12),
@@ -416,7 +486,9 @@ class _FormTransaksiState extends State<FormTransaksi> {
                   {
                     if (widget.x != null) 'id': teks(widget.x!['id']),
                     'tanggal': _tgl, 'jenis': _jenis, 'kategori': _kategori, 'jumlah': _angka(_jumlah.text), 'uraian': _uraian.text,
-                    'sumber': _sumber ?? '', 'pihak': _pihak.text, 'akun': _akun, if (_bukti != null) 'bukti': _bukti
+                    'sumber': _sumber ?? '', 'pihak': _pihak.text, 'akun': _akun, if (_bukti != null) 'bukti': _bukti,
+                    'ppn': {'aktif': _ppn, if (_ppn) 'tarif': _pct(_tarifPpn.text)},
+                    'pph': _jenis == 'Pengeluaran' && _pphJenis.isNotEmpty ? {'jenis': _pphJenis, 'tarif': _pct(_tarifPph.text)} : null
                   }
                 ], const Duration(minutes: 2)), teksProses: 'Menyimpan...');
             if (r.ok && context.mounted) {
@@ -861,6 +933,20 @@ class _LaporanKasScreenState extends State<LaporanKasScreen> {
                 ]),
               ),
             ),
+            if (peta(d['pajak']).values.any((v) => nilaiNum(v) != 0)) ...[
+              const JudulBagian('Pajak'),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(children: [
+                    _barisRingkas('PPh dipungut', peta(d['pajak'])['dipungut']),
+                    _barisRingkas('PPh disetor', peta(d['pajak'])['disetor']),
+                    _barisRingkas('Titipan pajak belum disetor (akhir periode)', peta(d['pajak'])['titipan'], tebal: true),
+                    _barisRingkas('PPN dibayar dalam pembelian', peta(d['pajak'])['ppnMasukan']),
+                  ]),
+                ),
+              ),
+            ],
             if (teks(d['namaAkun']).isEmpty && daftar(d['perAkun']).isNotEmpty) ...[
               const JudulBagian('Posisi kas per akun'),
               Card(
@@ -954,6 +1040,13 @@ String bukuKasHtml(Map<String, dynamic> d, {bool excel = false}) {
           '<td class="r">${uang(a['mutasiMasuk'])}</td><td class="r">${uang(a['mutasiKeluar'])}</td><td class="r">${excel ? nilaiNum(a['akhir']) : rp(a['akhir'])}</td></tr>');
     }
     b.write('</table>');
+  }
+  final pj = peta(d['pajak']);
+  if (pj.values.any((v) => nilaiNum(v) != 0)) {
+    b.write('<h2 style="font-size:11pt;text-align:left;margin-top:14px">Pajak</h2><table>'
+        '<tr><td>PPh dipungut</td><td class="r">${uang(pj['dipungut'])}</td></tr><tr><td>PPh disetor</td><td class="r">${uang(pj['disetor'])}</td></tr>'
+        '<tr><td><b>Titipan pajak belum disetor (akhir periode)</b></td><td class="r"><b>${excel ? nilaiNum(pj['titipan']) : rp(pj['titipan'])}</b></td></tr>'
+        '<tr><td>PPN dibayar dalam pembelian</td><td class="r">${uang(pj['ppnMasukan'])}</td></tr></table>');
   }
   final mutasi = daftar(d['mutasi']).map(peta).toList();
   if (mutasi.isNotEmpty) {
@@ -1263,4 +1356,240 @@ class _FormMutasiState extends State<FormMutasi> {
       ]),
     );
   }
+}
+
+// ───────────────────────── pajak (v1.46.0) ─────────────────────────
+
+String _pctTeks(dynamic v) => nilaiNum(v).toString().replaceAll(RegExp(r'\.0$'), '').replaceAll('.', ',');
+double? _pct(String s) => double.tryParse(s.replaceAll(',', '.').trim());
+
+class PajakScreen extends StatefulWidget {
+  const PajakScreen({super.key, required this.konteks});
+  final Map<String, dynamic> konteks;
+
+  @override
+  State<PajakScreen> createState() => _PajakScreenState();
+}
+
+class _PajakScreenState extends State<PajakScreen> {
+  DateTime _bulan = DateTime.now();
+  int _v = 0;
+  final Set<String> _pilih = {};
+  Map<String, dynamic>? _d;
+
+  Future<void> _aturan(Map<String, dynamic> a) async {
+    final c = {for (final k in ['ppnTarif', 'pph21Tarif', 'pph23Tarif', 'pph42Tarif']) k: TextEditingController(text: _pctTeks(a[k]))};
+    const label = {'ppnTarif': 'PPN efektif (%)', 'pph21Tarif': 'PPh 21 bawaan (%)', 'pph23Tarif': 'PPh 23 bawaan (%)', 'pph42Tarif': 'PPh 4(2) bawaan (%)'};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Pengaturan pajak'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (final e in c.entries) TextField(controller: e.value, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: label[e.key])),
+            const SizedBox(height: 8),
+            const Text('Tarif hanya nilai bawaan saat mencatat (bisa diubah per transaksi). Pastikan sesuai ketentuan terbaru dari KPP / konsultan pajak lembaga.',
+                style: TextStyle(fontSize: 12)),
+          ]),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Simpan'))],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafKeuPajakAturan', [_t, {for (final e in c.entries) e.key: _pct(e.value.text) ?? 0}]), teksProses: 'Menyimpan...');
+    if (r.ok && mounted) setState(() => _v++);
+  }
+
+  Future<void> _setor(Map<String, dynamic> d, List<Map<String, dynamic>> pilih) async {
+    final ntpn = TextEditingController();
+    var tgl = DateTime.now();
+    String? bukti;
+    final total = pilih.fold<num>(0, (s, x) => s + nilaiNum(x['jumlah']));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, atur) => AlertDialog(
+          title: Text('Setor ${rp(total)}'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${pilih.length} potongan pajak akan ditandai disetor.'),
+              TextField(controller: ntpn, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'NTPN / nomor bukti setor')),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final p = await showDatePicker(context: ctx, firstDate: DateTime(tgl.year - 2), lastDate: DateTime.now(), initialDate: tgl);
+                  if (p != null) atur(() => tgl = p);
+                },
+                icon: const Icon(Icons.event_rounded, size: 18),
+                label: Text('Tanggal setor ${tglIndo(tglIso(tgl))}'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final f = await ambilFoto(bolehGaleri: true, context: ctx);
+                  if (f != null) atur(() => bukti = f);
+                },
+                icon: Icon(bukti == null ? Icons.add_a_photo_outlined : Icons.check_circle_rounded, size: 18),
+                label: Text(bukti == null ? 'Bukti setor (opsional)' : 'Bukti terlampir'),
+              ),
+            ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Lanjut'))],
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final akun = await pilihAkunKas(context, daftar(d['akun']).map(peta).toList(), judul: 'Disetor dari akun', awal: 'BANK');
+    if (akun == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafKeuSetorPajak', [
+          _t,
+          {'ids': pilih.map((x) => teks(x['id'])).toList(), 'tanggal': tglIso(tgl), 'ntpn': ntpn.text, 'akun': akun, if (bukti != null) 'bukti': bukti}
+        ], const Duration(minutes: 2)), teksProses: 'Mencatat setoran...');
+    if (r.ok && mounted) {
+      kabar(context, 'Setoran pajak tercatat.');
+      _pilih.clear();
+      setState(() => _v++);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final catat = peta(widget.konteks['peran'])['catat'] == true;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pajak'), actions: [
+        IconButton(
+          tooltip: 'PDF buku pembantu pajak',
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          onPressed: () => _d == null ? null : htmlKePdf(context, nama: 'Buku_Pajak_${_awalBulan(_bulan).substring(0, 7)}.pdf', args: [_t, bukuPajakHtml(_d!)]),
+        ),
+      ]),
+      body: Muatan<Map<String, dynamic>>(
+        key: ValueKey('$_v|$_bulan'),
+        muat: () async {
+          final d = peta(await Api.instance('waStafKeuPajak', [_t, {'dari': _awalBulan(_bulan), 'sampai': _akhirBulan(_bulan)}]));
+          _d = d;
+          return d;
+        },
+        bangun: (context, d, segarkan) {
+          final a = peta(d['aturan']);
+          final potong = daftar(d['potong']).map(peta).toList();
+          final belum = potong.where((x) => teks(x['disetor']).isEmpty).toList();
+          final setor = daftar(d['setor']).map(peta).toList();
+          final ppn = peta(d['ppn']);
+          final dipilih = belum.where((x) => _pilih.contains(teks(x['id']))).toList();
+          return RefreshIndicator(
+            onRefresh: segarkan,
+            child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 32), children: [
+              Row(children: [
+                IconButton(onPressed: () => setState(() => _bulan = DateTime(_bulan.year, _bulan.month - 1)), icon: const Icon(Icons.chevron_left_rounded)),
+                Expanded(child: Text(_namaBulan(_bulan), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+                IconButton(onPressed: () => setState(() => _bulan = DateTime(_bulan.year, _bulan.month + 1)), icon: const Icon(Icons.chevron_right_rounded)),
+              ]),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.account_balance_rounded),
+                  title: Text('Belum disetor ${rp(d['belumDisetor'])}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text('Tarif bawaan: PPN ${_pctTeks(a['ppnTarif'])}% · PPh 21 ${_pctTeks(a['pph21Tarif'])}% · PPh 23 ${_pctTeks(a['pph23Tarif'])}% · PPh 4(2) ${_pctTeks(a['pph42Tarif'])}%'),
+                  trailing: catat ? IconButton(tooltip: 'Pengaturan pajak', icon: const Icon(Icons.tune_rounded), onPressed: () => _aturan(a)) : null,
+                ),
+              ),
+              for (final j in daftar(d['perJenis']).map(peta))
+                ListTile(dense: true, title: Text(teks(j['jenis'])), trailing: Text('dipungut ${rp(j['dipungut'])} · disetor ${rp(j['disetor'])}')),
+              JudulBagian('Potongan belum disetor', sub: '${belum.length} potongan'),
+              if (belum.isEmpty) const Kosong(pesan: 'Tidak ada potongan pajak yang menunggu setor.'),
+              if (belum.isNotEmpty)
+                Card(
+                  child: Column(children: [
+                    for (final x in belum)
+                      CheckboxListTile(
+                        dense: true,
+                        value: _pilih.contains(teks(x['id'])),
+                        onChanged: catat ? (v) => setState(() => v == true ? _pilih.add(teks(x['id'])) : _pilih.remove(teks(x['id']))) : null,
+                        title: Text('${teks(x['jenis'])} ${_pctTeks(x['tarif'])}% · ${rp(x['jumlah'])}'),
+                        subtitle: Text('${tglIndo(teks(x['tanggal']))} · ${teks(x['pihak'])} · bruto ${rp(x['bruto'])}\n${teks(x['uraianInduk'])}', maxLines: 3),
+                      ),
+                  ]),
+                ),
+              if (catat && belum.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Wrap(spacing: 8, children: [
+                    OutlinedButton(onPressed: () => setState(() => _pilih.addAll(belum.map((x) => teks(x['id'])))), child: const Text('Pilih semua')),
+                    FilledButton.icon(
+                      onPressed: dipilih.isEmpty ? null : () => _setor(d, dipilih),
+                      icon: const Icon(Icons.send_rounded, size: 18),
+                      label: Text('Setor ${rp(dipilih.fold<num>(0, (s, x) => s + nilaiNum(x['jumlah'])))}'),
+                    ),
+                  ]),
+                ),
+              JudulBagian('Setoran bulan ini', sub: '${setor.length} setoran'),
+              if (setor.isEmpty) const Kosong(pesan: 'Belum ada setoran pada bulan ini.'),
+              for (final s in setor)
+                Card(
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.verified_rounded, color: Colors.green),
+                    title: Text('${rp(s['jumlah'])} · NTPN ${teks(s['ntpn'])}'),
+                    subtitle: Text('${tglIndo(teks(s['tanggal']))} · ${teks(s['jenis'])} · ${teks(s['akun'])}'),
+                  ),
+                ),
+              JudulBagian('PPN dalam transaksi bulan ini', sub: 'dibayar ${rp(ppn['masukan'])} · diterima ${rp(ppn['keluaran'])}'),
+              for (final x in daftar(ppn['baris']).map(peta))
+                ListTile(
+                  dense: true,
+                  title: Text(teks(x['uraian']), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text('${tglIndo(teks(x['tanggal']))} · ${teks(x['jenis'])} · DPP ${rp(x['dpp'])}'),
+                  trailing: Text('PPN ${rp(x['ppn'])}'),
+                ),
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text('Lembaga yang bukan PKP tidak memungut PPN; PPN pada pembelian adalah bagian dari harga dan dicatat sebagai informasi. '
+                    'Jasa pendidikan dibebaskan dari PPN. PPh yang dipotong adalah titipan negara dan wajib disetor.', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+String bukuPajakHtml(Map<String, dynamic> d) {
+  final l = peta(d['lembaga']);
+  final potong = daftar(d['potong']).map(peta).where((x) => x['diPeriode'] == true || teks(x['disetor']).isEmpty).toList();
+  final setor = daftar(d['setor']).map(peta).toList();
+  final ppn = peta(d['ppn']);
+  final b = StringBuffer(_kopKeu(l));
+  b.write('<h2>BUKU PEMBANTU PAJAK</h2><p>Periode ${escHtml(tglIndo(teks(d['dari'])))} s.d. ${escHtml(tglIndo(teks(d['sampai'])))}</p>');
+  b.write('<table><tr><th>Jenis</th><th>Dipungut</th><th>Disetor</th></tr>');
+  for (final j in daftar(d['perJenis']).map(peta)) {
+    b.write('<tr><td>${escHtml(teks(j['jenis']))}</td><td class="r">${rp(j['dipungut'])}</td><td class="r">${rp(j['disetor'])}</td></tr>');
+  }
+  b.write('<tr><th>Belum disetor (seluruhnya)</th><th colspan="2" class="r">${rp(d['belumDisetor'])}</th></tr></table>');
+  b.write('<h2 style="font-size:11pt;text-align:left;margin-top:12px">Potongan pajak</h2><table><tr><th>No</th><th>Tanggal</th><th>No. Bukti</th><th>Penerima</th><th>Uraian</th><th>Bruto</th><th>Jenis</th><th>Tarif</th><th>PPh</th><th>Disetor</th></tr>');
+  var i = 0;
+  for (final x in potong) {
+    i++;
+    b.write('<tr><td class="c">$i</td><td>${escHtml(teks(x['tanggal']))}</td><td>${escHtml(teks(x['induk']))}</td><td>${escHtml(teks(x['pihak']))}</td><td>${escHtml(teks(x['uraianInduk']))}</td>'
+        '<td class="r">${rp(x['bruto'])}</td><td>${escHtml(teks(x['jenis']))}</td><td class="c">${_pctTeks(x['tarif'])}%</td><td class="r">${rp(x['jumlah'])}</td>'
+        '<td>${teks(x['disetor']).isEmpty ? '<b>belum</b>' : escHtml(teks(x['disetor']))}</td></tr>');
+  }
+  b.write('</table>');
+  if (setor.isNotEmpty) {
+    b.write('<h2 style="font-size:11pt;text-align:left;margin-top:12px">Setoran</h2><table><tr><th>Tanggal</th><th>No. Bukti</th><th>Jenis</th><th>NTPN</th><th>Akun</th><th>Jumlah</th></tr>');
+    for (final s in setor) {
+      b.write('<tr><td>${escHtml(teks(s['tanggal']))}</td><td>${escHtml(teks(s['id']))}</td><td>${escHtml(teks(s['jenis']))}</td><td>${escHtml(teks(s['ntpn']))}</td><td>${escHtml(teks(s['akun']))}</td><td class="r">${rp(s['jumlah'])}</td></tr>');
+    }
+    b.write('</table>');
+  }
+  final pb = daftar(ppn['baris']).map(peta).toList();
+  if (pb.isNotEmpty) {
+    b.write('<h2 style="font-size:11pt;text-align:left;margin-top:12px">PPN dalam transaksi</h2><table><tr><th>Tanggal</th><th>No. Bukti</th><th>Jenis</th><th>Uraian</th><th>Jumlah</th><th>DPP</th><th>PPN</th></tr>');
+    for (final x in pb) {
+      b.write('<tr><td>${escHtml(teks(x['tanggal']))}</td><td>${escHtml(teks(x['id']))}</td><td>${escHtml(teks(x['jenis']))}</td><td>${escHtml(teks(x['uraian']))}</td>'
+          '<td class="r">${rp(x['jumlah'])}</td><td class="r">${rp(x['dpp'])}</td><td class="r">${rp(x['ppn'])}</td></tr>');
+    }
+    b.write('<tr><th colspan="6">PPN dibayar (pembelian)</th><th class="r">${rp(ppn['masukan'])}</th></tr></table>');
+  }
+  b.write('<table class="ttd"><tr><td>Mengetahui,<br>Kepala Satuan Pendidikan<br><br><br><br>(..............................)</td><td>${tanggalIni()}<br>Bendahara<br><br><br><br>(..............................)</td></tr></table>');
+  return dokumenA4(b.toString(), _cssKeu, lanskap: true);
 }

@@ -626,5 +626,17 @@ tes('keuangan: status referral pengembalian dana & format rupiah bertanda', () =
   sama(g.kalTglBayar_({ 'VERIF BAYAR PADA': '2026-11-02 10:15' }), '2026-11-02', 'tanggal bayar');
 });
 
+// 16. pajak (v1.46.0)
+tes('pajak: PPN termasuk harga & PPh dihitung dari DPP', () => {
+  const a = g.pjkHitung_(111000, { aktif: true }, null, 'Pengeluaran');
+  sama(a.dpp, 100000, 'dpp'); sama(a.ppn, 11000, 'ppn 11%');
+  const b = g.pjkHitung_(1000000, null, { jenis: 'PPh 23' }, 'Pengeluaran');
+  sama(b.pph, 20000, 'pph 23 2%'); sama(b.ppn, 0, 'tanpa ppn');
+  const c = g.pjkHitung_(1110000, { aktif: true }, { jenis: 'PPh 23', tarif: 2 }, 'Pengeluaran');
+  sama(c.pph, 20000, 'pph dari dpp');
+  sama(g.pjkHitung_(500000, null, { jenis: 'PPh 21' }, 'Pemasukan').pph, 0, 'pemasukan tidak dipotong');
+  sama(g.pjkHitung_(500000, null, { jenis: 'PPh 21', tarif: 2.5 }, 'Pengeluaran').pph, 12500, 'pph 21 2,5%');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

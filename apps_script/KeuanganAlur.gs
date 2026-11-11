@@ -149,6 +149,7 @@ function waStafRefKembaliAjukan(token, id, jumlah, alasan, bukti) {
 }
 // Dipanggil setelah transaksi diputus / dibatalkan di menu Keuangan.
 function kalSetelahPutus_(o, status) {
+  pjkSetelahPutus_(o, status);   // v1.46.0: potongan pajak ikut status transaksi asal
   if (!o || o.kategori !== KAL.KAT_KMB) return;
   try {
     var x = rfBaca_('DAFTAR').filter(function(y) { return y['ID TRX KEMBALI'] === o.id; })[0];
@@ -201,12 +202,15 @@ function waStafHonorBayarBatal(token, idBayar, alasan) {
     var idRekap = sTeks_(absNilai_(tb, r, 'REKAP HONOR')).trim(), idTrx = sTeks_(absNilai_(tb, r, 'ID TRANSAKSI')).trim();
     var jumlah = Number(String(absNilai_(tb, r, 'JUMLAH')).replace(/[^\d.-]/g, '')) || 0;
     var ket = p.nama + ' · ' + absWaktu_() + ': ' + alasan.slice(0, 200);
+    var trxLama = idTrx ? keuSemua_().filter(function(x) { return x.id === idTrx; })[0] : null;
+    if (trxLama) pjkBolehBatal_(trxLama);   // v1.46.0: PPh 21 yang sudah disetor harus dibatalkan setorannya dulu
     tb.sh.getRange(baris + 1, absCol_(tb, 'DIBATALKAN') + 1).setValue(ket);
     if (idTrx) {
       try {
-        keuUbahBaris_(keuTrxTab_(), idTrx, function() {
+        var oH = keuUbahBaris_(keuTrxTab_(), idTrx, function() {
           return { 'STATUS': 'Dibatalkan', 'TANGGAL KEPUTUSAN': absWaktu_(), 'CATATAN KEPUTUSAN': ('Pembayaran honor dibatalkan ' + ket).slice(0, 300) };
         });
+        pjkSetelahPutus_(oH, 'Dibatalkan');
       } catch (e) { try { catat_(p.peran, '', p.nama, 'Batal bayar honor GAGAL', idTrx + ': ' + ((e && e.message) || e), 'GAGAL'); } catch (e1) {} }
     }
     var sudah = 0;
@@ -304,7 +308,7 @@ function waStafKeuAkunSimpan(token, d) {
 function waStafKeuAkun(token) {
   var p = stafDariToken_(token), r = keuPeran_(p), h = honPeran_(p);
   if (!r.lihat && !h.bayar) throw new Error('Peran Anda tidak dapat melihat akun kas.');
-  return { akun: kalDaftarAkunSaldo_() };
+  return { akun: kalDaftarAkunSaldo_(), pajak: pjkAturan_() };
 }
 
 // Mutasi antar akun. d: {tanggal, dari, ke, jumlah, uraian, bukti?, paksa?}
