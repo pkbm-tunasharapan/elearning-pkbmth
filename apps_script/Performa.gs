@@ -24,6 +24,7 @@ function perfTanggal_() { return Utilities.formatDate(new Date(), 'Asia/Jakarta'
 // Dipanggil doPost setelah fungsi selesai.
 function perfSetelah_(fn, ms, ok) {
   fn = String(fn || '(tanpa fn)');
+  try { if (typeof kuCatat_ === 'function') kuCatat_(fn, ms, ok); } catch (eKu) {}   // v1.58.0: kinerja fungsi ujian per jam
   try {
     if (ok && PERF.POLA_UBAH.test(fn)) perfHapusCache_();
   } catch (e) {}

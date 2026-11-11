@@ -85,7 +85,11 @@ function waUjianDetak(idUjian, idRombel, nama, kodeAkses, perangkat) {
     var pd = pwPerangkatCari_(pwKunciSiswa_(idUjian, idRombel, nama));
     if (pd && pd.sidik !== u.sidik) return { sukses: true, perangkatLain: true, pesan: 'Ujian ini terdaftar di perangkat lain (' + pd.model + ').' };
   }
-  c.put('pw_d_' + pwKunciSiswa_(idUjian, idRombel, nama), String(Date.now()), 900);
+  var kd = 'pw_d_' + pwKunciSiswa_(idUjian, idRombel, nama), sbl = Number(c.get(kd)) || 0, kini = Date.now();
+  if (sbl && kini - sbl > PW.PUTUS_MENIT * 60000) {   // v1.58.0: catat koneksi terputus (untuk Laporan Kesiapan)
+    try { pwCatat_(idUjian, idRombel, nama, 'Koneksi terputus', 'Tidak tersambung ' + Math.round((kini - sbl) / 60000) + ' menit', 'Jaringan'); } catch (eP) {}
+  }
+  c.put(kd, String(kini), 900);
   return { sukses: true, tambahMenit: pwTambah_(idUjian, idRombel, nama), detik: PW.DETAK_DETIK };
 }
 
@@ -355,7 +359,7 @@ function waStafPengawasBeritaAcara(token, idSlot, idRombelSim) {
   var p = stafDariToken_(token);
   var cx = pwKonteks_(p, idSlot, idRombelSim), d = pwRuang_(cx);
   var lama = pwBaca_(PW.TAB_BA, PW.HDR_BA).filter(function(r) { return r['SLOT'] === cx.s.id && r['ROMBEL'] === cx.idRombelSim; })[0] || null;
-  var kejadian = d.log.map(function(r) {
+  var kejadian = d.log.filter(function(r) { return r['OLEH'] !== 'Jaringan'; }).map(function(r) {
     return { waktu: r['WAKTU'], jam: String(r['WAKTU']).slice(11, 16), nama: r['NAMA SISWA'], jenis: r['JENIS'], detail: r['DETAIL'], oleh: r['OLEH'], sistem: r['OLEH'] === 'Sistem' };
   }).sort(function(a, b) { return String(a.waktu).localeCompare(String(b.waktu)); });
   d.kejadian = kejadian;

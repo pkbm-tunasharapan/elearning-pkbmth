@@ -738,5 +738,18 @@ tes('syarat bayar: konfigurasi masa dan batas 2 hari remedial', () => {
   sama(g.sbJamSejak_('bukan tanggal'), 0, 'waktu tidak sah');
 });
 
+// 24. laporan kesiapan sistem (v1.58.0)
+tes('kesiapan: penggolongan alasan gagal mulai & rentang tanggal', () => {
+  sama(g.kuAlasanGagal_('ujian MTR-1 - Token ujian salah. Minta token dari pengawas'), 'Token salah / belum diisi', 'token');
+  sama(g.kuAlasanGagal_('ujian MTR-1 - syarat kehadiran'), 'Syarat kehadiran', 'kehadiran');
+  sama(g.kuAlasanGagal_('ujian MTR-1 - syarat pembayaran'), 'Syarat pembayaran', 'pembayaran');
+  sama(g.kuAlasanGagal_('ujian MTR-1 - perangkat lain'), 'Perangkat lain', 'perangkat');
+  sama(g.kuAlasanGagal_('ujian MTR-1 - PIN salah'), 'PIN salah', 'pin');
+  sama(g.kuAlasanGagal_('ujian MTR-1 - Ujian belum dibuka. Dijadwalkan'), 'Belum waktunya', 'belum buka');
+  sama(g.kuDalam_('2026-11-16 08:00:00', '2026-11-16', '2026-11-20'), true, 'dalam rentang');
+  sama(g.kuDalam_('2026-11-21 08:00:00', '2026-11-16', '2026-11-20'), false, 'luar rentang');
+  sama(g.KU.FUNGSI.indexOf('waMulaiUjian') >= 0, true, 'fungsi ujian dipantau');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

@@ -4,6 +4,7 @@ import '../absensi/umum.dart';
 import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'laporan_kesiapan.dart';
 import 'pengawas.dart';
 import 'tinjauan.dart';
 
@@ -590,6 +591,12 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
               icon: const Icon(Icons.how_to_reg_outlined),
               label: const Text('Syarat ujian'),
             ),
+            if (!draft)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LaporanKesiapanScreen(idMasa: widget.id))),
+                icon: const Icon(Icons.assessment_outlined),
+                label: const Text('Laporan kesiapan'),
+              ),
           ]),
           const SizedBox(height: 8),
           JudulBagian('Slot jadwal (${_slot.length})', sub: draft ? 'Setiap slot berlaku serentak untuk semua rombel peserta.' : 'Terkunci. Batalkan penetapan untuk mengubah.'),
