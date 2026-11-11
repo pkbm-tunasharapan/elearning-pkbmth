@@ -190,7 +190,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       final setuju = aksi == 'setuju';
       final cat = await mintaTeks(context, setuju ? 'Setujui pengeluaran?' : 'Tolak pengeluaran?', label: 'Catatan (opsional)');
       if (cat == null || !mounted) return;
-      final r = await jalankan(context, () => Api.instance('waStafKeuPutus', [_t, teks(x['id']), setuju, cat]), teksProses: 'Menyimpan keputusan...');
+      final r = await jalankanSaldo(context, (paksa) => Api.instance('waStafKeuPutus', [_t, teks(x['id']), setuju, cat, paksa]), teksProses: 'Menyimpan keputusan...');
       if (r.ok && mounted) setState(() => _v++);
     }
   }

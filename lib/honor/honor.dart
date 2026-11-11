@@ -142,8 +142,11 @@ String _infoAturan(Map<String, dynamic> a, {dynamic honor}) {
 }
 
 class _DaftarBayar extends StatelessWidget {
-  const _DaftarBayar({required this.bayar});
+  const _DaftarBayar({required this.bayar, this.dibatalkan = const [], this.onBatal});
   final List<Map<String, dynamic>> bayar;
+  final List<Map<String, dynamic>> dibatalkan;
+  /// v1.44.0: Ketua Yayasan dapat membatalkan pembayaran yang salah catat.
+  final void Function(Map<String, dynamic> b)? onBatal;
 
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -153,13 +156,22 @@ class _DaftarBayar extends StatelessWidget {
             leading: const Icon(Icons.payments_rounded, color: Colors.green),
             title: Text('${rp(b['jumlah'])} · ${tglIndo(teks(b['tanggal']))}'),
             subtitle: Text([teks(b['metode']), teks(b['rekening']), if (teks(b['oleh']).isNotEmpty) 'oleh ${teks(b['oleh'])}'].where((x) => x.isNotEmpty).join(' · ')),
-            trailing: b['adaBukti'] == true
-                ? IconButton(
-                    tooltip: 'Lihat bukti',
-                    icon: const Icon(Icons.receipt_long_rounded),
-                    onPressed: () => lihatFoto(context, () async => peta(await Api.instance('waStafHonorBukti', [_t, teks(b['id'])]))),
-                  )
-                : null,
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (b['adaBukti'] == true)
+                IconButton(
+                  tooltip: 'Lihat bukti',
+                  icon: const Icon(Icons.receipt_long_rounded),
+                  onPressed: () => lihatFoto(context, () async => peta(await Api.instance('waStafHonorBukti', [_t, teks(b['id'])]))),
+                ),
+              if (onBatal != null) IconButton(tooltip: 'Batalkan pembayaran', icon: const Icon(Icons.undo_rounded), onPressed: () => onBatal!(b)),
+            ]),
+          ),
+        for (final b in dibatalkan)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.block_rounded, color: Colors.grey),
+            title: Text('${rp(b['jumlah'])} · ${tglIndo(teks(b['tanggal']))} (dibatalkan)', style: const TextStyle(decoration: TextDecoration.lineThrough)),
+            subtitle: Text(teks(b['batal'])),
           ),
       ]);
 }
@@ -286,6 +298,16 @@ class _RekapHonorScreenState extends State<RekapHonorScreen> {
     if (h.ok && mounted) setState(() => _v++);
   }
 
+  Future<void> _batalBayar(Map<String, dynamic> b) async {
+    final alasan = await mintaTeks(context, 'Batalkan pembayaran ${rp(b['jumlah'])}?', label: 'Alasan (transaksi honor di Keuangan ikut dibatalkan)');
+    if (alasan == null || !mounted) return;
+    final h = await jalankan(context, () => Api.instance('waStafHonorBayarBatal', [_t, teks(b['id']), alasan]), teksProses: 'Membatalkan pembayaran...');
+    if (h.ok && mounted) {
+      kabar(context, 'Pembayaran dibatalkan. Sisa honor kembali terbuka untuk dibayar.');
+      setState(() => _v++);
+    }
+  }
+
   Future<void> _bayar(Map<String, dynamic> r) async {
     final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => _FormBayar(r: r)));
     if (ok == true && mounted) setState(() => _v++);
@@ -380,7 +402,11 @@ class _RekapHonorScreenState extends State<RekapHonorScreen> {
                         ),
                       if (r['bulanan'] != null) _RincianBulanan(b: peta(r['bulanan'])),
                       _RincianSesi(sesi: daftar(r['sesi']).map(peta).toList()),
-                      _DaftarBayar(bayar: daftar(r['pembayaran']).map(peta).toList()),
+                      _DaftarBayar(
+                        bayar: daftar(r['pembayaran']).map(peta).toList(),
+                        dibatalkan: daftar(r['dibatalkan']).map(peta).toList(),
+                        onBatal: peran['setuju'] == true ? (b) => _batalBayar(b) : null,
+                      ),
                       Wrap(spacing: 8, runSpacing: 6, children: [
                         OutlinedButton.icon(onPressed: () => _tunggakan(r), icon: const Icon(Icons.rule_rounded, size: 18), label: const Text('Cek tunggakan')),
                         if (peran['setuju'] == true && (teks(r['status']) == 'Draft' || teks(r['status']) == 'Ditahan'))
@@ -440,10 +466,10 @@ class _FormBayarState extends State<_FormBayar> {
     if (j <= 0) return kabar(context, 'Isi jumlah pembayaran.', galat: true);
     if (!await konfirmasi(context, 'Catat pembayaran ${rp(j)}?', 'Untuk ${teks(widget.r['nama'])} bulan ${bulanIndo(teks(widget.r['bulan']))}. Pembayaran otomatis tercatat sebagai pengeluaran honor (HON) di Keuangan.', ya: 'Catat')) return;
     if (!mounted) return;
-    final h = await jalankan(context, () => Api.instance('waStafHonorBayar', [
+    final h = await jalankanSaldo(context, (paksa) => Api.instance('waStafHonorBayar', [
           _t,
           teks(widget.r['id']),
-          {'jumlah': j, 'tanggal': tglIso(_tgl), 'metode': _metode.text, 'rekening': _rekening.text, 'sumberDana': _sumber.text, 'catatan': _catatan.text, if (_bukti != null) 'bukti': _bukti}
+          {'jumlah': j, 'tanggal': tglIso(_tgl), 'metode': _metode.text, 'rekening': _rekening.text, 'sumberDana': _sumber.text, 'catatan': _catatan.text, if (_bukti != null) 'bukti': _bukti, 'paksa': paksa}
         ], const Duration(seconds: 150)), teksProses: 'Mencatat pembayaran...');
     if (h.ok && mounted) {
       kabar(context, 'Pembayaran tercatat.');

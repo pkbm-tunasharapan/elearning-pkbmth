@@ -276,6 +276,26 @@ Future<Hasil<T>> jalankan<T>(BuildContext context, Future<T> Function() aksi, {S
   }
 }
 
+/// v1.44.0: seperti [jalankan], tetapi bila server menolak karena saldo sumber dana akan minus (SALDO_KURANG),
+/// pengguna diminta konfirmasi, lalu aksi diulang dengan paksa = true (tercatat di log server).
+Future<Hasil<T>> jalankanSaldo<T>(BuildContext context, Future<T> Function(bool paksa) aksi, {String teksProses = 'Memproses...'}) async {
+  String? kurang;
+  final r = await jalankan<T?>(context, () async {
+    try {
+      return await aksi(false);
+    } on ApiException catch (e) {
+      if (!e.pesan.contains('SALDO_KURANG')) rethrow;
+      kurang = e.pesan.replaceFirst(RegExp(r'^.*SALDO_KURANG:\s*'), '');
+      return null;
+    }
+  }, teksProses: teksProses);
+  if (kurang == null) return r.ok ? Hasil<T>(true, r.data as T) : Hasil<T>(false);
+  if (!context.mounted) return Hasil<T>(false);
+  final ya = await konfirmasi(context, 'Saldo sumber dana tidak cukup',
+      '${kurang!}\n\nTetap catat? Saldo sumber dana ini akan minus dan konfirmasi Anda tercatat di log.', ya: 'Tetap catat');
+  if (!ya || !context.mounted) return Hasil<T>(false);
+  return jalankan<T>(context, () => aksi(true), teksProses: teksProses);
+}
 
 // ───────────────────────── galat: kode & modal ─────────────────────────
 

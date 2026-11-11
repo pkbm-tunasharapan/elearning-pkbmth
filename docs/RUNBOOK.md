@@ -112,3 +112,11 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
   Fitur terkunci (`IZN.KUNCI`) tidak dapat diberikan. Dinas selalu hanya lihat.
 - Darurat (admin terkunci keluar dari sebuah fitur): hapus baris terkait di tab `Izin Peran`, lalu tunggu ≤10 menit
   atau jalankan `izHapusCache_()` dari editor Apps Script. Admin bawaan tidak pernah dibatasi.
+
+## Alur Keuangan (v1.44.0, Tahap A)
+- Pendaftaran referral: pemasukan DAF dicatat saat **lunas** (tanggal bayar). Kolom `ID TRANSAKSI` di tab REFERRAL DAFTAR menandai sudah tercatat.
+- Midtrans: pemasukan = jumlah dibayar pendaftar; biaya layanan (Pengaturan Referral → Biaya layanan %, biaya tetap) dicatat terpisah sebagai pengeluaran **ADM** dengan nomor order yang sama.
+- Pengembalian dana pendaftaran: Bendahara → "Ajukan pengembalian dana" (pengeluaran **KMB**, Menunggu) → Ketua Yayasan memutus di Keuangan.
+- Penarikan cashback: Ketua Yayasan menyetujui → Bendahara membayar + bukti (pengeluaran RFL).
+- Pembayaran honor yang salah: Ketua Yayasan → ikon batal di daftar pembayaran (transaksi HON ikut Dibatalkan).
+- Pengeluaran yang membuat saldo sumber dana minus meminta konfirmasi; konfirmasi tercatat di log (PERINGATAN). Pencatatan kas otomatis yang gagal tercatat GAGAL di log dan diulang saat Referral dibuka.

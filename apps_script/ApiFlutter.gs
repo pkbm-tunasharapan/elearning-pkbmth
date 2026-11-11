@@ -1501,7 +1501,7 @@ function honPembayaran_() {
   for (var i = 1; i < t.v.length; i++) {
     var r = t.v[i];
     var id = sTeks_(absNilai_(t, r, 'REKAP HONOR')).trim();
-    if (!id) continue;
+    if (!id || sTeks_(absNilai_(t, r, 'DIBATALKAN')).trim()) continue;   // v1.44.0: dibatalkan Ketua Yayasan
     (out[id] = out[id] || []).push({
       id: sTeks_(absNilai_(t, r, 'ID BAYAR')), tanggal: absTgl_(absNilai_(t, r, 'TANGGAL')), jumlah: Number(String(absNilai_(t, r, 'JUMLAH')).replace(/[^\d.-]/g, '')) || 0,
       metode: sTeks_(absNilai_(t, r, 'METODE')), rekening: sTeks_(absNilai_(t, r, 'REKENING TUJUAN')), adaBukti: !!sTeks_(absNilai_(t, r, 'BUKTI')).trim(),
@@ -1641,7 +1641,8 @@ function waStafHonorRekap(token, bulan) {
   if (hp.tutor) { saya = absTutorSaya_(p); if (!saya) throw new Error('Akun Anda belum terhubung dengan data tutor di Data Induk.'); }
   var tutor = absPetaTutor_();
   var hadir = honKehadiran_(bulan, aturan);
-  var bayar = honPembayaran_();
+  var bayar = honPembayaran_(), batalBayar = {};
+  try { batalBayar = honPembayaranBatal_(); } catch (eB) {}
   var t = absBaca_(HON.TAB_REKAP), out = [], dicatat = {};
   for (var i = 1; i < t.v.length; i++) {
     var o = honBarisRekap_(t, t.v[i]);
@@ -1650,6 +1651,7 @@ function waStafHonorRekap(token, bulan) {
     dicatat[o.tutor] = true;
     o.nama = tutor[o.tutor] ? tutor[o.tutor].nama : o.tutor;
     o.pembayaran = bayar[o.id] || [];
+    o.dibatalkan = batalBayar[o.id] || [];
     o.dibayar = o.pembayaran.reduce(function(s, x) { return s + x.jumlah; }, 0);
     o.sisa = Math.max(0, o.total - o.dibayar);
     o.sesi = (hadir[o.tutor] || {}).sesi || [];
@@ -1750,6 +1752,7 @@ function waStafHonorBayar(token, id, d) {
     }
     var aturan = honAturan_(), sim = absSim_();
     var sumber = String(d.sumberDana || aturan.sumberDana || '').slice(0, 40);
+    kalCekSaldo_(sumber, jumlah, d.paksa === true, p, 'Honor ' + tutor.nama + ' ' + o.bulan);   // v1.44.0
     var idTrx = absId_();
     var tx = absBaca_(HON.TAB_TRX);
     tx.sh.appendRow(absBaris_(tx, {
@@ -3302,16 +3305,19 @@ function waStafKeuBatal(token, id, alasan) {
     return { 'STATUS': 'Dibatalkan', 'CATATAN KEPUTUSAN': 'Dibatalkan ' + p.nama + ': ' + alasan.slice(0, 200), 'TANGGAL KEPUTUSAN': absWaktu_() };
   });
   catat_(p.peran, '-', p.nama, 'Batal transaksi', o.id + ': ' + alasan, 'OK');
+  kalSetelahPutus_(o, 'Dibatalkan');
   return { sukses: true };
 }
-function waStafKeuPutus(token, id, setuju, catatan) {
+function waStafKeuPutus(token, id, setuju, catatan, paksa) {
   var p = stafDariToken_(token);
   keuWajib_(p, 'putus');
   var o = keuUbahBaris_(keuTrxTab_(), id, function(o) {
     if (o.status !== 'Menunggu') throw new Error('Transaksi ini sudah ' + o.status + '.');
+    if (setuju && o.jenis === 'Pengeluaran') kalCekSaldo_(o.sumber, o.jumlah, paksa === true, p, o.id);   // v1.44.0
     return { 'STATUS': setuju ? 'Disetujui' : 'Ditolak', 'DIPUTUS OLEH': p.nama, 'TANGGAL KEPUTUSAN': absWaktu_(), 'CATATAN KEPUTUSAN': String(catatan || '').slice(0, 300) };
   });
   catat_(p.peran, '-', p.nama, setuju ? 'Setujui pengeluaran' : 'Tolak pengeluaran', o.id + ' ' + o.jumlah, 'OK');
+  kalSetelahPutus_(o, setuju ? 'Disetujui' : 'Ditolak');
   return { sukses: true };
 }
 function waStafKeuBukti(token, id) {

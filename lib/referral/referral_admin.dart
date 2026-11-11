@@ -10,7 +10,7 @@ import 'referral.dart';
 
 String? get _t => Sesi.instance.token;
 
-const _urutStatus = ['Menunggu Verifikasi Berkas', 'Menunggu Verifikasi Bayar', 'Menunggu Pembayaran', 'Perlu Perbaikan', 'Pembayaran Ditolak', 'Selesai', 'Ditolak'];
+const _urutStatus = ['Menunggu Verifikasi Berkas', 'Menunggu Verifikasi Bayar', 'Menunggu Pembayaran', 'Perlu Perbaikan', 'Pembayaran Ditolak', 'Pengembalian Diajukan', 'Dana Dikembalikan', 'Selesai', 'Ditolak'];
 
 /// Referral pendaftaran (petugas): verifikasi berkas & pembayaran, penarikan saldo, pengaturan.
 class ReferralAdminScreen extends StatefulWidget {
@@ -42,9 +42,19 @@ class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
     if (bukti == null || !mounted) return;
     final cat = await mintaTeks(context, 'Bayar ${rpRef(t['jumlah'])} ke ${teks(t['promotor'])}?', label: 'Catatan (opsional)');
     if (cat == null || !mounted) return;
-    final r = await jalankan(context, () => Api.instance('waStafRefTarikBayar', [_t, teks(t['id']), bukti, cat], const Duration(minutes: 2)), teksProses: 'Mencatat pembayaran...');
+    final r = await jalankanSaldo(context, (paksa) => Api.instance('waStafRefTarikBayar', [_t, teks(t['id']), bukti, cat, paksa], const Duration(minutes: 2)), teksProses: 'Mencatat pembayaran...');
     if (r.ok && mounted) {
       kabar(context, 'Penarikan dibayar. Promotor mendapat notifikasi.');
+      setState(() => _v++);
+    }
+  }
+
+  Future<void> _setujuiTarik(Map<String, dynamic> t) async {
+    final cat = await mintaTeks(context, 'Setujui penarikan ${rpRef(t['jumlah'])} untuk ${teks(t['promotor'])}?', label: 'Catatan (opsional)');
+    if (cat == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafRefTarikSetujui', [_t, teks(t['id']), cat]), teksProses: 'Menyetujui...');
+    if (r.ok && mounted) {
+      kabar(context, 'Penarikan disetujui. Bendahara dapat membayarnya.');
       setState(() => _v++);
     }
   }
@@ -94,14 +104,15 @@ class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
     final tarik = daftar(d['tarik']).map(peta).toList();
     final promotor = daftar(d['promotor']).map(peta).toList();
     final bend = peta(d['peran'])['bendahara'] == true;
-    final menunggu = tarik.where((t) => teks(t['status']) == 'Menunggu').toList();
+    final sa = peta(d['peran'])['sa'] == true;
+    final menunggu = tarik.where((t) => teks(t['status']) == 'Menunggu' || teks(t['status']) == 'Disetujui').toList();
     final total = menunggu.fold<int>(0, (s, t) => s + angka(t['jumlah']));
     return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
       Card(
         child: ListTile(
           leading: const Icon(Icons.pending_actions_rounded),
           title: Text('${menunggu.length} pengajuan menunggu · ${rpRef(total)}', style: const TextStyle(fontWeight: FontWeight.w800)),
-          subtitle: Text(bend ? 'Unggah bukti transfer untuk menandai dibayar.' : 'Pembayaran penarikan dilakukan oleh Bendahara.'),
+          subtitle: const Text('Alur: Ketua Yayasan menyetujui, lalu Bendahara mentransfer dan mengunggah bukti. Pengeluaran RFL tercatat otomatis di Keuangan.'),
         ),
       ),
       for (final t in tarik)
@@ -112,15 +123,19 @@ class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
               ListTile(
                 title: Text('${teks(t['promotor'])} · ${rpRef(t['jumlah'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text('${teks(t['peran'])} · ${teks(t['waktu'])}\n${teks(t['rekening'])}${teks(t['catatan']).isNotEmpty ? '\n${teks(t['catatan'])}' : ''}'
+                    '${teks(t['disetujuiOleh']).isNotEmpty ? '\nDisetujui ${teks(t['disetujuiOleh'])} · ${teks(t['disetujuiPada'])}' : ''}'
                     '${teks(t['oleh']).isNotEmpty ? '\nDiproses ${teks(t['oleh'])} · ${teks(t['pada'])}' : ''}'),
-                trailing: Lencana(teks(t['status']), warna: teks(t['status']) == 'Dibayar' ? Colors.green : (teks(t['status']) == 'Ditolak' ? cs.error : cs.outline)),
+                trailing: Lencana(teks(t['status']), warna: teks(t['status']) == 'Dibayar' ? Colors.green : (teks(t['status']) == 'Ditolak' ? cs.error : (teks(t['status']) == 'Disetujui' ? cs.primary : cs.outline))),
               ),
               Wrap(spacing: 8, children: [
                 const SizedBox(width: 8),
-                if (bend && teks(t['status']) == 'Menunggu') ...[
+                if (sa && teks(t['status']) == 'Menunggu')
+                  FilledButton.icon(onPressed: () => _setujuiTarik(t), icon: const Icon(Icons.verified_rounded, size: 18), label: const Text('Setujui')),
+                if (bend && teks(t['status']) == 'Disetujui')
                   FilledButton.icon(onPressed: () => _bayarTarik(t), icon: const Icon(Icons.upload_rounded, size: 18), label: const Text('Bayar & unggah bukti')),
+                if (bend && !sa && teks(t['status']) == 'Menunggu') const Padding(padding: EdgeInsets.only(top: 10), child: Text('Menunggu persetujuan Ketua Yayasan', style: TextStyle(fontSize: 12))),
+                if ((bend || sa) && (teks(t['status']) == 'Menunggu' || teks(t['status']) == 'Disetujui'))
                   TextButton(onPressed: () => _tolakTarik(t), child: const Text('Tolak')),
-                ],
                 if (t['adaBukti'] == true)
                   TextButton.icon(
                     onPressed: () => lihatBerkasRef(context, () => Api.instance('waStafRefTarikBukti', [_t, teks(t['id'])])),
@@ -221,6 +236,17 @@ class _DetailPendaftaran extends StatelessWidget {
     if (r.ok && context.mounted) Navigator.pop(context, true);
   }
 
+  Future<void> _kembalikan(BuildContext context) async {
+    final alasan = await mintaTeks(context, 'Ajukan pengembalian ${rpRef(x['jumlahBayar'])}?', label: 'Alasan (diputus Ketua Yayasan di menu Keuangan)');
+    if (alasan == null || !context.mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafRefKembaliAjukan', [_t, teks(x['id']), x['jumlahBayar'], alasan, null], const Duration(minutes: 2)),
+        teksProses: 'Mengajukan pengembalian...');
+    if (r.ok && context.mounted) {
+      kabar(context, 'Pengembalian diajukan (pengeluaran KMB menunggu persetujuan).');
+      Navigator.pop(context, true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -259,7 +285,14 @@ class _DetailPendaftaran extends StatelessWidget {
           title: Text('Pembayaran: ${teks(x['statusBayar'])}${teks(x['metodeBayar']).isNotEmpty ? ' (${teks(x['metodeBayar'])})' : ''}'),
           subtitle: Text([if (angka(x['jumlahBayar']) > 0) rpRef(x['jumlahBayar']), teks(x['catatanBayar']), teks(x['verifBayar'])].where((s) => s.isNotEmpty).join(' · ')),
         ),
-        if (st != 'Selesai' && st != 'Ditolak')
+        if (teks(x['idTransaksi']).isNotEmpty)
+          ListTile(dense: true, leading: const Icon(Icons.account_balance_rounded), title: const Text('Tercatat di Keuangan'), subtitle: SelectableText(teks(x['idTransaksi']).replaceAll(',', ' · '))),
+        if (peran['bendahara'] == true && x['bisaKembali'] == true)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(onPressed: () => _kembalikan(context), icon: const Icon(Icons.undo_rounded, size: 18), label: const Text('Ajukan pengembalian dana')),
+          ),
+        if (st != 'Selesai' && st != 'Ditolak' && st != 'Dana Dikembalikan' && st != 'Pengembalian Diajukan')
           Wrap(spacing: 8, runSpacing: 6, children: [
             if (peran['berkas'] == true && teks(x['statusBerkas']) != 'Terverifikasi') ...[
               FilledButton.icon(onPressed: () => _berkasVerif(context, 'setuju'), icon: const Icon(Icons.verified_rounded, size: 18), label: const Text('Berkas sah')),
@@ -319,6 +352,8 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
   final _serverKey = TextEditingController();
   final _clientKey = TextEditingController();
   final _merchant = TextEditingController();
+  final _biayaPersen = TextEditingController();
+  final _biayaTetap = TextEditingController();
   List<Map<String, TextEditingController>> _rek = [];
   bool _gwAktif = false, _produksi = false;
   String? _qrisBaru;
@@ -332,7 +367,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
 
   @override
   void dispose() {
-    for (final c in [_biaya, _cashback, _min, _alamat, _serverKey, _clientKey, _merchant, for (final r in _rek) ...r.values]) {
+    for (final c in [_biaya, _cashback, _min, _alamat, _serverKey, _clientKey, _merchant, _biayaPersen, _biayaTetap, for (final r in _rek) ...r.values]) {
       c.dispose();
     }
     super.dispose();
@@ -347,6 +382,8 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
     _serverKey.text = teks(g['serverKey']);
     _clientKey.text = teks(g['clientKey']);
     _merchant.text = teks(g['merchantId']);
+    _biayaPersen.text = '${g['biayaPersen'] ?? 0.7}';
+    _biayaTetap.text = '${g['biayaTetap'] ?? 0}';
     _gwAktif = g['aktif'] == true;
     _produksi = g['produksi'] == true;
     _rek = daftar(a['rekening']).map(peta).map((r) => {
@@ -380,7 +417,8 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
             'alamatSekretariat': _alamat.text.trim(),
             'rekening': [for (final x in _rek) {'bank': x['bank']!.text, 'nomor': x['nomor']!.text, 'atasNama': x['atasNama']!.text}],
             if (_qrisBaru != null) 'qris': _qrisBaru else if (_hapusQris) 'qris': '',
-            'gateway': {'aktif': _gwAktif, 'produksi': _produksi, 'penyedia': 'midtrans', 'serverKey': _serverKey.text.trim(), 'clientKey': _clientKey.text.trim(), 'merchantId': _merchant.text.trim()},
+            'gateway': {'aktif': _gwAktif, 'produksi': _produksi, 'penyedia': 'midtrans', 'serverKey': _serverKey.text.trim(), 'clientKey': _clientKey.text.trim(), 'merchantId': _merchant.text.trim(),
+              'biayaPersen': double.tryParse(_biayaPersen.text.replaceAll(',', '.').trim()) ?? 0, 'biayaTetap': _n(_biayaTetap)},
           }
         ])), teksProses: 'Menyimpan pengaturan...');
     if (r.ok && mounted) {
@@ -454,6 +492,14 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
       TextField(controller: _serverKey, decoration: const InputDecoration(labelText: 'Server Key', isDense: true)),
       TextField(controller: _clientKey, decoration: const InputDecoration(labelText: 'Client Key', isDense: true)),
       TextField(controller: _merchant, decoration: const InputDecoration(labelText: 'Merchant ID', isDense: true)),
+      Row(children: [
+        Expanded(child: TextField(controller: _biayaPersen, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Biaya layanan (%)', isDense: true))),
+        const SizedBox(width: 10),
+        Expanded(child: TextField(controller: _biayaTetap, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Biaya tetap (Rp/transaksi)', isDense: true))),
+      ]),
+      Text('Pemasukan dicatat sebesar yang dibayar pendaftar. Biaya layanan dicatat terpisah sebagai pengeluaran ADM dengan nomor order yang sama, '
+          'sehingga terlihat jumlah kotor, biaya, dan dana bersih. Sesuaikan dengan tarif di kontrak Midtrans (QRIS umumnya 0,7%).',
+          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       const SizedBox(height: 6),
       SelectableText('Payment Notification URL (isi di dasbor Midtrans):\n${teks(d['webhook'])}', style: const TextStyle(fontSize: 12)),
       const SizedBox(height: 16),

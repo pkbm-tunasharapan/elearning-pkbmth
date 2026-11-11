@@ -616,5 +616,15 @@ tes('kecepatan: jalur cepat pemeriksaan chat hanya bila pasti tidak ada yang bar
   sama(g.kcpAkhir_('chat'), 5000, 'isi-bila tidak menimpa penanda yang ada');
 });
 
+// 15. alur keuangan (v1.44.0)
+tes('keuangan: status referral pengembalian dana & format rupiah bertanda', () => {
+  sama(g.rfStatus_({ 'STATUS BAYAR': 'Pengembalian Diajukan', 'STATUS BERKAS': 'Terverifikasi' }), 'Pengembalian Diajukan', 'diajukan');
+  sama(g.rfStatus_({ 'STATUS BAYAR': 'Dikembalikan', 'STATUS BERKAS': 'Ditolak' }), 'Dana Dikembalikan', 'dikembalikan');
+  sama(g.rfStatus_({ 'STATUS BAYAR': 'Lunas', 'STATUS BERKAS': 'Terverifikasi' }), 'Selesai', 'selesai tetap');
+  sama(g.kalRp_(-150000), '-Rp150.000', 'minus');
+  sama(g.kalRp_(2500), 'Rp2.500', 'plus');
+  sama(g.kalTglBayar_({ 'VERIF BAYAR PADA': '2026-11-02 10:15' }), '2026-11-02', 'tanggal bayar');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

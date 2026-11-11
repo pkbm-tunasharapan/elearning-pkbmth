@@ -15,14 +15,14 @@ var RF = {
   PROP: 'TH_REFERRAL_ATURAN', PROP_FOLDER: 'TH_REFERRAL_FOLDER',
   BAWAAN: {
     biaya: 0, cashback: 50000, minTarik: 150000, rekening: [], qrisFile: '', alamatSekretariat: '',
-    gateway: { aktif: false, penyedia: 'midtrans', produksi: false, serverKey: '', clientKey: '', merchantId: '' }
+    gateway: { aktif: false, penyedia: 'midtrans', produksi: false, serverKey: '', clientKey: '', merchantId: '', biayaPersen: 0.7, biayaTetap: 0 }
   },
   TAB: {
     DAFTAR: ['ID', 'WAKTU', 'PROMOTOR KUNCI', 'PROMOTOR NAMA', 'PROMOTOR PERAN', 'PROMOTOR INFO', 'NAMA', 'NIK', 'PROGRAM', 'HP', 'DATA', 'BERKAS',
       'STATUS BERKAS', 'CATATAN BERKAS', 'VERIF BERKAS OLEH', 'VERIF BERKAS PADA', 'METODE BAYAR', 'BUKTI BAYAR', 'STATUS BAYAR', 'CATATAN BAYAR',
-      'VERIF BAYAR OLEH', 'VERIF BAYAR PADA', 'JUMLAH BAYAR', 'ID WB', 'CASHBACK', 'ORDER GATEWAY', 'DIPERBARUI'],
+      'VERIF BAYAR OLEH', 'VERIF BAYAR PADA', 'JUMLAH BAYAR', 'ID WB', 'CASHBACK', 'ORDER GATEWAY', 'DIPERBARUI', 'ID TRANSAKSI', 'ID TRX KEMBALI'],
     SALDO: ['ID', 'WAKTU', 'PROMOTOR KUNCI', 'PROMOTOR NAMA', 'JENIS', 'JUMLAH', 'REF', 'KETERANGAN'],
-    TARIK: ['ID', 'WAKTU', 'PROMOTOR KUNCI', 'PROMOTOR NAMA', 'PROMOTOR PERAN', 'JUMLAH', 'REKENING', 'STATUS', 'DIPROSES OLEH', 'DIPROSES PADA', 'BUKTI', 'CATATAN', 'ID TRANSAKSI'],
+    TARIK: ['ID', 'WAKTU', 'PROMOTOR KUNCI', 'PROMOTOR NAMA', 'PROMOTOR PERAN', 'JUMLAH', 'REKENING', 'STATUS', 'DIPROSES OLEH', 'DIPROSES PADA', 'BUKTI', 'CATATAN', 'ID TRANSAKSI', 'DISETUJUI OLEH', 'DISETUJUI PADA'],
     PROMOTOR: ['KUNCI', 'NAMA', 'PERAN', 'METODE', 'BANK', 'NOMOR', 'ATAS NAMA', 'HP', 'DIPERBARUI'],
     NOTIF: ['WAKTU MS', 'KUNCI', 'JUDUL', 'PESAN']
   },
@@ -45,6 +45,9 @@ function rfTab_(k) {
     sh.getRange(1, 1, 1, hdr.length).setValues([hdr]).setFontWeight('bold');
     sh.setFrozenRows(1);
     sh.getRange(2, 1, 1000, hdr.length).setNumberFormat('@');
+  } else if (sh.getLastColumn() < hdr.length) {
+    var ada = sh.getLastColumn();   // v1.44.0: kolom baru di kanan
+    sh.getRange(1, ada + 1, 1, hdr.length - ada).setValues([hdr.slice(ada)]).setFontWeight('bold');
   }
   return sh;
 }
@@ -154,6 +157,8 @@ function rfBersihData_(d) {
 }
 
 function rfStatus_(x) {
+  if (x['STATUS BAYAR'] === 'Dikembalikan') return 'Dana Dikembalikan';
+  if (x['STATUS BAYAR'] === 'Pengembalian Diajukan') return 'Pengembalian Diajukan';
   if (x['STATUS BAYAR'] === 'Lunas' && x['STATUS BERKAS'] === 'Terverifikasi') return 'Selesai';
   if (x['STATUS BERKAS'] === 'Perlu Perbaikan') return 'Perlu Perbaikan';
   if (x['STATUS BERKAS'] === 'Ditolak') return 'Ditolak';
@@ -170,7 +175,7 @@ function rfObj_(x, lengkap) {
     program: x['PROGRAM'], status: rfStatus_(x), statusBerkas: x['STATUS BERKAS'], catatanBerkas: x['CATATAN BERKAS'], statusBayar: x['STATUS BAYAR'] || 'Belum',
     catatanBayar: x['CATATAN BAYAR'], metodeBayar: x['METODE BAYAR'], cashback: Number(x['CASHBACK']) || 0, berkas: Object.keys(b), idWb: x['ID WB'],
     bisaPerbaiki: x['STATUS BERKAS'] !== 'Terverifikasi' && x['STATUS BERKAS'] !== 'Ditolak',
-    bisaBayar: x['STATUS BAYAR'] !== 'Lunas' && x['STATUS BAYAR'] !== 'Menunggu Verifikasi' && x['STATUS BERKAS'] !== 'Ditolak'
+    bisaBayar: ['Lunas', 'Menunggu Verifikasi', 'Pengembalian Diajukan', 'Dikembalikan'].indexOf(x['STATUS BAYAR']) < 0 && x['STATUS BERKAS'] !== 'Ditolak'
   };
   if (lengkap) {
     o.data = d;
@@ -182,6 +187,8 @@ function rfObj_(x, lengkap) {
     o.verifBayar = x['VERIF BAYAR OLEH'] ? x['VERIF BAYAR OLEH'] + ' · ' + x['VERIF BAYAR PADA'] : '';
     o.adaBukti = !!x['BUKTI BAYAR'];
     o.jumlahBayar = Number(x['JUMLAH BAYAR']) || 0;
+    o.idTransaksi = x['ID TRANSAKSI'] || '';
+    o.bisaKembali = x['STATUS BAYAR'] === 'Lunas' && !x['ID WB'];
   }
   return o;
 }
@@ -312,6 +319,7 @@ function waRefBayar(token, id, metode, bukti) {
   var m = rfMilik_(token, id), x = m.x, at = rfAturan_();
   if (x['STATUS BAYAR'] === 'Lunas') throw new Error('Pembayaran sudah lunas.');
   if (x['STATUS BAYAR'] === 'Menunggu Verifikasi') throw new Error('Bukti pembayaran sedang diperiksa petugas.');
+  if (x['STATUS BAYAR'] === 'Pengembalian Diajukan' || x['STATUS BAYAR'] === 'Dikembalikan') throw new Error('Pembayaran pendaftaran ini sedang/sudah dikembalikan.');
   metode = String(metode || '');
   if (metode === 'Sekretariat') {
     rfUbah_('DAFTAR', x._baris, { 'METODE BAYAR': 'Sekretariat', 'STATUS BAYAR': 'Belum', 'CATATAN BAYAR': 'Akan membayar langsung di sekretariat', 'DIPERBARUI': rfWaktu_() });
@@ -398,9 +406,11 @@ function refWebhook_(body) {
   var st = String(body.transaction_status || '');
   if (st !== 'settlement' && st !== 'capture') return { ok: true, status: st };
   var x = rfBaca_('DAFTAR').filter(function(y) { return y['ORDER GATEWAY'] === String(body.order_id); })[0];
-  if (!x || x['STATUS BAYAR'] === 'Lunas') return { ok: true };
-  rfUbah_('DAFTAR', x._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': Number(body.gross_amount) || 0, 'VERIF BAYAR OLEH': 'QRIS otomatis', 'VERIF BAYAR PADA': rfWaktu_(), 'DIPERBARUI': rfWaktu_() });
-  rfSelesaikan_(rfCari_(x['ID']), { nama: 'QRIS otomatis', peran: 'Sistem' });
+  if (!x || ['Lunas', 'Pengembalian Diajukan', 'Dikembalikan'].indexOf(x['STATUS BAYAR']) >= 0) return { ok: true };
+  rfUbah_('DAFTAR', x._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': Math.round(Number(body.gross_amount) || 0), 'VERIF BAYAR OLEH': 'QRIS otomatis', 'VERIF BAYAR PADA': rfWaktu_(), 'DIPERBARUI': rfWaktu_() });
+  var oto = { nama: 'QRIS otomatis', peran: 'Sistem' };
+  rfCatatBayarAman_(rfCari_(x['ID']), oto, true);   // v1.44.0: pemasukan sebesar yang dibayar + biaya layanan terpisah
+  rfSelesaikan_(rfCari_(x['ID']), oto);
   return { ok: true };
 }
 
@@ -435,14 +445,9 @@ function rfSelesaikan_(x, oleh) {
     }));
     try { if (typeof indSegarkan_ === 'function') indSegarkan_(); } catch (e0) {}
   } catch (e1) { idWb = ''; }
-  var jml = Number(x['JUMLAH BAYAR']) || Number(at.biaya) || 0;
-  if (jml > 0) {
-    try {
-      rfTrx_({ 'TANGGAL': absHariIni_(), 'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': RF.KAT_DAF, 'WARGA BELAJAR': idWb, 'URAIAN': 'Pendaftaran ' + d.nama + ' (' + x['ID'] + ', ' + (x['METODE BAYAR'] || '-') + ')',
-        'JUMLAH': jml, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': d.nama, 'BUKTI': x['BUKTI BAYAR'] || '', 'STATUS': 'Disetujui', 'DIPUTUS OLEH': oleh.nama,
-        'TANGGAL KEPUTUSAN': absHariIni_(), 'CATATAN KEPUTUSAN': 'Pendaftaran referral (otomatis)', 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': oleh.nama, 'DICATAT PADA': absWaktu_() });
-    } catch (e2) {}
-  }
+  // v1.44.0: pemasukan dicatat saat lunas (rfCatatBayar_); di sini hanya cadangan untuk yang belum tercatat.
+  if (x['ID TRANSAKSI']) kalTautWb_(x['ID TRANSAKSI'], idWb);
+  else { x['ID WB'] = idWb; rfCatatBayarAman_(x, oleh, oleh.nama === 'QRIS otomatis'); }
   var cb = Math.round(Number(at.cashback) || 0);
   if (cb > 0) rfTambah_('SALDO', { 'ID': absId_(), 'WAKTU': rfWaktu_(), 'PROMOTOR KUNCI': x['PROMOTOR KUNCI'], 'PROMOTOR NAMA': x['PROMOTOR NAMA'], 'JENIS': 'Cashback',
     'JUMLAH': cb, 'REF': x['ID'], 'KETERANGAN': 'Cashback pendaftaran ' + x['NAMA'] });
@@ -455,18 +460,20 @@ function waStafRefAdmin(token, q) {
   var r = rfPetugas_(token);
   if (!r.lihat) throw new Error('Peran Anda tidak dapat melihat data referral.');
   q = q || {};
+  if (r.bayar) { try { rfPulihkanKas_(); } catch (e0) {} }
   var semua = rfBaca_('DAFTAR').map(function(x) { return rfObj_(x, true); }).reverse();
   var hitung = {};
   semua.forEach(function(x) { hitung[x.status] = (hitung[x.status] || 0) + 1; });
   var tarik = rfBaca_('TARIK').map(function(t) {
     return { id: t['ID'], waktu: t['WAKTU'], promotor: t['PROMOTOR NAMA'], peran: t['PROMOTOR PERAN'], jumlah: Number(t['JUMLAH']) || 0, rekening: t['REKENING'],
-      status: t['STATUS'], oleh: t['DIPROSES OLEH'], pada: t['DIPROSES PADA'], catatan: t['CATATAN'], adaBukti: !!t['BUKTI'] };
+      status: t['STATUS'], oleh: t['DIPROSES OLEH'], pada: t['DIPROSES PADA'], catatan: t['CATATAN'], adaBukti: !!t['BUKTI'],
+      disetujuiOleh: t['DISETUJUI OLEH'], disetujuiPada: t['DISETUJUI PADA'] };
   }).reverse();
   var saldo = {}, nama = {};
   rfBaca_('SALDO').forEach(function(s) { saldo[s['PROMOTOR KUNCI']] = (saldo[s['PROMOTOR KUNCI']] || 0) + (Number(s['JUMLAH']) || 0); nama[s['PROMOTOR KUNCI']] = s['PROMOTOR NAMA']; });
   var promotor = Object.keys(saldo).map(function(k) { return { kunci: k, nama: nama[k], saldo: saldo[k], rekening: rfRekening_(k) }; }).sort(function(a, b) { return b.saldo - a.saldo; });
   return { daftar: semua, hitung: hitung, tarik: tarik, promotor: promotor, aturan: rfAturanPublik_(rfAturan_()),
-    peran: { berkas: r.berkas, bayar: r.bayar, bendahara: r.bendahara, admin: r.admin } };
+    peran: { berkas: r.berkas, bayar: r.bayar, bendahara: r.bendahara, admin: r.admin, sa: !!r.q.sa } };
 }
 
 function waStafRefVerifBerkas(token, id, keputusan, catatan) {
@@ -493,6 +500,7 @@ function waStafRefVerifBayar(token, id, keputusan, catatan, jumlah) {
   if (!r.bayar) throw new Error('Verifikasi pembayaran oleh Admin, Front Office, atau Bendahara.');
   var x = rfCari_(id), at = rfAturan_();
   if (x['STATUS BAYAR'] === 'Lunas') throw new Error('Pembayaran sudah lunas.');
+  if (x['STATUS BAYAR'] === 'Pengembalian Diajukan' || x['STATUS BAYAR'] === 'Dikembalikan') throw new Error('Pembayaran ini sedang/sudah dikembalikan.');
   catatan = String(catatan || '').trim().slice(0, 300);
   if (keputusan === 'tolak') {
     if (catatan.length < 5) throw new Error('Tuliskan alasan penolakan.');
@@ -505,6 +513,7 @@ function waStafRefVerifBayar(token, id, keputusan, catatan, jumlah) {
   rfUbah_('DAFTAR', x._baris, { 'STATUS BAYAR': 'Lunas', 'METODE BAYAR': x['METODE BAYAR'] || 'Sekretariat', 'JUMLAH BAYAR': jml, 'CATATAN BAYAR': catatan,
     'VERIF BAYAR OLEH': r.p.nama, 'VERIF BAYAR PADA': rfWaktu_(), 'DIPERBARUI': rfWaktu_() });
   rfNotif_(x['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + x['NAMA'], x['STATUS BERKAS'] === 'Terverifikasi' ? 'Pendaftaran selesai.' : 'Menunggu verifikasi berkas.');
+  rfCatatBayarAman_(rfCari_(id), r.p, false);   // v1.44.0: pemasukan tercatat saat lunas
   var y = rfCari_(id);
   rfSelesaikan_(y, r.p);
   try { catat_(r.p.peran, '', r.p.nama, 'Referral verif bayar', id + ' lunas ' + jml, 'OK'); } catch (e) {}
@@ -524,22 +533,24 @@ function rfCariTarik_(id) {
   return t;
 }
 // Hanya Bendahara: catat pembayaran penarikan (+bukti transfer), notifikasi promotor, catat pengeluaran.
-function waStafRefTarikBayar(token, id, bukti, catatan) {
+function waStafRefTarikBayar(token, id, bukti, catatan, paksa) {
   var r = rfPetugas_(token);
   if (!r.bendahara) throw new Error('Pembayaran penarikan hanya oleh Bendahara.');
   var t = rfCariTarik_(id);
-  if (t['STATUS'] !== 'Menunggu') throw new Error('Pengajuan ini sudah ' + t['STATUS'] + '.');
+  if (t['STATUS'] === 'Menunggu') throw new Error('Penarikan ini belum disetujui Ketua Yayasan.');
+  if (t['STATUS'] !== 'Disetujui') throw new Error('Pengajuan ini sudah ' + t['STATUS'] + '.');
   if (!bukti) throw new Error('Unggah bukti transfer.');
+  kalCekSaldo_('Swadaya', Number(t['JUMLAH']) || 0, paksa === true, r.p, 'Penarikan referral ' + id);
   var f = keuSimpanBukti_(bukti, 'REFERRAL_' + id + '_' + Utilities.formatDate(new Date(), absTz_(), 'yyyyMMdd_HHmmss') + '.jpg');
   rfKategori_(RF.KAT_RFL, 'Cashback Referral Pendaftaran', 'Pengeluaran');
   var sim = {};
   try { sim = absSim_(); } catch (e) {}
   var idTrx = '';
-  try {
+  {
     idTrx = rfTrx_({ 'TANGGAL': absHariIni_(), 'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': RF.KAT_RFL, 'URAIAN': 'Penarikan cashback referral ' + t['PROMOTOR NAMA'] + ' (' + id + ')',
-      'JUMLAH': Number(t['JUMLAH']) || 0, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': t['PROMOTOR NAMA'], 'BUKTI': f, 'STATUS': 'Disetujui', 'DIPUTUS OLEH': r.p.nama,
-      'TANGGAL KEPUTUSAN': absHariIni_(), 'CATATAN KEPUTUSAN': 'Penarikan cashback referral (otomatis)', 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': r.p.nama, 'DICATAT PADA': absWaktu_() });
-  } catch (e2) {}
+      'JUMLAH': Number(t['JUMLAH']) || 0, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': t['PROMOTOR NAMA'], 'BUKTI': f, 'STATUS': 'Disetujui', 'DIPUTUS OLEH': t['DISETUJUI OLEH'] || r.p.nama,
+      'TANGGAL KEPUTUSAN': String(t['DISETUJUI PADA'] || '').slice(0, 10) || absHariIni_(), 'CATATAN KEPUTUSAN': 'Penarikan cashback referral (disetujui ' + (t['DISETUJUI OLEH'] || '-') + ', dibayar ' + r.p.nama + ')', 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': r.p.nama, 'DICATAT PADA': absWaktu_() });
+  }
   rfUbah_('TARIK', t._baris, { 'STATUS': 'Dibayar', 'DIPROSES OLEH': r.p.nama, 'DIPROSES PADA': rfWaktu_(), 'BUKTI': f, 'CATATAN': String(catatan || '').slice(0, 300), 'ID TRANSAKSI': idTrx });
   rfNotif_(t['PROMOTOR KUNCI'], 'Penarikan ' + honRp_(Number(t['JUMLAH']) || 0) + ' sudah dibayar', 'Dana telah ditransfer ke ' + t['REKENING'] + '. Cek rekening Anda.');
   try { catat_(r.p.peran, '', r.p.nama, 'Referral bayar tarik', id + ' ' + t['JUMLAH'], 'OK'); } catch (e3) {}
@@ -547,9 +558,9 @@ function waStafRefTarikBayar(token, id, bukti, catatan) {
 }
 function waStafRefTarikTolak(token, id, alasan) {
   var r = rfPetugas_(token);
-  if (!r.bendahara) throw new Error('Penolakan penarikan hanya oleh Bendahara.');
+  if (!r.bendahara && !r.q.sa) throw new Error('Penolakan penarikan oleh Bendahara atau Ketua Yayasan.');
   var t = rfCariTarik_(id);
-  if (t['STATUS'] !== 'Menunggu') throw new Error('Pengajuan ini sudah ' + t['STATUS'] + '.');
+  if (t['STATUS'] !== 'Menunggu' && t['STATUS'] !== 'Disetujui') throw new Error('Pengajuan ini sudah ' + t['STATUS'] + '.');
   alasan = String(alasan || '').trim().slice(0, 300);
   if (alasan.length < 5) throw new Error('Tuliskan alasan penolakan.');
   rfUbah_('TARIK', t._baris, { 'STATUS': 'Ditolak', 'DIPROSES OLEH': r.p.nama, 'DIPROSES PADA': rfWaktu_(), 'CATATAN': alasan });
@@ -599,6 +610,8 @@ function waAdminRefAturanSimpan(token, d) {
     ['penyedia', 'clientKey', 'merchantId'].forEach(function(k) { if (g[k] !== undefined) a.gateway[k] = String(g[k] || '').trim().slice(0, 120); });
     if (g.serverKey && String(g.serverKey).indexOf('••••') !== 0) a.gateway.serverKey = String(g.serverKey).trim().slice(0, 120);
     if (g.hapusKunci === true) a.gateway.serverKey = '';
+    if (g.biayaPersen !== undefined) { var bp = Number(g.biayaPersen); if (!(bp >= 0 && bp <= 10)) throw new Error('Biaya layanan gateway 0–10%.'); a.gateway.biayaPersen = Math.round(bp * 100) / 100; }
+    if (g.biayaTetap !== undefined) { var bt = Math.round(Number(g.biayaTetap)); if (!(bt >= 0 && bt <= 100000)) throw new Error('Biaya tetap gateway tidak valid.'); a.gateway.biayaTetap = bt; }
     if (a.gateway.aktif && !a.gateway.serverKey) throw new Error('Isi Server Key Midtrans sebelum mengaktifkan QRIS dinamis.');
   }
   PropertiesService.getScriptProperties().setProperty(RF.PROP, JSON.stringify(a));
