@@ -28,6 +28,7 @@ var IZN = {
   FITUR: [
     ['pengguna', 'Kelola Tutor & Enrollment', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode)$/],
     ['peranIzin', 'Peran & Izin', 'Sistem', ['Admin'], /^waAdminPeran\w*$/],
+    ['aturNotif', 'Pengaturan Notifikasi', 'Sistem', ['Admin'], /^waAdminNotif\w*$/],
     ['mapelSaya', 'Mata Pelajaran (konten, kurikulum, ujian, media ajar)', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'],
       /^waStaf(Materi|MateriLengkap|MateriSimpan|MateriStatus|MateriHapus|MateriHapusMassal|SesiBaca|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai|Nilai|Absensi|Siswa|KodeAkses(Daftar|Generate)|BukaKunci|BukaSesi|BukaSesiCabut|BukaSesiDaftar|Ujian(Terkunci|Info|Simpan|Pratinjau|PerubahanAjukan)|Soal(Daftar|Simpan|Hapus)|MediaAjar\w*|Ai\w*|Kurikulum\w*|AjuTutorProses)$/],
     ['absensi', 'Absensi Warga Belajar', 'Absensi', ['Admin', 'Tutor', 'Kepala Sekolah'], /^waStafAbsen(Harian\w*|Konteks|WbCatat|WbDaftar)$/],

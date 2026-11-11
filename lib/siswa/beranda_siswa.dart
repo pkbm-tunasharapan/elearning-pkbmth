@@ -17,6 +17,7 @@ import 'pencapaian_siswa.dart';
 import 'pin_siswa.dart';
 import 'sesi_siswa.dart';
 import 'tagihan_siswa.dart';
+import '../kotak_notif.dart';
 
 const _ikonMapel = <String, IconData>{
   'matematika': Icons.calculate_rounded,
@@ -81,6 +82,7 @@ class _BerandaIsi extends StatelessWidget {
                   const SizedBox(width: 10),
                   const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                   const Spacer(),
+                  const LoncengNotif(warna: Colors.white),
                   IconButton(
                     tooltip: 'Kartu siswa (QR)',
                     onPressed: () => bukaKartuSiswa(context),

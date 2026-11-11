@@ -1630,6 +1630,7 @@ function waStafHonorHitung(token, bulan) {
     });
   } finally { kunci.releaseLock(); }
   catat_(p.peran, '', p.nama, 'Hitung honor', bulan + ': ' + baru + ' baru, ' + ubah + ' diperbarui, ' + tetap + ' terkunci', 'OK');
+  if (baru + ubah > 0) npKirim_('honor_perlu_setuju', { judul: 'Rekap honor ' + bulan + ' perlu disetujui', isi: (baru + ubah) + ' rekap honor tutor menunggu persetujuan Ketua Yayasan.', aksi: 'honor', ref: 'hon|' + bulan + '|' + absHariIni_() });   // v1.50.0: notifikasi
   return { bulan: bulan, baru: baru, diperbarui: ubah, terkunci: tetap };
 }
 
@@ -1702,6 +1703,7 @@ function waStafHonorSetujui(token, id, catatan) {
   set('STATUS', 'Disetujui');
   set('CATATAN', 'Disetujui ' + p.nama + ' ' + absWaktu_() + (catatan ? ': ' + String(catatan).slice(0, 200) : ''));
   catat_(p.peran, '', p.nama, 'Setujui honor', o.tutor + ' ' + o.bulan + ' ' + honRp_(o.total), 'OK');
+  npKirim_('honor_disetujui', { judul: 'Honor ' + o.bulan + ' disetujui', isi: 'Honor Anda ' + honRp_(o.total) + ' sudah disetujui dan menunggu pembayaran.', aksi: 'honor', tutor: [o.tutor] });   // v1.50.0: notifikasi
   return { sukses: true };
 }
 function waStafHonorBatalSetuju(token, id, alasan) {
@@ -1782,6 +1784,7 @@ function waStafHonorBayar(token, id, d) {
     var c = absCol_(t, 'STATUS');
     if (c >= 0) t.sh.getRange(b, c + 1).setValue(lunas ? 'Dibayar' : 'Dibayar Sebagian');
     catat_(p.peran, '', p.nama, 'Bayar honor', tutor.nama + ' ' + o.bulan + ' ' + honRp_(jumlah), 'OK');
+    npKirim_('honor_dibayar', { judul: 'Honor ' + o.bulan + ' dibayar', isi: honRp_(jumlah) + ' dibayar ke ' + (d.rekening || rek.bank || 'rekening Anda') + '.', aksi: 'honor', tutor: [o.tutor] });   // v1.50.0: notifikasi
     return { sukses: true, lunas: lunas, sisa: sisa - jumlah, idBayar: idBayar, idTransaksi: idTrx };
   } finally { kunci.releaseLock(); }
 }
@@ -3304,6 +3307,7 @@ function waStafKeuSimpan(token, d) {
     isi['DICATAT PADA'] = absWaktu_();
     t.sh.appendRow(absBaris_(t, isi));
     catat_(p.peran, '-', p.nama, 'Catat transaksi', id + ' ' + d.jenis + ' ' + kat.kode + ' ' + jumlah, 'OK');
+    if (isi['STATUS'] === 'Menunggu') npKirim_('pengeluaran_menunggu', { judul: 'Pengeluaran menunggu persetujuan', isi: kat.nama + ' ' + honRp_(jumlah) + ': ' + uraian.slice(0, 120) + ' (dicatat ' + p.nama + ')', aksi: 'keuangan', ref: id });   // v1.50.0: notifikasi
     return { sukses: true, id: id, status: isi['STATUS'] };
   } finally { lock.releaseLock(); }
 }
@@ -3344,6 +3348,7 @@ function waStafKeuPutus(token, id, setuju, catatan, paksa) {
   });
   catat_(p.peran, '-', p.nama, setuju ? 'Setujui pengeluaran' : 'Tolak pengeluaran', o.id + ' ' + o.jumlah, 'OK');
   kalSetelahPutus_(o, setuju ? 'Disetujui' : 'Ditolak');
+  npKirim_('pengeluaran_diputus', { judul: 'Pengeluaran ' + (setuju ? 'disetujui' : 'ditolak'), isi: honRp_(o.jumlah) + ': ' + String(o.uraian).slice(0, 120) + ' · ' + p.nama + (catatan ? ' · ' + String(catatan).slice(0, 100) : ''), aksi: 'keuangan', ref: 'putus|' + o.id });   // v1.50.0: notifikasi
   return { sukses: true };
 }
 function waStafKeuBukti(token, id) {
@@ -3548,6 +3553,7 @@ function waStafTagihanSimpan(token, d) {
   isi['ID TAGIHAN'] = id; isi['TAHUN PELAJARAN'] = absSim_().tahun; isi['AKTIF'] = true; isi['DIBUAT OLEH'] = p.nama; isi['DIBUAT PADA'] = absWaktu_();
   t.sh.appendRow(absBaris_(t, isi));
   catat_(p.peran, '-', p.nama, 'Tagihan baru', id + ' ' + nama + ' ' + jumlah, 'OK');
+  npTagihanBaru_(id);   // v1.50.0: notifikasi ke siswa sasaran
   return { sukses: true, id: id };
 }
 function waStafTagihanAktif(token, id, aktif) {
@@ -3600,6 +3606,7 @@ function waStafTagihanBayar(token, d) {
     t.sh.appendRow(absBaris_(t, isi));
   } finally { lock.releaseLock(); }
   catat_(p.peran, w.idRombel, p.nama, 'Bayar tagihan', tag.nama + ' ' + w.nama + ' ' + jumlah, 'OK');
+  npBayarDiterima_(w.id, tag.nama, jumlah, 'dicatat petugas');   // v1.50.0: notifikasi
   return { sukses: true, id: id, tanggal: tgl, jumlah: jumlah, sisa: row.sisa - jumlah, nama: w.nama, nisn: w.nisn, rombel: w.namaRombel, tagihan: tag.nama, petugas: p.nama, lembaga: nilLembaga_() };
 }
 // d: {idTagihan, idWb, jumlah, alasan}
@@ -3618,6 +3625,7 @@ function waStafTagihanKeringanan(token, d) {
   var t = absBaca_(KEU.TAB_KER, KEU.HDR_KER);
   t.sh.appendRow(absBaris_(t, { 'ID': absId_(), 'TAGIHAN': tag.id, 'WARGA BELAJAR': w.id, 'JUMLAH': jumlah, 'ALASAN': alasan.slice(0, 300), 'DICATAT OLEH': p.nama, 'DICATAT PADA': absWaktu_() }));
   catat_(p.peran, w.idRombel, p.nama, 'Keringanan tagihan', tag.nama + ' ' + w.nama + ' ' + jumlah + ': ' + alasan, 'OK');
+  npKirim_('keringanan', { judul: 'Keringanan ' + tag.nama, isi: 'Anda mendapat keringanan ' + honRp_(jumlah) + '. Sisa tagihan menjadi ' + honRp_(row.sisa - jumlah) + '.', aksi: 'tagihan_saya', siswa: [w.id] });   // v1.50.0: notifikasi
   return { sukses: true };
 }
 // Tunggakan satu WB (semua tagihan aktif) — kode = ID WB atau NISN

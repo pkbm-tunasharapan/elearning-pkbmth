@@ -111,6 +111,7 @@ function waNotifCek(kunci) {
     .map(function(b) { return { id: b.id, judul: b.judul, isi: b.isi, waktu: b.waktu, oleh: b.oleh }; });
   // v1.39.0: pengingat harian membuat PIN untuk WB yang belum punya PIN
   try { var ingat = pinPengingat_(a); if (ingat) pesan.unshift(ingat); } catch (eP) {}
+  try { pesan = pesan.concat(npUntuk_(a)); } catch (eN) {}   // v1.50.0: notifikasi per peran (tagihan, keuangan, honor, ...)
   return { sah: true, pesan: pesan, sekarangMs: now };
 }
 

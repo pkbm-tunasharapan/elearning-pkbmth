@@ -284,6 +284,7 @@ function waRefDaftar(token, d, berkas) {
     'STATUS BERKAS': 'Menunggu', 'STATUS BAYAR': 'Belum', 'DIPERBARUI': rfWaktu_()
   });
   try { catat_(a.peran, '', a.nama, 'Referral daftar', id + ' ' + o.nama, 'OK'); } catch (e2) {}
+  npKirim_('referral_baru', { judul: 'Pendaftaran baru: ' + o.nama, isi: 'Program ' + o.program + ' · promotor ' + a.nama + '. Berkas perlu diverifikasi.', aksi: 'referral_admin', ref: id });   // v1.50.0: notifikasi
   return { sukses: true, id: id };
 }
 
@@ -337,6 +338,7 @@ function waRefBayar(token, id, metode, bukti) {
   var f = rfSimpanBerkas_(bukti, id + '_bukti_bayar');
   if (x['BUKTI BAYAR']) { try { DriveApp.getFileById(x['BUKTI BAYAR']).setTrashed(true); } catch (e) {} }
   rfUbah_('DAFTAR', x._baris, { 'METODE BAYAR': metode, 'BUKTI BAYAR': f, 'STATUS BAYAR': 'Menunggu Verifikasi', 'CATATAN BAYAR': '', 'DIPERBARUI': rfWaktu_() });
+  npKirim_('referral_bukti', { judul: 'Bukti bayar pendaftaran: ' + x['NAMA'], isi: 'Metode ' + metode + '. Periksa dan tandai lunas di Kelola Referral.', aksi: 'referral_admin', ref: 'rfbukti|' + id + '|' + f });   // v1.50.0: notifikasi
   return { sukses: true, pesan: 'Bukti pembayaran terkirim. Petugas akan memeriksanya.' };
 }
 
@@ -368,6 +370,7 @@ function waRefTarik(token, jumlah) {
     rfTambah_('TARIK', { 'ID': id, 'WAKTU': rfWaktu_(), 'PROMOTOR KUNCI': a.kunci, 'PROMOTOR NAMA': a.nama, 'PROMOTOR PERAN': a.peran, 'JUMLAH': jumlah,
       'REKENING': [rek.metode, rek.bank, rek.nomor, 'a.n. ' + rek.atasNama].join(' · '), 'STATUS': 'Menunggu' });
     rfTambah_('SALDO', { 'ID': absId_(), 'WAKTU': rfWaktu_(), 'PROMOTOR KUNCI': a.kunci, 'PROMOTOR NAMA': a.nama, 'JENIS': 'Penarikan', 'JUMLAH': -jumlah, 'REF': id, 'KETERANGAN': 'Pengajuan penarikan ' + id });
+    npKirim_('tarik_menunggu', { judul: 'Penarikan cashback menunggu persetujuan', isi: honRp_(jumlah) + ' diajukan ' + a.nama + ' (' + a.peran + ').', aksi: 'referral_admin', ref: id });   // v1.50.0: notifikasi
   } finally { kunci.releaseLock(); }
   try { catat_(a.peran, '', a.nama, 'Referral tarik', honRp_(jumlah), 'OK'); } catch (e) {}
   return { sukses: true };

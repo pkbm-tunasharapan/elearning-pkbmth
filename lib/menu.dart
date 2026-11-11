@@ -37,6 +37,7 @@ import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
 import 'arsip/arsip.dart';
+import 'pengguna/notif_aturan.dart';
 import 'pengguna/peran_izin.dart';
 import 'pemeliharaan/sistem.dart';
 import 'api.dart';
@@ -120,6 +121,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'ai', judul: 'Pengaturan AI', ikon: Icons.smart_toy_outlined, peran: _admin, native: () => const PengaturanAiScreen()),
   MenuApp(id: 'arsip', judul: 'Arsip Data', ikon: Icons.inventory_2_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const ArsipScreen()),
   MenuApp(id: 'peranIzin', judul: 'Peran & Izin', ikon: Icons.admin_panel_settings_outlined, peran: _admin, native: () => const PeranIzinScreen()),
+  MenuApp(id: 'aturNotif', judul: 'Pengaturan Notifikasi', ikon: Icons.notifications_active_outlined, peran: _admin, native: () => const NotifAturanScreen()),
   MenuApp(id: 'pemeliharaan', judul: 'Pemeliharaan Sistem', ikon: Icons.health_and_safety_outlined, peran: _admin, native: () => const PemeliharaanScreen()),
   MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
   MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, native: () => const KerangkaScreen()),

@@ -145,6 +145,7 @@ function waStafRefKembaliAjukan(token, id, jumlah, alasan, bukti) {
     'CATATAN BAYAR': ('Pengembalian ' + honRp_(jml) + ' diajukan: ' + alasan).slice(0, 300), 'DIPERBARUI': rfWaktu_() });
   rfNotif_(x['PROMOTOR KUNCI'], 'Pengembalian dana diajukan: ' + x['NAMA'], 'Pengembalian ' + honRp_(jml) + ' menunggu persetujuan Ketua Yayasan.');
   try { catat_(r.p.peran, '', r.p.nama, 'Ajukan pengembalian dana', id + ' ' + honRp_(jml) + ': ' + alasan, 'OK'); } catch (e2) {}
+  npKirim_('pengeluaran_menunggu', { judul: 'Pengembalian dana menunggu persetujuan', isi: honRp_(jml) + ' untuk ' + x['NAMA'] + ': ' + alasan.slice(0, 120), aksi: 'keuangan', ref: idTrx });   // v1.50.0: notifikasi
   return { sukses: true, idTransaksi: idTrx };
 }
 // Dipanggil setelah transaksi diputus / dibatalkan di menu Keuangan.
@@ -172,6 +173,7 @@ function waStafRefTarikSetujui(token, id, catatan) {
   rfUbah_('TARIK', t._baris, { 'STATUS': 'Disetujui', 'DISETUJUI OLEH': r.p.nama, 'DISETUJUI PADA': rfWaktu_(), 'CATATAN': String(catatan || '').slice(0, 300) });
   rfNotif_(t['PROMOTOR KUNCI'], 'Penarikan ' + honRp_(Number(t['JUMLAH']) || 0) + ' disetujui', 'Bendahara akan mentransfer ke ' + t['REKENING'] + '.');
   try { catat_(r.p.peran, '', r.p.nama, 'Setujui penarikan referral', id + ' ' + t['JUMLAH'], 'OK'); } catch (e) {}
+  npKirim_('tarik_disetujui', { judul: 'Penarikan cashback perlu dibayar', isi: honRp_(Number(t['JUMLAH']) || 0) + ' untuk ' + t['PROMOTOR NAMA'] + ' (' + t['REKENING'] + ') sudah disetujui.', aksi: 'referral_admin', ref: 'tarikok|' + id });   // v1.50.0: notifikasi
   return { sukses: true };
 }
 
@@ -223,6 +225,8 @@ function waStafHonorBayarBatal(token, idBayar, alasan) {
     if (b) {
       var total = honBarisRekap_(t, t.v[b - 1]).total, c = absCol_(t, 'STATUS');
       if (c >= 0) t.sh.getRange(b, c + 1).setValue(sudah <= 0 ? 'Disetujui' : (sudah >= total ? 'Dibayar' : 'Dibayar Sebagian'));
+      var oR = honBarisRekap_(t, t.v[b - 1]);
+      npKirim_('honor_batal', { judul: 'Pembayaran honor ' + oR.bulan + ' dibatalkan', isi: honRp_(jumlah) + ' dibatalkan Ketua Yayasan: ' + alasan.slice(0, 120), aksi: 'honor', tutor: [oR.tutor] });   // v1.50.0: notifikasi
     }
     catat_(p.peran, '', p.nama, 'Batal bayar honor', idBayar + ' ' + honRp_(jumlah) + ': ' + alasan, 'OK');
     return { sukses: true };

@@ -652,5 +652,20 @@ tes('gateway: katalog metode, paylater disaring, total tetap', () => {
   sama(g.gwMetodeCari_('PEER_TO_PEER_AKULAKU', cfg), null, 'paylater tidak bisa dipilih');
 });
 
+// 18. pusat notifikasi per peran (v1.50.0)
+tes('notifikasi: sasaran siswa, tutor, dan peran', () => {
+  const at = { tagihan_baru: ['Siswa'], honor_dibayar: ['Tutor'], pengeluaran_menunggu: ['Superadmin'], bayar_online_masuk: [] };
+  const ev = (jenis, o) => Object.assign({ jenis: jenis, siswa: [], tutor: [], staf: [] }, o || {});
+  const ctxS = { wb: () => 'WB-1', tutor: () => '' }, ctxT = { wb: () => '', tutor: () => 'TT-9' };
+  const siswa = { jenis: 'siswa' }, sa = { jenis: 'staf', id: 'U1', peran: 'Superadmin' }, tutor = { jenis: 'staf', id: 'U2', peran: 'Tutor' };
+  sama(g.npCocok_(ev('tagihan_baru', { siswa: ['WB-1', 'WB-2'] }), siswa, at, ctxS), true, 'siswa sasaran');
+  sama(g.npCocok_(ev('tagihan_baru', { siswa: ['WB-3'] }), siswa, at, ctxS), false, 'siswa lain');
+  sama(g.npCocok_(ev('tagihan_baru', { siswa: ['WB-1'] }), sa, at, ctxS), false, 'staf tidak menerima notifikasi siswa');
+  sama(g.npCocok_(ev('honor_dibayar', { tutor: ['TT-9'] }), tutor, at, ctxT), true, 'tutor sasaran');
+  sama(g.npCocok_(ev('pengeluaran_menunggu'), sa, at, ctxS), true, 'peran dicentang');
+  sama(g.npCocok_(ev('pengeluaran_menunggu'), tutor, at, ctxT), false, 'peran tidak dicentang');
+  sama(g.npCocok_(ev('bayar_online_masuk'), sa, at, ctxS), false, 'jenis dimatikan admin');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

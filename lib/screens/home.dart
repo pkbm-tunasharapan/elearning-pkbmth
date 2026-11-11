@@ -13,6 +13,7 @@ import '../widgets.dart';
 import '../ulang_tahun.dart';
 import '../cari_menu.dart';
 import '../dasbor.dart';
+import '../kotak_notif.dart';
 import 'dokumen_rpp.dart';
 import '../siswa/kartu_siswa.dart';
 
@@ -322,6 +323,7 @@ class Beranda extends StatelessWidget {
                 const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                 const Spacer(),
                 if (onCari != null) IconButton(onPressed: onCari, icon: const Icon(Icons.search_rounded, color: Colors.white), tooltip: 'Cari menu'),
+                const LoncengNotif(warna: Colors.white),
                 IconButton(onPressed: () => bukaKartuStaf(context), icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 28), tooltip: 'Kartu tutor (QR)'),
                 IconButton(onPressed: onKeluar, icon: const Icon(Icons.logout_rounded, color: Colors.white), tooltip: 'Keluar'),
               ]),

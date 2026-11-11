@@ -187,6 +187,7 @@ function gwSelesai_(x, bayar, kanal) {
         if (adminBayar > 0) ids = [ids, gwCatatAdminBayar_(x, adminBayar, kanal, 'Swadaya')].filter(String).join(',');
         rfSelesaikan_(rfCari_(x['REF']), oto);
         rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online lewat DOKU (' + kanal + ').');
+        npKirim_('bayar_online_masuk', { judul: 'Biaya pendaftaran dibayar online ' + honRp_(pokok), isi: rf['NAMA'] + ' (' + (kanal || 'DOKU') + ').', aksi: 'referral_admin', ref: 'gw|' + x['INVOICE'] });   // v1.50.0: notifikasi
       }
     } else {
       ids = gwCatatTagihan_(x, pokok, kanal, fee, bayar, adminBayar);
@@ -223,6 +224,8 @@ function gwCatatTagihan_(x, bayar, kanal, fee, total, adminBayar) {
   var a = adminBayar > 0 ? gwCatatAdminBayar_(x, adminBayar, kanal, sumber) : '';
   var b = gwCatatBiaya_(x, total, kanal, fee, sumber);
   try { catat_('Sistem', '', 'Gateway otomatis', 'Bayar tagihan online', tag.nama + ' ' + x['NAMA'] + ' ' + bayar + (adminBayar ? ' + admin ' + adminBayar : ''), 'OK'); } catch (e) {}
+  npBayarDiterima_(x['ID WB'], tag.nama, bayar, 'online ' + (kanal || ''));   // v1.50.0: notifikasi
+  npKirim_('bayar_online_masuk', { judul: 'Pembayaran online masuk ' + honRp_(bayar), isi: tag.nama + ' - ' + x['NAMA'] + ' (' + (kanal || 'DOKU') + ').', aksi: 'keuangan', ref: 'gw|' + x['INVOICE'] });
   return [id, a, b].filter(String).join(',');
 }
 // Uang masuk yang tidak cocok dengan apa pun (mis. bayar ganda): tetap dicatat agar kas sesuai, ditandai untuk diperiksa.

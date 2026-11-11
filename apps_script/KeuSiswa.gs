@@ -112,6 +112,7 @@ function waSiswaBayarTransfer(token, d) {
   t.sh.appendRow(absBaris_(t, { 'ID': id, 'WAKTU': rfWaktu_(), 'TAGIHAN': k.tag.id, 'ID WB': k.w.id, 'NAMA': k.w.nama, 'JUMLAH': jml, 'REKENING TUJUAN': tujuan,
     'BUKTI': f, 'CATATAN SISWA': String(d.catatan || '').slice(0, 200), 'STATUS': 'Menunggu' }));
   try { catat_('Siswa', k.s.idRombel, k.w.nama, 'Kirim bukti transfer tagihan', k.tag.nama + ' ' + jml + ' ' + id, 'OK'); } catch (e) {}
+  npKirim_('transfer_masuk', { judul: 'Bukti transfer tagihan ' + honRp_(jml), isi: k.w.nama + ' (' + k.w.namaRombel + ') · ' + k.tag.nama + '. Periksa di Tagihan → Bukti transfer.', aksi: 'transfer', ref: id });   // v1.50.0: notifikasi
   return { sukses: true, id: id, pesan: 'Bukti transfer terkirim. Bendahara akan memeriksanya.' };
 }
 
@@ -152,6 +153,7 @@ function waStafTagihanTransferPutus(token, id, terima, catatan, akun) {
       if (catatan.length < 5) throw new Error('Tulis alasan penolakan (minimal 5 huruf).');
       ksTfUbah_(tf.t, x.baris, { 'STATUS': 'Ditolak', 'DIPROSES OLEH': p.nama, 'DIPROSES PADA': rfWaktu_(), 'CATATAN': catatan });
       catat_(p.peran, '-', p.nama, 'Tolak transfer tagihan', x.id + ' ' + x.nama + ': ' + catatan, 'OK');
+      npKirim_('transfer_ditolak', { judul: 'Bukti transfer ditolak', isi: honRp_(x.jumlah) + ': ' + catatan + '. Silakan kirim ulang atau bayar online.', aksi: 'tagihan_saya', siswa: [x.idWb] });   // v1.50.0: notifikasi
       return { sukses: true };
     }
     var tag = keuTagCari_(x.idTagihan), w = keuWbSemua_().filter(function(y) { return y.id === x.idWb; })[0];
@@ -168,6 +170,7 @@ function waStafTagihanTransferPutus(token, id, terima, catatan, akun) {
     }));
     ksTfUbah_(tf.t, x.baris, { 'STATUS': 'Diterima', 'DIPROSES OLEH': p.nama, 'DIPROSES PADA': rfWaktu_(), 'CATATAN': catatan, 'ID TRANSAKSI': idTrx });
     catat_(p.peran, w.idRombel, p.nama, 'Terima transfer tagihan', tag.nama + ' ' + w.nama + ' ' + x.jumlah, 'OK');
+    npBayarDiterima_(w.id, tag.nama, x.jumlah, 'transfer diverifikasi');   // v1.50.0: notifikasi
     return { sukses: true, idTransaksi: idTrx };
   } finally { lock.releaseLock(); }
 }

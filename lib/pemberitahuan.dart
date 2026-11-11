@@ -22,6 +22,46 @@ class Pemberitahuan {
   bool _daftarJalan = false;
   bool _dialog = false;
 
+  /// v1.50.0: jumlah notifikasi (kejadian) yang belum dibaca, untuk angka di lonceng.
+  final belumDibaca = ValueNotifier<int>(0);
+
+  /// Kotak masuk: kejadian 30 hari + pengumuman aktif (server: waNotifKotak).
+  Future<List<Map<String, dynamic>>> kotak() async {
+    final sp = await SharedPreferences.getInstance();
+    var kunci = sp.getString('bc_kunci') ?? '';
+    if (kunci.isEmpty) {
+      await mulai();
+      kunci = sp.getString('bc_kunci') ?? '';
+    }
+    if (kunci.isEmpty) return [];
+    final h = peta(await Api.instance('waNotifKotak', [kunci], const Duration(minutes: 1)));
+    final p = daftar(h['pesan']).map(peta).toList();
+    final dib = await dibaca();
+    belumDibaca.value = p.where((x) => teks(x['tipe']) == 'event' && !dib.contains(teks(x['id']))).length;
+    return p;
+  }
+
+  Future<Set<String>> dibaca() async {
+    final sp = await SharedPreferences.getInstance();
+    return (sp.getStringList('np_dibaca') ?? <String>[]).toSet();
+  }
+
+  Future<void> tandaiDibaca(Iterable<String> ids) async {
+    final sp = await SharedPreferences.getInstance();
+    final l = sp.getStringList('np_dibaca') ?? <String>[];
+    for (final id in ids) {
+      if (id.isNotEmpty && !l.contains(id)) l.add(id);
+    }
+    await sp.setStringList('np_dibaca', l.length > 400 ? l.sublist(l.length - 400) : l);
+    // bc_dilihat: pengumuman yang sudah dibuka dari kotak masuk tidak muncul lagi sebagai dialog
+    final dl = sp.getStringList('bc_dilihat') ?? <String>[];
+    for (final id in ids) {
+      if (id.isNotEmpty && !dl.contains(id)) dl.add(id);
+    }
+    await sp.setStringList('bc_dilihat', dl.length > 200 ? dl.sublist(dl.length - 200) : dl);
+    belumDibaca.value = (belumDibaca.value - ids.length).clamp(0, 9999).toInt();
+  }
+
   String get _identitas {
     final ss = SesiSiswa.instance;
     if (ss.masuk) return 'siswa|${ss.nama.toLowerCase()}|${ss.idRombel}';
@@ -107,11 +147,16 @@ class Pemberitahuan {
       final pesan = daftar(h['pesan']).map(peta).toList().reversed.toList(); // terlama dulu
       final dinotif = (sp.getString('bc_dinotif') ?? '').split(',').where((x) => x.isNotEmpty).toList();
       final dilihat = sp.getStringList('bc_dilihat') ?? <String>[];
-      var ubah = false;
+      final npDibaca = (sp.getStringList('np_dibaca') ?? <String>[]).toSet();
+      var ubah = false, belum = 0;
+      final eventBaru = <Map<String, dynamic>>[];
       for (final p in pesan) {
         final id = teks(p['id']);
         if (id.isEmpty) continue;
+        final event = teks(p['tipe']) == 'event';   // v1.50.0: notifikasi per peran -> lonceng, bukan dialog
+        if (event && !npDibaca.contains(id)) belum++;
         if (!dinotif.contains(id)) {
+          if (event) eventBaru.add(p);
           if (_android) {
             try {
               await _kanal.invokeMethod<bool>('tampil', {'id': id, 'judul': teks(p['judul']), 'isi': teks(p['isi'])});
@@ -120,7 +165,18 @@ class Pemberitahuan {
           dinotif.add(id);
           ubah = true;
         }
-        if (!dilihat.contains(id)) tampil.add(p);
+        if (!event && !dilihat.contains(id)) tampil.add(p);
+      }
+      belumDibaca.value = belum;
+      if (eventBaru.isNotEmpty) {
+        final c = nav.currentContext;
+        final m = c == null ? null : ScaffoldMessenger.maybeOf(c);
+        final x = eventBaru.last;
+        m?.showSnackBar(SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+          content: Text(eventBaru.length > 1 ? '${eventBaru.length} notifikasi baru · ${teks(x['judul'])}' : '${teks(x['judul'])}\n${teks(x['isi'])}', maxLines: 3),
+        ));
       }
       if (ubah) {
         final sisa = dinotif.length > 200 ? dinotif.sublist(dinotif.length - 200) : dinotif;

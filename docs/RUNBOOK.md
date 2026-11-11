@@ -149,3 +149,8 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 - Katalog metode: Pengaturan Referral → DOKU → "Metode bayar & biaya admin" (`KODE | Nama | persen | tetap`, Script Property gateway.metodeBayar). Paylater/cicilan selalu disaring. Order DOKU memakai payment_method_types = metode terpilih.
 - Pencatatan lunas: pemasukan tagihan (pokok) + pemasukan ADP "Biaya Admin dari Pembayar" + pengeluaran ADM biaya DOKU, satu nomor invoice. Kolom order baru: POKOK, BIAYA ADMIN, METODE.
 - Sasaran tagihan "Siswa" = siswa tertentu (NILAI SASARAN = ID WB dipisah koma).
+
+## Pusat Notifikasi per Peran (v1.50.0)
+- Kejadian dicatat di tab NOTIF PENGGUNA (npKirim_) dan dikirim lewat waNotifCek (tipe "event": notifikasi ponsel + angka di lonceng, tanpa dialog). Kotak masuk: lonceng di beranda (waNotifKotak, 30 hari + pengumuman). Status dibaca disimpan di perangkat.
+- Admin: menu Pengaturan Notifikasi (waAdminNotifAturan / Simpan, Script Property TH_NOTIF_MATRIKS) - jenis × peran; notifikasi siswa/tutor hanya ke orang yang bersangkutan.
+- Pemicu harian `pemicuNotifHarian` 06.00 (dipasang otomatis): pengingat jatuh tempo H-3/H/H+1; Senin: pajak belum disetor & ringkasan keuangan.
