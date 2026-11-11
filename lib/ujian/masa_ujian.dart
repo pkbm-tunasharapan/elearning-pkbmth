@@ -4,6 +4,7 @@ import '../absensi/umum.dart';
 import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'pengawas.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -563,6 +564,15 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
             if (draft) OutlinedButton.icon(onPressed: _usulan, icon: const Icon(Icons.auto_awesome_outlined), label: const Text('Usulkan jadwal')),
             if (draft) OutlinedButton.icon(onPressed: () => _ubahSlot(), icon: const Icon(Icons.add_rounded), label: const Text('Tambah slot')),
             OutlinedButton.icon(onPressed: _kesiapan, icon: const Icon(Icons.fact_check_outlined), label: const Text('Cek kesiapan bank soal')),
+            OutlinedButton.icon(
+              onPressed: () async {
+                if (_berubah && !await _simpanSlot()) return;
+                if (!context.mounted) return;
+                await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PenugasanPengawasScreen(idMasa: widget.id)));
+              },
+              icon: const Icon(Icons.badge_outlined),
+              label: const Text('Atur pengawas'),
+            ),
           ]),
           const SizedBox(height: 8),
           JudulBagian('Slot jadwal (${_slot.length})', sub: draft ? 'Setiap slot berlaku serentak untuk semua rombel peserta.' : 'Terkunci. Batalkan penetapan untuk mengubah.'),

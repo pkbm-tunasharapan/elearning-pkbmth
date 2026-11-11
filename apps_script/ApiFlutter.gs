@@ -22,7 +22,7 @@ var API_FLUTTER = {
     // cek NISN/NIK saat mendaftar (IdentitasSiswa.gs)
     waDaftarCekIdentitas: true,
     // siswa (fungsi yang sama dengan yang dipakai halaman web siswa)
-    waLogin: true, waPulihSesiSiswa: true, waKeluarSiswa: true, waGetMateri: true, waGetRiwayatJawaban: true, waSubmitJawaban: true, waSimpanDraftDiskusi: true, waGetDraftDiskusi: true, waTandaiBaca: true, waStatusUjian: true, waMulaiUjian: true, waSubmitUjian: true, waLaporPindahTab: true, waUjianAjukan: true, waAbsenIsi: true, waRuangPoll: true, waRuangKirim: true, waRuangCek: true, waSiswaKalender: true, waDaftarRombel: true, waDaftarMulai: true, waDaftarKirimUlang: true, waDaftarVerifikasi: true, waProfilSiswa: true, waProfilSiswaSimpan: true, waDaftarTutorStatus: true, waDaftarTutorCek: true, waDaftarTutorMulaiUndangan: true, waDaftarTutorKirimUlang: true, waDaftarTutorVerifikasiUndangan: true, waStafMasukGoogle: true, waKartuSiswa: true, waSiswaBeranda: true
+    waLogin: true, waPulihSesiSiswa: true, waKeluarSiswa: true, waGetMateri: true, waGetRiwayatJawaban: true, waSubmitJawaban: true, waSimpanDraftDiskusi: true, waGetDraftDiskusi: true, waTandaiBaca: true, waStatusUjian: true, waMulaiUjian: true, waSubmitUjian: true, waLaporPindahTab: true, waUjianDetak: true, waUjianAjukan: true, waAbsenIsi: true, waRuangPoll: true, waRuangKirim: true, waRuangCek: true, waSiswaKalender: true, waDaftarRombel: true, waDaftarMulai: true, waDaftarKirimUlang: true, waDaftarVerifikasi: true, waProfilSiswa: true, waProfilSiswaSimpan: true, waDaftarTutorStatus: true, waDaftarTutorCek: true, waDaftarTutorMulaiUndangan: true, waDaftarTutorKirimUlang: true, waDaftarTutorVerifikasiUndangan: true, waStafMasukGoogle: true, waKartuSiswa: true, waSiswaBeranda: true
   }
 };
 

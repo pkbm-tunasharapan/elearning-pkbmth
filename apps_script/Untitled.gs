@@ -15,7 +15,7 @@ var UJ = {
   SH: { JADWAL: 'Jadwal Ujian', AJU: 'Pengajuan Ujian', PERM: 'Permohonan Ujian', AKSES: 'Akses Ujian', HASIL: 'Hasil Ujian' },
   H: {
     JADWAL: ['Kunci', 'ID Mapel', 'Semester', 'Jenis', 'ID Ujian', 'Tanggal', 'Jam Mulai', 'Durasi Menit', 'KKM', 'Jumlah Soal',
-      'Mudah', 'Sedang', 'Sulit', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Oleh', 'Diubah Pada', 'Catatan', 'Mode', 'Terpusat', 'Judul', 'Masa', 'Cakupan'],
+      'Mudah', 'Sedang', 'Sulit', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Oleh', 'Diubah Pada', 'Catatan', 'Mode', 'Terpusat', 'Judul', 'Masa', 'Cakupan', 'Slot'],
     AJU: ['ID', 'Waktu', 'Jenis', 'ID Mapel', 'Semester', 'Jenis Ujian', 'ID Ujian', 'ID Rombel', 'Nama Siswa', 'Alasan',
       'Status', 'Tutor', 'Waktu Tutor', 'Catatan Tutor', 'ID Permohonan'],
     PERM: ['ID', 'Waktu', 'Jenis', 'ID Mapel', 'Semester', 'Jenis Ujian', 'ID Ujian', 'Diajukan Oleh', 'Siswa', 'Alasan',
@@ -132,7 +132,7 @@ function ujJadwalObj_(r) {
     kkm: parseFloat(r['KKM']) || 0, jumlah: parseInt(r['Jumlah Soal'], 10) || 0,
     komposisi: { mudah: parseInt(r['Mudah'], 10) || 0, sedang: parseInt(r['Sedang'], 10) || 0, sulit: parseInt(r['Sulit'], 10) || 0 },
     mode: r['Mode'] === 'Kertas' ? 'Kertas' : 'APK', terpusat: r['Terpusat'] === 'Ya', judulKhusus: r['Judul'] || '',
-    masa: r['Masa'] || '', cakupan: r['Cakupan'] || '',
+    masa: r['Masa'] || '', cakupan: r['Cakupan'] || '', slot: r['Slot'] || ((/\(slot (SL-[^)]+)\)/.exec(String(r['Catatan'] || '')) || [])[1] || ''),
     // v1.52.0: Tryout / Ujian Lainnya dari Masa Ujian memakai cakupan bank soal UTS atau UAS
     jenisPool: r['Jenis'] === 'UTS' || r['Jenis'] === 'UAS' ? r['Jenis'] : (r['Cakupan'] === 'UTS' ? 'UTS' : (r['Cakupan'] === 'UAS' ? 'UAS' : r['Jenis'])),
     dibuatOleh: r['Dibuat Oleh'], dibuatPada: r['Dibuat Pada'], diubahOleh: r['Diubah Oleh'], diubahPada: r['Diubah Pada'], catatan: r['Catatan'],
@@ -366,7 +366,7 @@ function ujStatus_(j, idRombel, nama) {
   var sesi = cariBarisSesiUjian_(j.idUjian, idRombel, nama);
   if (sesi && String(sesi.row[sesi.cols.status - 1]) === 'Berlangsung') {
     var wm = ujMsSel_(sesi.row[sesi.cols.waktuMulai - 1]);
-    if (wm && now > wm + (j.durasi + UJ.GRACE_MENIT) * 60000) {
+    if (wm && now > wm + (j.durasi + pwTambah_(j.idUjian, idRombel, nama) + UJ.GRACE_MENIT) * 60000) {
       ujAkhiriKadaluarsa_(j, idRombel, nama, sesi);
       sesi = cariBarisSesiUjian_(j.idUjian, idRombel, nama);
     }
@@ -398,6 +398,7 @@ function ujStatus_(j, idRombel, nama) {
     tanggal: j.tanggal, jam: j.jam, durasi: j.durasi, kkm: j.kkm, jumlah: j.jumlah,
     mulaiMs: j.mulaiMs, masukSampaiMs: j.masukSampaiMs, teksMulai: ujTeksWaktu_(j.mulaiMs), masukMenit: UJ.MASUK_MENIT,
     fase: fase, bolehMulai: bolehMulai, berlangsung: berlangsung, terkunci: terkunci, sekarangMs: now,
+    perluToken: !!(j.slot && !berlangsung && !akses), tambahMenit: pwTambah_(j.idUjian, idRombel, nama),
     sudahMengerjakan: hasil.ada,
     nilai: hasil.terbaik ? { nilai: hasil.terbaik.nilai, maks: hasil.terbaik.maks, persen: hasil.terbaik.persen } : null,
     lulus: !!(hasil.terbaik && hasil.terbaik.persen >= j.kkm),
@@ -425,7 +426,7 @@ function waStatusUjian(idUjian, idRombel, idMapel, nama) {
   return r;
 }
 
-function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
+function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian) {
   // v1.39.0: WB yang sudah punya PIN wajib memasukkan PIN sebelum ujian dimulai
   try {
     if (pinPunya_(nama, idRombel)) {
@@ -450,7 +451,7 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
       return { sukses: false, pesan: nilSy };
     }
   }
-  if (j) g = ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses);
+  if (j) g = ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian);
   if (g.pesan) {
     try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - ' + g.pesan, 'GAGAL'); } catch (e) {}
     return { sukses: false, pesan: g.pesan };
@@ -471,6 +472,8 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
     if (s2) s2.sheet.getRange(s2.rowIndex, s2.cols.waktuMulai).setValue(new Date(g.lanjutMs));
     r.waktuMulaiMs = g.lanjutMs;
   }
+  var tw = pwTambah_(idUjian, idRombel, nama);   // v1.53.0: tambahan waktu dari pengawas
+  if (tw) { r.tambahMenit = tw; r.durasiMenit = (Number(r.durasiMenit) || j.durasi) + tw; }
   r.jenisSitting = ujJenisSitting_(idUjian, idRombel, nama);
   try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + (g.lanjutMs ? ' (lanjut)' : ' (' + r.jenisSitting + ')'), 'OK'); } catch (e) {}
   return r;
@@ -478,7 +481,7 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin) {
 
 // Gerbang mulai untuk ujian terjadwal. Mengembalikan {pesan} (kosong = lolos), {akses} bila memakai akses personal,
 // {lanjutMs} bila siswa melanjutkan sitting yang sedang berjalan.
-function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses) {
+function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian) {
   if (String(j.idMapel) !== String(idMapel)) return { pesan: '' };
   var psMasa = muGerbang_(j, idRombel, nama);   // v1.52.0: peserta "siswa tertentu"
   if (psMasa) return { pesan: psMasa };
@@ -488,7 +491,7 @@ function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses) {
   var st = sesi ? String(sesi.row[sesi.cols.status - 1]) : '';
   if (sesi && st === 'Berlangsung') {
     var wm = ujMsSel_(sesi.row[sesi.cols.waktuMulai - 1]);
-    if (wm && now <= wm + (j.durasi + UJ.GRACE_MENIT) * 60000) return { pesan: '', lanjutMs: wm };
+    if (wm && now <= wm + (j.durasi + pwTambah_(j.idUjian, idRombel, nama) + UJ.GRACE_MENIT) * 60000) return { pesan: '', lanjutMs: wm };
     ujAkhiriKadaluarsa_(j, idRombel, nama, sesi);
     sesi = cariBarisSesiUjian_(j.idUjian, idRombel, nama);
     st = 'Selesai';
@@ -510,6 +513,8 @@ function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses) {
   if (now > j.masukSampaiMs) {
     return { pesan: 'Waktu masuk ujian sudah ditutup (batas masuk ' + ujFmt_(j.masukSampaiMs, 'HH:mm') + '). Bila Anda belum mengerjakan, ajukan ujian susulan dari halaman ujian ini.' };
   }
+  var gTok = pwCekToken_(j, idRombel, nama, tokenUjian);   // v1.53.0: token slot dari pengawas
+  if (gTok) return { pesan: gTok };
   return { pesan: '' };
 }
 
@@ -534,7 +539,7 @@ function ujGerbangKirim_(j, payload) {
   if (!sesi) return 'Ujian belum dimulai. Buka halaman ujian lalu tekan Mulai Ujian.';
   if (String(sesi.row[sesi.cols.status - 1]) !== 'Berlangsung') return '';
   var wm = ujMsSel_(sesi.row[sesi.cols.waktuMulai - 1]);
-  if (wm && Date.now() > wm + (j.durasi + UJ.GRACE_MENIT) * 60000) {
+  if (wm && Date.now() > wm + (j.durasi + pwTambah_(j.idUjian, payload.idRombel, payload.nama) + UJ.GRACE_MENIT) * 60000) {
     ujAkhiriKadaluarsa_(j, payload.idRombel, payload.nama, sesi);
     return 'Waktu pengerjaan sudah habis sehingga jawaban tidak dapat diterima. Nilai tercatat 0; ajukan remedial dari halaman ujian bila diperlukan.';
   }

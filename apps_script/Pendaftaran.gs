@@ -494,6 +494,7 @@ function waLaporPindahTab(idUjian, idRombel, nama, kodeAkses) {
     return { percobaan: 0, terkunci: false, batasPercobaan: CONFIG.BATAS_PERCOBAAN_PINDAH_TAB };
   }
   var r = waLaporPindahTabAsli_(idUjian, idRombel, nama);
+  try { pwCatat_(idUjian, idRombel, nama, r.terkunci ? 'Keluar aplikasi - ujian terkunci' : 'Keluar aplikasi', 'Pelanggaran ke-' + r.percobaan + ' dari batas ' + r.batasPercobaan); } catch (ePw) {}
   try { catat_('Siswa', idRombel, nama, 'Pindah tab saat ujian', 'ujian ' + idUjian, 'GAGAL'); } catch (e) {}
   return r;
 }

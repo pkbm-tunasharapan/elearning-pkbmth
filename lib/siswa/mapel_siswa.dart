@@ -795,11 +795,16 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
   String get _idUjian => teks(widget.item['id']);
 
   String _pin = '';
+  // v1.53.0: token slot dari pengawas (Masa Ujian serentak)
+  bool _perluToken = false;
+  String _token = '';
 
   Future<String?> _mintaKode() async {
     final c = TextEditingController(text: _s.kodeAkses);
     final cPin = TextEditingController();
+    final cTok = TextEditingController();
     final perluPin = _s.punyaPin;
+    final perluToken = _perluToken;
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
@@ -816,6 +821,13 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
               decoration: const InputDecoration(labelText: 'PIN Anda (6 angka)'),
             ),
+          if (perluToken)
+            TextField(
+              controller: cTok,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [LengthLimitingTextInputFormatter(6)],
+              decoration: const InputDecoration(labelText: 'Token ujian dari pengawas', helperText: '6 huruf/angka yang diumumkan pengawas ruang'),
+            ),
           const SizedBox(height: 12),
           const Text('Selama ujian jangan keluar dari aplikasi. Setiap kali keluar, alarm akan berbunyi keras (juga saat ponsel senyap) dan tercatat sebagai pelanggaran.',
               style: TextStyle(fontSize: 12.5)),
@@ -831,6 +843,11 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
       if (mounted) kabar(context, 'Isi PIN 6 angka untuk memulai ujian.', galat: true);
       return null;
     }
+    if (perluToken && cTok.text.trim().isEmpty) {
+      if (mounted) kabar(context, 'Isi token ujian dari pengawas.', galat: true);
+      return null;
+    }
+    _token = cTok.text.trim().toUpperCase();
     _pin = cPin.text.trim();
     await _s.simpanKode(c.text);
     return _s.kodeAkses;
@@ -852,7 +869,7 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
     }
     final kode = await _mintaKode();
     if (kode == null || !mounted) return;
-    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin]), teksProses: 'Menyiapkan soal...');
+    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin, _token]), teksProses: 'Menyiapkan soal...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     if (d['sukses'] != true) {
@@ -915,6 +932,7 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
           muat: () async => peta(await Api.instance('waStatusUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama])),
           bangun: (context, d, _) {
             final uj = peta(d['uj']);
+            _perluToken = uj['perluToken'] == true;
             final selesai = d['selesai'] == true;
             final tombol = teks(uj['tombol']);
             final info = [teks(uj['pesan']), teks(uj['teks']), teks(uj['info']), teks(d['pesan'])].where((x) => x.isNotEmpty).toSet().join('\n');
@@ -997,7 +1015,10 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
   final _halaman = PageController();
   int _idx = 0;
   Timer? _jam;
+  Timer? _detak;
   int _sisaDetik = -1;
+  int _akhirMs = 0;
+  int _tambah = 0;
   bool _kirim = false;
 
   @override
@@ -1006,11 +1027,29 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     WidgetsBinding.instance.addObserver(this);
     final durasi = angka(widget.data['durasiMenit']);
     final mulai = angka(widget.data['waktuMulaiMs']);
+    _tambah = angka(widget.data['tambahMenit']);
     if (durasi > 0) {
-      final akhir = (mulai > 0 ? mulai : DateTime.now().millisecondsSinceEpoch) + durasi * 60000;
-      _hitung(akhir);
-      _jam = Timer.periodic(const Duration(seconds: 1), (_) => _hitung(akhir));
+      _akhirMs = (mulai > 0 ? mulai : DateTime.now().millisecondsSinceEpoch) + durasi * 60000;
+      _hitung(_akhirMs);
+      _jam = Timer.periodic(const Duration(seconds: 1), (_) => _hitung(_akhirMs));
     }
+    // v1.53.0: detak ke server (status tersambung di layar pengawas) + menerima tambahan waktu dari pengawas
+    _kirimDetak();
+    _detak = Timer.periodic(const Duration(seconds: 60), (_) => _kirimDetak());
+  }
+
+  Future<void> _kirimDetak() async {
+    if (_kirim) return;
+    try {
+      final d = peta(await Api.instance('waUjianDetak', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode], const Duration(seconds: 25)));
+      final t = angka(d['tambahMenit']);
+      if (!mounted || d['sukses'] != true || _akhirMs == 0) return;
+      if (t > _tambah) {
+        _akhirMs += (t - _tambah) * 60000;
+        kabar(context, 'Pengawas menambah waktu ${t - _tambah} menit.');
+        _tambah = t;
+      }
+    } catch (_) {}
   }
 
   void _hitung(int akhirMs) {
@@ -1025,6 +1064,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     WidgetsBinding.instance.removeObserver(this);
     AlarmUjian.henti(segera: true);
     _jam?.cancel();
+    _detak?.cancel();
     _halaman.dispose();
     super.dispose();
   }

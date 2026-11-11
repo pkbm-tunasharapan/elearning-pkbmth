@@ -23,7 +23,7 @@ var IZN = {
   // fungsi BACA (cukup izin "lihat"); selain ini dianggap UBAH
   BACA: /(Daftar\w*|Baca\w*|Konteks|Info|Lengkap|Rekap|Laporan\w*|Leger|Kelas|Rapor|Cari|Pratinjau|Format|Pdf|Peta|Isi|Tab|Log|Berkas|Hari|Aturan|Data|Naskah|Rinci|Aktif|Saya|Tunggakan\w*|Prompt\w*|BiodataRombel|Jawaban|Terkunci|Qr|Performa|Semua|Bacaan|Soal|Status|SesiDiskusi|CatatanNilai|KinerjaTutor|BelumDinilai|^waStaf(Nilai|Absensi|Siswa|Materi|RombelSiswa|LaporanHadir)$)$/,
   TULIS_PAKSA: { waStafMateriStatus: true, waAdminCekDataJadwal: true, waAdminSusulanAkhiri: true },
-  BACA_PAKSA: { waStafMasaKesiapan: true, waStafMasaUsulan: true,waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true },
+  BACA_PAKSA: { waStafPengawasTugas: true, waStafPengawasPantau: true, waStafPengawasBeritaAcara: true, waStafMasaPengawas: true,waStafMasaKesiapan: true, waStafMasaUsulan: true,waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true },
   // [id fitur (= id menu), judul, kelompok, peran bawaan yang punya fitur ini, pola fungsi]
   FITUR: [
     ['pengguna', 'Kelola Tutor & Enrollment', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode)$/],
@@ -48,6 +48,7 @@ var IZN = {
     ['asesmen', 'Asesmen Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'], /^waStafAsesmen\w*$/],
     ['ujianTerpusat', 'Jadwal Ujian Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'], /^waStafUjt\w*$/],
     ['masaUjian', 'Masa Ujian Serentak', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafMasa\w*$/],
+    ['pengawasUjian', 'Pengawas Ujian', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara'], /^waStafPengawas\w*$/],
     ['kotakUjian', 'Kotak Ujian (pengajuan ujian)', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waAdminUjian(BukaAkses|Disposisi|Tolak)$/],
     ['dispensasi', 'Dispensasi Ujian', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafDispensasi\w*$/],
     ['nilai', 'Belum Dinilai', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'], /^wa(StafBelumDinilai|AdminTugasNilaiOtomatis)$/],

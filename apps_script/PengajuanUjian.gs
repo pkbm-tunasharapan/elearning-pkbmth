@@ -1010,6 +1010,28 @@ function kalBangun_(idRombel) {
 
   var isi = {}, rencana = {};
   try { rencana = kalRencanaSemua_(adaMapel); } catch (e) {}
+  // v1.53.0: jadwal tatap muka mingguan, asesmen tatap muka, dan ujian lain (Tryout / Ujian Lainnya) per sesi
+  var tmPm = {}, tmAs = {}, ujLain = {}, tmTutor = {};
+  try {
+    var pt = ujtPeta_();
+    try { tmTutor = absPetaTutor_(); } catch (eT) {}
+    mapel.forEach(function(m) {
+      var key = pt.tm[String(m.idMapel)];
+      if (key) tmPm[m.idMapel] = pt.pm.filter(function(x) { return x.idRombel + '|' + x.kodeMapel === key; });
+    });
+    var keKey = {};
+    Object.keys(tmPm).forEach(function(idM) { keKey[pt.tm[String(idM)]] = idM; });
+    nilAsSemua_(null).forEach(function(a) {
+      var idM = keKey[a.idRombel + '|' + a.kodeMapel];
+      if (idM) (tmAs[idM] = tmAs[idM] || []).push({ jenis: a.jenis, tanggal: a.tanggal, mulai: a.mulai, selesai: a.selesai, ruang: a.ruang || '' });
+    });
+  } catch (eTm) {}
+  try {
+    ujJadwalSemua_().forEach(function(x) {
+      if (!adaMapel[x.idMapel] || x.jenis === 'UTS' || x.jenis === 'UAS' || !x.tanggal) return;
+      (ujLain[x.idMapel] = ujLain[x.idMapel] || []).push({ jenis: x.jenis === 'TRYOUT' ? 'Tryout' : 'Ujian', judul: x.judulKhusus || ujJudul_(x.jenis, x.smt), tanggal: x.tanggal, jam: x.jam, durasi: x.durasi, kkm: x.kkm });
+    });
+  } catch (eL) {}
   mapel.forEach(function(m) {
     var plan = {};
     try {
@@ -1026,6 +1048,19 @@ function kalBangun_(idRombel) {
       if (s.jenis !== 'Biasa') {
         var jd = jadwal[m.idMapel + '|' + s.smt + '|' + s.jenis] || null;
         cell.ujian = { jenis: s.jenis, tanggal: jd ? jd.tanggal : '', jam: jd ? jd.jam : '', durasi: jd ? jd.durasi : 0, kkm: jd ? jd.kkm : 0 };
+      }
+      if (s.mulai && s.selesai) {
+        var tm = [];
+        (tmPm[m.idMapel] || []).forEach(function(x) {
+          for (var tg = s.mulai, h = 0; tg <= s.selesai && h < 14; tg = ujtTambahHari_(tg, 1), h++) {
+            if (jadBerlaku_(x, tg)) tm.push({ tanggal: tg, hari: jadHariDari_(tg), mulai: x.mulai, selesai: x.selesai, tutor: tmTutor[x.idTutor] ? tmTutor[x.idTutor].nama : '' });
+          }
+        });
+        if (tm.length) cell.tatapMuka = tm.sort(function(a, b) { return (a.tanggal + a.mulai).localeCompare(b.tanggal + b.mulai); });
+        var as = (tmAs[m.idMapel] || []).filter(function(a) { return a.tanggal >= s.mulai && a.tanggal <= s.selesai; });
+        if (as.length) cell.asesmen = as;
+        var ul = (ujLain[m.idMapel] || []).filter(function(a) { return a.tanggal >= s.mulai && a.tanggal <= s.selesai; });
+        if (ul.length) cell.ujianLain = ul;
       }
       peta[s.key] = cell;
     });
@@ -1711,6 +1746,11 @@ function waDaftarTutorVerifikasi(sesi, kodeOtp) {
   }
   cache.remove('otptutor_' + sesi);
   catat_('Tutor', '', o.d.nama, 'Daftar tutor - berhasil', 'email ' + maskEmail_(o.d.email) + ', ' + jumlah + ' mapel diajukan', 'OK');
+  if (jumlah) {
+    var daftarMapel = baris.map(function(x) { return x[4] + ' (' + x[5] + ')'; });
+    npKirim_('tutor_mapel_baru', { judul: 'Pengajuan mapel dari tutor baru', isi: o.d.nama + ' mendaftar sebagai tutor dan mengajukan ' + jumlah + ' mapel: ' + daftarMapel.slice(0, 6).join(', ') +
+      (daftarMapel.length > 6 ? ', dan ' + (daftarMapel.length - 6) + ' lainnya' : '') + '. Periksa di menu Pengajuan Tutor.', aksi: 'pengajuan_tutor', ref: 'tutor|' + idPengguna });   // v1.53.0: notifikasi
+  }
   return { sukses: true, nama: o.d.nama, kodeAkses: kode, jumlah: jumlah };
 }
 

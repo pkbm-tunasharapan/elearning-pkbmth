@@ -12,6 +12,7 @@ import 'jadwal/jadwal.dart';
 import 'referral/referral.dart';
 import 'referral/referral_admin.dart';
 import 'ujian/masa_ujian.dart';
+import 'ujian/pengawas.dart';
 import 'ujian/ujian_terpusat.dart';
 import 'keuangan/keuangan.dart';
 import 'nilai/nilai.dart';
@@ -87,6 +88,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'asesmen', judul: 'Asesmen Tatap Muka', ikon: Icons.assignment_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const AsesmenScreen()),
   MenuApp(id: 'ujianTerpusat', judul: 'Jadwal Ujian Tatap Muka', ikon: Icons.event_available_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const UjianTerpusatScreen()),
   MenuApp(id: 'masaUjian', judul: 'Masa Ujian Serentak', ikon: Icons.date_range_rounded, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const MasaUjianScreen()),
+  MenuApp(id: 'pengawasUjian', judul: 'Pengawas Ujian', ikon: Icons.badge_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara'}, native: () => const PengawasScreen()),
   MenuApp(id: 'referral', judul: 'Referral Pendaftaran', ikon: Icons.campaign_outlined, peran: {'Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara'}, native: () => ReferralScreen(token: Sesi.instance.token ?? '')),
   MenuApp(id: 'referralAdmin', judul: 'Kelola Referral & Pendaftaran', ikon: Icons.how_to_reg_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Front Office', 'Bendahara'}, native: () => const ReferralAdminScreen()),
   MenuApp(id: 'broadcast', judul: 'Broadcast Pemberitahuan', ikon: Icons.notifications_active_outlined, peran: _admin, native: () => const BroadcastScreen()),
@@ -148,7 +150,7 @@ const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kale
 
 const _grupMenu = <String, String>{
   'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
-  'progres': 'Pembelajaran', 'susulan': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'masaUjian': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
+  'progres': 'Pembelajaran', 'susulan': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'masaUjian': 'Pembelajaran', 'pengawasUjian': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
   'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
@@ -178,6 +180,7 @@ const _kataKunci = <String, String>{
   'referral': 'cashback promotor daftar siswa baru ajak teman saldo tarik',
   'promosi': 'iklan banner popup pengumuman promo',
   'referralAdmin': 'verifikasi pendaftaran berkas pembayaran penarikan cashback qris',
+  'pengawasUjian': 'pengawas ujian token pantau berita acara daftar hadir ruang awas',
   'masaUjian': 'uts uas tryout ujian serentak masa jadwal online peserta bank soal',
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',

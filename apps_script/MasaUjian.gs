@@ -14,14 +14,24 @@ var MU = {
   TAB: 'MASA UJIAN',
   HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN'],
   TAB_SLOT: 'SLOT UJIAN',
-  HDR_SLOT: ['ID', 'MASA', 'TANGGAL', 'JAM', 'DURASI', 'KODE MAPEL', 'NAMA MAPEL', 'JUMLAH SOAL', 'MUDAH', 'SEDANG', 'SULIT', 'CATATAN'],
+  HDR_SLOT: ['ID', 'MASA', 'TANGGAL', 'JAM', 'DURASI', 'KODE MAPEL', 'NAMA MAPEL', 'JUMLAH SOAL', 'MUDAH', 'SEDANG', 'SULIT', 'CATATAN', 'TOKEN'],
   JENIS: ['UTS', 'UAS', 'LAIN', 'TRYOUT'],
   NAMA_JENIS: { UTS: 'UTS', UAS: 'UAS', LAIN: 'Ujian Lainnya', TRYOUT: 'Tryout' },
   MAKS_SLOT: 120, MAKS_HARI: 31
 };
 
 // ---------- tabel ----------
-function muTab_(nama, hdr) { return bcSheet_(nama, hdr); }
+function muTab_(nama, hdr) {
+  var sh = bcSheet_(nama, hdr);
+  if (sh.getLastColumn() < hdr.length) sh.getRange(1, 1, 1, hdr.length).setValues([hdr]).setFontWeight('bold');   // kolom baru (v1.53.0: TOKEN)
+  return sh;
+}
+// Token ujian per slot (diumumkan pengawas): 6 huruf/angka tanpa yang mirip (O/0, I/1).
+function muTokenBaru_() {
+  var a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '';
+  for (var i = 0; i < 6; i++) s += a.charAt(Math.floor(Math.random() * a.length));
+  return s;
+}
 function muBaca_(nama, hdr) {
   var sh = muTab_(nama, hdr), n = sh.getLastRow() - 1, out = [];
   if (n < 1) return out;
@@ -44,7 +54,7 @@ function muObj_(r) {
 function muSlotObj_(r) {
   return { id: r['ID'], masa: r['MASA'], tanggal: ujTgl_(r['TANGGAL']), jam: ujJam_(r['JAM']), durasi: parseInt(r['DURASI'], 10) || 0, kode: r['KODE MAPEL'],
     namaMapel: r['NAMA MAPEL'], jumlah: parseInt(r['JUMLAH SOAL'], 10) || 0,
-    komposisi: { mudah: parseInt(r['MUDAH'], 10) || 0, sedang: parseInt(r['SEDANG'], 10) || 0, sulit: parseInt(r['SULIT'], 10) || 0 }, baris: r._baris };
+    komposisi: { mudah: parseInt(r['MUDAH'], 10) || 0, sedang: parseInt(r['SEDANG'], 10) || 0, sulit: parseInt(r['SULIT'], 10) || 0 }, token: r['TOKEN'] || '', baris: r._baris };
 }
 function muSemua_() { return muBaca_(MU.TAB, MU.HDR).map(muObj_); }
 function muCari_(id) {
@@ -195,7 +205,7 @@ function waStafMasaSlotSimpan(token, id, slot) {
     var jml = parseInt(s.jumlah, 10) || UJ.JUMLAH_BAWAAN;
     if (jml < 5 || jml > KM.MAKS_SOAL_PER_UJIAN) throw new Error(label + ': jumlah soal 5–' + KM.MAKS_SOAL_PER_UJIAN + '.');
     var komp = ujKomposisi_(jml, s);
-    baris.push(['SL-' + absId_().toUpperCase(), m.id, tgl, jam, dur, kode, nm[kode] || kode, jml, komp.mudah, komp.sedang, komp.sulit, String(s.catatan || '').slice(0, 200)]);
+    baris.push(['SL-' + absId_().toUpperCase(), m.id, tgl, jam, dur, kode, nm[kode] || kode, jml, komp.mudah, komp.sedang, komp.sulit, String(s.catatan || '').slice(0, 200), '']);
   });
   var sh = muTab_(MU.TAB_SLOT, MU.HDR_SLOT), lama = muBaca_(MU.TAB_SLOT, MU.HDR_SLOT).filter(function(s) { return s['MASA'] === m.id; })
     .map(function(s) { return s._baris; }).sort(function(a, b) { return b - a; });
@@ -263,7 +273,7 @@ function waStafMasaTetapkan(token, id) {
             'Kunci': kj, 'ID Mapel': k.idMapel, 'Semester': m.smt, 'Jenis': m.jenis, 'ID Ujian': idU, 'Tanggal': s.tanggal, 'Jam Mulai': s.jam, 'Durasi Menit': s.durasi,
             'KKM': m.kkm, 'Jumlah Soal': s.jumlah, 'Mudah': s.komposisi.mudah, 'Sedang': s.komposisi.sedang, 'Sulit': s.komposisi.sulit, 'Dibuat Oleh': p.nama,
             'Dibuat Pada': ujNow_(), 'Catatan': 'Masa ujian ' + m.nama + ' (slot ' + s.id + ')', 'Mode': 'APK', 'Terpusat': 'Ya',
-            'Judul': m.jenis === 'UTS' || m.jenis === 'UAS' ? '' : judul, 'Masa': m.id, 'Cakupan': m.cakupan
+            'Judul': m.jenis === 'UTS' || m.jenis === 'UAS' ? '' : judul, 'Masa': m.id, 'Cakupan': m.cakupan, 'Slot': s.id
           });
           adaKunci[kj] = true;
           hasil.push({ nama: nm, teks: ujTeksWaktu_(mulaiMs) });
@@ -275,6 +285,8 @@ function waStafMasaTetapkan(token, id) {
       sh.getRange(m.baris, MU.HDR.indexOf('STATUS') + 1).setValue('Ditetapkan');
       sh.getRange(m.baris, MU.HDR.indexOf('DITETAPKAN OLEH') + 1).setValue(p.nama);
       sh.getRange(m.baris, MU.HDR.indexOf('DITETAPKAN PADA') + 1).setValue(ujNow_());
+      var shS = muTab_(MU.TAB_SLOT, MU.HDR_SLOT), kT = MU.HDR_SLOT.indexOf('TOKEN') + 1;
+      slot.forEach(function(s) { if (!s.token) shS.getRange(s.baris, kT).setNumberFormat('@').setValue(muTokenBaru_()); });
     }
   } finally { kunci.releaseLock(); }
   catat_(p.peran, '', p.nama, 'Tetapkan masa ujian', m.id + ' ' + m.nama + ': ' + hasil.length + ' jadwal, ' + lewat.length + ' dilewati', 'OK');

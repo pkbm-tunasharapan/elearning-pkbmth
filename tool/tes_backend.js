@@ -680,5 +680,28 @@ tes('masa ujian: cakupan tryout/lainnya dan kolom Masa', () => {
   sama(g.nilGerbangUjian_({ jenis: 'TRYOUT' }, 'R', 'N'), '', 'tryout tanpa syarat hadir');
 });
 
+// 20. pengawas ujian: penugasan efektif, token, slot jadwal (v1.53.0)
+tes('pengawas: penugasan per slot menimpa semua slot', () => {
+  const t = [
+    { SLOT: '*', ROMBEL: 'R1', RUANG: 'Ruang 1', 'ID PENGAWAS': 'U1', 'NAMA PENGAWAS': 'A' },
+    { SLOT: 'SL-2', ROMBEL: 'R1', RUANG: '', 'ID PENGAWAS': 'U2', 'NAMA PENGAWAS': 'B' },
+  ];
+  sama(g.pwEfektif_(t, 'SL-1', 'R1').idPengawas, 'U1', 'bawaan semua slot');
+  sama(g.pwEfektif_(t, 'SL-2', 'R1').idPengawas, 'U2', 'khusus slot');
+  sama(g.pwEfektif_(t, 'SL-2', 'R1').ruang, 'Ruang 1', 'ruang ikut bawaan');
+  sama(g.pwEfektif_(t, 'SL-1', 'R9'), null, 'rombel tanpa pengawas');
+  sama(/^[A-HJ-NP-Z2-9]{6}$/.test(g.muTokenBaru_()), true, 'token 6 karakter tanpa O/0/I/1');
+  sama(g.ujJadwalObj_({ 'Jenis': 'UTS', 'Catatan': 'Masa ujian X (slot SL-ABC)' }).slot, 'SL-ABC', 'slot dari catatan lama');
+  sama(g.ujJadwalObj_({ 'Jenis': 'UTS', 'Slot': 'SL-9' }).slot, 'SL-9', 'kolom slot');
+});
+tes('notifikasi: pengajuan tutor hanya untuk yang punya akses fitur', () => {
+  const at = { tutor_mapel_baru: ['Admin'] };
+  const ev = { jenis: 'tutor_mapel_baru', siswa: [], tutor: [], staf: [] };
+  const ctx = { wb: () => '', tutor: () => '' };
+  sama(g.npCocok_(ev, { jenis: 'staf', id: 'U1', peran: 'Admin' }, at, ctx), true, 'admin');
+  sama(g.npCocok_(ev, { jenis: 'staf', id: 'U2', peran: 'Tutor' }, at, ctx), false, 'tutor tidak');
+  sama(g.npCocok_(ev, { jenis: 'staf', id: 'U3', peran: 'Admin' }, { tutor_mapel_baru: [] }, ctx), false, 'dimatikan');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

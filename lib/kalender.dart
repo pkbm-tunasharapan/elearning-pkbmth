@@ -40,6 +40,7 @@ String _ujianTeks(Map<String, dynamic> u) {
 const _wBerjalan = Color(0xFF16A34A);
 const _wUts = Color(0xFF7C3AED);
 const _wUas = Color(0xFFDC2626);
+const _wTatapMuka = Color(0xFF1D4ED8);
 
 /// Tampilan kalender akademik (sama dengan kalGambar_ di web): daftar sesi per semester dan kisi bulanan.
 class KalenderView extends StatefulWidget {
@@ -95,7 +96,22 @@ class _KalenderViewState extends State<KalenderView> {
           for (final j in daftar(c['diskusi'])) {
             bag.add('Diskusi: $j');
           }
-          return {'mapel': teks(m['namaMapel']), 'tutor': daftar(m['tutor']).join(', '), 'bagian': bag, 'ujian': c['ujian'] == null ? null : peta(c['ujian'])};
+          // v1.53.0: jadwal tatap muka mingguan, asesmen tatap muka, dan ujian lain (Tryout / Ujian Lainnya)
+          final jadwal = <String>[
+            for (final a in daftar(c['asesmen']).map(peta))
+              '${teks(a['jenis'], 'Asesmen')} tatap muka: ${_panjang(a['tanggal'])} pukul ${teks(a['mulai'])}–${teks(a['selesai'])}${teks(a['ruang']).isEmpty ? '' : ' · ${teks(a['ruang'])}'}',
+            for (final u in daftar(c['ujianLain']).map(peta))
+              '${teks(u['judul'], teks(u['jenis']))}: ${_panjang(u['tanggal'])} pukul ${teks(u['jam'])} (${angka(u['durasi'])} menit)',
+          ];
+          final tm = daftar(c['tatapMuka']).map(peta).toList();
+          return {
+            'mapel': teks(m['namaMapel']),
+            'tutor': daftar(m['tutor']).join(', '),
+            'bagian': bag,
+            'ujian': c['ujian'] == null ? null : peta(c['ujian']),
+            'jadwal': jadwal,
+            'tatapMuka': tm.map((t) => '${teks(t['hari'])} ${_pendek(t['tanggal'])}, ${teks(t['mulai'])}–${teks(t['selesai'])}').toList(),
+          };
         }(),
     ];
   }
@@ -103,7 +119,7 @@ class _KalenderViewState extends State<KalenderView> {
   static const _cssCetak = '.kc-kop{text-align:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}.kc-sekolah{font-size:13pt;font-weight:700}'
       '.kc-judul{font-size:11pt;font-weight:700}.kc-sub{font-size:9pt}table{border-collapse:collapse;width:100%}'
       'th,td{border:1px solid #444;padding:3px 4px;font-size:8pt;vertical-align:top;text-align:left}th{background:#e5e7eb}tr{page-break-inside:avoid}'
-      'thead{display:table-header-group}.uj{font-weight:700;color:#b45309}.br{background:#dcfce7}.uts{background:#ede9fe}.uas{background:#fee2e2}.kc-hal{page-break-after:always}.kc-hal:last-child{page-break-after:auto}';
+      'thead{display:table-header-group}.uj{font-weight:700;color:#b45309}.br{background:#dcfce7}.uts{background:#ede9fe}.uas{background:#fee2e2}.tm{color:#1d4ed8}.kc-hal{page-break-after:always}.kc-hal:last-child{page-break-after:auto}';
 
   String _htmlCetak() {
     final mapel = _mapelDipakai;
@@ -125,7 +141,9 @@ class _KalenderViewState extends State<KalenderView> {
         for (final r in _baris(s)) {
           final u = r['ujian'] as Map<String, dynamic>?;
           final bag = r['bagian'] as List<String>;
-          o.write('<td>${u != null ? '<div class="uj">${escHtml('${teks(u['jenis'])}: ${_ujianTeks(u)}')}</div>' : ''}${bag.map((b) => '<div>${escHtml(b)}</div>').join()}</td>');
+          final jd = r['jadwal'] as List<String>, tm = r['tatapMuka'] as List<String>;
+          o.write('<td>${u != null ? '<div class="uj">${escHtml('${teks(u['jenis'])}: ${_ujianTeks(u)}')}</div>' : ''}${jd.map((b) => '<div class="uj">${escHtml(b)}</div>').join()}'
+              '${tm.isEmpty ? '' : '<div class="tm">Tatap muka: ${escHtml(tm.join('; '))}</div>'}${bag.map((b) => '<div>${escHtml(b)}</div>').join()}</td>');
         }
         o.write('</tr>');
       }
@@ -182,8 +200,25 @@ class _KalenderViewState extends State<KalenderView> {
                         style: TextStyle(fontWeight: FontWeight.w700, color: ada ? const Color(0xFFB45309) : cs.error, fontSize: 13)),
                   );
                 }),
+              for (final j in r['jadwal'] as List<String>)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(j, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFB45309), fontSize: 13)),
+                ),
+              if ((r['tatapMuka'] as List).isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Icon(Icons.groups_rounded, size: 16, color: _wTatapMuka),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text('Tatap muka: ${(r['tatapMuka'] as List<String>).join('; ')}',
+                          style: const TextStyle(fontSize: 13, color: _wTatapMuka, fontWeight: FontWeight.w600)),
+                    ),
+                  ]),
+                ),
               for (final b in r['bagian'] as List<String>) Padding(padding: const EdgeInsets.only(top: 3), child: Text(b, style: const TextStyle(fontSize: 13.5))),
-              if ((r['bagian'] as List).isEmpty && r['ujian'] == null)
+              if ((r['bagian'] as List).isEmpty && r['ujian'] == null && (r['jadwal'] as List).isEmpty && (r['tatapMuka'] as List).isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 3),
                   child: Text('Belum ada rencana materi', style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant)),
@@ -208,8 +243,21 @@ class _KalenderViewState extends State<KalenderView> {
     final out = <String, List<Map<String, dynamic>>>{};
     for (final m in _mapelDipakai) {
       for (final s in _sesi) {
-        final u = peta(peta(peta(isi[teks(m['idMapel'])])[teks(s['key'])])['ujian']);
+        final c = peta(peta(isi[teks(m['idMapel'])])[teks(s['key'])]);
+        final u = peta(c['ujian']);
         if (teks(u['tanggal']).isNotEmpty) out.putIfAbsent(teks(u['tanggal']), () => []).add({...u, 'mapel': teks(m['namaMapel'])});
+        // v1.53.0: Tryout / Ujian Lainnya dan asesmen tatap muka ikut tampil di kisi bulanan
+        for (final x in daftar(c['ujianLain']).map(peta)) {
+          out.putIfAbsent(teks(x['tanggal']), () => []).add({...x, 'jenis': teks(x['judul'], teks(x['jenis'])), 'mapel': teks(m['namaMapel'])});
+        }
+        for (final a in daftar(c['asesmen']).map(peta)) {
+          out.putIfAbsent(teks(a['tanggal']), () => []).add({
+            'jenis': '${teks(a['jenis'], 'Asesmen')} tatap muka',
+            'mapel': teks(m['namaMapel']),
+            'jam': '${teks(a['mulai'])}–${teks(a['selesai'])}',
+            'ket': teks(a['ruang'], 'tatap muka'),
+          });
+        }
       }
     }
     return out;
@@ -218,6 +266,11 @@ class _KalenderViewState extends State<KalenderView> {
   Widget _kisi() {
     final cs = Theme.of(context).colorScheme;
     final ujian = _petaUjian();
+    final tmHari = <String>{
+      for (final m in _mapelDipakai)
+        for (final c in peta(peta(d['isi'])[teks(m['idMapel'])]).values)
+          for (final t in daftar(peta(c)['tatapMuka']).map(peta)) teks(t['tanggal'])
+    };
     final awal = DateTime(_bln.year, _bln.month, 1);
     final geser = awal.weekday % 7;
     final jml = DateTime(_bln.year, _bln.month + 1, 0).day;
@@ -239,6 +292,7 @@ class _KalenderViewState extends State<KalenderView> {
                       ? _wUas
                       : (teks(s['status']) == 'berjalan' ? _wBerjalan : cs.primary);
           final adaUjian = ujian.containsKey(_iso(h));
+          final adaTm = tmHari.contains(_iso(h));
           final dipilih = s != null && teks(s['key']) == _pilihSesi;
           return InkWell(
             borderRadius: BorderRadius.circular(10),
@@ -253,6 +307,7 @@ class _KalenderViewState extends State<KalenderView> {
               child: Stack(children: [
                 Center(child: Text('$t', style: TextStyle(fontWeight: adaUjian ? FontWeight.w900 : FontWeight.w600, color: adaUjian ? _wUas : null))),
                 if (adaUjian) const Positioned(right: 4, top: 4, child: Icon(Icons.circle, size: 7, color: _wUas)),
+                if (adaTm) const Positioned(left: 4, bottom: 4, child: Icon(Icons.groups_rounded, size: 10, color: _wTatapMuka)),
               ]),
             ),
           );
@@ -275,11 +330,24 @@ class _KalenderViewState extends State<KalenderView> {
               IconButton(onPressed: () => setState(() => _bln = DateTime(_bln.year, _bln.month + 1)), icon: const Icon(Icons.chevron_right_rounded)),
             ]),
             GridView.count(crossAxisCount: 7, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), childAspectRatio: 1.05, children: sel),
+            if (tmHari.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.groups_rounded, size: 14, color: _wTatapMuka),
+                  SizedBox(width: 4),
+                  Text('ada pertemuan tatap muka', style: TextStyle(fontSize: 11.5)),
+                  SizedBox(width: 12),
+                  Icon(Icons.circle, size: 8, color: _wUas),
+                  SizedBox(width: 4),
+                  Text('ada ujian', style: TextStyle(fontSize: 11.5)),
+                ]),
+              ),
           ]),
         ),
       ),
       if (ujianBulan.isNotEmpty) ...[
-        const JudulBagian('Jadwal ujian bulan ini'),
+        const JudulBagian('Jadwal ujian & asesmen bulan ini'),
         Card(
           child: Column(children: [
             for (final e in ujianBulan)
@@ -288,7 +356,7 @@ class _KalenderViewState extends State<KalenderView> {
                   dense: true,
                   leading: Icon(Icons.event_rounded, color: teks(u['jenis']) == 'UTS' ? _wUts : _wUas),
                   title: Text('${teks(u['jenis'])} · ${teks(u['mapel'])}'),
-                  subtitle: Text('${_panjang(e.key)} · ${teks(u['jam'])} (${angka(u['durasi'])} menit)'),
+                  subtitle: Text('${_panjang(e.key)} · ${teks(u['jam'])}${u['durasi'] != null ? ' (${angka(u['durasi'])} menit)' : ''}${teks(u['ket']).isEmpty ? '' : ' · ${teks(u['ket'])}'}'),
                 ),
           ]),
         ),

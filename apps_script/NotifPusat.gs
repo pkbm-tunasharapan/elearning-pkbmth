@@ -33,7 +33,9 @@ var NP = {
     { kode: 'pajak_belum_setor', nama: 'Potongan pajak belum disetor (tiap Senin)', grup: 'Keuangan', sasaran: 'peran', peran: ['Bendahara'] },
     { kode: 'ringkasan_keuangan', nama: 'Ringkasan keuangan mingguan (tiap Senin)', grup: 'Keuangan', sasaran: 'peran', peran: ['Kepala Sekolah', 'Superadmin'] },
     { kode: 'referral_baru', nama: 'Pendaftaran referral baru', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin', 'Front Office'] },
-    { kode: 'referral_bukti', nama: 'Bukti bayar pendaftaran masuk', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin', 'Front Office', 'Bendahara'] }
+    { kode: 'referral_bukti', nama: 'Bukti bayar pendaftaran masuk', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin', 'Front Office', 'Bendahara'] },
+    // v1.53.0: hanya untuk pengguna yang bisa membuka menu Pengajuan Tutor (fitur)
+    { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };
 if (typeof API_FLUTTER !== 'undefined' && API_FLUTTER && API_FLUTTER.TAMBAHAN) API_FLUTTER.TAMBAHAN.waNotifKotak = true;
@@ -140,7 +142,23 @@ function npCocok_(e, a, at, ctx) {
   if (a.jenis !== 'staf') return false;
   if (j.sasaran === 'tutor') return !!ctx.tutor() && e.tutor.indexOf(ctx.tutor()) >= 0;
   if (e.staf.length && e.staf.indexOf(String(a.id)) >= 0) return true;
+  if (j.fitur) {
+    // notifikasi yang terikat fitur: penerima wajib punya izin fitur itu (peran bawaan atau izin tambahan dari admin)
+    var izin = npIzinFitur_(a, j.fitur);
+    if (!izin.boleh) return false;
+    return boleh.indexOf(a.peran) >= 0 || izin.tambahan;
+  }
   return boleh.indexOf(a.peran) >= 0;
+}
+function npIzinFitur_(a, fitur) {
+  try {
+    var ftr = IZN.FITUR.filter(function(f) { return f[0] === fitur; })[0];
+    var dasar = a.peranAsli || a.peran;
+    if (!ftr) return { boleh: false, tambahan: false };
+    if (dasar === 'Admin' && !a.peranKustom) return { boleh: ftr[3].indexOf('Admin') >= 0, tambahan: false };
+    var punya = izNilai_(izPetaPengguna_(a)[fitur]) > 0;
+    return { boleh: punya, tambahan: punya && ftr[3].indexOf(dasar) < 0 };
+  } catch (e) { return { boleh: false, tambahan: false }; }
 }
 function npKePesan_(e) { return { id: e.id, judul: e.judul, isi: e.isi, waktu: e.waktu, oleh: 'TH.E-Course', tipe: 'event', jenis: e.jenis, aksi: e.aksi }; }
 // Untuk waNotifCek: kejadian 3 hari terakhir yang cocok (maks. 15).
