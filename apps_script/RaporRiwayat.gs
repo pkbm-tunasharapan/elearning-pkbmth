@@ -267,3 +267,73 @@ function waAdminTugasNilaiOtomatis(token, terapkan) {
   try { CacheService.getScriptCache().remove('brd_' + p.id); } catch (e2) {}
   return { jumlah: jml, terisi: jml, rentang: rentang };
 }
+
+// ============================================================================
+// TRANSKRIP NILAI AKHIR (v1.43.0) - kelas akhir A6, B9, C12
+// Nilai tiap mapel dari seluruh semester dalam satu program (mis. Paket C: C10 Ganjil ... C12 Genap), memakai kelas
+// pada tiap semester (riwayat rombel). Mapel digabung lewat KODE MAPEL (sama lintas kelas) dan dikelompokkan sesuai
+// kolom KELOMPOK di SIM MAPEL. Nilai "Ujian Kesetaraan" (tab NILAI) ikut dikirim bila ada.
+// Isi minimal transkrip mengikuti Permendikbudristek 58/2024 (nomor, satuan pendidikan, NPSN, identitas, NISN,
+// nomor ijazah, tanggal lulus, daftar mapel & nilai).
+// ============================================================================
+var TRK = { KELAS_AWAL: { A: 1, B: 7, C: 10 } };
+
+// q: {idRombel (rombel SEKARANG, kelas akhir)}
+function waStafTranskrip(token, q) {
+  var p = stafDariToken_(token);
+  q = q || {};
+  var idR = String(q.idRombel || '');
+  if (!nilAksesRapor_(p, idR)) throw new Error('Transkrip hanya dapat dibuat Wali Kelas rombel ini, Kepala Sekolah atau Admin.');
+  var rk = nilRiwayatKtx_(), ri = rk.rombel[idR];
+  if (!ri || !ri.kelas || KNK.AKHIR[ri.paket] !== ri.kelas) throw new Error('Transkrip hanya untuk kelas akhir (A6, B9, C12).');
+  var kini = nilPeriode_(), tahun = ri.kelas - (TRK.KELAS_AWAL[ri.paket] || ri.kelas), daftarPer = [], x = kini;
+  while (nilAwalTahun_(kini.tahun) - nilAwalTahun_(x.tahun) <= tahun) { daftarPer.unshift(x); x = nilPeriode_(arsSebelum_(x)); }
+  var nilai = {}, wbInfo = {}, adaKode = {}, perTeks = [];
+  daftarPer.forEach(function(per, i) {
+    perTeks.push('Semester ' + per.semester + ' ' + per.tahun);
+    var lg = null;
+    try { lg = nilUrutPer_(per) < nilUrutPer_(kini) ? nilLegerLampau_(idR, per, kini, false) : nilLegerKini_(idR, per); } catch (e) { lg = null; }
+    if (!lg) return;
+    lg.wb.forEach(function(w) {
+      wbInfo[w.idWb] = wbInfo[w.idWb] || { idWb: w.idWb, nama: w.nama, nisn: w.nisn };
+      Object.keys(w.nilai || {}).forEach(function(kd) {
+        var v = w.nilai[kd];
+        if (v === null || v === undefined || v === '') return;
+        adaKode[kd] = true;
+        ((nilai[w.idWb] = nilai[w.idWb] || {})[kd] = nilai[w.idWb][kd] || [])[i] = Number(v);
+      });
+    });
+  });
+  // wb kelas sekarang yang belum punya nilai sama sekali tetap dicantumkan
+  absWbRombel_(idR).forEach(function(w) { wbInfo[w.id] = wbInfo[w.id] || { idWb: w.id, nama: w.nama, nisn: w.nisn }; });
+  // nilai Ujian Kesetaraan (tahun pelajaran kelas akhir)
+  var ujian = {}, tn = absBaca_(NIL.TAB_NILAI, NIL.HDR_NILAI);
+  for (var n = 1; n < tn.v.length; n++) {
+    var r = tn.v[n];
+    if (sTeks_(absNilai_(tn, r, 'JENIS ASESMEN')).trim() !== 'Ujian Kesetaraan') continue;
+    var idW = sTeks_(absNilai_(tn, r, 'WARGA BELAJAR')).trim(), nv = sTeks_(absNilai_(tn, r, 'NILAI')).trim();
+    if (!wbInfo[idW] || nv === '' || isNaN(Number(nv.replace(',', '.')))) continue;
+    var km = sTeks_(absNilai_(tn, r, 'MAPEL')).trim();
+    (ujian[idW] = ujian[idW] || {})[km] = Number(nv.replace(',', '.'));
+    adaKode[km] = true;
+  }
+  // mapel: urutan & kelompok dari SIM MAPEL
+  var mapel = [], mp = absBaca_('MAPEL');
+  for (var m = 1; m < mp.v.length; m++) {
+    var kd = sTeks_(absNilai_(mp, mp.v[m], 'KODE MAPEL')).trim();
+    if (!kd || !adaKode[kd]) continue;
+    mapel.push({ kode: kd, nama: sTeks_(absNilai_(mp, mp.v[m], 'NAMA MAPEL')).trim(), kelompok: sTeks_(absNilai_(mp, mp.v[m], 'KELOMPOK')).trim() || 'Umum' });
+    delete adaKode[kd];
+  }
+  Object.keys(adaKode).forEach(function(kd) { mapel.push({ kode: kd, nama: kd, kelompok: 'Lainnya' }); });
+  var wb = Object.keys(wbInfo).map(function(id) {
+    var w = wbInfo[id], rata = {};
+    Object.keys(nilai[id] || {}).forEach(function(kd) {
+      var arr = (nilai[id][kd] || []).filter(function(v) { return v !== undefined && v !== null; });
+      if (arr.length) rata[kd] = nilBulat_(arr.reduce(function(a, b) { return a + b; }, 0) / arr.length);
+    });
+    return { idWb: id, nama: w.nama, nisn: w.nisn, nilai: nilai[id] || {}, rata: rata, ujian: ujian[id] || {} };
+  }).sort(function(a, b) { return a.nama.localeCompare(b.nama); });
+  try { catat_(p.peran, idR, p.nama, 'Transkrip nilai', ri.nama + ' · ' + perTeks.length + ' semester', 'OK'); } catch (e) {}
+  return { rombel: { id: idR, nama: ri.nama, program: ri.program, paket: ri.paket }, periode: perTeks, periodeKini: kini, mapel: mapel, wb: wb, lembaga: nilLembaga_(), aturan: nilAturan_() };
+}

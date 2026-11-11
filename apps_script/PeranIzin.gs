@@ -23,7 +23,7 @@ var IZN = {
   // fungsi BACA (cukup izin "lihat"); selain ini dianggap UBAH
   BACA: /(Daftar\w*|Baca\w*|Konteks|Info|Lengkap|Rekap|Laporan\w*|Leger|Kelas|Rapor|Cari|Pratinjau|Format|Pdf|Peta|Isi|Tab|Log|Berkas|Hari|Aturan|Data|Naskah|Rinci|Aktif|Saya|Tunggakan\w*|Prompt\w*|BiodataRombel|Jawaban|Terkunci|Qr|Performa|Semua|Bacaan|Soal|Status|SesiDiskusi|CatatanNilai|KinerjaTutor|BelumDinilai|^waStaf(Nilai|Absensi|Siswa|Materi|RombelSiswa|LaporanHadir)$)$/,
   TULIS_PAKSA: { waStafMateriStatus: true, waAdminCekDataJadwal: true, waAdminSusulanAkhiri: true },
-  BACA_PAKSA: { waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true },
+  BACA_PAKSA: { waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true },
   // [id fitur (= id menu), judul, kelompok, peran bawaan yang punya fitur ini, pola fungsi]
   FITUR: [
     ['pengguna', 'Kelola Tutor & Enrollment', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode)$/],
@@ -42,7 +42,7 @@ var IZN = {
     ['aturJadwal', 'Pengaturan Jadwal', 'Jadwal', ['Admin'], /^wa(StafJadwalAturan|AdminJadwalAturanSimpan)$/],
     ['kalender', 'Kalender Akademik', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'], null],
     ['nilaiRapor', 'Nilai & Rapor', 'Nilai & Ujian', ['Admin', 'Kepala Sekolah', 'Tutor', 'Dinas Pendidikan'],
-      /^wa(Staf(NilaiKelas|NilaiRekap|NilaiInput|NilaiFormat|NilaiUnggah\w*|Leger|Rapor|Kenaikan(Daftar|Simpan)|BiodataRombel|KartuPeserta)|AdminNilaiOtomatis)$/],
+      /^wa(Staf(NilaiKelas|NilaiRekap|NilaiInput|NilaiFormat|NilaiUnggah\w*|Leger|Rapor|Transkrip|Kenaikan(Daftar|Simpan)|BiodataRombel|KartuPeserta)|AdminNilaiOtomatis)$/],
     ['waliKelas', 'Wali Kelas', 'Nilai & Ujian', ['Admin', 'Kepala Sekolah'], /^waStafWali(Daftar|Simpan)$/],
     ['asesmen', 'Asesmen Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'], /^waStafAsesmen\w*$/],
     ['ujianTerpusat', 'Jadwal Ujian Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'], /^waStafUjt\w*$/],

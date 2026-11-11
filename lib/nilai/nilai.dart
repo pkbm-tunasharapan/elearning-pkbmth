@@ -11,6 +11,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'cover_rapor.dart';
+import 'dokumen_akhir.dart';
 import 'nilai_xlsx.dart';
 import 'opsi_rapor.dart';
 import '../pratinjau/pratinjau_html.dart';
@@ -485,6 +486,9 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
   if (context.mounted) kabar(context, 'Rapor ${_periodeTeks(pc)} (${teks(peta(data['rombel'])['nama'])}) dibuat.');
 }
 
+/// Kelas akhir (A6/B9/C12) dan rapor yang dibuka adalah rombel itu sendiri (bukan riwayat kelas lebih rendah).
+bool _kelasAkhirKini(Map<String, dynamic> d) => d['lampau'] != true && kelasAkhir(teks(peta(d['rombel'])['nama']));
+
 String _idRombelKini(Map<String, dynamic> d) => teks(peta(d['rombelKini'])['id'], teks(peta(d['rombel'])['id']));
 
 /// v1.39.2 (khusus Admin): semester di luar semester berjalan yang masih punya nilai kosong ditawari diisi otomatis
@@ -541,6 +545,10 @@ Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRom
         Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Text(nm, style: const TextStyle(fontWeight: FontWeight.w800))),
         ListTile(leading: const Icon(Icons.print_rounded), title: const Text('Rapor nilai'), onTap: () => Navigator.pop(c, 'rapor')),
         ListTile(leading: const Icon(Icons.badge_outlined), title: const Text('Cover & biodata'), onTap: () => Navigator.pop(c, 'cover')),
+        if (_kelasAkhirKini(d) && teks(peta(d['periode'])['semester']) == 'Genap' && teks(peta(peta(d['kenaikan'])['keputusan'])[teks(w['idWb'])]) == 'Lulus')
+          ListTile(leading: const Icon(Icons.verified_outlined), title: const Text('Surat Keterangan Lulus'), onTap: () => Navigator.pop(c, 'skl')),
+        if (_kelasAkhirKini(d))
+          ListTile(leading: const Icon(Icons.list_alt_rounded), title: const Text('Transkrip nilai akhir'), onTap: () => Navigator.pop(c, 'transkrip')),
         const SizedBox(height: 8),
       ]),
     ),
@@ -548,6 +556,10 @@ Future<void> _pilihCetakWb(BuildContext context, String idRombel, String namaRom
   if (p == null || !context.mounted) return;
   if (p == 'rapor') {
     await _cetakRapor(context, d, [w], 'Rapor_$nm.pdf');
+  } else if (p == 'skl') {
+    await cetakSkl(context, d, _idRombelKini(d), hanya: [w]);
+  } else if (p == 'transkrip') {
+    await cetakTranskrip(context, _idRombelKini(d), hanyaIdWb: teks(w['idWb']));
   } else {
     await cetakCoverBiodata(context, idRombel: idRombel, namaRombel: namaRombel, idWb: teks(w['idWb']), nisn: teks(w['nisn']), namaWb: nm);
   }
@@ -628,6 +640,11 @@ class RaporRombelScreen extends StatelessWidget {
               FilledButton.tonalIcon(onPressed: () => htmlKePdf(context, nama: 'Rekap_Nilai_${nama}_${tanggalBerkas()}.pdf', args: [_t, legerHtml(d)]), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Rekap PDF')),
               FilledButton.tonalIcon(onPressed: () => bagikanExcel(context, legerHtml(d, excel: true), 'Rekap_Nilai_${nama}_${tanggalBerkas()}.xls'), icon: const Icon(Icons.grid_on_rounded), label: const Text('Rekap Excel')),
               FilledButton.tonalIcon(onPressed: () => cetakCoverBiodata(context, idRombel: idRombel, namaRombel: nama), icon: const Icon(Icons.badge_outlined), label: const Text('Cover & biodata')),
+              FilledButton.tonalIcon(onPressed: () => cetakBeritaAcara(context, d, _idRombelKini(d)), icon: const Icon(Icons.description_outlined), label: const Text('Berita acara')),
+              if (_kelasAkhirKini(d) && teks(peta(d['periode'])['semester']) == 'Genap')
+                FilledButton.tonalIcon(onPressed: () => cetakSkl(context, d, _idRombelKini(d)), icon: const Icon(Icons.verified_outlined), label: const Text('SKL')),
+              if (_kelasAkhirKini(d))
+                FilledButton.tonalIcon(onPressed: () => cetakTranskrip(context, _idRombelKini(d)), icon: const Icon(Icons.list_alt_rounded), label: const Text('Transkrip nilai')),
               ],
               if (!bolehUnduh)
                 FilledButton.icon(onPressed: () => _pratinjauRapor(context, d, wb, 'Rapor $nama'), icon: const Icon(Icons.visibility_rounded), label: const Text('Pratinjau rapor semua')),
@@ -785,7 +802,10 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs, {OpsiRa
       final p = teks(peta(w['predikat'])[teks(m['kode'])]);
       b.write('<tr><td class="c">$i</td><td>${escHtml(teks(m['nama']))}</td><td class="c">${nilT(at['kkm'])}</td><td class="c"><b>${nilT(n)}</b></td><td class="c">${escHtml(p)}</td><td>${escHtml(_deskripsi(teks(m['nama']), p))}</td></tr>');
     }
-    b.write('<tr><td colspan="3" class="c"><b>Rata-rata</b></td><td class="c"><b>${nilT(w['rata'])}</b></td><td colspan="2">Peringkat ${w['peringkat'] ?? '–'} dari ${daftar(d['wb']).length}</td></tr></table><br>');
+    // v1.43.0: peringkat dapat disembunyikan (opsi cetak rapor)
+    final denganPeringkat = opsi?.peringkat ?? true;
+    b.write('<tr><td colspan="3" class="c"><b>Rata-rata</b></td><td class="c"><b>${nilT(w['rata'])}</b></td><td colspan="2">'
+        '${denganPeringkat ? 'Peringkat ${w['peringkat'] ?? '–'} dari ${daftar(d['wb']).length}' : ''}</td></tr></table><br>');
     b.write('<table style="width:55%"><tr><th colspan="2">Ketidakhadiran tatap muka</th></tr><tr><td>Sakit</td><td class="c">${angka(h['Sakit'])} hari</td></tr>'
         '<tr><td>Izin</td><td class="c">${angka(h['Izin'])} hari</td></tr><tr><td>Tanpa keterangan</td><td class="c">${angka(h['Alpa'])} hari</td></tr></table>');
     if (kn.isNotEmpty) b.write(_kotakKeputusan(peta(kn['info']), teks(peta(kn['keputusan'])[teks(w['idWb'])])));

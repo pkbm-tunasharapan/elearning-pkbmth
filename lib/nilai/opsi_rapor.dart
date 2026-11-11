@@ -5,7 +5,7 @@ import '../api.dart';
 /// Pilihan cetak rapor: semester/tahun pelajaran, nama kepala sekolah penanda tangan
 /// (bisa berbeda untuk tahun ajaran lalu), dan tanggal rapor.
 class OpsiRapor {
-  const OpsiRapor({required this.kepala, this.nip = '', this.tanggal = '', this.tahun = '', this.semester = ''});
+  const OpsiRapor({required this.kepala, this.nip = '', this.tanggal = '', this.tahun = '', this.semester = '', this.peringkat = true});
 
   /// Nama kepala sekolah yang dicetak di rapor.
   final String kepala;
@@ -21,6 +21,9 @@ class OpsiRapor {
 
   /// "Ganjil" atau "Genap" (kosong = periode leger yang sedang dibuka).
   final String semester;
+
+  /// v1.43.0: tampilkan peringkat di rapor.
+  final bool peringkat;
 }
 
 const _bulanPanjang = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -84,6 +87,7 @@ class _DialogOpsiRaporState extends State<_DialogOpsiRapor> {
   final _nip = TextEditingController();
   DateTime? _tgl;
   String? _galat;
+  bool _peringkat = true;
 
   @override
   void dispose() {
@@ -113,6 +117,7 @@ class _DialogOpsiRaporState extends State<_DialogOpsiRapor> {
         tanggal: _tgl == null ? '' : tglPanjang(_tgl!),
         tahun: s['tahun'] ?? '',
         semester: s['semester'] ?? '',
+        peringkat: _peringkat,
       ),
     );
   }
@@ -155,6 +160,13 @@ class _DialogOpsiRaporState extends State<_DialogOpsiRapor> {
             const SizedBox(height: 8),
             TextField(controller: _nip, decoration: const InputDecoration(labelText: 'NIP (opsional)')),
           ],
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _peringkat,
+            onChanged: (v) => setState(() => _peringkat = v ?? true),
+            title: const Text('Tampilkan peringkat di rapor'),
+          ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _pilihTanggal,
