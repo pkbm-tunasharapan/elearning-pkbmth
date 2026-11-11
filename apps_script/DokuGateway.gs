@@ -138,7 +138,10 @@ function gwPeriksa_(invoice) {
   if (!d.clientId || !d.secret) return { status: x['STATUS'] };
   var r = gwPanggil_(d, 'get', '/orders/v1/status/' + encodeURIComponent(invoice), null);
   var j = r.json || {}, st = String(((j.transaction || {}).status) || '').toUpperCase();
-  if (r.kode >= 300 && r.kode !== 404) return { status: x['STATUS'], galat: 'HTTP ' + r.kode };
+  // v1.48.1: alasan pemeriksaan yang tidak lunas dicatat di order (kolom CATATAN) dan dikembalikan ke aplikasi
+  var ket = 'Cek status DOKU ' + rfWaktu_() + ': HTTP ' + r.kode + (st ? ', status ' + st : '') + (st === 'SUCCESS' ? '' : ' ' + String(r.teks || '').replace(/\s+/g, ' ').slice(0, 220));
+  if (st !== 'SUCCESS') { try { gwUbah_(x._baris, { 'CATATAN': ket }); } catch (eK) {} }
+  if (r.kode >= 300 && r.kode !== 404) return { status: x['STATUS'], galat: ket };
   if (st === 'SUCCESS') {
     var bayar = Math.round(Number((j.order || {}).amount) || Number(x['JUMLAH']) || 0);
     var kanal = String(((j.channel || {}).id) || ((j.service || {}).id) || '');
@@ -146,7 +149,7 @@ function gwPeriksa_(invoice) {
   }
   if (st === 'FAILED' || st === 'EXPIRED') { gwUbah_(x._baris, { 'STATUS': st === 'FAILED' ? 'Gagal' : 'Kedaluwarsa', 'CATATAN': 'Status DOKU ' + st }); return { status: st === 'FAILED' ? 'Gagal' : 'Kedaluwarsa' }; }
   if (x['KADALUARSA'] && new Date(x['KADALUARSA']).getTime() < Date.now() - 6 * 3600000 && st !== 'PENDING') { gwUbah_(x._baris, { 'STATUS': 'Kedaluwarsa' }); return { status: 'Kedaluwarsa' }; }
-  return { status: 'Menunggu' };
+  return { status: 'Menunggu', galat: ket };
 }
 
 // Penyelesaian (sekali saja, dikunci).

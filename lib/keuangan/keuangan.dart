@@ -1674,7 +1674,7 @@ class _OrderOnlineScreenState extends State<OrderOnlineScreen> {
   Future<void> _cek(Map<String, dynamic> o) async {
     final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanCekBayar', [_t, teks(o['invoice'])], const Duration(minutes: 1))), teksProses: 'Memeriksa ke DOKU...');
     if (r.ok && mounted) {
-      kabar(context, 'Status: ${teks(r.data!['status'])}');
+      kabar(context, 'Status: ${teks(r.data!['status'])}${teks(r.data!['galat']).isEmpty ? '' : '\n${teks(r.data!['galat'])}'}');
       setState(() => _v++);
     }
   }
