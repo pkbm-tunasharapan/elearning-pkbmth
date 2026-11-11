@@ -468,7 +468,7 @@ var ARS_CSS = '.kop{text-align:center;border-bottom:2px solid #333;padding-botto
 function arsEsc_(s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function arsNilT_(v) { if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '–'; var n = Number(v); return n === Math.round(n) ? String(n) : n.toFixed(1); }
 function arsDok_(html, lanskap) {
-  return '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 ' + (lanskap ? 'landscape' : 'portrait') + ';margin:10mm}' +
+  return '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:' + (lanskap ? '330mm 215mm' : '215mm 330mm') + ';margin:10mm}' +
     'body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:10pt;line-height:1.35}' + ARS_CSS + '</style></head><body>' + html + '</body></html>';
 }
 function arsKop_(l, judul) { return '<div class="kop"><div class="lb">' + arsEsc_(l.nama || 'PKBM') + '</div><div>NPSN ' + arsEsc_(l.npsn) + ' · ' + arsEsc_(l.alamat) + '</div></div><h2>' + judul + '</h2>'; }

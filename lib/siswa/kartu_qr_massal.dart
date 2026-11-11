@@ -12,7 +12,7 @@ import '../widgets.dart';
 
 String? get _t => Sesi.instance.token;
 
-/// Ukuran tata letak PDF: jumlah kolom QR per baris di kertas A4.
+/// Ukuran tata letak PDF: jumlah kolom QR per baris di kertas F4.
 const _tataLetak = <int, String>{2: 'Besar (2 kolom)', 3: 'Sedang (3 kolom)', 4: 'Kecil (4 kolom)'};
 
 /// Kartu QR siswa untuk dicetak / dijadikan ID Card (khusus admin).
@@ -85,7 +85,7 @@ class _KartuQrMassalScreenState extends State<KartuQrMassalScreen> {
             const SizedBox(height: 10),
             DropdownButtonFormField<int>(
               initialValue: _kolom,
-              decoration: const InputDecoration(labelText: 'Ukuran QR di PDF (kertas A4)', isDense: true),
+              decoration: const InputDecoration(labelText: 'Ukuran QR di PDF (kertas F4)', isDense: true),
               items: [for (final e in _tataLetak.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
               onChanged: (v) => setState(() => _kolom = v ?? 3),
             ),
@@ -221,7 +221,8 @@ class _KartuQrMassalScreenState extends State<KartuQrMassalScreen> {
     final kolom = _kolom;
     final r = await jalankan(context, () async {
       final doc = PdfDocument();
-      doc.pageSettings.size = PdfPageSize.a4;
+      // v1.40.1: kertas F4 (21,5 × 33 cm = 609,45 × 935,43 pt)
+      doc.pageSettings.size = const Size(609.45, 935.43);
       doc.pageSettings.margins.all = 24;
       final fontNama = PdfStandardFont(PdfFontFamily.helvetica, kolom >= 4 ? 8.0 : (kolom == 3 ? 9.5 : 12.0), style: PdfFontStyle.bold);
       final garis = PdfPen(PdfColor(190, 190, 190), width: 0.5)..dashStyle = PdfDashStyle.dash;

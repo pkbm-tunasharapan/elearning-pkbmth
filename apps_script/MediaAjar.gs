@@ -2,7 +2,7 @@
 // MEDIA AJAR (aplikasi 1.29): media visual dari materi sesi, milik lembaga.
 // - Mindmap, Infografis, Poster Ringkasan = GAMBAR. Aplikasi menyusun prompt dari teks materi (tanpa kredit API);
 //   tutor menempelkannya di Gemini (web/aplikasi), mengunduh gambarnya, lalu mengunggah ke sini.
-//   Server membungkus gambar menjadi PDF A4 berkop lembaga + catatan hak milik, disimpan di Drive per kelas per sesi:
+//   Server membungkus gambar menjadi PDF F4 berkop lembaga + catatan hak milik, disimpan di Drive per kelas per sesi:
 //     Media Ajar TH.E-Course / <Rombel> / <Mapel> / <Sesi - Judul materi> / <Jenis>.pdf
 // - LKPD (teks) disusun otomatis dari materi, menghasilkan 2 PDF: LKPD untuk siswa dan Kunci untuk tutor.
 // - Dibuat oleh tutor pengampu atau Admin/Superadmin. Status Draft (privat) -> tutor pratinjau -> Terbit
@@ -159,7 +159,7 @@ function maDisclaimer_() {
 }
 
 function maDokumen_(isi) {
-  return '<html><head><meta charset="utf-8"><style>@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#1F1A3D;font-size:11pt;line-height:1.45}' +
+  return '<html><head><meta charset="utf-8"><style>@page{size:215mm 330mm;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#1F1A3D;font-size:11pt;line-height:1.45}' +
     'td{vertical-align:top}</style></head><body>' + isi + maDisclaimer_() + '</body></html>';
 }
 
@@ -183,9 +183,9 @@ function maHtml_(jenis, j, m, mat) {
   return maDokumen_(h);
 }
 
-// Gambar unggahan -> PDF A4: kop, gambar dipaskan ke area cetak, catatan hak milik.
+// Gambar unggahan -> PDF F4: kop, gambar dipaskan ke area cetak, catatan hak milik.
 function maHtmlGambar_(jenis, b64, mime, w, h, m, mat) {
-  var maksW = 700, maksH = 860, lebar = maksW, tinggi = maksH;
+  var maksW = 715, maksH = 960, lebar = maksW, tinggi = maksH;
   if (w > 0 && h > 0) { var sk = Math.min(maksW / w, maksH / h); lebar = Math.round(w * sk); tinggi = Math.round(h * sk); }
   var isi = maKepala_(MA.JENIS[jenis], mat.judul, m, mat) +
     '<div style="text-align:center"><img src="data:' + mime + ';base64,' + b64 + '" width="' + lebar + '" height="' + tinggi + '" style="width:' + lebar + 'px;height:' + tinggi + 'px"></div>';

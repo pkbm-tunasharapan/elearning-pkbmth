@@ -132,7 +132,7 @@ String rppHtmlPdf(Map<String, dynamic> d, List<Map<String, dynamic>> daftarSesi)
 String rppHtmlWord(Map<String, dynamic> d, List<Map<String, dynamic>> daftarSesi) {
   final isi = daftarSesi.map((x) => '<div class="rp-dok">${rppHtmlSatu(d, x)}</div>').join('<br clear="all" style="page-break-before:always">');
   return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
-      '<head><meta charset="utf-8"><title>RPP</title><style>@page WordSection1{size:21cm 29.7cm;margin:2cm}div.WordSection1{page:WordSection1}$_gaya</style></head>'
+      '<head><meta charset="utf-8"><title>RPP</title><style>@page WordSection1{size:21.5cm 33cm;margin:2cm}div.WordSection1{page:WordSection1}$_gaya</style></head>'
       '<body><div class="WordSection1">$isi</div></body></html>';
 }
 

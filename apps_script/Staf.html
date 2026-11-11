@@ -7008,7 +7008,7 @@ function kalCetak_() {
   var st = document.getElementById('kalCetakGaya');
   if (st && st.parentNode) st.parentNode.removeChild(st);
   var gaya = document.createElement('style'); gaya.id = 'kalCetakGaya';
-  gaya.textContent = KAL_CSS_CETAK + '@page{size:A4 landscape;margin:10mm}';
+  gaya.textContent = KAL_CSS_CETAK + '@page{size:330mm 215mm;margin:10mm}';
   document.head.appendChild(gaya);
   var area = document.createElement('div'); area.id = 'kalCetak';
   area.innerHTML = kalHtmlCetak_();
@@ -7520,7 +7520,7 @@ function rppUnduh_(daftar) {
   if (!d || !daftar || !daftar.length) return;
   var isi = daftar.map(function(x) { return '<div class="rp-dok">' + rppHtmlSatu_(d, x) + '</div>'; }).join('<br clear="all" style="page-break-before:always">');
   var gaya = 'body{font-family:Arial,sans-serif;font-size:10pt} h1{font-size:14pt;text-align:center;margin:0} h2{font-size:12pt;text-align:center} h3{font-size:11pt;margin:8pt 0 3pt} p{font-size:10pt;margin:2pt 0} .sub{text-align:center} table{border-collapse:collapse;width:100%} td,th{border:1px solid #444;padding:3pt 5pt;font-size:10pt;vertical-align:top} td.k{width:32%;font-weight:bold;background:#f2f4f7} p.isian{height:15pt;margin:0;border-bottom:1px dotted #777} span.isian{border-bottom:1px dotted #777} .lbl{font-weight:bold}';
-  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>RPP</title><style>@page WordSection1{size:21cm 29.7cm;margin:2cm}div.WordSection1{page:WordSection1}' + gaya + '</style></head><body><div class="WordSection1">' + isi + '</div></body></html>';
+  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>RPP</title><style>@page WordSection1{size:21.5cm 33cm;margin:2cm}div.WordSection1{page:WordSection1}' + gaya + '</style></head><body><div class="WordSection1">' + isi + '</div></body></html>';
   var nama = 'RPP_' + String(d.namaMapel || 'mapel').replace(/[^A-Za-z0-9]+/g, '_') + (daftar.length > 1 ? '_' + daftar.length + 'sesi' : '') + '.doc';
   try {
     var blob = new Blob(['\ufeff', html], { type: 'application/msword' });
@@ -7539,7 +7539,7 @@ function rppCetakJendela_(daftar) {
   var css = '';
   try { Array.prototype.forEach.call(document.styleSheets, function(ss) { try { Array.prototype.forEach.call(ss.cssRules, function(r) { var t = r.cssText || ''; if (t.indexOf('.rp-dok') >= 0 && t.indexOf('rppCetak') < 0 && t.indexOf('rpp-mencetak') < 0) css += t + '\n'; }); } catch (e1) {} }); } catch (e2) {}
   var isi = daftar.map(function(x) { return '<div class="rp-dok rp-hal">' + rppHtmlSatu_(d, x) + '</div>'; }).join('');
-  var html = '<!doctype html><html><head><meta charset="utf-8"><title>RPP</title><style>@page{size:A4 portrait;margin:20mm}body{margin:0;background:#fff}' + css + '.rp-hal{page-break-after:always;break-after:page}.rp-hal:last-child{page-break-after:auto;break-after:auto}</style></head><body>' + isi + '</body></html>';
+  var html = '<!doctype html><html><head><meta charset="utf-8"><title>RPP</title><style>@page{size:215mm 330mm;margin:20mm}body{margin:0;background:#fff}' + css + '.rp-hal{page-break-after:always;break-after:page}.rp-hal:last-child{page-break-after:auto;break-after:auto}</style></head><body>' + isi + '</body></html>';
   var w = null;
   try { w = window.open('', '_blank'); } catch (e3) { w = null; }
   if (!w) { rppCetakLama_(daftar); return; }
@@ -7553,7 +7553,7 @@ function rppCetakLama_(daftar) {
   var lama = $('rppCetak'); if (lama && lama.parentNode) lama.parentNode.removeChild(lama);
   var st = $('rppCetakGaya'); if (st && st.parentNode) st.parentNode.removeChild(st);
   var gaya = document.createElement('style'); gaya.id = 'rppCetakGaya';
-  gaya.textContent = '@page{size:A4 portrait;margin:20mm}';
+  gaya.textContent = '@page{size:215mm 330mm;margin:20mm}';
   document.head.appendChild(gaya);
   var area = document.createElement('div'); area.id = 'rppCetak';
   area.innerHTML = daftar.map(function(x) { return '<div class="rp-dok rp-hal">' + rppHtmlSatu_(d, x) + '</div>'; }).join('');
@@ -8776,7 +8776,7 @@ jalan();
 <script>
 // ======================================================================
 // CETAK & PRATINJAU PDF TERPADU (satu modul untuk semua fitur cetak halaman staf)
-//  - pratinjau kertas A4 di dalam aplikasi (tanpa blob PDF / iframe yang sering diblokir)
+//  - pratinjau kertas F4 di dalam aplikasi (tanpa blob PDF / iframe yang sering diblokir)
 //  - tombol "Cetak / Simpan PDF" (dialog cetak peramban) dan "Unduh PDF" (dibuat server)
 //  - dipakai: Laporan Kesiapan Rombel, Kalender Akademik, RPP
 // ======================================================================
@@ -8796,7 +8796,7 @@ var CP_CSS_TAMPIL_ = '.cp-bungkus{overflow:auto;background:rgba(15,23,42,.55);bo
 
 function cpDokumen_(opsi) {
   var ori = opsi.orientasi === 'landscape' ? 'landscape' : 'portrait';
-  return '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 ' + ori + ';margin:10mm}' +
+  return '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:' + (ori === 'landscape' ? '330mm 215mm' : '215mm 330mm') + ';margin:10mm}' +
     cpCss_(CP_CSS_DASAR_ + (opsi.css || ''), 'body') + '</style></head><body>' + opsi.html + '</body></html>';
 }
 
@@ -8808,7 +8808,7 @@ function cpCetakLangsung_(opsi) {
   if (stLama && stLama.parentNode) stLama.parentNode.removeChild(stLama);
   var gaya = document.createElement('style'); gaya.id = 'cpCetakGaya';
   gaya.textContent = '#cpCetak{display:none}@media print{body.cp-mencetak>*:not(#cpCetak){display:none!important}body.cp-mencetak{background:#fff!important;margin:0!important}body.cp-mencetak #cpCetak{display:block!important}}' +
-    '@page{size:A4 ' + ori + ';margin:10mm}' + cpCss_(CP_CSS_DASAR_ + (opsi.css || ''), '#cpCetak');
+    '@page{size:' + (ori === 'landscape' ? '330mm 215mm' : '215mm 330mm') + ';margin:10mm}' + cpCss_(CP_CSS_DASAR_ + (opsi.css || ''), '#cpCetak');
   document.head.appendChild(gaya);
   var area = document.createElement('div'); area.id = 'cpCetak';
   area.innerHTML = opsi.html;
@@ -8849,7 +8849,7 @@ function cetakPratinjau_(opsi) {
   var lebarMm = lanskap ? 297 : 210;
   var w = h('div');
   w.appendChild(h('h3', null, opsi.judul || 'Pratinjau cetak'));
-  w.appendChild(h('div', 'kecil-teks', 'Pratinjau kertas A4 ' + (lanskap ? 'lanskap' : 'potret') + '. Tekan "Unduh PDF" untuk menyimpan berkas PDF.'));
+  w.appendChild(h('div', 'kecil-teks', 'Pratinjau kertas F4 ' + (lanskap ? 'lanskap' : 'potret') + '. Tekan "Unduh PDF" untuk menyimpan berkas PDF.'));
   var gaya = document.createElement('style');
   gaya.textContent = CP_CSS_TAMPIL_ + cpCss_(CP_CSS_DASAR_ + (opsi.css || '') + (opsi.cssPratinjau || ''), '.cp-kertas');
   w.appendChild(gaya);

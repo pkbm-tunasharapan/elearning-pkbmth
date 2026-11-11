@@ -364,9 +364,10 @@ String tanggalBerkas() {
   return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
 }
 
-/// Dokumen HTML A4 untuk dijadikan PDF (sama dengan cpDokumen_ di web).
+/// Dokumen HTML untuk dijadikan PDF. Ukuran kertas bawaan semua cetakan: F4 (21,5 × 33 cm); [lanskap] = 33 × 21,5 cm.
+/// (Nama fungsi tetap dokumenA4 agar pemanggil lama tidak berubah.)
 String dokumenA4(String html, String css, {bool lanskap = false}) =>
-    '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 ${lanskap ? 'landscape' : 'portrait'};margin:10mm}'
+    '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:${lanskap ? '330mm 215mm' : '215mm 330mm'};margin:10mm}'
     'body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:10pt;line-height:1.35}$css</style></head><body>$html</body></html>';
 
 // ───────────────────────── tampilan langkah proses ─────────────────────────

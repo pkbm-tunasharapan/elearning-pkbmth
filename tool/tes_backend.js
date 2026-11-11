@@ -443,6 +443,8 @@ tes('arsRaporHtml_: kelas saat itu, keputusan naik, catatan data offline', () =>
   sama(/<b>NAIK<\/b> ke kelas 12/.test(h), true, 'naik ke 12');
   sama(h.includes('30 Juni 2026'), true, 'tanggal akhir semester');
   sama(h.includes('hardcopy'), true, 'catatan offline');
+  sama(h.includes('size:215mm 330mm'), true, 'kertas F4 tegak');
+  sama(g.arsLegerHtml_(d).includes('size:330mm 215mm'), true, 'leger F4 mendatar');
   d.kenaikan = { info: { kelas: 12, akhir: true }, keputusan: { W1: 'Lulus' } };
   sama(/<b>LULUS<\/b>/.test(g.arsRaporHtml_(d, d.wb)), true, 'kelulusan');
 });

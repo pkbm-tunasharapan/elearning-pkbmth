@@ -36,7 +36,7 @@ String _kota(String alamat) {
 String _isi(String v) => v.trim().isEmpty ? '<span class="titik">&nbsp;</span>' : escHtml(v);
 
 const _css = '.hal{page-break-after:always}.hal:last-child{page-break-after:auto}'
-    '.cover{width:100%;height:262mm;border:3px double #5b2a6e;border-collapse:collapse}.cover td{border:none;text-align:center;padding:12mm 12mm 0;vertical-align:top}.cover td.bawah{vertical-align:bottom;padding:0 12mm 12mm}'
+    '.cover{width:100%;height:295mm;border:3px double #5b2a6e;border-collapse:collapse}.cover td{border:none;text-align:center;padding:12mm 12mm 0;vertical-align:top}.cover td.bawah{vertical-align:bottom;padding:0 12mm 12mm}'
     '.ct1{font-size:20pt;font-weight:bold;letter-spacing:1px;color:#3b1d4a;line-height:1.3}'
     '.ct2{font-size:12.5pt;font-weight:bold;margin-top:5mm;color:#1f5f52;line-height:1.4}'
     '.logo{margin:14mm 0 12mm}.logo img{width:62mm}'

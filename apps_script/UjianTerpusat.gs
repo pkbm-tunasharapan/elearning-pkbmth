@@ -277,7 +277,7 @@ function waStafUjtNaskah(token, idUjian, kunciJawaban) {
   var lembaga = 'PKBM Tunas Harapan';
   try { lembaga = kNamaLembaga_(); } catch (e0) {}
   var judul = j.judulKhusus || ujJudul_(j.jenis, j.smt);
-  var h = '<html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;line-height:1.4}' +
+  var h = '<html><head><meta charset="utf-8"><style>@page{size:215mm 330mm;margin:14mm}body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;line-height:1.4}' +
     'td{vertical-align:top}.k{font-size:9.5pt;color:#333}</style></head><body>' +
     '<div style="text-align:center;font-weight:bold;font-size:13pt">' + e(lembaga) + '</div>' +
     '<div style="text-align:center;font-weight:bold;font-size:12pt;margin-top:2px">' + e(judul) + (kunciJawaban ? ' — KUNCI JAWABAN' : '') + '</div>' +

@@ -3266,7 +3266,7 @@ function kalCetak_() {
   var st = document.getElementById('kalCetakGaya');
   if (st && st.parentNode) st.parentNode.removeChild(st);
   var gaya = document.createElement('style'); gaya.id = 'kalCetakGaya';
-  gaya.textContent = KAL_CSS_CETAK + '@page{size:A4 landscape;margin:10mm}';
+  gaya.textContent = KAL_CSS_CETAK + '@page{size:330mm 215mm;margin:10mm}';
   document.head.appendChild(gaya);
   var area = document.createElement('div'); area.id = 'kalCetak';
   area.innerHTML = kalHtmlCetak_();
