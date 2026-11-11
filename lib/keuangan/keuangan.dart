@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../absensi/umum.dart';
 import '../api.dart';
@@ -737,7 +740,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
   String _filter = 'Belum lunas';
   String _cari = '';
 
-  Future<void> _aksi(Map<String, dynamic> tag, Map<String, dynamic> w, bool catat, List<Map<String, dynamic>> akun) async {
+  Future<void> _aksi(Map<String, dynamic> tag, Map<String, dynamic> w, bool catat, List<Map<String, dynamic>> akun, {bool online = false}) async {
     if (!catat) return;
     final a = await showModalBottomSheet<String>(
       context: context,
@@ -746,11 +749,21 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(title: Text(teks(w['nama']), style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('Sisa ${rp(w['sisa'])} dari ${rp(w['tagihan'])}')),
           if (angka(w['sisa']) > 0) ListTile(leading: const Icon(Icons.payments_rounded), title: const Text('Catat pembayaran'), onTap: () => Navigator.pop(c, 'bayar')),
+          if (angka(w['sisa']) > 0 && online) ListTile(leading: const Icon(Icons.link_rounded), title: const Text('Link bayar online (DOKU)'), subtitle: const Text('Kirim ke WB; lunas tercatat otomatis'), onTap: () => Navigator.pop(c, 'online')),
           if (angka(w['sisa']) > 0) ListTile(leading: const Icon(Icons.volunteer_activism_outlined), title: const Text('Beri keringanan'), onTap: () => Navigator.pop(c, 'ringan')),
         ]),
       ),
     );
     if (a == null || !mounted) return;
+    if (a == 'online') {
+      final s = await mintaTeks(context, 'Link bayar ${teks(w['nama'])}', label: 'Jumlah (Rp)', awal: '${angka(w['sisa'])}');
+      if (s == null || !mounted) return;
+      final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanLinkBayar', [_t, {'idTagihan': widget.id, 'idWb': teks(w['idWb']), 'jumlah': _angka(s)}], const Duration(minutes: 2))),
+          teksProses: 'Membuat link DOKU...');
+      if (r.ok && mounted) await tampilLinkBayar(context, r.data!);
+      if (mounted) setState(() => _v++);
+      return;
+    }
     if (a == 'bayar') {
       final s = await mintaTeks(context, 'Pembayaran ${teks(w['nama'])}', label: 'Jumlah (Rp)', awal: '${angka(w['sisa'])}');
       if (s == null || !mounted) return;
@@ -778,7 +791,16 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rincian tagihan')),
+      appBar: AppBar(title: const Text('Rincian tagihan'), actions: [
+        IconButton(
+          tooltip: 'Pembayaran online',
+          icon: const Icon(Icons.credit_score_rounded),
+          onPressed: () async {
+            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => OrderOnlineScreen(idTagihan: widget.id)));
+            if (mounted) setState(() => _v++);
+          },
+        ),
+      ]),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey(_v),
         muat: () async => peta(await Api.instance('waStafTagihanRinci', [_t, widget.id])),
@@ -815,7 +837,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
                     for (final w in wb)
                       ListTile(
                         dense: true,
-                        onTap: () => _aksi(tag, w, d['catat'] == true, daftar(d['akun']).map(peta).toList()),
+                        onTap: () => _aksi(tag, w, d['catat'] == true, daftar(d['akun']).map(peta).toList(), online: d['onlineAktif'] == true),
                         title: Text(teks(w['nama'])),
                         subtitle: Text('${teks(w['namaRombel'])} · dibayar ${rp(w['dibayar'])}${angka(w['keringanan']) > 0 ? ' · keringanan ${rp(w['keringanan'])}' : ''}'),
                         trailing: Lencana(teks(w['status']) == 'Lunas' ? 'Lunas' : rp(w['sisa']), warna: warnaTrx(context, teks(w['status']))),
@@ -1594,4 +1616,112 @@ String bukuPajakHtml(Map<String, dynamic> d) {
   }
   b.write('<table class="ttd"><tr><td>Mengetahui,<br>Kepala Satuan Pendidikan<br><br><br><br>(..............................)</td><td>${tanggalIni()}<br>Bendahara<br><br><br><br>(..............................)</td></tr></table>');
   return dokumenA4(b.toString(), _cssKeu, lanskap: true);
+}
+
+// ───────────────────────── pembayaran online DOKU (v1.48.0) ─────────────────────────
+
+Future<void> tampilLinkBayar(BuildContext context, Map<String, dynamic> o) async {
+  final url = teks(o['url']);
+  final pesan = 'Yth. ${teks(o['nama'])}, berikut link pembayaran ${teks(o['tagihan'])} sebesar ${rp(o['jumlah'])} di ${teks(o['lembaga'], 'PKBM')}:\n$url\n'
+      'Bisa dibayar dengan QRIS, virtual account, e-wallet, atau kartu${teks(o['kadaluarsa']).isEmpty ? '' : ' sampai ${teks(o['kadaluarsa'])}'}. Terima kasih.';
+  var hp = teks(o['hp']).replaceAll(RegExp(r'[^0-9]'), '');
+  if (hp.startsWith('0')) hp = '62${hp.substring(1)}';
+  await showDialog<void>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text('Link bayar ${rp(o['jumlah'])}'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('${teks(o['nama'])} · ${teks(o['tagihan'])}'),
+        const SizedBox(height: 6),
+        SelectableText(url, style: const TextStyle(fontSize: 12)),
+        if (o['lama'] == true) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Memakai link yang masih berlaku (belum dibayar).', style: TextStyle(fontSize: 12))),
+        Text('Invoice ${teks(o['invoice'])}${teks(o['kadaluarsa']).isEmpty ? '' : ' · berlaku sampai ${teks(o['kadaluarsa'])}'}', style: const TextStyle(fontSize: 12)),
+      ]),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: pesan));
+            kabar(c, 'Pesan & link disalin.');
+          },
+          child: const Text('Salin'),
+        ),
+        if (hp.length >= 9)
+          TextButton(onPressed: () => launchUrl(Uri.parse('https://wa.me/$hp?text=${Uri.encodeComponent(pesan)}'), mode: LaunchMode.externalApplication), child: const Text('Kirim WA')),
+        TextButton(onPressed: () => SharePlus.instance.share(ShareParams(text: pesan)), child: const Text('Bagikan')),
+        FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup')),
+      ],
+    ),
+  );
+}
+
+class OrderOnlineScreen extends StatefulWidget {
+  const OrderOnlineScreen({super.key, this.idTagihan});
+  final String? idTagihan;
+
+  @override
+  State<OrderOnlineScreen> createState() => _OrderOnlineScreenState();
+}
+
+class _OrderOnlineScreenState extends State<OrderOnlineScreen> {
+  int _v = 0;
+
+  Color _warna(BuildContext c, String s) => switch (s) {
+        'Lunas' => Colors.green,
+        'Menunggu' => const Color(0xFFE9A23B),
+        _ => Theme.of(c).colorScheme.outline,
+      };
+
+  Future<void> _cek(Map<String, dynamic> o) async {
+    final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanCekBayar', [_t, teks(o['invoice'])], const Duration(minutes: 1))), teksProses: 'Memeriksa ke DOKU...');
+    if (r.ok && mounted) {
+      kabar(context, 'Status: ${teks(r.data!['status'])}');
+      setState(() => _v++);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pembayaran online')),
+      body: Muatan<Map<String, dynamic>>(
+        key: ValueKey(_v),
+        muat: () async => peta(await Api.instance('waStafTagihanOrder', [_t, {if (widget.idTagihan != null) 'idTagihan': widget.idTagihan}], const Duration(minutes: 2))),
+        bangun: (context, d, segarkan) {
+          final order = daftar(d['order']).map(peta).toList();
+          return RefreshIndicator(
+            onRefresh: segarkan,
+            child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 32), children: [
+              if (d['aktif'] != true)
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.info_outline_rounded),
+                    title: Text('Pembayaran online DOKU belum diaktifkan'),
+                    subtitle: Text('Atur di Referral → Pengaturan → Payment gateway.'),
+                  ),
+                ),
+              if (order.isEmpty) const Kosong(pesan: 'Belum ada link pembayaran online.', ikon: Icons.credit_score_rounded),
+              for (final o in order)
+                Card(
+                  child: ListTile(
+                    title: Text('${teks(o['nama'])} · ${rp(o['jumlah'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('${teks(o['uraian'])}\n${teks(o['invoice'])} · ${teks(o['waktu'])}${teks(o['kanal']).isEmpty ? '' : ' · ${teks(o['kanal'])}'}'
+                        '${teks(o['catatan']).isEmpty ? '' : '\n${teks(o['catatan'])}'}'),
+                    isThreeLine: true,
+                    trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Lencana(teks(o['status']), warna: _warna(context, teks(o['status']))),
+                      if (teks(o['status']) == 'Menunggu')
+                        InkWell(
+                          onTap: () => _cek(o),
+                          child: const Padding(padding: EdgeInsets.only(top: 4), child: Text('Cek status', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline))),
+                        ),
+                    ]),
+                    onTap: teks(o['url']).isEmpty ? null : () => tampilLinkBayar(context, {...o, 'tagihan': teks(o['uraian'])}),
+                  ),
+                ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
 }

@@ -34,6 +34,8 @@ function doPost(e) {
     var args = Array.isArray(body.args) ? body.args : [];
     if (!fn && body && body.signature_key && typeof refWebhook_ === 'function') {
       out = { ok: true, data: refWebhook_(body) };
+    } else if (!fn && body && body.order && body.order.invoice_number && typeof dokuNotif_ === 'function') {   // v1.48.0: notifikasi DOKU
+      out = { ok: true, data: dokuNotif_(body) };
     } else if (fn === 'ping') {
       out = { ok: true, data: { versi: API_FLUTTER.VERSI, waktu: waktuSekarang_() } };
     } else {
@@ -3563,7 +3565,7 @@ function keuTagCari_(id) {
 function waStafTagihanRinci(token, id) {
   var p = stafDariToken_(token), r = keuWajib_(p, 'lihat');
   var tag = keuTagCari_(id), rows = keuRinci_(tag, keuWbSemua_(), keuBayarPeta_());
-  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }) };
+  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }), onlineAktif: gwDoku_().aktif };
 }
 // d: {idTagihan, idWb, jumlah, tanggal, catatan, bukti?}
 function waStafTagihanBayar(token, d) {

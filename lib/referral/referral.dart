@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../absensi/umum.dart';
 import '../api.dart';
@@ -531,8 +532,31 @@ class _LembarBayarState extends State<_LembarBayar> {
   String _metode = 'Transfer';
   String? _bukti;
   String _qrUrl = '';
+  String _urlOnline = '';
+
+  Future<void> _bukaOnline() async {
+    if (_urlOnline.isEmpty) {
+      final r = await jalankan(context, () async => peta(await Api.instance('waRefBayar', [widget.token, teks(widget.x['id']), 'Online', null], const Duration(minutes: 2))),
+          teksProses: 'Membuat pembayaran DOKU...');
+      if (!r.ok || !mounted) return;
+      setState(() => _urlOnline = teks(r.data!['url']));
+    }
+    if (_urlOnline.isNotEmpty) await launchUrl(Uri.parse(_urlOnline), mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _cekOnline() async {
+    final r = await jalankan(context, () async => peta(await Api.instance('waRefCekBayar', [widget.token, teks(widget.x['id'])], const Duration(minutes: 1))), teksProses: 'Memeriksa pembayaran...');
+    if (!r.ok || !mounted) return;
+    if (teks(r.data!['status']) == 'Lunas') {
+      kabar(context, 'Pembayaran lunas dan sudah tercatat.');
+      Navigator.pop(context, true);
+    } else {
+      kabar(context, 'Status pembayaran: ${teks(r.data!['status'], 'Menunggu')}. Selesaikan pembayaran di halaman DOKU.');
+    }
+  }
 
   Future<void> _kirim() async {
+    if (_metode == 'Online') return _bukaOnline();
     if (_metode == 'QRIS' && widget.aturan['qrisDinamis'] == true && _bukti == null) {
       final r = await jalankan(context, () async => peta(await Api.instance('waRefBayar', [widget.token, teks(widget.x['id']), 'QRIS', null])), teksProses: 'Membuat QRIS...');
       if (r.ok && mounted) setState(() => _qrUrl = teks(r.data!['qrUrl']));
@@ -564,6 +588,7 @@ class _LembarBayarState extends State<_LembarBayar> {
             SegmentedButton<String>(
               segments: [
                 const ButtonSegment(value: 'Transfer', label: Text('Transfer'), icon: Icon(Icons.account_balance_rounded)),
+                if (at['bayarOnline'] == true) const ButtonSegment(value: 'Online', label: Text('Online'), icon: Icon(Icons.credit_card_rounded)),
                 if (adaQris) const ButtonSegment(value: 'QRIS', label: Text('QRIS'), icon: Icon(Icons.qr_code_2_rounded)),
                 const ButtonSegment(value: 'Sekretariat', label: Text('Sekretariat'), icon: Icon(Icons.storefront_rounded)),
               ],
@@ -597,6 +622,13 @@ class _LembarBayarState extends State<_LembarBayar> {
               else
                 _QrisStatis(dataUrl: teks(at['qris'])),
             ],
+            if (_metode == 'Online') ...[
+              const Text('Bayar lewat DOKU: QRIS, virtual account bank, e-wallet, atau kartu. Status lunas tercatat otomatis; tidak perlu unggah bukti.'),
+              if (_urlOnline.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(onPressed: _cekOnline, icon: const Icon(Icons.refresh_rounded), label: const Text('Saya sudah bayar — cek status')),
+              ],
+            ],
             if (_metode == 'Sekretariat')
               Text('Datang langsung ke sekretariat PKBM Tunas Harapan${teks(at['alamatSekretariat']).isNotEmpty ? ' (${teks(at['alamatSekretariat'])})' : ''}. '
                   'Petugas akan menandai pembayaran lunas.'),
@@ -616,7 +648,9 @@ class _LembarBayarState extends State<_LembarBayar> {
               FilledButton(
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                 onPressed: _kirim,
-                child: Text(_metode == 'Sekretariat' ? 'Saya akan bayar di sekretariat' : (_metode == 'QRIS' && at['qrisDinamis'] == true ? 'Buat QRIS' : 'Kirim bukti pembayaran')),
+                child: Text(_metode == 'Online'
+                    ? (_urlOnline.isEmpty ? 'Bayar sekarang (DOKU)' : 'Buka lagi halaman pembayaran')
+                    : _metode == 'Sekretariat' ? 'Saya akan bayar di sekretariat' : (_metode == 'QRIS' && at['qrisDinamis'] == true ? 'Buat QRIS' : 'Kirim bukti pembayaran')),
               ),
           ]),
         ),

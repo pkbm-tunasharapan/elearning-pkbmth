@@ -137,3 +137,9 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 ## Laporan Arus Keuangan (v1.47.0, Tahap D)
 - Keuangan → Laporan Arus Keuangan. Periode: bulan, semester (Ganjil Jul–Des / Genap Jan–Jun), tahun pelajaran, tahun anggaran, tahap BOSP (I Jan–Jun / II Jul–Des), kustom.
 - Isi: ringkasan, per sumber dana, per bulan, rincian pemasukan/pengeluaran per kategori × sumber dana, posisi kas per akun & mutasi, pajak, piutang & kewajiban, tanda tangan; lampiran tagihan WB, cashback referral, honor belum dibayar, pengeluaran menunggu, rincian transaksi (opsional). PDF F4 & Excel. Server: `waStafKeuArus` (KeuArus.gs).
+
+## DOKU Checkout (v1.48.0, Tahap E)
+- Atur: Referral → Pengaturan → Payment gateway → DOKU Checkout: Client ID, Active Secret Key (disimpan di Script Property `TH_REFERRAL_ATURAN`, tidak di repo), batas waktu bayar, biaya per kanal (`KANAL persen tetap`). Mode produksi mati = sandbox.
+- Notification URL di dashboard DOKU = alamat /exec web app (tampil di layar pengaturan). Isi notifikasi hanya pemicu; status selalu dikonfirmasi lewat GET /orders/v1/status/{invoice}. Pemicu `pemicuGatewayDoku` tiap jam memeriksa order menunggu (≤3 hari).
+- Order tercatat di tab GATEWAY ORDER. Pendaftaran: metode "Online" di formulir bayar referral. Tagihan WB: Rincian tagihan → ketuk WB → Link bayar online; daftar & cek status lewat ikon Pembayaran online.
+- Lunas: pemasukan sebesar yang dibayar (akun Saldo Payment Gateway) + pengeluaran ADM biaya layanan per kanal. Pembayaran ganda pada pendaftaran yang sudah lunas dicatat sebagai LPM dengan catatan untuk diperiksa.

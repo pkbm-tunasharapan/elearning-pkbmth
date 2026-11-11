@@ -73,13 +73,13 @@ function rfCatatBayar_(x, oleh, viaGw) {
   }))];
   if (viaGw) {
     var persen = Number(g.biayaPersen) || 0, tetap = Math.round(Number(g.biayaTetap) || 0);
-    var biaya = Math.round(jml * persen / 100) + tetap;
+    var biaya = oleh.biayaGw ? oleh.biayaGw.biaya : Math.round(jml * persen / 100) + tetap;   // v1.48.0: biaya per kanal DOKU
     if (biaya > 0) {
       rfKategori_(KAL.KAT_ADM, 'Biaya Administrasi Payment Gateway', 'Pengeluaran');
       ids.push(rfTrx_(kalGabung_(dasar, {
         'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': KAL.KAT_ADM,
         'AKUN KAS': kalAkunBawaan_('gateway'),
-        'URAIAN': ('Biaya layanan ' + pg + ' QRIS' + (persen ? ' ' + persen + '%' : '') + (tetap ? ' + ' + honRp_(tetap) : '') + ' atas ' + honRp_(jml) +
+        'URAIAN': ('Biaya layanan ' + pg + (oleh.biayaGw ? ' ' + oleh.biayaGw.ket : ' QRIS' + (persen ? ' ' + persen + '%' : '') + (tetap ? ' + ' + honRp_(tetap) : '')) + ' atas ' + honRp_(jml) +
           ' (order ' + order + ', pendaftaran ' + x['ID'] + ' ' + nama + ')').slice(0, 300),
         'JUMLAH': biaya, 'SUMBER DANA': 'Swadaya', 'PIHAK TERKAIT': pg, 'DIPUTUS OLEH': 'Sistem (dipotong otomatis oleh gateway)',
         'CATATAN KEPUTUSAN': 'Dibayar ' + honRp_(jml) + ' - biaya ' + honRp_(biaya) + ' = diterima bersih ' + honRp_(jml - biaya) + '. Sesuaikan bila laporan ' + pg + ' berbeda.'
@@ -103,7 +103,7 @@ function rfCatatBayarAman_(x, oleh, viaGw) {
 function rfPulihkanKas_() {
   rfBaca_('DAFTAR').forEach(function(x) {
     if (x['STATUS BAYAR'] !== 'Lunas' || x['ID TRANSAKSI'] || x['ID WB']) return;
-    rfCatatBayarAman_(x, { nama: x['VERIF BAYAR OLEH'] || 'Sistem', peran: 'Sistem' }, x['VERIF BAYAR OLEH'] === 'QRIS otomatis');
+    rfCatatBayarAman_(x, { nama: x['VERIF BAYAR OLEH'] || 'Sistem', peran: 'Sistem' }, /otomatis/i.test(x['VERIF BAYAR OLEH'] || ''));
   });
 }
 // Setelah WB dibuat, transaksi pendaftaran ditautkan ke ID WB.
@@ -122,7 +122,7 @@ function waStafRefKembaliAjukan(token, id, jumlah, alasan, bukti) {
   if (x['ID WB']) throw new Error('Pendaftaran sudah selesai (sudah menjadi warga belajar). Pengembalian dicatat manual di Keuangan.');
   alasan = String(alasan || '').trim();
   if (alasan.length < 5) throw new Error('Tulis alasan pengembalian (minimal 5 huruf).');
-  rfCatatBayar_(x, r.p, x['VERIF BAYAR OLEH'] === 'QRIS otomatis');   // pemasukannya harus tercatat lebih dulu
+  rfCatatBayar_(x, r.p, /otomatis/i.test(x['VERIF BAYAR OLEH'] || ''));   // pemasukannya harus tercatat lebih dulu
   var dibayar = Math.round(Number(x['JUMLAH BAYAR']) || 0);
   var jml = Math.round(Number(jumlah) || dibayar);
   if (!(jml > 0) || jml > dibayar) throw new Error('Jumlah pengembalian harus 1 s.d. ' + honRp_(dibayar) + '.');

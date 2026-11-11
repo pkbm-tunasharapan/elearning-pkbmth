@@ -353,6 +353,10 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
   final _clientKey = TextEditingController();
   final _merchant = TextEditingController();
   final _biayaPersen = TextEditingController();
+  final _dokuClient = TextEditingController();
+  final _dokuSecret = TextEditingController();
+  final _dokuMasa = TextEditingController();
+  final _biayaKanal = TextEditingController();
   final _biayaTetap = TextEditingController();
   List<Map<String, TextEditingController>> _rek = [];
   bool _gwAktif = false, _produksi = false;
@@ -368,7 +372,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
 
   @override
   void dispose() {
-    for (final c in [_biaya, _cashback, _min, _alamat, _serverKey, _clientKey, _merchant, _biayaPersen, _biayaTetap, for (final r in _rek) ...r.values]) {
+    for (final c in [_biaya, _cashback, _min, _alamat, _serverKey, _clientKey, _merchant, _biayaPersen, _biayaTetap, _dokuClient, _dokuSecret, _dokuMasa, _biayaKanal, for (final r in _rek) ...r.values]) {
       c.dispose();
     }
     super.dispose();
@@ -385,6 +389,10 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
     _merchant.text = teks(g['merchantId']);
     _biayaPersen.text = '${g['biayaPersen'] ?? 0.7}';
     _biayaTetap.text = '${g['biayaTetap'] ?? 0}';
+    _dokuClient.text = teks(g['dokuClientId']);
+    _dokuSecret.text = teks(g['dokuSecretKey']);
+    _dokuMasa.text = '${g['dokuMasaBayar'] ?? 1440}';
+    _biayaKanal.text = teks(g['biayaKanal'], 'QRIS 0.7 0\nVIRTUAL_ACCOUNT 0 4000\nEMONEY 1.5 0');
     _gwAktif = g['aktif'] == true;
     _produksi = g['produksi'] == true;
     _penyedia = teks(g['penyedia'], 'midtrans') == 'doku' ? 'doku' : 'midtrans';
@@ -420,7 +428,8 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
             'rekening': [for (final x in _rek) {'bank': x['bank']!.text, 'nomor': x['nomor']!.text, 'atasNama': x['atasNama']!.text}],
             if (_qrisBaru != null) 'qris': _qrisBaru else if (_hapusQris) 'qris': '',
             'gateway': {'aktif': _gwAktif, 'produksi': _produksi, 'penyedia': _penyedia, 'serverKey': _serverKey.text.trim(), 'clientKey': _clientKey.text.trim(), 'merchantId': _merchant.text.trim(),
-              'biayaPersen': double.tryParse(_biayaPersen.text.replaceAll(',', '.').trim()) ?? 0, 'biayaTetap': _n(_biayaTetap)},
+              'biayaPersen': double.tryParse(_biayaPersen.text.replaceAll(',', '.').trim()) ?? 0, 'biayaTetap': _n(_biayaTetap),
+              'dokuClientId': _dokuClient.text.trim(), 'dokuSecretKey': _dokuSecret.text.trim(), 'dokuMasaBayar': _n(_dokuMasa), 'biayaKanal': _biayaKanal.text},
           }
         ])), teksProses: 'Menyimpan pengaturan...');
     if (r.ok && mounted) {
@@ -490,15 +499,28 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
       Text('Disiapkan untuk pembayaran QRIS otomatis (lunas tanpa verifikasi manual). Biarkan nonaktif sampai akun Midtrans siap.',
           style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
       SegmentedButton<String>(
-        segments: const [ButtonSegment(value: 'midtrans', label: Text('Midtrans')), ButtonSegment(value: 'doku', label: Text('DOKU (menyusul)'))],
+        segments: const [ButtonSegment(value: 'midtrans', label: Text('Midtrans')), ButtonSegment(value: 'doku', label: Text('DOKU Checkout'))],
         selected: {_penyedia},
-        onSelectionChanged: (s) => setState(() { _penyedia = s.first; if (_penyedia == 'doku') _gwAktif = false; }),
+        onSelectionChanged: (s) => setState(() => _penyedia = s.first),
       ),
-      SwitchListTile(contentPadding: EdgeInsets.zero, value: _gwAktif, onChanged: _penyedia == 'doku' ? null : (v) => setState(() => _gwAktif = v), title: const Text('Aktifkan QRIS dinamis')),
+      SwitchListTile(contentPadding: EdgeInsets.zero, value: _gwAktif, onChanged: (v) => setState(() => _gwAktif = v),
+          title: Text(_penyedia == 'doku' ? 'Aktifkan pembayaran online DOKU (pendaftaran & tagihan WB)' : 'Aktifkan QRIS dinamis')),
       SwitchListTile(contentPadding: EdgeInsets.zero, value: _produksi, onChanged: (v) => setState(() => _produksi = v), title: const Text('Mode produksi (matikan = sandbox/uji)')),
-      TextField(controller: _serverKey, decoration: const InputDecoration(labelText: 'Server Key', isDense: true)),
-      TextField(controller: _clientKey, decoration: const InputDecoration(labelText: 'Client Key', isDense: true)),
-      TextField(controller: _merchant, decoration: const InputDecoration(labelText: 'Merchant ID', isDense: true)),
+      if (_penyedia == 'midtrans') ...[
+        TextField(controller: _serverKey, decoration: const InputDecoration(labelText: 'Server Key', isDense: true)),
+        TextField(controller: _clientKey, decoration: const InputDecoration(labelText: 'Client Key', isDense: true)),
+        TextField(controller: _merchant, decoration: const InputDecoration(labelText: 'Merchant ID', isDense: true)),
+      ] else ...[
+        TextField(controller: _dokuClient, decoration: const InputDecoration(labelText: 'Client ID (BRN-… / MCH-…)', isDense: true)),
+        TextField(controller: _dokuSecret, decoration: const InputDecoration(labelText: 'Active Secret Key (SK-…)', isDense: true, helperText: 'Tersimpan di server; yang tampil hanya 4 karakter terakhir.')),
+        TextField(controller: _dokuMasa, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Batas waktu bayar (menit)', isDense: true)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _biayaKanal,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Biaya layanan per kanal (KANAL persen biaya-tetap)', isDense: true, helperText: 'Satu baris per kanal, cocok dengan kode kanal DOKU. Kanal lain memakai biaya layanan umum di bawah.'),
+        ),
+      ],
       Row(children: [
         Expanded(child: TextField(controller: _biayaPersen, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Biaya layanan (%)', isDense: true))),
         const SizedBox(width: 10),
@@ -508,7 +530,10 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
           'sehingga terlihat jumlah kotor, biaya, dan dana bersih. Sesuaikan dengan tarif di kontrak Midtrans (QRIS umumnya 0,7%).',
           style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       const SizedBox(height: 6),
-      SelectableText('Payment Notification URL (isi di dasbor Midtrans):\n${teks(d['webhook'])}', style: const TextStyle(fontSize: 12)),
+      SelectableText('${_penyedia == 'doku' ? 'Notification URL (isi di dashboard DOKU untuk tiap metode pembayaran)' : 'Payment Notification URL (isi di dasbor Midtrans)'}:\n${teks(d['webhook'])}', style: const TextStyle(fontSize: 12)),
+      if (_penyedia == 'doku')
+        Text('Mode produksi mati = sandbox (api-sandbox.doku.com). Pakai kunci dari akun sandbox DOKU untuk uji coba. Pembayaran dikonfirmasi ke DOKU sebelum dicatat lunas, dan diperiksa ulang tiap jam.',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
       const SizedBox(height: 16),
       FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), onPressed: _simpan, child: const Text('Simpan pengaturan')),
     ]);

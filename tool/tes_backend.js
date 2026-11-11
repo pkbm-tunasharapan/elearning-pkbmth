@@ -638,5 +638,16 @@ tes('pajak: PPN termasuk harga & PPh dihitung dari DPP', () => {
   sama(g.pjkHitung_(500000, null, { jenis: 'PPh 21', tarif: 2.5 }, 'Pengeluaran').pph, 12500, 'pph 21 2,5%');
 });
 
+// 17. biaya gateway DOKU per kanal (v1.48.0)
+tes('gateway: biaya layanan per kanal DOKU', () => {
+  const cfg = { biayaPersen: 0.7, biayaTetap: 0, biayaKanal: 'QRIS 0.7 0\nVIRTUAL_ACCOUNT 0 4000\nEMONEY 1,5 0\nEMONEY_OVO 2 0' };
+  sama(g2(cfg, 150000, 'QRIS').biaya, 1050, 'qris 0,7%');
+  sama(g2(cfg, 150000, 'VIRTUAL_ACCOUNT_BCA').biaya, 4000, 'va tetap');
+  sama(g2(cfg, 100000, 'EMONEY_SHOPEEPAY').biaya, 1500, 'emoney 1,5%');
+  sama(g2(cfg, 100000, 'EMONEY_OVO').biaya, 2000, 'cocok terpanjang');
+  sama(g2(cfg, 100000, 'CREDIT_CARD').biaya, 700, 'bawaan');
+  function g2(a, j, k) { return g.gwBiaya_(j, k, a); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
