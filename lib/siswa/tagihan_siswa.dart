@@ -38,7 +38,7 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
     if (!r.ok || !mounted) return;
     final o = r.data!;
     if (!await konfirmasiTotalBayar(context, o) || !mounted) return;
-    final lunas = await bukaPembayaranDoku(context, url: teks(o['url']), judul: teks(t['nama']), cekStatus: () => _cek(teks(o['invoice'])));
+    final lunas = await bukaPembayaranDoku(context, url: teks(o['url']), judul: teks(t['nama']), keterangan: keteranganBayar(o), cekStatus: () => _cek(teks(o['invoice'])));
     if (mounted) setState(() => _v++);
     if (lunas && mounted) kabar(context, '${teks(t['nama'])} lunas. Terima kasih!');
   }
@@ -48,8 +48,9 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
     if (ok == true && mounted) setState(() => _v++);
   }
 
-  Future<void> _lanjutPending(Map<String, dynamic> p, Map<String, dynamic> t) async {
-    final lunas = await bukaPembayaranDoku(context, url: teks(p['url']), judul: teks(t['nama']), cekStatus: () => _cek(teks(p['invoice'])));
+  Future<void> _lanjutPending(Map<String, dynamic> p, Map<String, dynamic> t, Map<String, dynamic> d) async {
+    final ket = keteranganBayar({'judul': teks(t['nama']), 'nama': teks(peta(d['wb'])['nama']), 'total': p['total']});
+    final lunas = await bukaPembayaranDoku(context, url: teks(p['url']), judul: teks(t['nama']), keterangan: ket, cekStatus: () => _cek(teks(p['invoice'])));
     if (mounted) setState(() => _v++);
     if (lunas && mounted) kabar(context, '${teks(t['nama'])} lunas. Terima kasih!');
   }
@@ -69,7 +70,7 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
               subtitle: Text('Belum selesai${teks(p['kadaluarsa']).isEmpty ? '' : ' · berlaku sampai ${teks(p['kadaluarsa'])}'}'),
               onTap: () {
                 Navigator.pop(c);
-                _lanjutPending(p, t);
+                _lanjutPending(p, t, d);
               },
             ),
           if (d['online'] == true)

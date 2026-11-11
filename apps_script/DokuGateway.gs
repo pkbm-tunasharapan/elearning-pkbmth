@@ -115,7 +115,8 @@ function gwBuatOrder_(o) {
     return x['JENIS'] === o.jenis && x['REF'] === String(o.ref) && x['ID WB'] === String(o.idWb || '') && Number(x['JUMLAH']) === jml && x['METODE'] === m.kode
       && x['STATUS'] === 'Menunggu' && x['URL'] && (!x['KADALUARSA'] || new Date(String(x['KADALUARSA']).replace(' ', 'T') + ':00+07:00').getTime() - kini > 10 * 60000);
   })[0];
-  if (lama) return { invoice: lama['INVOICE'], url: lama['URL'], jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: lama['KADALUARSA'], lama: true };
+  if (lama) return { invoice: lama['INVOICE'], url: lama['URL'], jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: lama['KADALUARSA'], lama: true,
+    judul: o.judul || o.uraian || '', nama: o.nama || '' };
   var awal = o.jenis === 'Pendaftaran' ? 'REG' : 'TAG';
   var invoice = (awal + '-' + Utilities.formatDate(new Date(), absTz_(), 'yyMMdd') + '-' + absId_().toUpperCase()).slice(0, 60);
   var isi = {
@@ -139,7 +140,7 @@ function gwBuatOrder_(o) {
   gwTambah_({ 'INVOICE': invoice, 'WAKTU': rfWaktu_(), 'JENIS': o.jenis, 'REF': String(o.ref), 'ID WB': String(o.idWb || ''), 'NAMA': o.nama || '', 'URAIAN': String(o.uraian || '').slice(0, 200),
     'JUMLAH': jml, 'STATUS': 'Menunggu', 'URL': pay.url, 'KADALUARSA': kd, 'PENYEDIA': 'DOKU' + (d.produksi ? '' : ' (sandbox)'), 'DIBUAT OLEH': o.oleh || '',
     'POKOK': h.pokok, 'BIAYA ADMIN': h.biaya, 'METODE': m.kode });
-  return { invoice: invoice, url: pay.url, jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: kd, lama: false };
+  return { invoice: invoice, url: pay.url, jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: kd, lama: false, judul: o.judul || o.uraian || '', nama: o.nama || '' };
 }
 
 // Periksa status ke DOKU dan selesaikan bila lunas. Hasil: status order sesudahnya.
@@ -286,7 +287,7 @@ function waStafTagihanLinkBayar(token, d) {
   var row = keuRinci_(tag, [w], keuBayarPeta_())[0];
   if (row.sisa <= 0) throw new Error('Tagihan ini sudah lunas.');
   var kontak = gwHpWb_(w.id);
-  var o = gwBuatOrder_({ jenis: 'Tagihan', ref: tag.id, idWb: w.id, nama: w.nama, uraian: tag.nama + ' - ' + w.nama, pokok: row.sisa, metode: d.metode, hp: kontak.hp, email: kontak.email, oleh: p.nama });
+  var o = gwBuatOrder_({ jenis: 'Tagihan', ref: tag.id, idWb: w.id, nama: w.nama, judul: tag.nama, uraian: tag.nama + ' - ' + w.nama, pokok: row.sisa, metode: d.metode, hp: kontak.hp, email: kontak.email, oleh: p.nama });
   catat_(p.peran, w.idRombel, p.nama, 'Link bayar DOKU', tag.nama + ' ' + w.nama + ' ' + o.jumlah + ' ' + o.invoice, 'OK');
   o.nama = w.nama; o.tagihan = tag.nama; o.hp = kontak.hp; o.lembaga = nilLembaga_().nama;
   return o;

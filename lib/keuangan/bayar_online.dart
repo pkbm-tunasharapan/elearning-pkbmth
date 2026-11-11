@@ -61,23 +61,35 @@ Future<String?> pilihMetodeBayar(BuildContext context, {required num pokok, requ
 /// Buka halaman pembayaran DOKU tanpa menampilkan link: Android = popup layar penuh di dalam aplikasi (WebView);
 /// web = tab baru + jendela "menunggu pembayaran". [cekStatus] mengembalikan status order ('Lunas', 'Menunggu', ...).
 /// Hasil: true bila lunas.
-Future<bool> bukaPembayaranDoku(BuildContext context, {required String url, required Future<String> Function() cekStatus, String judul = 'Pembayaran'}) async {
+/// v1.51.1: keterangan pembayaran untuk bilah di atas halaman DOKU dan konfirmasi:
+/// "Pembayaran <tagihan> · a.n. <siswa>" + rincian tagihan + biaya admin = total.
+String keteranganBayar(Map<String, dynamic> o) {
+  final judul = teks(o['judul'], teks(o['tagihan']));
+  final nama = teks(o['nama']);
+  final baris1 = [if (judul.isNotEmpty) 'Pembayaran $judul', if (nama.isNotEmpty) 'a.n. $nama'].join(' · ');
+  final ada = o['pokok'] != null && '${o['pokok']}'.isNotEmpty;
+  final baris2 = ada ? '${rp(o['pokok'])} + biaya admin ${rp(o['biaya'])} = ${rp(o['jumlah'])}' : (o['jumlah'] != null || o['total'] != null ? 'Total ${rp(o['jumlah'] ?? o['total'])}' : '');
+  return [baris1, baris2].where((x) => x.isNotEmpty).join('\n');
+}
+
+Future<bool> bukaPembayaranDoku(BuildContext context, {required String url, required Future<String> Function() cekStatus, String judul = 'Pembayaran', String keterangan = ''}) async {
   if (url.isEmpty) return false;
   if (kIsWeb) {
     await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');
     if (!context.mounted) return false;
-    final r = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _TungguBayar(cekStatus: cekStatus, url: url));
+    final r = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _TungguBayar(cekStatus: cekStatus, url: url, keterangan: keterangan));
     return r == true;
   }
-  final r = await Navigator.of(context).push<bool>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => _HalamanBayar(url: url, judul: judul, cekStatus: cekStatus)));
+  final r = await Navigator.of(context).push<bool>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => _HalamanBayar(url: url, judul: judul, cekStatus: cekStatus, keterangan: keterangan)));
   return r == true;
 }
 
 class _HalamanBayar extends StatefulWidget {
-  const _HalamanBayar({required this.url, required this.judul, required this.cekStatus});
+  const _HalamanBayar({required this.url, required this.judul, required this.cekStatus, this.keterangan = ''});
   final String url;
   final String judul;
   final Future<String> Function() cekStatus;
+  final String keterangan;
 
   @override
   State<_HalamanBayar> createState() => _HalamanBayarState();
@@ -152,16 +164,34 @@ class _HalamanBayarState extends State<_HalamanBayar> {
           actions: [TextButton.icon(onPressed: () => _cek(), icon: const Icon(Icons.refresh_rounded), label: const Text('Cek status'))],
           bottom: _progres < 100 ? PreferredSize(preferredSize: const Size.fromHeight(3), child: LinearProgressIndicator(value: _progres / 100)) : null,
         ),
-        body: WebViewWidget(controller: _c),
+        body: Column(children: [
+          if (widget.keterangan.isNotEmpty)
+            Material(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                child: Row(children: [
+                  Icon(Icons.receipt_long_rounded, size: 20, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(widget.keterangan,
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onPrimaryContainer)),
+                  ),
+                ]),
+              ),
+            ),
+          Expanded(child: WebViewWidget(controller: _c)),
+        ]),
       ),
     );
   }
 }
 
 class _TungguBayar extends StatefulWidget {
-  const _TungguBayar({required this.cekStatus, required this.url});
+  const _TungguBayar({required this.cekStatus, required this.url, this.keterangan = ''});
   final Future<String> Function() cekStatus;
   final String url;
+  final String keterangan;
 
   @override
   State<_TungguBayar> createState() => _TungguBayarState();
@@ -205,6 +235,10 @@ class _TungguBayarState extends State<_TungguBayar> {
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('Menunggu pembayaran'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (widget.keterangan.isNotEmpty) ...[
+            Text(widget.keterangan, style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+          ],
           const LinearProgressIndicator(),
           const SizedBox(height: 12),
           Text('Halaman pembayaran DOKU terbuka di tab baru. Selesaikan pembayaran di sana; status di sini diperbarui otomatis.\n\nStatus: $_status'),
@@ -222,7 +256,8 @@ Future<bool> konfirmasiTotalBayar(BuildContext context, Map<String, dynamic> o) 
   return konfirmasi(
     context,
     'Bayar ${rp(o['jumlah'])}',
-    '${teks(o['metode'])}\nTagihan ${rp(o['pokok'])} + biaya admin ${rp(o['biaya'])} = ${rp(o['jumlah'])}${teks(o['kadaluarsa']).isEmpty ? '' : '\nBerlaku sampai ${teks(o['kadaluarsa'])}'}',
+    '${[if (teks(o['judul']).isNotEmpty) 'Pembayaran ${teks(o['judul'])}', if (teks(o['nama']).isNotEmpty) 'a.n. ${teks(o['nama'])}'].join('\n')}${teks(o['judul']).isEmpty && teks(o['nama']).isEmpty ? '' : '\n\n'}'
+        '${teks(o['metode'])}\nTagihan ${rp(o['pokok'])} + biaya admin ${rp(o['biaya'])} = ${rp(o['jumlah'])}${teks(o['kadaluarsa']).isEmpty ? '' : '\nBerlaku sampai ${teks(o['kadaluarsa'])}'}',
     ya: 'Lanjut bayar',
   );
 }

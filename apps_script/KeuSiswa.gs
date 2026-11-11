@@ -86,7 +86,7 @@ function waSiswaBayarOnline(token, idTagihan, metode) {
   var k = ksTagWb_(token, idTagihan);
   if (k.row.sisa <= 0) throw new Error('Tagihan ini sudah lunas.');
   var kontak = gwHpWb_(k.w.id);
-  var o = gwBuatOrder_({ jenis: 'Tagihan', ref: k.tag.id, idWb: k.w.id, nama: k.w.nama, uraian: k.tag.nama + ' - ' + k.w.nama, pokok: k.row.sisa, metode: metode,
+  var o = gwBuatOrder_({ jenis: 'Tagihan', ref: k.tag.id, idWb: k.w.id, nama: k.w.nama, judul: k.tag.nama, uraian: k.tag.nama + ' - ' + k.w.nama, pokok: k.row.sisa, metode: metode,
     hp: kontak.hp, email: kontak.email, oleh: k.w.nama + ' (siswa)' });
   try { catat_('Siswa', k.s.idRombel, k.w.nama, 'Bayar tagihan online', k.tag.nama + ' ' + o.jumlah + ' ' + o.invoice, 'OK'); } catch (e) {}
   return o;

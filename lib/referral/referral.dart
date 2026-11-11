@@ -533,6 +533,7 @@ class _LembarBayarState extends State<_LembarBayar> {
   String? _bukti;
   String _qrUrl = '';
   String _urlOnline = '';
+  String _ketOnline = '';
 
   Future<void> _bukaOnline() async {
     if (_urlOnline.isEmpty) {
@@ -542,10 +543,13 @@ class _LembarBayarState extends State<_LembarBayar> {
           teksProses: 'Menyiapkan pembayaran...');
       if (!r.ok || !mounted) return;
       if (!await konfirmasiTotalBayar(context, r.data!) || !mounted) return;
-      setState(() => _urlOnline = teks(r.data!['url']));
+      setState(() {
+        _urlOnline = teks(r.data!['url']);
+        _ketOnline = keteranganBayar(r.data!);
+      });
     }
     if (_urlOnline.isEmpty || !mounted) return;
-    final lunas = await bukaPembayaranDoku(context, url: _urlOnline, judul: 'Biaya pendaftaran',
+    final lunas = await bukaPembayaranDoku(context, url: _urlOnline, judul: 'Biaya pendaftaran', keterangan: _ketOnline,
         cekStatus: () async => teks(peta(await Api.instance('waRefCekBayar', [widget.token, teks(widget.x['id'])], const Duration(minutes: 1)))['status'], 'Menunggu'));
     if (lunas && mounted) Navigator.pop(context, true);
   }

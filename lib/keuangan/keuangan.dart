@@ -1713,7 +1713,7 @@ Future<void> tampilLinkBayar(BuildContext context, Map<String, dynamic> o) async
         TextButton(
           onPressed: () async {
             Navigator.pop(c);
-            await bukaPembayaranDoku(context, url: url, judul: teks(o['tagihan']),
+            await bukaPembayaranDoku(context, url: url, judul: teks(o['tagihan']), keterangan: keteranganBayar(o),
                 cekStatus: () async => teks(peta(await Api.instance('waStafTagihanCekBayar', [_t, invoice], const Duration(minutes: 1)))['status'], 'Menunggu'));
           },
           child: const Text('Buka pembayaran'),
