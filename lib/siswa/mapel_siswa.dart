@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../alarm_ujian.dart';
 import '../api.dart';
 import '../theme.dart';
+import '../ujian_aman.dart';
 import '../widgets.dart';
 import '../ruang.dart';
 import 'sesi_siswa.dart';
@@ -869,7 +870,9 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
     }
     final kode = await _mintaKode();
     if (kode == null || !mounted) return;
-    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin, _token]), teksProses: 'Menyiapkan soal...');
+    final pd = await UjianAman.perangkat();   // v1.54.0: satu perangkat per siswa per ujian
+    if (!mounted) return;
+    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin, _token, pd]), teksProses: 'Menyiapkan soal...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     if (d['sukses'] != true) {
@@ -1033,6 +1036,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
       _hitung(_akhirMs);
       _jam = Timer.periodic(const Duration(seconds: 1), (_) => _hitung(_akhirMs));
     }
+    UjianAman.aman(true);   // v1.54.0: layar ujian tidak bisa di-screenshot / direkam
     // v1.53.0: detak ke server (status tersambung di layar pengawas) + menerima tambahan waktu dari pengawas
     _kirimDetak();
     _detak = Timer.periodic(const Duration(seconds: 60), (_) => _kirimDetak());
@@ -1041,7 +1045,16 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
   Future<void> _kirimDetak() async {
     if (_kirim) return;
     try {
-      final d = peta(await Api.instance('waUjianDetak', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode], const Duration(seconds: 25)));
+      final pd = await UjianAman.perangkat();
+      final d = peta(await Api.instance('waUjianDetak', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, pd], const Duration(seconds: 25)));
+      if (!mounted || _kirim) return;
+      if (d['perangkatLain'] == true) {
+        _kirim = true;
+        Navigator.pop(context, {'sukses': false, 'pesan': '${teks(d['pesan'], 'Ujian ini terdaftar di perangkat lain.')} Hubungi pengawas.'});
+        return;
+      }
+      // v1.54.0: layar terbagi / jendela mengambang dihitung sebagai pelanggaran
+      if (await UjianAman.layarTerbagi() && mounted && !_kirim) _laporPelanggaran('layar_terbagi');
       final t = angka(d['tambahMenit']);
       if (!mounted || d['sukses'] != true || _akhirMs == 0) return;
       if (t > _tambah) {
@@ -1050,6 +1063,21 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
         _tambah = t;
       }
     } catch (_) {}
+  }
+
+  void _laporPelanggaran(String jenis) {
+    AlarmUjian.mulai();
+    Future<void>.delayed(const Duration(seconds: 1), AlarmUjian.henti);
+    Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, jenis]).then((r) {
+      final d = peta(r);
+      if (!mounted || _kirim) return;
+      if (d['terkunci'] == true) {
+        _kirim = true;
+        Navigator.pop(context, {'sukses': false, 'pesan': 'Ujian terkunci karena pelanggaran berulang. Hubungi pengawas.'});
+      } else if (angka(d['percobaan']) > 0) {
+        kabar(context, 'Peringatan: layar terbagi / jendela mengambang terdeteksi (${angka(d['percobaan'])}/${angka(d['batasPercobaan'])}). Tutup aplikasi lain.', galat: true);
+      }
+    }).catchError((_) {});
   }
 
   void _hitung(int akhirMs) {
@@ -1063,6 +1091,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     AlarmUjian.henti(segera: true);
+    UjianAman.aman(false);
     _jam?.cancel();
     _detak?.cancel();
     _halaman.dispose();
@@ -1099,8 +1128,11 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     }
     _kirim = true;
     _jam?.cancel();
+    final pd = await UjianAman.perangkat();
+    if (!mounted) return;
     final r = await jalankan(context, () => Api.instance('waSubmitUjian', [
           {
+            'perangkat': pd,
             'idUjian': widget.idUjian,
             'idRombel': SesiSiswa.instance.idRombel,
             'idMapel': widget.idMapel,

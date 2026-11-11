@@ -487,14 +487,14 @@ function waMulaiUjianLama_(idUjian, idRombel, idMapel, nama, kodeAkses) {
   return r;
 }
 
-function waLaporPindahTab(idUjian, idRombel, nama, kodeAkses) {
+function waLaporPindahTab(idUjian, idRombel, nama, kodeAkses, jenis) {
   // Laporan hanya dihitung bila kode akses siswa benar (mencegah orang lain menambah pelanggaran siswa lain).
   if (!cekKodeAksesSiswa_(idRombel, nama, kodeAkses)) {
     try { catat_('Siswa', idRombel, nama, 'Laporan pindah tab ditolak', 'kode akses tidak valid, ujian ' + idUjian, 'GAGAL'); } catch (e) {}
     return { percobaan: 0, terkunci: false, batasPercobaan: CONFIG.BATAS_PERCOBAAN_PINDAH_TAB };
   }
   var r = waLaporPindahTabAsli_(idUjian, idRombel, nama);
-  try { pwCatat_(idUjian, idRombel, nama, r.terkunci ? 'Keluar aplikasi - ujian terkunci' : 'Keluar aplikasi', 'Pelanggaran ke-' + r.percobaan + ' dari batas ' + r.batasPercobaan); } catch (ePw) {}
+  try { pwCatat_(idUjian, idRombel, nama, (jenis === 'layar_terbagi' ? 'Layar terbagi / jendela mengambang' : 'Keluar aplikasi') + (r.terkunci ? ' - ujian terkunci' : ''), 'Pelanggaran ke-' + r.percobaan + ' dari batas ' + r.batasPercobaan); } catch (ePw) {}
   try { catat_('Siswa', idRombel, nama, 'Pindah tab saat ujian', 'ujian ' + idUjian, 'GAGAL'); } catch (e) {}
   return r;
 }

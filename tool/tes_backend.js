@@ -703,5 +703,15 @@ tes('notifikasi: pengajuan tutor hanya untuk yang punya akses fitur', () => {
   sama(g.npCocok_(ev, { jenis: 'staf', id: 'U3', peran: 'Admin' }, { tutor_mapel_baru: [] }, ctx), false, 'dimatikan');
 });
 
+// 21. satu perangkat per ujian (v1.54.0)
+tes('perangkat: aplikasi lama tanpa ID perangkat', () => {
+  const u = g.pwUraiPerangkat_('');
+  sama(u.id, '', 'tanpa id'); sama(u.sidik, '', 'tanpa sidik');
+  sama(g.pwPerangkat_({ masa: 'MU-1', idUjian: 'U1' }, 'R', 'N', '', true), 'Perbarui aplikasi TH.E-Course ke versi terbaru untuk mengikuti ujian ini.', 'masa ujian wajib aplikasi baru');
+  sama(g.pwPerangkat_({ masa: '', idUjian: 'U1' }, 'R', 'N', '', true), '', 'ujian biasa tetap boleh');
+  sama(g.pwPerangkat_({ masa: 'MU-1', idUjian: 'U1' }, 'R', 'N', '', false), '', 'kirim jawaban dari aplikasi lama tidak diblokir');
+  sama(g.pwPerangkat_(null, 'R', 'N', 'x|y', true), '', 'tanpa jadwal');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

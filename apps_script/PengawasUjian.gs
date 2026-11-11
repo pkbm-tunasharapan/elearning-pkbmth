@@ -73,11 +73,17 @@ function pwCekToken_(j, idRombel, nama, tokenUjian) {
 
 // ---------- detak siswa ----------
 var PW_KAV_ = {};
-function waUjianDetak(idUjian, idRombel, nama, kodeAkses) {
+function waUjianDetak(idUjian, idRombel, nama, kodeAkses, perangkat) {
   var c = CacheService.getScriptCache(), kk = 'pw_ka_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, idRombel + '|' + nama + '|' + kodeAkses));
   if (!c.get(kk)) {
     if (!cekKodeAksesSiswa_(idRombel, nama, kodeAkses)) return { sukses: false };
     c.put(kk, '1', 1800);
+  }
+  // v1.54.0: perangkat lain -> aplikasi menutup layar ujian
+  var u = pwUraiPerangkat_(perangkat);
+  if (u.id) {
+    var pd = pwPerangkatCari_(pwKunciSiswa_(idUjian, idRombel, nama));
+    if (pd && pd.sidik !== u.sidik) return { sukses: true, perangkatLain: true, pesan: 'Ujian ini terdaftar di perangkat lain (' + pd.model + ').' };
   }
   c.put('pw_d_' + pwKunciSiswa_(idUjian, idRombel, nama), String(Date.now()), 900);
   return { sukses: true, tambahMenit: pwTambah_(idUjian, idRombel, nama), detik: PW.DETAK_DETIK };
@@ -237,6 +243,7 @@ function pwRuang_(cx) {
     var k = pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']);
     (lg[k] = lg[k] || []).push({ waktu: r['WAKTU'], jenis: r['JENIS'], detail: r['DETAIL'], oleh: r['OLEH'] });
   });
+  var model = pwModelTerdaftar_();
   var kunciDetak = peserta.map(function(x) { return 'pw_d_' + pwKunciSiswa_(x.idUjian, x.idRombel, x.nama); });
   var detak = {};
   try { for (var i = 0; i < kunciDetak.length; i += 100) { var g = CacheService.getScriptCache().getAll(kunciDetak.slice(i, i + 100)); Object.keys(g).forEach(function(k) { detak[k] = Number(g[k]); }); } } catch (e) {}
@@ -252,7 +259,7 @@ function pwRuang_(cx) {
     return { nama: x.nama, nisn: x.nisn, idRombel: x.idRombel, idUjian: x.idUjian, status: status, terkunci: terkunci,
       percobaan: se ? Number(se.row[se.c.percobaan - 1]) || 0 : 0, pelanggaran: pel.length, mulai: pwJam_(mulai), selesai: st === 'Selesai' ? pwJam_(selesai) : '',
       sisaMenit: status === 'Mengerjakan' || status === 'Terputus' ? Math.max(0, Math.ceil((akhir - now) / 60000)) : null, tambahMenit: tw,
-      detak: dt ? pwJam_(dt) : '', log: lg[k] || [] };
+      detak: dt ? pwJam_(dt) : '', perangkat: model[k] || '', log: lg[k] || [] };
   });
   var hitung = {};
   siswa.forEach(function(x) { hitung[x.status] = (hitung[x.status] || 0) + 1; });
@@ -352,4 +359,67 @@ function waStafPengawasBeritaAcaraSimpan(token, idSlot, idRombelSim, isi) {
   else sh.appendRow(row.map(function(v) { return typeof v === 'number' ? v : pwTeks_(v); }));
   catat_(p.peran, p.id, p.nama, 'Berita acara ujian', cx.m.nama + ' · ' + cx.s.namaMapel + ' · ' + cx.namaRombel, 'OK');
   return { sukses: true, waktu: row[6] };
+}
+
+// ============================================================================
+// v1.54.0 (Ujian Tahap 3): SATU PERANGKAT PER SISWA PER UJIAN
+// Perangkat pertama yang memulai ujian terdaftar (ID perangkat Android, disimpan sebagai sidik MD5 + nama model).
+// Mulai / lanjut / detak / kirim jawaban dari perangkat lain ditolak dan dicatat sebagai pelanggaran.
+// Pengawas dapat mengizinkan perangkat baru (alasan wajib, tercatat di berita acara).
+// ============================================================================
+PW.TAB_PD = 'PERANGKAT UJIAN';
+PW.HDR_PD = ['WAKTU', 'ID UJIAN', 'ID ROMBEL', 'NAMA SISWA', 'SIDIK', 'MODEL', 'STATUS'];
+
+function pwHash_(s) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, String(s)).map(function(b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
+}
+function pwUraiPerangkat_(perangkat) {
+  var p = String(perangkat || ''), i = p.indexOf('|');
+  var id = (i >= 0 ? p.slice(0, i) : p).trim();
+  return { id: id, sidik: id ? pwHash_(id) : '', model: (i >= 0 ? p.slice(i + 1) : '').trim().slice(0, 60) || 'perangkat tidak dikenal' };
+}
+function pwPerangkatCari_(k) {
+  var c = CacheService.getScriptCache(), s = c.get('pw_pd_' + k);
+  if (s === '-') return null;
+  if (s) { var a = s.split('|'); return { sidik: a[0], model: a.slice(1).join('|') }; }
+  var ada = null;
+  pwBaca_(PW.TAB_PD, PW.HDR_PD).forEach(function(r) {
+    if (r['STATUS'] === 'Aktif' && pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']) === k) ada = { sidik: r['SIDIK'], model: r['MODEL'] };
+  });
+  try { c.put('pw_pd_' + k, ada ? ada.sidik + '|' + ada.model : '-', 1800); } catch (e) {}
+  return ada;
+}
+// Mengembalikan pesan penolakan ('' = boleh). daftar = true: perangkat pertama didaftarkan (saat mulai).
+function pwPerangkat_(j, idRombel, nama, perangkat, daftar) {
+  if (!j) return '';
+  var u = pwUraiPerangkat_(perangkat);
+  if (!u.id) return j.masa && daftar ? 'Perbarui aplikasi TH.E-Course ke versi terbaru untuk mengikuti ujian ini.' : '';
+  var k = pwKunciSiswa_(j.idUjian, idRombel, nama), ada = pwPerangkatCari_(k);
+  if (!ada) {
+    if (!daftar) return '';
+    pwTab_(PW.TAB_PD, PW.HDR_PD).appendRow([pwTeks_(pwWaktu_()), pwTeks_(j.idUjian), pwTeks_(idRombel), pwTeks_(nama), pwTeks_(u.sidik), pwTeks_(u.model), 'Aktif']);
+    try { CacheService.getScriptCache().put('pw_pd_' + k, u.sidik + '|' + u.model, 1800); } catch (e) {}
+    return '';
+  }
+  if (ada.sidik === u.sidik) return '';
+  try { pwCatat_(j.idUjian, idRombel, nama, 'Perangkat lain', 'Mencoba dari ' + u.model + '; perangkat terdaftar ' + ada.model); } catch (e2) {}
+  return 'Ujian ini sudah dimulai dari perangkat lain (' + ada.model + '). Satu siswa hanya boleh memakai satu perangkat. ' +
+    'Bila ponsel Anda bermasalah, minta pengawas mengizinkan perangkat baru.';
+}
+function pwModelTerdaftar_() {
+  var o = {};
+  try { pwBaca_(PW.TAB_PD, PW.HDR_PD).forEach(function(r) { if (r['STATUS'] === 'Aktif') o[pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA'])] = r['MODEL']; }); } catch (e) {}
+  return o;
+}
+function waStafPengawasIzinPerangkat(token, idSlot, idRombelSim, idUjian, idRombel, nama, alasan) {
+  var p = stafDariToken_(token);
+  var cx = pwKonteks_(p, idSlot, idRombelSim), x = pwSiswaRuang_(cx, idUjian, idRombel, nama), a = pwAlasan_(alasan);
+  var k = pwKunciSiswa_(x.idUjian, x.idRombel, x.nama), sh = pwTab_(PW.TAB_PD, PW.HDR_PD), kol = PW.HDR_PD.indexOf('STATUS') + 1, n = 0;
+  pwBaca_(PW.TAB_PD, PW.HDR_PD).forEach(function(r) {
+    if (r['STATUS'] === 'Aktif' && pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']) === k) { sh.getRange(r._baris, kol).setValue('Direset'); n++; }
+  });
+  try { CacheService.getScriptCache().remove('pw_pd_' + k); } catch (e) {}
+  pwCatat_(x.idUjian, x.idRombel, x.nama, 'Perangkat baru diizinkan pengawas', a, p.nama);
+  catat_(p.peran, p.id, p.nama, 'Pengawas izinkan perangkat baru', x.nama + ' (ujian ' + x.idUjian + '): ' + a, 'OK');
+  return { sukses: true, direset: n };
 }

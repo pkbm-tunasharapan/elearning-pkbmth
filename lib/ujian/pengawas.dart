@@ -216,6 +216,15 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
     if (r.ok && mounted) { kabar(context, 'Waktu ditambah $menit menit.'); _muat(); }
   }
 
+  Future<void> _izinPerangkat(Map<String, dynamic> s) async {
+    final a = await _mintaAlasan('Izinkan perangkat baru untuk ${teks(s['nama'])}?',
+        'Perangkat terdaftar (${teks(s['perangkat'], '-')}) dilepas. Perangkat berikutnya yang dipakai siswa untuk melanjutkan ujian akan terdaftar. Gunakan hanya bila ponsel siswa rusak, mati, atau bermasalah.');
+    if (a == null || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafPengawasIzinPerangkat', [_t, widget.idSlot, widget.idRombel, s['idUjian'], s['idRombel'], s['nama'], a]),
+        teksProses: 'Mengizinkan perangkat baru...');
+    if (r.ok && mounted) { kabar(context, 'Siswa bisa melanjutkan dari perangkat baru.'); _muat(); }
+  }
+
   Future<void> _gantiToken() async {
     if (!await konfirmasi(context, 'Ganti token?', 'Token lama tidak berlaku lagi untuk siswa yang belum mulai. Siswa yang sedang mengerjakan tidak terpengaruh. Token berlaku untuk semua ruang di slot ini.',
         ya: 'Ganti')) {
@@ -239,13 +248,16 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
             Text(teks(s['nama']), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             Text('Status: ${teks(s['status'])}${teks(s['mulai']).isEmpty ? '' : ' · mulai ${teks(s['mulai'])}'}${teks(s['selesai']).isEmpty ? '' : ' · selesai ${teks(s['selesai'])}'}'
                 '${s['sisaMenit'] == null ? '' : ' · sisa ${s['sisaMenit']} menit'}${angka(s['tambahMenit']) > 0 ? ' · tambahan ${s['tambahMenit']} menit' : ''}'
-                '${teks(s['detak']).isEmpty ? '' : ' · tersambung terakhir ${teks(s['detak'])}'}'),
+                '${teks(s['detak']).isEmpty ? '' : ' · tersambung terakhir ${teks(s['detak'])}'}'
+                '${teks(s['perangkat']).isEmpty ? '' : ' · perangkat ${teks(s['perangkat'])}'}'),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               if (s['terkunci'] == true)
                 FilledButton.icon(onPressed: () { Navigator.pop(c); _bukaKunci(s); }, icon: const Icon(Icons.lock_open_rounded), label: const Text('Buka kunci')),
               if (teks(s['status']) == 'Mengerjakan' || teks(s['status']) == 'Terputus' || s['terkunci'] == true)
                 OutlinedButton.icon(onPressed: () { Navigator.pop(c); _tambahWaktu(s); }, icon: const Icon(Icons.more_time_rounded), label: const Text('Tambah waktu')),
+              if (teks(s['perangkat']).isNotEmpty && teks(s['status']) != 'Selesai')
+                OutlinedButton.icon(onPressed: () { Navigator.pop(c); _izinPerangkat(s); }, icon: const Icon(Icons.phonelink_setup_rounded), label: const Text('Izinkan perangkat baru')),
             ]),
             const SizedBox(height: 12),
             const Text('Riwayat kejadian', style: TextStyle(fontWeight: FontWeight.w700)),

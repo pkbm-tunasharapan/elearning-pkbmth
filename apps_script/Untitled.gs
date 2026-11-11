@@ -426,7 +426,7 @@ function waStatusUjian(idUjian, idRombel, idMapel, nama) {
   return r;
 }
 
-function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian) {
+function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat) {
   // v1.39.0: WB yang sudah punya PIN wajib memasukkan PIN sebelum ujian dimulai
   try {
     if (pinPunya_(nama, idRombel)) {
@@ -455,6 +455,14 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUji
   if (g.pesan) {
     try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - ' + g.pesan, 'GAGAL'); } catch (e) {}
     return { sukses: false, pesan: g.pesan };
+  }
+  if (j && String(j.idMapel) === String(idMapel)) {   // v1.54.0: satu perangkat per siswa per ujian
+    var gPd = pwPerangkat_(j, idRombel, nama, perangkat, true);
+    if (gPd) {
+      if (g.akses) ujUbah_('AKSES', g.akses._baris, { 'Status': 'Terbuka' });
+      try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - perangkat lain', 'GAGAL'); } catch (e) {}
+      return { sukses: false, pesan: gPd };
+    }
   }
   if (j && !g.lanjutMs && String(j.idMapel) === String(idMapel) && !ujPool_(j.idMapel, j.smt, j.jenisPool).sesi.length) {
     if (g.akses) ujUbah_('AKSES', g.akses._baris, { 'Status': 'Terbuka' });
@@ -521,7 +529,7 @@ function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian) {
 function waSubmitUjian(payload) {
   var j = payload ? ujJadwalDariUjian_(payload.idUjian) : null;
   if (!j) return waSubmitUjianLama_(payload);
-  var gs = ujGerbangKirim_(j, payload);
+  var gs = ujGerbangKirim_(j, payload) || (String(j.idMapel) === String(payload.idMapel) ? pwPerangkat_(j, payload.idRombel, payload.nama, payload.perangkat, false) : '');
   if (gs) {
     try { catat_('Siswa', payload.idRombel, payload.nama, 'Kirim ujian', 'ujian ' + payload.idUjian + ' - ' + gs, 'GAGAL'); } catch (e) {}
     return { sukses: false, pesan: gs };
