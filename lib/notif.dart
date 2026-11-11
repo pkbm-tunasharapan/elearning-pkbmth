@@ -34,22 +34,38 @@ class Notif with WidgetsBindingObserver {
   final _terlihat = <String>{};
   bool _aktif = true;
   bool _terpasang = false;
-  int _detak = 0;
+  // v1.42.0: jeda pemeriksaan menyesuaikan aktivitas (20 dtk -> 45 dtk -> 90 dtk bila sepi); broadcast tiap 2 menit
+  bool _berjalan = false;
+  int _kosong = 0;
+  DateTime _terakhirBc = DateTime.fromMillisecondsSinceEpoch(0);
+
+  Duration get _jeda => Duration(seconds: _kosong < 3 ? 20 : (_kosong < 10 ? 45 : 90));
+
+  void _jadwal() {
+    _timer?.cancel();
+    if (!_berjalan) return;
+    _timer = Timer(_jeda, () async {
+      await _cek();
+      if (_aktif && DateTime.now().difference(_terakhirBc) >= const Duration(minutes: 2)) {
+        _terakhirBc = DateTime.now();
+        Pemberitahuan.instance.cek(kunciNavigator);
+      }
+      _jadwal();
+    });
+  }
 
   void mulai() {
     if (!_terpasang) {
       WidgetsBinding.instance.addObserver(this);
       _terpasang = true;
     }
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      _cek();
-      // broadcast admin: tiap 30 detik (Pemberitahuan juga dicek native saat aplikasi tertutup)
-      if (_aktif && (_detak++).isEven) Pemberitahuan.instance.cek(kunciNavigator);
-    });
+    _berjalan = true;
+    _kosong = 0;
+    _jadwal();
     Future.delayed(const Duration(seconds: 3), _cek);
     Future.delayed(const Duration(seconds: 5), () async {
       await Pemberitahuan.instance.mulai();
+      _terakhirBc = DateTime.now();
       await Pemberitahuan.instance.cek(kunciNavigator);
     });
     Future.delayed(const Duration(seconds: 8), _cekUlangTahun);
@@ -86,6 +102,7 @@ class Notif with WidgetsBindingObserver {
   }
 
   void henti() {
+    _berjalan = false;
     _timer?.cancel();
     _timer = null;
     _terlihat.clear();
@@ -95,8 +112,13 @@ class Notif with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _aktif = state == AppLifecycleState.resumed;
     if (_aktif) {
+      _kosong = 0;
       _cek();
-      if (_timer != null) Pemberitahuan.instance.cek(kunciNavigator);
+      _jadwal();
+      if (_berjalan) {
+        _terakhirBc = DateTime.now();
+        Pemberitahuan.instance.cek(kunciNavigator);
+      }
       // v1.38.7: daftar mapel & sesi siswa diperbarui saat aplikasi kembali ke depan (maks. 10 menit sekali)
       if (SesiSiswa.instance.masuk) SesiSiswa.instance.segarkan();
       // v1.38.9: periksa versi aplikasi lagi (maks. 1 jam sekali) agar pembaruan wajib tetap muncul
@@ -141,6 +163,8 @@ class Notif with WidgetsBindingObserver {
       final nilai = daftar(siswa ? h['nilai'] : h['jawaban']).map(peta).where((n) {
         return _terlihat.add('n|${teks(n['idMapel'])}|${teks(n['idMateri'])}|${teks(n['siswa'])}|${angka(n['waktu'])}');
       }).toList();
+      // ada kabar baru -> periksa lebih sering lagi; sepi -> jeda memanjang
+      _kosong = (baru.isEmpty && nilai.isEmpty) ? _kosong + 1 : 0;
       if (baru.isNotEmpty) _tampilChat(baru, siswa);
       if (nilai.isNotEmpty) _tampilNilai(nilai, siswa);
       final rf = daftar(h['referral']).map(peta).where((r) => _terlihat.add('rf|${angka(r['waktu'])}')).toList();

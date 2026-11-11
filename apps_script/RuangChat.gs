@@ -156,6 +156,7 @@ function kirimRuang_(kunci, nama, peran, pesan) {
   }
   var now = new Date();
   getSheet(CONFIG.SHEETS.CHAT).appendRow([kunci, nama, teks, now, peran]);
+  kcpTanda_('chat', now.getTime());   // v1.42.0: penanda untuk jalur cepat pemeriksaan
   tandaiHadirRuang_(kunci, nama, peran);
   return { sukses: true, waktu: now.getTime() };
 }
@@ -217,6 +218,7 @@ function notifPesanBaru_(peta, nama, peran, sejakMs) {
   if (last >= 2) {
     var mulai = Math.max(2, last - RUANG.MAKS_PINDAI + 1);
     var v = sheet.getRange(mulai, 1, last - mulai + 1, lebarAman_(sheet, 5)).getValues();
+    if (v.length) kcpIsiBila_('chat', msDariSel_(v[v.length - 1][3]));
     var saya = normNama_(nama);
     for (var i = v.length - 1; i >= 0; i--) {
       var r = v[i];
@@ -262,6 +264,8 @@ function notifPetaStaf_(token, p) {
 // sejakNilaiMs (opsional): batas bawah untuk nilai baru dari tutor (lihat nvBaru_). 0 = beberapa hari terakhir.
 function waRuangCek(nama, idRombel, sejakMs, sejakNilaiMs) {
   ruangSiswa_(nama, idRombel, 'ROMBEL');
+  // v1.42.0: jalur cepat - tidak ada chat/nilai baru sejak pemeriksaan terakhir
+  if (kcpTakAdaBaru_(sejakMs, sejakNilaiMs)) return { baru: [], nilai: [], sekarangMs: Date.now(), cepat: true };
   var h = notifPesanBaru_(notifPetaSiswa_(idRombel), String(nama).trim(), 'Siswa', sejakMs);
   try { h.nilai = nvBaru_(idRombel, nama, sejakNilaiMs, h.sekarangMs); } catch (e) { h.nilai = []; }
   return h;
@@ -270,6 +274,7 @@ function waRuangCek(nama, idRombel, sejakMs, sejakNilaiMs) {
 // sejakJawabanMs (opsional): batas bawah untuk jawaban diskusi baru dari siswa (lihat nvBaruStaf_).
 function waStafRuangCek(token, sejakMs, sejakJawabanMs) {
   var p = stafDariToken_(token);
+  if (kcpTakAdaBaru_(sejakMs, sejakJawabanMs)) return { baru: [], jawaban: [], sekarangMs: Date.now(), cepat: true };
   var peta = notifPetaStaf_(token, p);
   var h = notifPesanBaru_(peta, p.nama, p.peran, sejakMs);
   try {

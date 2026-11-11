@@ -261,6 +261,7 @@ function waAdminTugasNilaiOtomatis(token, terapkan) {
       jml++;
     });
     nvTulis_('NILAI', kabar);
+    kcpTanda_('jwb');
   } finally { lock.releaseLock(); }
   try { catat_(p.peran, '', p.nama, 'Nilai otomatis tugas', jml + ' jawaban diskusi (acak ' + rentang.dari + '-' + rentang.sampai + ')', 'OK'); } catch (e) {}
   try { CacheService.getScriptCache().remove('brd_' + p.id); } catch (e2) {}

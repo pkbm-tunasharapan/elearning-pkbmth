@@ -267,6 +267,8 @@ var NV = {
 // daftar: [{ rombel, idMapel, mapel, idMateri, judul, siswa, nilai, oleh }]. Kegagalan mencatat tidak boleh menggagalkan pekerjaan utama.
 function nvTulis_(tipe, daftar) {
   if (!daftar || !daftar.length) return;
+  kcpTanda_('nv');                         // v1.42.0: penanda untuk jalur cepat pemeriksaan
+  if (tipe === 'NILAI') kcpTanda_('jwb');  // nilai jawaban berubah -> cache "Belum dinilai" basi
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(NV.SHEET);
@@ -314,6 +316,7 @@ function nvBaca_(tipe, sejakMs, sekarangMs, cocok, bentuk, maks) {
   var ambang = nvBatasBawah_(sejakMs, sekarangMs);
   var mulai = Math.max(2, last - NV.PINDAI + 1);
   var v = sh.getRange(mulai, 1, last - mulai + 1, NV.HEADERS.length).getValues();
+  if (v.length) kcpIsiBila_('nv', Number(v[v.length - 1][0]) || 0);
   var hasil = [];
   for (var i = v.length - 1; i >= 0; i--) {
     var r = v[i];
@@ -387,7 +390,7 @@ function rbMs_(x) {
   return isNaN(n) ? 0 : n;
 }
 
-function waStafBelumDinilai(token) {
+function waStafBelumDinilaiInti_(token) {   // dibungkus cache di Kecepatan.gs (v1.42.0)
   var p = stafDariToken_(token);
   var admin = p.peran === 'Admin' || p.peran === 'Kepala Sekolah' || p.peran === 'Koordinator Kurikulum';
   var milik = ndMilikMap_(p);

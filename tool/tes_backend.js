@@ -603,5 +603,18 @@ tes('izin tahap 3: Dinas diberi fitur tambahan (hanya lihat), diturunkan admin, 
   } finally { g.izData_ = simpan; g.__IZN_PROKSI = null; }
 });
 
+// 14. kecepatan (v1.42.0)
+tes('kecepatan: jalur cepat pemeriksaan chat hanya bila pasti tidak ada yang baru', () => {
+  ['kcp|chat', 'kcp|nv'].forEach((k) => cache.remove(k));
+  sama(g.kcpTakAdaBaru_(1000, 1000), false, 'penanda belum ada -> jalur lengkap');
+  g.kcpTanda_('chat', 5000); g.kcpTanda_('nv', 4000);
+  sama(g.kcpTakAdaBaru_(6000, 6000), true, 'tidak ada yang baru');
+  sama(g.kcpTakAdaBaru_(4000, 6000), false, 'ada chat baru');
+  sama(g.kcpTakAdaBaru_(6000, 3000), false, 'ada notifikasi baru');
+  sama(g.kcpTakAdaBaru_(0, 6000), false, 'pemeriksaan pertama -> jalur lengkap');
+  g.kcpIsiBila_('chat', 1);
+  sama(g.kcpAkhir_('chat'), 5000, 'isi-bila tidak menimpa penanda yang ada');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
