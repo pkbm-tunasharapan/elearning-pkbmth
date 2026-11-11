@@ -50,9 +50,14 @@ const _css = '.hal{page-break-after:always}.hal:last-child{page-break-after:auto
     '.ttd td.foto,.foto{width:30mm;height:40mm;border:1px solid #333;text-align:center;vertical-align:middle;font-size:9pt;color:#666}';
 
 /// HTML cover + biodata (dua halaman per warga belajar).
-String coverBiodataHtml(Map<String, dynamic> d, List<Map<String, dynamic>> siswa, String logoB64) {
+/// [program] (v1.39.3): jenjang cover yang dipilih (PKT-A/PKT-B/PKT-C); bawaan = program rombel sekarang.
+/// Data pribadi tetap sama; bila jenjang berbeda dari rombel sekarang, isian "Di Rombel" dikosongkan (diisi tangan).
+String coverBiodataHtml(Map<String, dynamic> d, List<Map<String, dynamic>> siswa, String logoB64, {String? program}) {
   final l = peta(d['lembaga']);
   final rb = peta(d['rombel']);
+  final programKini = teks(rb['program']).toUpperCase();
+  final prog = (program == null || program.isEmpty) ? programKini : program.toUpperCase();
+  final rombelDiterima = prog == programKini ? teks(rb['nama']) : '';
   final namaLembaga = kNamaSekolah.toUpperCase();
   final kepala = teks(l['kepala']);
   final kota = _kota(kAlamatLembaga);
@@ -61,7 +66,7 @@ String coverBiodataHtml(Map<String, dynamic> d, List<Map<String, dynamic>> siswa
     // ── cover ──
     b.write('<div class="hal"><table class="cover"><tr><td>'
         '<div class="ct1">LAPORAN<br>HASIL BELAJAR PESERTA DIDIK</div>'
-        '<div class="ct2">PENDIDIKAN KESETARAAN<br>${escHtml(_programPanjang(teks(rb['program'])))}</div>'
+        '<div class="ct2">PENDIDIKAN KESETARAAN<br>${escHtml(_programPanjang(prog))}</div>'
         '<div class="logo"><img src="data:image/jpeg;base64,$logoB64"></div>'
         '<div class="lbl">Nama Peserta Didik</div><div class="kotak">${escHtml(teks(s['nama']).toUpperCase())}</div>'
         '<div class="lbl">NISN</div><div class="kotak">${escHtml(teks(s['nisn'], '-'))}</div>'
@@ -84,7 +89,7 @@ String coverBiodataHtml(Map<String, dynamic> d, List<Map<String, dynamic>> siswa
     b.write(baris('9.', 'Nomor Telepon/HP', teks(s['hp'])));
     b.write(baris('10.', 'Sekolah Asal', teks(s['sekolahAsal'])));
     b.write(baris('11.', 'Diterima di satuan pendidikan ini', '', judul: true));
-    b.write(baris('', 'a. Di Rombel', teks(rb['nama']), sub: true));
+    b.write(baris('', 'a. Di Rombel', rombelDiterima, sub: true));
     b.write(baris('', 'b. Pada Tanggal', '', sub: true));
     b.write(baris('12.', 'Nama Orang Tua', '', judul: true));
     b.write(baris('', 'a. Ayah', teks(s['ayah']), sub: true));
@@ -115,11 +120,49 @@ Future<void> cetakCoverBiodata(BuildContext context, {required String idRombel, 
       siswa = siswa.where(cocok).take(1).toList();
     }
     if (siswa.isEmpty) throw ApiException('Warga belajar tidak ditemukan di rombel ini.');
-    return (html: coverBiodataHtml(d, siswa, logo), kurang: siswa.where((s) => s['adaBiodata'] != true).length);
+    return (d: d, siswa: siswa, logo: logo, kurang: siswa.where((s) => s['adaBiodata'] != true).length);
   }, teksProses: 'Menyiapkan cover & biodata...');
   if (!r.ok || !context.mounted) return;
+  // v1.39.3: pilih jenjang cover (Paket A / B / C); bawaan = program rombel sekarang
+  final prog = await pilihJenjangCover(context, teks(peta(r.data!.d['rombel'])['program']));
+  if (prog == null || !context.mounted) return;
+  final html = coverBiodataHtml(r.data!.d, r.data!.siswa, r.data!.logo, program: prog);
   if (r.data!.kurang > 0) {
     kabar(context, '${r.data!.kurang} siswa belum punya biodata lengkap (agama, alamat, orang tua). Jalankan Impor Dapodik untuk melengkapinya; kolom kosong dicetak bergaris titik.');
   }
-  await htmlKePdf(context, nama: 'Cover_Biodata_${(namaWb ?? namaRombel).replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf', args: [_t, r.data!.html]);
+  await htmlKePdf(context, nama: 'Cover_Biodata_${prog.replaceAll('PKT-', 'Paket_')}_${(namaWb ?? namaRombel).replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf', args: [_t, html]);
+}
+
+/// v1.39.3: pilihan jenjang cover rapor. Mengembalikan 'PKT-A' | 'PKT-B' | 'PKT-C', atau null bila batal.
+Future<String?> pilihJenjangCover(BuildContext context, String programKini) {
+  final kini = programKini.toUpperCase();
+  var pilih = const ['PKT-A', 'PKT-B', 'PKT-C'].contains(kini) ? kini : 'PKT-C';
+  return showDialog<String>(
+    context: context,
+    builder: (c) => StatefulBuilder(
+      builder: (c, atur) => AlertDialog(
+        title: const Text('Jenjang cover rapor'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Data pribadi warga belajar tetap sama. Pilih jenjang yang dicetak di cover.', style: TextStyle(fontSize: 13)),
+          const SizedBox(height: 8),
+          for (final p in const [('PKT-A', 'Paket A', 'setara SD/MI'), ('PKT-B', 'Paket B', 'setara SMP/MTs'), ('PKT-C', 'Paket C', 'setara SMA/MA')])
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              onTap: () => atur(() => pilih = p.$1),
+              leading: Icon(pilih == p.$1 ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+                  color: pilih == p.$1 ? Theme.of(c).colorScheme.primary : null),
+              title: Text(p.$2 + (p.$1 == kini ? ' (jenjang sekarang)' : '')),
+              subtitle: Text(p.$3),
+            ),
+          if (pilih != kini)
+            const Text('Isian "Diterima di rombel" dikosongkan agar diisi sesuai jenjang tersebut.', style: TextStyle(fontSize: 12)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(c, pilih), child: const Text('Cetak')),
+        ],
+      ),
+    ),
+  );
 }
