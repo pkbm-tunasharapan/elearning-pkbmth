@@ -16,6 +16,7 @@ import 'mapel_siswa.dart';
 import 'pencapaian_siswa.dart';
 import 'pin_siswa.dart';
 import 'sesi_siswa.dart';
+import 'tagihan_siswa.dart';
 
 const _ikonMapel = <String, IconData>{
   'matematika': Icons.calculate_rounded,
@@ -150,6 +151,16 @@ class _BerandaIsi extends StatelessWidget {
                 judul: 'Kartu Pencapaian Studi',
                 sub: 'Nilai semester ini & semester sebelumnya',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen())),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _Pintasan(
+                ikon: Icons.request_quote_rounded,
+                warna: const Color(0xFFE5484D),
+                judul: 'Tagihan Saya',
+                sub: 'Lihat & bayar tagihan (online / transfer)',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TagihanSiswaScreen())),
               ),
             ),
             Padding(

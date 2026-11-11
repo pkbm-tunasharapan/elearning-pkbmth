@@ -11,6 +11,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'arus.dart';
+import 'bayar_online.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -549,6 +550,18 @@ class _TagihanScreenState extends State<TagihanScreen> {
             RefreshIndicator(
               onRefresh: segarkan,
               child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 100), children: [
+                Card(
+                  color: angka(d['transferMenunggu']) > 0 ? const Color(0xFFFFF4DB) : null,
+                  child: ListTile(
+                    leading: const Icon(Icons.fact_check_rounded),
+                    title: Text(angka(d['transferMenunggu']) > 0 ? '${angka(d['transferMenunggu'])} bukti transfer menunggu diperiksa' : 'Bukti transfer dari siswa'),
+                    subtitle: const Text('Transfer manual ke rekening lembaga dari menu Tagihan Saya'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransferTagihanScreen())).then((_) {
+                      if (mounted) setState(() => _v++);
+                    }),
+                  ),
+                ),
                 if (tg.isEmpty) Kosong(pesan: catat ? 'Belum ada tagihan. Ketuk "Tagihan baru".' : 'Belum ada tagihan.', ikon: Icons.request_quote_outlined),
                 for (final x in tg)
                   Card(
@@ -630,6 +643,7 @@ class _FormTagihanState extends State<FormTagihan> {
   String? _kategori;
   String _sasaran = 'Semua';
   String? _nilai;
+  final Set<String> _siswa = {};   // v1.49.0: sasaran siswa tertentu
   String _tempo = '';
 
   @override
@@ -643,6 +657,7 @@ class _FormTagihanState extends State<FormTagihan> {
       _kategori = teks(x['kategori']);
       _sasaran = teks(x['sasaran'], 'Semua');
       _nilai = teks(x['nilaiSasaran']);
+      if (_sasaran == 'Siswa') _siswa.addAll(teks(x['nilaiSasaran']).split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
       _tempo = teks(x['jatuhTempo']);
     }
   }
@@ -653,6 +668,44 @@ class _FormTagihanState extends State<FormTagihan> {
     _jumlah.dispose();
     _ket.dispose();
     super.dispose();
+  }
+
+  Future<void> _pilihSiswa() async {
+    final wb = daftar(widget.data['wb']).map(peta).toList();
+    final pilih = Set<String>.from(_siswa);
+    var cari = '';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, atur) {
+          final daftarTampil = wb.where((w) => cari.isEmpty || '${teks(w['nama'])} ${teks(w['rombel'])}'.toLowerCase().contains(cari)).toList();
+          return AlertDialog(
+            title: Text('Pilih siswa (${pilih.length})'),
+            content: SizedBox(
+              width: 420,
+              height: 460,
+              child: Column(children: [
+                TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Cari nama atau rombel', isDense: true), onChanged: (v) => atur(() => cari = v.trim().toLowerCase())),
+                Expanded(
+                  child: ListView(children: [
+                    for (final w in daftarTampil)
+                      CheckboxListTile(
+                        dense: true,
+                        value: pilih.contains(teks(w['id'])),
+                        title: Text(teks(w['nama'])),
+                        subtitle: Text(teks(w['rombel'])),
+                        onChanged: (v) => atur(() => v == true ? pilih.add(teks(w['id'])) : pilih.remove(teks(w['id']))),
+                      ),
+                  ]),
+                ),
+              ]),
+            ),
+            actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Pakai'))],
+          );
+        },
+      ),
+    );
+    if (ok == true && mounted) setState(() => _siswa..clear()..addAll(pilih));
   }
 
   @override
@@ -677,14 +730,32 @@ class _FormTagihanState extends State<FormTagihan> {
         TextField(controller: _jumlah, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Jumlah per warga belajar', prefixText: 'Rp ')),
         const SizedBox(height: 12),
         SegmentedButton<String>(
-          segments: const [ButtonSegment(value: 'Semua', label: Text('Semua')), ButtonSegment(value: 'Program', label: Text('Program')), ButtonSegment(value: 'Rombel', label: Text('Rombel'))],
+          segments: const [
+            ButtonSegment(value: 'Semua', label: Text('Semua')),
+            ButtonSegment(value: 'Program', label: Text('Program')),
+            ButtonSegment(value: 'Rombel', label: Text('Rombel')),
+            ButtonSegment(value: 'Siswa', label: Text('Siswa')),
+          ],
           selected: {_sasaran},
           onSelectionChanged: (s) => setState(() {
             _sasaran = s.first;
             _nilai = null;
           }),
         ),
-        if (_sasaran != 'Semua') ...[
+        if (_sasaran == 'Siswa') ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _pilihSiswa,
+            icon: const Icon(Icons.group_add_rounded),
+            label: Text(_siswa.isEmpty ? 'Pilih siswa' : '${_siswa.length} siswa dipilih — ubah'),
+          ),
+          if (_siswa.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(daftar(widget.data['wb']).map(peta).where((w) => _siswa.contains(teks(w['id']))).map((w) => teks(w['nama'])).join(', '), style: const TextStyle(fontSize: 12.5)),
+            ),
+        ],
+        if (_sasaran == 'Program' || _sasaran == 'Rombel') ...[
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             key: ValueKey('sas$_sasaran'),
@@ -715,7 +786,7 @@ class _FormTagihanState extends State<FormTagihan> {
                   _t,
                   {
                     if (widget.x != null) 'id': teks(widget.x!['id']),
-                    'nama': _nama.text, 'kategori': _kategori ?? '', 'jumlah': _angka(_jumlah.text), 'sasaran': _sasaran, 'nilaiSasaran': _nilai ?? '', 'jatuhTempo': _tempo, 'keterangan': _ket.text
+                    'nama': _nama.text, 'kategori': _kategori ?? '', 'jumlah': _angka(_jumlah.text), 'sasaran': _sasaran, 'nilaiSasaran': _sasaran == 'Siswa' ? _siswa.join(',') : (_nilai ?? ''), 'jatuhTempo': _tempo, 'keterangan': _ket.text
                   }
                 ]), teksProses: 'Menyimpan...');
             if (r.ok && context.mounted) Navigator.pop(context, true);
@@ -740,7 +811,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
   String _filter = 'Belum lunas';
   String _cari = '';
 
-  Future<void> _aksi(Map<String, dynamic> tag, Map<String, dynamic> w, bool catat, List<Map<String, dynamic>> akun, {bool online = false}) async {
+  Future<void> _aksi(Map<String, dynamic> tag, Map<String, dynamic> w, bool catat, List<Map<String, dynamic>> akun, {bool online = false, List<Map<String, dynamic>> metode = const []}) async {
     if (!catat) return;
     final a = await showModalBottomSheet<String>(
       context: context,
@@ -749,16 +820,16 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(title: Text(teks(w['nama']), style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('Sisa ${rp(w['sisa'])} dari ${rp(w['tagihan'])}')),
           if (angka(w['sisa']) > 0) ListTile(leading: const Icon(Icons.payments_rounded), title: const Text('Catat pembayaran'), onTap: () => Navigator.pop(c, 'bayar')),
-          if (angka(w['sisa']) > 0 && online) ListTile(leading: const Icon(Icons.link_rounded), title: const Text('Link bayar online (DOKU)'), subtitle: const Text('Kirim ke WB; lunas tercatat otomatis'), onTap: () => Navigator.pop(c, 'online')),
+          if (angka(w['sisa']) > 0 && online) ListTile(leading: const Icon(Icons.credit_card_rounded), title: const Text('Bayar online (DOKU)'), subtitle: const Text('Sisa + biaya admin metode · buka sekarang atau kirim ke WB'), onTap: () => Navigator.pop(c, 'online')),
           if (angka(w['sisa']) > 0) ListTile(leading: const Icon(Icons.volunteer_activism_outlined), title: const Text('Beri keringanan'), onTap: () => Navigator.pop(c, 'ringan')),
         ]),
       ),
     );
     if (a == null || !mounted) return;
     if (a == 'online') {
-      final s = await mintaTeks(context, 'Link bayar ${teks(w['nama'])}', label: 'Jumlah (Rp)', awal: '${angka(w['sisa'])}');
-      if (s == null || !mounted) return;
-      final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanLinkBayar', [_t, {'idTagihan': widget.id, 'idWb': teks(w['idWb']), 'jumlah': _angka(s)}], const Duration(minutes: 2))),
+      final kode = await pilihMetodeBayar(context, pokok: angka(w['sisa']), metode: metode, judul: 'Metode bayar ${teks(w['nama'])}');
+      if (kode == null || !mounted) return;
+      final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanLinkBayar', [_t, {'idTagihan': widget.id, 'idWb': teks(w['idWb']), 'metode': kode}], const Duration(minutes: 2))),
           teksProses: 'Membuat link DOKU...');
       if (r.ok && mounted) await tampilLinkBayar(context, r.data!);
       if (mounted) setState(() => _v++);
@@ -837,7 +908,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
                     for (final w in wb)
                       ListTile(
                         dense: true,
-                        onTap: () => _aksi(tag, w, d['catat'] == true, daftar(d['akun']).map(peta).toList(), online: d['onlineAktif'] == true),
+                        onTap: () => _aksi(tag, w, d['catat'] == true, daftar(d['akun']).map(peta).toList(), online: d['onlineAktif'] == true, metode: daftar(d['metode']).map(peta).toList()),
                         title: Text(teks(w['nama'])),
                         subtitle: Text('${teks(w['namaRombel'])} · dibayar ${rp(w['dibayar'])}${angka(w['keringanan']) > 0 ? ' · keringanan ${rp(w['keringanan'])}' : ''}'),
                         trailing: Lencana(teks(w['status']) == 'Lunas' ? 'Lunas' : rp(w['sisa']), warna: warnaTrx(context, teks(w['status']))),
@@ -1622,6 +1693,7 @@ String bukuPajakHtml(Map<String, dynamic> d) {
 
 Future<void> tampilLinkBayar(BuildContext context, Map<String, dynamic> o) async {
   final url = teks(o['url']);
+  final invoice = teks(o['invoice']);
   final pesan = 'Yth. ${teks(o['nama'])}, berikut link pembayaran ${teks(o['tagihan'])} sebesar ${rp(o['jumlah'])} di ${teks(o['lembaga'], 'PKBM')}:\n$url\n'
       'Bisa dibayar dengan QRIS, virtual account, e-wallet, atau kartu${teks(o['kadaluarsa']).isEmpty ? '' : ' sampai ${teks(o['kadaluarsa'])}'}. Terima kasih.';
   var hp = teks(o['hp']).replaceAll(RegExp(r'[^0-9]'), '');
@@ -1629,21 +1701,29 @@ Future<void> tampilLinkBayar(BuildContext context, Map<String, dynamic> o) async
   await showDialog<void>(
     context: context,
     builder: (c) => AlertDialog(
-      title: Text('Link bayar ${rp(o['jumlah'])}'),
+      title: Text('Bayar ${rp(o['jumlah'])}'),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${teks(o['nama'])} · ${teks(o['tagihan'])}'),
+        if (o['pokok'] != null) Text('${teks(o['metode'])}: ${rp(o['pokok'])} + biaya admin ${rp(o['biaya'])}', style: const TextStyle(fontSize: 12.5)),
         const SizedBox(height: 6),
-        SelectableText(url, style: const TextStyle(fontSize: 12)),
         if (o['lama'] == true) const Padding(padding: EdgeInsets.only(top: 6), child: Text('Memakai link yang masih berlaku (belum dibayar).', style: TextStyle(fontSize: 12))),
         Text('Invoice ${teks(o['invoice'])}${teks(o['kadaluarsa']).isEmpty ? '' : ' · berlaku sampai ${teks(o['kadaluarsa'])}'}', style: const TextStyle(fontSize: 12)),
       ]),
       actions: [
         TextButton(
+          onPressed: () async {
+            Navigator.pop(c);
+            await bukaPembayaranDoku(context, url: url, judul: teks(o['tagihan']),
+                cekStatus: () async => teks(peta(await Api.instance('waStafTagihanCekBayar', [_t, invoice], const Duration(minutes: 1)))['status'], 'Menunggu'));
+          },
+          child: const Text('Buka pembayaran'),
+        ),
+        TextButton(
           onPressed: () {
             Clipboard.setData(ClipboardData(text: pesan));
-            kabar(c, 'Pesan & link disalin.');
+            kabar(c, 'Pesan pembayaran disalin.');
           },
-          child: const Text('Salin'),
+          child: const Text('Salin pesan'),
         ),
         if (hp.length >= 9)
           TextButton(onPressed: () => launchUrl(Uri.parse('https://wa.me/$hp?text=${Uri.encodeComponent(pesan)}'), mode: LaunchMode.externalApplication), child: const Text('Kirim WA')),
@@ -1716,6 +1796,91 @@ class _OrderOnlineScreenState extends State<OrderOnlineScreen> {
                         ),
                     ]),
                     onTap: teks(o['url']).isEmpty ? null : () => tampilLinkBayar(context, {...o, 'tagihan': teks(o['uraian'])}),
+                  ),
+                ),
+            ]),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ───────────────────────── verifikasi transfer tagihan (v1.49.0) ─────────────────────────
+
+class TransferTagihanScreen extends StatefulWidget {
+  const TransferTagihanScreen({super.key});
+
+  @override
+  State<TransferTagihanScreen> createState() => _TransferTagihanScreenState();
+}
+
+class _TransferTagihanScreenState extends State<TransferTagihanScreen> {
+  int _v = 0;
+  bool _semua = false;
+
+  Future<void> _putus(Map<String, dynamic> d, Map<String, dynamic> x, bool terima) async {
+    String? akun;
+    String cat = '';
+    if (terima) {
+      akun = await pilihAkunKas(context, daftar(d['akun']).map(peta).toList(), judul: 'Uang diterima di akun', awal: 'BANK');
+      if (akun == null || !mounted) return;
+      if (!await konfirmasi(context, 'Terima transfer ${rp(x['jumlah'])}?', '${teks(x['nama'])} · ${teks(x['tagihan'])}\nPastikan uang sudah masuk ke ${teks(x['rekening'])}.', ya: 'Terima')) return;
+    } else {
+      final a = await mintaTeks(context, 'Tolak bukti transfer ${teks(x['nama'])}?', label: 'Alasan (dikirim ke siswa)');
+      if (a == null) return;
+      cat = a;
+    }
+    if (!mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafTagihanTransferPutus', [_t, teks(x['id']), terima, cat, akun]), teksProses: 'Menyimpan...');
+    if (r.ok && mounted) {
+      kabar(context, terima ? 'Transfer diterima dan tercatat sebagai pembayaran tagihan.' : 'Bukti transfer ditolak.');
+      setState(() => _v++);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Bukti transfer tagihan'), actions: [
+        TextButton(onPressed: () => setState(() => _semua = !_semua), child: Text(_semua ? 'Menunggu saja' : 'Semua')),
+      ]),
+      body: Muatan<Map<String, dynamic>>(
+        key: ValueKey('$_v|$_semua'),
+        muat: () async => peta(await Api.instance('waStafTagihanTransfer', [_t, {'semua': _semua}])),
+        bangun: (context, d, segarkan) {
+          final tf = daftar(d['transfer']).map(peta).toList();
+          final catat = d['catat'] == true;
+          return RefreshIndicator(
+            onRefresh: segarkan,
+            child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 32), children: [
+              if (tf.isEmpty) Kosong(pesan: _semua ? 'Belum ada bukti transfer.' : 'Tidak ada bukti transfer yang menunggu.', ikon: Icons.fact_check_outlined),
+              for (final x in tf)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      ListTile(
+                        title: Text('${teks(x['nama'])} · ${rp(x['jumlah'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: Text('${teks(x['rombel'])} · ${teks(x['tagihan'])}\nKe ${teks(x['rekening'])} · ${teks(x['waktu'])}'
+                            '${teks(x['catatanSiswa']).isEmpty ? '' : '\nCatatan siswa: ${teks(x['catatanSiswa'])}'}'
+                            '${teks(x['oleh']).isEmpty ? '' : '\n${teks(x['status'])} oleh ${teks(x['oleh'])} · ${teks(x['pada'])}${teks(x['catatan']).isEmpty ? '' : ' · ${teks(x['catatan'])}'}'}'),
+                        trailing: Lencana(teks(x['status']), warna: warnaTrx(context, teks(x['status']) == 'Diterima' ? 'Lunas' : teks(x['status']) == 'Ditolak' ? 'Ditolak' : 'Menunggu')),
+                      ),
+                      Wrap(spacing: 8, children: [
+                        const SizedBox(width: 8),
+                        if (x['adaBukti'] == true)
+                          OutlinedButton.icon(
+                            onPressed: () => lihatFoto(context, () async => peta(await Api.instance('waStafTagihanTransferBukti', [_t, teks(x['id'])]))),
+                            icon: const Icon(Icons.image_outlined, size: 18),
+                            label: const Text('Lihat bukti'),
+                          ),
+                        if (catat && teks(x['status']) == 'Menunggu') ...[
+                          FilledButton.icon(onPressed: () => _putus(d, x, true), icon: const Icon(Icons.check_rounded, size: 18), label: const Text('Terima')),
+                          TextButton(onPressed: () => _putus(d, x, false), child: const Text('Tolak')),
+                        ],
+                      ]),
+                    ]),
                   ),
                 ),
             ]),

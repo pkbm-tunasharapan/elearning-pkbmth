@@ -357,6 +357,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
   final _dokuSecret = TextEditingController();
   final _dokuMasa = TextEditingController();
   final _biayaKanal = TextEditingController();
+  final _metodeBayar = TextEditingController();
   final _biayaTetap = TextEditingController();
   List<Map<String, TextEditingController>> _rek = [];
   bool _gwAktif = false, _produksi = false;
@@ -372,7 +373,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
 
   @override
   void dispose() {
-    for (final c in [_biaya, _cashback, _min, _alamat, _serverKey, _clientKey, _merchant, _biayaPersen, _biayaTetap, _dokuClient, _dokuSecret, _dokuMasa, _biayaKanal, for (final r in _rek) ...r.values]) {
+    for (final c in [_biaya, _cashback, _min, _alamat, _serverKey, _clientKey, _merchant, _biayaPersen, _biayaTetap, _dokuClient, _dokuSecret, _dokuMasa, _biayaKanal, _metodeBayar, for (final r in _rek) ...r.values]) {
       c.dispose();
     }
     super.dispose();
@@ -393,6 +394,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
     _dokuSecret.text = teks(g['dokuSecretKey']);
     _dokuMasa.text = '${g['dokuMasaBayar'] ?? 1440}';
     _biayaKanal.text = teks(g['biayaKanal'], 'QRIS 0.7 0\nVIRTUAL_ACCOUNT 0 4000\nEMONEY 1.5 0');
+    _metodeBayar.text = teks(g['metodeBayar']);
     _gwAktif = g['aktif'] == true;
     _produksi = g['produksi'] == true;
     _penyedia = teks(g['penyedia'], 'midtrans') == 'doku' ? 'doku' : 'midtrans';
@@ -429,7 +431,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
             if (_qrisBaru != null) 'qris': _qrisBaru else if (_hapusQris) 'qris': '',
             'gateway': {'aktif': _gwAktif, 'produksi': _produksi, 'penyedia': _penyedia, 'serverKey': _serverKey.text.trim(), 'clientKey': _clientKey.text.trim(), 'merchantId': _merchant.text.trim(),
               'biayaPersen': double.tryParse(_biayaPersen.text.replaceAll(',', '.').trim()) ?? 0, 'biayaTetap': _n(_biayaTetap),
-              'dokuClientId': _dokuClient.text.trim(), 'dokuSecretKey': _dokuSecret.text.trim(), 'dokuMasaBayar': _n(_dokuMasa), 'biayaKanal': _biayaKanal.text},
+              'dokuClientId': _dokuClient.text.trim(), 'dokuSecretKey': _dokuSecret.text.trim(), 'dokuMasaBayar': _n(_dokuMasa), 'metodeBayar': _metodeBayar.text},
           }
         ])), teksProses: 'Menyimpan pengaturan...');
     if (r.ok && mounted) {
@@ -516,9 +518,16 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
         TextField(controller: _dokuMasa, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Batas waktu bayar (menit)', isDense: true)),
         const SizedBox(height: 6),
         TextField(
-          controller: _biayaKanal,
-          maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Biaya layanan per kanal (KANAL persen biaya-tetap)', isDense: true, helperText: 'Satu baris per kanal, cocok dengan kode kanal DOKU. Kanal lain memakai biaya layanan umum di bawah.'),
+          controller: _metodeBayar,
+          maxLines: 10,
+          style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+          decoration: const InputDecoration(
+            labelText: 'Metode bayar & biaya admin (KODE | Nama | persen | biaya tetap)',
+            isDense: true,
+            helperMaxLines: 4,
+            helperText: 'Satu baris per metode; kode = payment_method_types DOKU. Biaya admin ditanggung pembayar (total tetap). '
+                'Paylater/cicilan (Akulaku, Kredivo, Indodana, Atome) selalu disembunyikan. Hapus baris untuk menyembunyikan metode.',
+          ),
         ),
       ],
       Row(children: [

@@ -143,3 +143,9 @@ Sistem berjalan sebagai pemilik (akademik.pkbmtunasharapan@gmail.com). Agar tida
 - Notification URL di dashboard DOKU = alamat /exec web app (tampil di layar pengaturan). Isi notifikasi hanya pemicu; status selalu dikonfirmasi lewat GET /orders/v1/status/{invoice}. Pemicu `pemicuGatewayDoku` tiap jam memeriksa order menunggu (≤3 hari).
 - Order tercatat di tab GATEWAY ORDER. Pendaftaran: metode "Online" di formulir bayar referral. Tagihan WB: Rincian tagihan → ketuk WB → Link bayar online; daftar & cek status lewat ikon Pembayaran online.
 - Lunas: pemasukan sebesar yang dibayar (akun Saldo Payment Gateway) + pengeluaran ADM biaya layanan per kanal. Pembayaran ganda pada pendaftaran yang sudah lunas dicatat sebagai LPM dengan catatan untuk diperiksa.
+
+## Tagihan Saya & bayar online tetap (v1.49.0)
+- Siswa: beranda → Tagihan Saya (waSiswaTagihan). Bayar online: pilih metode → total = sisa + biaya admin metode (tidak bisa diubah) → halaman DOKU di dalam aplikasi (Android WebView; web: tab baru + jendela menunggu). Transfer manual: hanya rekening Pengaturan Referral + bukti → tab TAGIHAN TRANSFER → Bendahara: Tagihan Warga Belajar → Bukti transfer → Terima/Tolak.
+- Katalog metode: Pengaturan Referral → DOKU → "Metode bayar & biaya admin" (`KODE | Nama | persen | tetap`, Script Property gateway.metodeBayar). Paylater/cicilan selalu disaring. Order DOKU memakai payment_method_types = metode terpilih.
+- Pencatatan lunas: pemasukan tagihan (pokok) + pemasukan ADP "Biaya Admin dari Pembayar" + pengeluaran ADM biaya DOKU, satu nomor invoice. Kolom order baru: POKOK, BIAYA ADMIN, METODE.
+- Sasaran tagihan "Siswa" = siswa tertentu (NILAI SASARAN = ID WB dipisah koma).

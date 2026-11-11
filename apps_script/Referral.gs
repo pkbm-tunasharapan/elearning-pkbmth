@@ -92,7 +92,7 @@ function rfAturan_() {
 function rfAturanPublik_(a) {
   return { biaya: a.biaya, cashback: a.cashback, minTarik: a.minTarik, rekening: a.rekening || [], adaQris: !!a.qrisFile,
     qrisDinamis: !!(a.gateway && a.gateway.aktif && a.gateway.serverKey && String(a.gateway.penyedia || 'midtrans') === 'midtrans'),
-    bayarOnline: gwDoku_().aktif && Number(a.biaya) >= 1000, alamatSekretariat: a.alamatSekretariat || '' };
+    bayarOnline: gwDoku_().aktif && Number(a.biaya) >= 1000, metodeBayar: gwDoku_().aktif ? gwMetode_(a.gateway) : [], alamatSekretariat: a.alamatSekretariat || '' };
 }
 
 // ---------------- akun promotor ----------------
@@ -328,9 +328,9 @@ function waRefBayar(token, id, metode, bukti) {
   }
   if (metode === 'QRIS' && at.gateway.aktif && at.gateway.serverKey && String(at.gateway.penyedia || 'midtrans') === 'midtrans' && !bukti) return rfQrisDinamis_(x, at);
   if (metode === 'Online') {   // v1.48.0: DOKU Checkout
-    var o = gwBuatOrder_({ jenis: 'Pendaftaran', ref: x['ID'], nama: x['NAMA'], uraian: 'Biaya pendaftaran ' + x['NAMA'], jumlah: at.biaya, hp: x['HP'], oleh: m.a.nama });
+    var o = gwBuatOrder_({ jenis: 'Pendaftaran', ref: x['ID'], nama: x['NAMA'], uraian: 'Biaya pendaftaran ' + x['NAMA'], pokok: at.biaya, metode: bukti, hp: x['HP'], oleh: m.a.nama });   // v1.49.0: argumen ke-4 = kode metode
     rfUbah_('DAFTAR', x._baris, { 'METODE BAYAR': 'DOKU', 'ORDER GATEWAY': o.invoice, 'DIPERBARUI': rfWaktu_() });
-    return { sukses: true, url: o.url, invoice: o.invoice, jumlah: o.jumlah, kadaluarsa: o.kadaluarsa, pesan: 'Selesaikan pembayaran di halaman DOKU. Status lunas tercatat otomatis.' };
+    return { sukses: true, url: o.url, invoice: o.invoice, jumlah: o.jumlah, pokok: o.pokok, biaya: o.biaya, metode: o.metode, kadaluarsa: o.kadaluarsa, pesan: 'Selesaikan pembayaran di halaman DOKU. Status lunas tercatat otomatis.' };
   }
   if (metode !== 'Transfer' && metode !== 'QRIS') throw new Error('Metode pembayaran tidak dikenal.');
   if (!bukti) throw new Error('Unggah bukti pembayaran.');
@@ -588,6 +588,7 @@ function waStafRefAturan(token) {
   var a = rfAturan_(), g = JSON.parse(JSON.stringify(a.gateway));
   if (g.serverKey) g.serverKey = '••••' + String(g.serverKey).slice(-4);
   if (g.dokuSecretKey) g.dokuSecretKey = '••••' + String(g.dokuSecretKey).slice(-4);
+  if (!String(g.metodeBayar || '').trim()) g.metodeBayar = GWM.BAWAAN;   // v1.49.0
   var qris = '';
   if (a.qrisFile) { try { qris = 'data:image/png;base64,' + Utilities.base64Encode(DriveApp.getFileById(a.qrisFile).getBlob().getBytes()); } catch (e) {} }
   var url = '';
@@ -625,6 +626,7 @@ function waAdminRefAturanSimpan(token, d) {
     if (g.hapusKunciDoku === true) a.gateway.dokuSecretKey = '';
     if (g.dokuMasaBayar !== undefined) { var mb = Math.round(Number(g.dokuMasaBayar)); if (!(mb >= 15 && mb <= 10080)) throw new Error('Masa bayar 15–10080 menit.'); a.gateway.dokuMasaBayar = mb; }
     if (g.biayaKanal !== undefined) a.gateway.biayaKanal = String(g.biayaKanal || '').slice(0, 1000);
+    if (g.metodeBayar !== undefined) a.gateway.metodeBayar = String(g.metodeBayar || '').slice(0, 4000);
     if (a.gateway.aktif && a.gateway.penyedia === 'doku' && (!a.gateway.dokuClientId || !a.gateway.dokuSecretKey)) throw new Error('Isi Client ID dan Secret Key DOKU sebelum mengaktifkan.');
     if (a.gateway.aktif && a.gateway.penyedia === 'midtrans' && !a.gateway.serverKey) throw new Error('Isi Server Key sebelum mengaktifkan QRIS dinamis.');
   }

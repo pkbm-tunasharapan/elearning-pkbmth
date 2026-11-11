@@ -13,7 +13,7 @@
 // ============================================================================
 var GW = {
   TAB: 'GATEWAY ORDER',
-  HDR: ['INVOICE', 'WAKTU', 'JENIS', 'REF', 'ID WB', 'NAMA', 'URAIAN', 'JUMLAH', 'STATUS', 'URL', 'KADALUARSA', 'KANAL', 'DIBAYAR PADA', 'ID TRANSAKSI', 'CATATAN', 'PENYEDIA', 'DIBUAT OLEH'],
+  HDR: ['INVOICE', 'WAKTU', 'JENIS', 'REF', 'ID WB', 'NAMA', 'URAIAN', 'JUMLAH', 'STATUS', 'URL', 'KADALUARSA', 'KANAL', 'DIBAYAR PADA', 'ID TRANSAKSI', 'CATATAN', 'PENYEDIA', 'DIBUAT OLEH', 'POKOK', 'BIAYA ADMIN', 'METODE'],
   BASE: { sandbox: 'https://api-sandbox.doku.com', produksi: 'https://api.doku.com' },
   MASA_BAWAAN: 1440, REKON_HARI: 3
 };
@@ -26,6 +26,9 @@ function gwTab_() {
     sh.getRange(1, 1, 1, GW.HDR.length).setValues([GW.HDR]).setFontWeight('bold');
     sh.setFrozenRows(1);
     sh.getRange(2, 1, 1000, GW.HDR.length).setNumberFormat('@');
+  } else if (sh.getLastColumn() < GW.HDR.length) {
+    var ada = sh.getLastColumn();   // v1.49.0: kolom baru di kanan
+    sh.getRange(1, ada + 1, 1, GW.HDR.length - ada).setValues([GW.HDR.slice(ada)]).setFontWeight('bold');
   }
   return sh;
 }
@@ -84,6 +87,8 @@ function gwPanggil_(d, metode, target, isi) {
 
 // Biaya layanan per kanal. Baris aturan "KANAL persen tetap", mis. "QRIS 0.7 0", "VIRTUAL_ACCOUNT 0 4000", "EMONEY 1.5 0".
 function gwBiaya_(jml, kanal, g) {
+  var m = gwMetodeCari_(kanal, g);   // v1.49.0: tarif dari katalog metode (kode persis)
+  if (m) return { biaya: Math.round(jml * m.persen / 100) + m.tetap, ket: (m.persen ? m.persen + '%' : '') + (m.persen && m.tetap ? ' + ' : '') + (m.tetap ? honRp_(m.tetap) : '') + ' (' + m.nama + ')' };
   var k = String(kanal || '').toUpperCase(), persen = Number(g.biayaPersen) || 0, tetap = Math.round(Number(g.biayaTetap) || 0), cocok = '';
   String(g.biayaKanal || '').split(/\r?\n/).forEach(function(baris) {
     var p = baris.trim().split(/\s+/);
@@ -98,20 +103,25 @@ function gwBiaya_(jml, kanal, g) {
 }
 
 // Buat (atau pakai ulang) order. o: {jenis, ref, idWb, nama, uraian, jumlah, email, hp, oleh}
+// v1.49.0: o.pokok = tagihan/biaya pendaftaran; o.metode = kode metode DOKU (dipilih lebih dulu). Total = pokok + biaya admin
+// (ditanggung pembayar, dihitung dari katalog metode, tidak bisa diubah).
 function gwBuatOrder_(o) {
-  var d = gwWajibAktif_(), jml = Math.round(Number(o.jumlah) || 0);
-  if (jml < 1000) throw new Error('Jumlah pembayaran online minimal Rp1.000.');
+  var d = gwWajibAktif_(), m = gwMetodeCari_(o.metode, d.g);
+  if (!m) throw new Error('Pilih metode pembayaran.');
+  var h = gwHitungTotal_(o.pokok, m), jml = h.total;
+  if (h.pokok < 1000) throw new Error('Jumlah pembayaran online minimal Rp1.000.');
   var kini = Date.now();
   var lama = gwBaca_().filter(function(x) {
-    return x['JENIS'] === o.jenis && x['REF'] === String(o.ref) && x['ID WB'] === String(o.idWb || '') && Number(x['JUMLAH']) === jml && x['STATUS'] === 'Menunggu'
-      && x['URL'] && (!x['KADALUARSA'] || new Date(x['KADALUARSA']).getTime() - kini > 10 * 60000);
+    return x['JENIS'] === o.jenis && x['REF'] === String(o.ref) && x['ID WB'] === String(o.idWb || '') && Number(x['JUMLAH']) === jml && x['METODE'] === m.kode
+      && x['STATUS'] === 'Menunggu' && x['URL'] && (!x['KADALUARSA'] || new Date(String(x['KADALUARSA']).replace(' ', 'T') + ':00+07:00').getTime() - kini > 10 * 60000);
   })[0];
-  if (lama) return { invoice: lama['INVOICE'], url: lama['URL'], jumlah: jml, kadaluarsa: lama['KADALUARSA'], lama: true };
+  if (lama) return { invoice: lama['INVOICE'], url: lama['URL'], jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: lama['KADALUARSA'], lama: true };
   var awal = o.jenis === 'Pendaftaran' ? 'REG' : 'TAG';
   var invoice = (awal + '-' + Utilities.formatDate(new Date(), absTz_(), 'yyMMdd') + '-' + absId_().toUpperCase()).slice(0, 60);
   var isi = {
-    order: { amount: jml, invoice_number: invoice, currency: 'IDR', line_items: [{ name: String(o.uraian || o.jenis).slice(0, 60), price: jml, quantity: 1 }] },
-    payment: { payment_due_date: d.masa },
+    order: { amount: jml, invoice_number: invoice, currency: 'IDR', line_items: [{ name: String(o.uraian || o.jenis).slice(0, 60), price: h.pokok, quantity: 1 }]
+      .concat(h.biaya > 0 ? [{ name: ('Biaya admin ' + m.nama).slice(0, 60), price: h.biaya, quantity: 1 }] : []) },
+    payment: { payment_due_date: d.masa, payment_method_types: [m.kode] },
     customer: { id: String(o.idWb || o.ref).slice(0, 50), name: String(o.nama || 'Peserta').slice(0, 60) }
   };
   if (o.email && /@/.test(o.email)) isi.customer.email = String(o.email).slice(0, 100);
@@ -120,13 +130,16 @@ function gwBuatOrder_(o) {
   var pay = ((r.json || {}).response || {}).payment || {};
   if (r.kode >= 300 || !pay.url) {
     try { catat_('Sistem', '', o.oleh || 'Sistem', 'DOKU order GAGAL', invoice + ' HTTP ' + r.kode + ' ' + r.teks, 'GAGAL'); } catch (e) {}
-    throw new Error('Gagal membuat pembayaran DOKU (HTTP ' + r.kode + '). Periksa Client ID / Secret Key dan mode sandbox/produksi.');
+    var pesanDoku = '';
+    try { pesanDoku = [].concat((r.json || {}).message || (r.json || {}).error || []).join(' ').slice(0, 160); } catch (eM) {}
+    throw new Error('Gagal membuat pembayaran DOKU (HTTP ' + r.kode + (pesanDoku ? ': ' + pesanDoku : '') + '). Periksa kunci, mode sandbox/produksi, atau kode metode ' + m.kode + ' di pengaturan.');
   }
   var kd = '';
   try { kd = Utilities.formatDate(new Date(kini + d.masa * 60000), absTz_(), 'yyyy-MM-dd HH:mm'); } catch (e2) {}
   gwTambah_({ 'INVOICE': invoice, 'WAKTU': rfWaktu_(), 'JENIS': o.jenis, 'REF': String(o.ref), 'ID WB': String(o.idWb || ''), 'NAMA': o.nama || '', 'URAIAN': String(o.uraian || '').slice(0, 200),
-    'JUMLAH': jml, 'STATUS': 'Menunggu', 'URL': pay.url, 'KADALUARSA': kd, 'PENYEDIA': 'DOKU' + (d.produksi ? '' : ' (sandbox)'), 'DIBUAT OLEH': o.oleh || '' });
-  return { invoice: invoice, url: pay.url, jumlah: jml, kadaluarsa: kd, lama: false };
+    'JUMLAH': jml, 'STATUS': 'Menunggu', 'URL': pay.url, 'KADALUARSA': kd, 'PENYEDIA': 'DOKU' + (d.produksi ? '' : ' (sandbox)'), 'DIBUAT OLEH': o.oleh || '',
+    'POKOK': h.pokok, 'BIAYA ADMIN': h.biaya, 'METODE': m.kode });
+  return { invoice: invoice, url: pay.url, jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: kd, lama: false };
 }
 
 // Periksa status ke DOKU dan selesaikan bila lunas. Hasil: status order sesudahnya.
@@ -159,22 +172,24 @@ function gwSelesai_(x, bayar, kanal) {
   try {
     x = gwCari_(x['INVOICE']);
     if (x['STATUS'] === 'Lunas') return { status: 'Lunas', idTransaksi: x['ID TRANSAKSI'] };
-    var g = gwDoku_().g, fee = gwBiaya_(bayar, kanal, g), ids = '', catatan = '';
+    var g = gwDoku_().g, fee = gwBiaya_(bayar, kanal || x['METODE'], g), ids = '', catatan = '';
+    var pokok = Math.round(Number(x['POKOK']) || bayar), adminBayar = Math.max(0, bayar - pokok);   // v1.49.0
     if (x['JENIS'] === 'Pendaftaran') {
       var rf = rfCari_(x['REF']);
       if (['Lunas', 'Pengembalian Diajukan', 'Dikembalikan'].indexOf(rf['STATUS BAYAR']) >= 0) {
         catatan = 'Pendaftaran sudah berstatus ' + rf['STATUS BAYAR'] + ' saat pembayaran DOKU masuk; periksa kemungkinan bayar ganda.';
         ids = gwCatatLain_(x, bayar, kanal, fee, catatan);
       } else {
-        rfUbah_('DAFTAR', rf._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': bayar, 'METODE BAYAR': 'DOKU ' + kanal, 'ORDER GATEWAY': x['INVOICE'],
+        rfUbah_('DAFTAR', rf._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': pokok, 'METODE BAYAR': 'DOKU ' + kanal, 'ORDER GATEWAY': x['INVOICE'],
           'VERIF BAYAR OLEH': 'Gateway otomatis', 'VERIF BAYAR PADA': rfWaktu_(), 'DIPERBARUI': rfWaktu_() });
         var oto = { nama: 'Gateway otomatis', peran: 'Sistem', biayaGw: fee };
         ids = rfCatatBayarAman_(rfCari_(x['REF']), oto, true);
+        if (adminBayar > 0) ids = [ids, gwCatatAdminBayar_(x, adminBayar, kanal, 'Swadaya')].filter(String).join(',');
         rfSelesaikan_(rfCari_(x['REF']), oto);
         rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online lewat DOKU (' + kanal + ').');
       }
     } else {
-      ids = gwCatatTagihan_(x, bayar, kanal, fee);
+      ids = gwCatatTagihan_(x, pokok, kanal, fee, bayar, adminBayar);
     }
     gwUbah_(x._baris, { 'STATUS': 'Lunas', 'DIBAYAR PADA': rfWaktu_(), 'KANAL': kanal, 'ID TRANSAKSI': ids, 'CATATAN': catatan, 'JUMLAH': bayar });
     try { catat_('Sistem', '', 'Gateway otomatis', 'DOKU lunas', x['INVOICE'] + ' ' + honRp_(bayar) + ' ' + kanal, 'OK'); } catch (e) {}
@@ -196,7 +211,8 @@ function gwCatatBiaya_(x, bayar, kanal, fee, sumber) {
     'CATATAN KEPUTUSAN': 'Dibayar ' + honRp_(bayar) + ' - biaya ' + honRp_(fee.biaya) + ' = diterima bersih ' + honRp_(bayar - fee.biaya) + '. Sesuaikan bila laporan DOKU berbeda.'
   }));
 }
-function gwCatatTagihan_(x, bayar, kanal, fee) {
+function gwCatatTagihan_(x, bayar, kanal, fee, total, adminBayar) {
+  total = total || bayar;
   var tag = keuTagCari_(x['REF']), sumber = KEU.SUMBER_KAT[tag.kategori] || 'Swadaya';
   var t = keuTrxTab_(), id = 'TRX-' + absId_().toUpperCase();
   t.sh.appendRow(absBaris_(t, kalGabung_(gwBarisDasar_(absHariIni_(), sumber), {
@@ -204,9 +220,10 @@ function gwCatatTagihan_(x, bayar, kanal, fee) {
     'URAIAN': ('Pembayaran ' + tag.nama + ' - ' + x['NAMA'] + ' (DOKU ' + kanal + ', invoice ' + x['INVOICE'] + ')').slice(0, 300), 'PIHAK TERKAIT': x['NAMA'],
     'CATATAN KEPUTUSAN': 'Dibayar online; dicatat sebesar yang dibayar'
   })));
-  var b = gwCatatBiaya_(x, bayar, kanal, fee, sumber);
-  try { catat_('Sistem', '', 'Gateway otomatis', 'Bayar tagihan online', tag.nama + ' ' + x['NAMA'] + ' ' + bayar, 'OK'); } catch (e) {}
-  return [id, b].filter(String).join(',');
+  var a = adminBayar > 0 ? gwCatatAdminBayar_(x, adminBayar, kanal, sumber) : '';
+  var b = gwCatatBiaya_(x, total, kanal, fee, sumber);
+  try { catat_('Sistem', '', 'Gateway otomatis', 'Bayar tagihan online', tag.nama + ' ' + x['NAMA'] + ' ' + bayar + (adminBayar ? ' + admin ' + adminBayar : ''), 'OK'); } catch (e) {}
+  return [id, a, b].filter(String).join(',');
 }
 // Uang masuk yang tidak cocok dengan apa pun (mis. bayar ganda): tetap dicatat agar kas sesuai, ditandai untuk diperiksa.
 function gwCatatLain_(x, bayar, kanal, fee, catatan) {
@@ -255,7 +272,7 @@ function gwHpWb_(idWb) {
   } catch (e) {}
   return { hp: '', email: '' };
 }
-// d: {idTagihan, idWb, jumlah?}
+// d: {idTagihan, idWb, metode} - v1.49.0: jumlah = sisa tagihan + biaya admin metode (tidak bisa diubah)
 function waStafTagihanLinkBayar(token, d) {
   var p = stafDariToken_(token);
   keuWajib_(p, 'catat');
@@ -265,11 +282,9 @@ function waStafTagihanLinkBayar(token, d) {
   if (!w || !keuKena_(tag, w)) throw new Error('Warga belajar ini tidak termasuk sasaran tagihan.');
   var row = keuRinci_(tag, [w], keuBayarPeta_())[0];
   if (row.sisa <= 0) throw new Error('Tagihan ini sudah lunas.');
-  var jml = Math.round(Number(d.jumlah) || row.sisa);
-  if (jml > row.sisa) throw new Error('Jumlah melebihi sisa tagihan (' + honRp_(row.sisa) + ').');
   var kontak = gwHpWb_(w.id);
-  var o = gwBuatOrder_({ jenis: 'Tagihan', ref: tag.id, idWb: w.id, nama: w.nama, uraian: tag.nama + ' - ' + w.nama, jumlah: jml, hp: kontak.hp, email: kontak.email, oleh: p.nama });
-  catat_(p.peran, w.idRombel, p.nama, 'Link bayar DOKU', tag.nama + ' ' + w.nama + ' ' + jml + ' ' + o.invoice, 'OK');
+  var o = gwBuatOrder_({ jenis: 'Tagihan', ref: tag.id, idWb: w.id, nama: w.nama, uraian: tag.nama + ' - ' + w.nama, pokok: row.sisa, metode: d.metode, hp: kontak.hp, email: kontak.email, oleh: p.nama });
+  catat_(p.peran, w.idRombel, p.nama, 'Link bayar DOKU', tag.nama + ' ' + w.nama + ' ' + o.jumlah + ' ' + o.invoice, 'OK');
   o.nama = w.nama; o.tagihan = tag.nama; o.hp = kontak.hp; o.lembaga = nilLembaga_().nama;
   return o;
 }
@@ -307,4 +322,70 @@ function pemicuGatewayDoku() {
 function gwPastikanPemicu_() {
   var ada = ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'pemicuGatewayDoku'; });
   if (!ada) ScriptApp.newTrigger('pemicuGatewayDoku').timeBased().everyHours(1).create();
+}
+
+// ============================================================================
+// KATALOG METODE BAYAR & BIAYA ADMIN DITANGGUNG PEMBAYAR (v1.49.0)
+// Baris pengaturan "KODE | Nama | persen | biaya tetap". Kode = payment_method_types DOKU Checkout.
+// Paylater/cicilan (Akulaku, Kredivo, Indodana, Atome, ...) selalu disaring walau tertulis di pengaturan.
+// Total = pokok + biaya admin. Untuk biaya persen, total dinaikkan (gross-up) agar lembaga menerima utuh:
+//   total = ceil((pokok + tetap) / (1 - persen/100)).
+// ============================================================================
+var GWM = {
+  BAWAAN: [
+    'VIRTUAL_ACCOUNT_BCA | VA BCA | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BANK_MANDIRI | VA Mandiri | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BRI | VA BRI | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BNI | VA BNI | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BANK_BJB | VA Bank BJB | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BANK_SYARIAH_MANDIRI | VA BSI | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BANK_PERMATA | VA Permata | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BANK_CIMB | VA CIMB Niaga | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BANK_DANAMON | VA Danamon | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BTN | VA BTN | 0 | 4000',
+    'VIRTUAL_ACCOUNT_BNC | VA Bank Neo Commerce | 0 | 4000',
+    'VIRTUAL_ACCOUNT_DOKU | VA DOKU (ATM Bersama/Prima/Alto) | 0 | 4000',
+    'QRIS | QRIS (semua e-wallet & m-banking) | 0.7 | 0',
+    'EMONEY_SHOPEEPAY | ShopeePay | 2 | 0',
+    'EMONEY_OVO | OVO | 1.5 | 0',
+    'EMONEY_DANA | DANA | 1.5 | 0',
+    'ONLINE_TO_OFFLINE_ALFA | Alfamart / Alfamidi | 0 | 5000',
+    'ONLINE_TO_OFFLINE_INDOMARET | Indomaret | 0 | 5000'
+  ].join('\n'),
+  LARANG: /PEER_TO_PEER|AKULAKU|KREDIVO|INDODANA|ATOME|PAYLATER|CICIL|INSTALLMENT/i
+};
+function gwMetode_(g) {
+  g = g || (rfAturan_().gateway || {});
+  var teks = String(g.metodeBayar || '').trim() || GWM.BAWAAN, out = [], ada = {};
+  teks.split(/\r?\n/).forEach(function(b) {
+    var p = b.split('|').map(function(s) { return s.trim(); });
+    var kode = String(p[0] || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    if (!kode || ada[kode] || GWM.LARANG.test(kode)) return;
+    ada[kode] = true;
+    out.push({ kode: kode, nama: p[1] || kode, persen: Math.max(0, Number(String(p[2] || '0').replace(',', '.')) || 0),
+      tetap: Math.max(0, Math.round(Number(String(p[3] || '0').replace(/[^\d]/g, '')) || 0)),
+      grup: /^VIRTUAL_ACCOUNT/.test(kode) ? 'Virtual Account' : /^QRIS|^EMONEY/.test(kode) ? 'QRIS & e-wallet' : /^ONLINE_TO_OFFLINE/.test(kode) ? 'Gerai retail' : 'Lainnya' });
+  });
+  return out;
+}
+function gwMetodeCari_(kode, g) {
+  var k = String(kode || '').toUpperCase();
+  if (!k) return null;
+  return gwMetode_(g).filter(function(m) { return m.kode === k; })[0] || null;
+}
+function gwHitungTotal_(pokok, m) {
+  pokok = Math.round(Number(pokok) || 0);
+  var p = (Number(m.persen) || 0) / 100, t = Math.round(Number(m.tetap) || 0);
+  var total = p > 0 && p < 0.5 ? Math.ceil((pokok + t) / (1 - p)) : pokok + t;
+  return { pokok: pokok, biaya: total - pokok, total: total };
+}
+// Biaya admin yang dibayar pembayar dicatat sebagai pemasukan tersendiri (ADP), terpisah dari tagihannya.
+function gwCatatAdminBayar_(x, jumlah, kanal, sumber) {
+  if (!(jumlah > 0)) return '';
+  rfKategori_('ADP', 'Biaya Admin dari Pembayar', 'Pemasukan');
+  return rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), sumber || 'Swadaya'), {
+    'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': 'ADP', 'WARGA BELAJAR': x['ID WB'] || '', 'PIHAK TERKAIT': x['NAMA'], 'JUMLAH': Math.round(jumlah),
+    'URAIAN': ('Biaya admin pembayaran online ' + (kanal || x['METODE'] || '') + ' dibayar ' + (x['NAMA'] || '') + ' (invoice ' + x['INVOICE'] + ')').slice(0, 300),
+    'CATATAN KEPUTUSAN': 'Dibebankan ke pembayar; menutup biaya layanan DOKU (ADM) dengan invoice yang sama'
+  }));
 }

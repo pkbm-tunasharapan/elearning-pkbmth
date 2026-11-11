@@ -638,15 +638,18 @@ tes('pajak: PPN termasuk harga & PPh dihitung dari DPP', () => {
   sama(g.pjkHitung_(500000, null, { jenis: 'PPh 21', tarif: 2.5 }, 'Pengeluaran').pph, 12500, 'pph 21 2,5%');
 });
 
-// 17. biaya gateway DOKU per kanal (v1.48.0)
-tes('gateway: biaya layanan per kanal DOKU', () => {
-  const cfg = { biayaPersen: 0.7, biayaTetap: 0, biayaKanal: 'QRIS 0.7 0\nVIRTUAL_ACCOUNT 0 4000\nEMONEY 1,5 0\nEMONEY_OVO 2 0' };
-  sama(g2(cfg, 150000, 'QRIS').biaya, 1050, 'qris 0,7%');
-  sama(g2(cfg, 150000, 'VIRTUAL_ACCOUNT_BCA').biaya, 4000, 'va tetap');
-  sama(g2(cfg, 100000, 'EMONEY_SHOPEEPAY').biaya, 1500, 'emoney 1,5%');
-  sama(g2(cfg, 100000, 'EMONEY_OVO').biaya, 2000, 'cocok terpanjang');
-  sama(g2(cfg, 100000, 'CREDIT_CARD').biaya, 700, 'bawaan');
-  function g2(a, j, k) { return g.gwBiaya_(j, k, a); }
+// 17. metode bayar DOKU & biaya admin ditanggung pembayar (v1.49.0)
+tes('gateway: katalog metode, paylater disaring, total tetap', () => {
+  const cfg = { metodeBayar: 'VIRTUAL_ACCOUNT_BCA | VA BCA | 0 | 4000\nQRIS | QRIS | 0.7 | 0\nPEER_TO_PEER_AKULAKU | Akulaku | 0 | 0\nEMONEY_OVO | OVO | 1,5 | 0' };
+  const m = g.gwMetode_(cfg);
+  sama(m.map((x) => x.kode).join(','), 'VIRTUAL_ACCOUNT_BCA,QRIS,EMONEY_OVO', 'akulaku disaring');
+  sama(g.gwHitungTotal_(25000, m[0]).total, 29000, 'va: tagihan + 4000');
+  const q = g.gwHitungTotal_(25000, m[1]);
+  sama(q.total, 25177, 'qris gross-up');
+  sama(q.total - Math.round(q.total * 0.007) >= 25000, true, 'lembaga terima utuh');
+  sama(g.gwBiaya_(29000, 'VIRTUAL_ACCOUNT_BCA', cfg).biaya, 4000, 'biaya doku va');
+  sama(g.gwBiaya_(100000, 'EMONEY_OVO', cfg).biaya, 1500, 'biaya doku ovo');
+  sama(g.gwMetodeCari_('PEER_TO_PEER_AKULAKU', cfg), null, 'paylater tidak bisa dipilih');
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

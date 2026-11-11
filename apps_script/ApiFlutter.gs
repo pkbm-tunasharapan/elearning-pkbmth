@@ -3114,7 +3114,7 @@ var KEU = {
   SUMBER: ['BOP', 'Swadaya', 'Donasi', 'Yayasan', 'Lainnya'],
   SUMBER_KAT: { BOP: 'BOP', IUR: 'Swadaya', DAF: 'Swadaya', ASM: 'Swadaya', DON: 'Donasi', LPM: 'Lainnya' },
   JENIS: ['Pemasukan', 'Pengeluaran'],
-  SASARAN: ['Semua', 'Program', 'Rombel'],
+  SASARAN: ['Semua', 'Program', 'Rombel', 'Siswa'],   // v1.49.0: Siswa = siswa tertentu (ID WB dipisah koma)
   PROP_FOLDER: 'TH_KEU_FOLDER', MAKS_BUKTI: 900000
 };
 
@@ -3472,6 +3472,7 @@ function keuKena_(tag, w) {
   if (!w.aktif) return false;
   if (tag.sasaran === 'Program') return w.program === tag.nilaiSasaran;
   if (tag.sasaran === 'Rombel') return w.idRombel === tag.nilaiSasaran;
+  if (tag.sasaran === 'Siswa') return (',' + String(tag.nilaiSasaran).replace(/\s+/g, '') + ',').indexOf(',' + w.id + ',') >= 0;
   return true;
 }
 // peta pembayaran & keringanan: kunci idTagihan|idWb
@@ -3503,14 +3504,17 @@ function waStafTagihanDaftar(token) {
     var rows = keuRinci_(tag, wbs, pb), tot = { peserta: rows.length, lunas: 0, dibayar: 0, keringanan: 0, sisa: 0 };
     rows.forEach(function(x) { if (x.status === 'Lunas') tot.lunas++; tot.dibayar += x.dibayar; tot.keringanan += x.keringanan; tot.sisa += x.sisa; });
     tag.namaKategori = kat[tag.kategori] ? kat[tag.kategori].nama : tag.kategori;
-    tag.namaSasaran = tag.sasaran === 'Rombel' ? (rb[tag.nilaiSasaran] ? rb[tag.nilaiSasaran].nama : tag.nilaiSasaran) : (tag.sasaran === 'Program' ? tag.nilaiSasaran : 'Semua warga belajar');
+    tag.namaSasaran = tag.sasaran === 'Rombel' ? (rb[tag.nilaiSasaran] ? rb[tag.nilaiSasaran].nama : tag.nilaiSasaran) : (tag.sasaran === 'Program' ? tag.nilaiSasaran
+      : tag.sasaran === 'Siswa' ? String(tag.nilaiSasaran).split(',').filter(String).length + ' siswa tertentu' : 'Semua warga belajar');
     tag.ringkas = tot;
     return tag;
   }).sort(function(a, b) { return (b.aktif - a.aktif) || String(b.jatuhTempo).localeCompare(String(a.jatuhTempo)); });
   var rombel = [], program = {};
   absKelas_('').forEach(function(k) { if (!rombel.some(function(x) { return x.id === k.idRombel; })) rombel.push({ id: k.idRombel, nama: k.namaRombel }); if (k.program) program[k.program] = true; });
   rombel.sort(function(a, b) { return a.nama.localeCompare(b.nama); });
-  return { tagihan: out, catat: r.catat, kategori: keuKategori_().filter(function(k) { return k.jenis === 'Pemasukan'; }), rombel: rombel, program: Object.keys(program).sort(), sasaran: KEU.SASARAN };
+  return { tagihan: out, catat: r.catat, kategori: keuKategori_().filter(function(k) { return k.jenis === 'Pemasukan'; }), rombel: rombel, program: Object.keys(program).sort(), sasaran: KEU.SASARAN,
+    wb: wbs.filter(function(w) { return w.aktif; }).map(function(w) { return { id: w.id, nama: w.nama, rombel: w.namaRombel }; }).sort(function(a, b) { return (a.rombel + a.nama).localeCompare(b.rombel + b.nama); }),
+    transferMenunggu: ksJumlahTfMenunggu_() };
 }
 // d: {id?, nama, kategori, jumlah, sasaran, nilaiSasaran, jatuhTempo, keterangan}
 function waStafTagihanSimpan(token, d) {
@@ -3524,7 +3528,8 @@ function waStafTagihanSimpan(token, d) {
   var jumlah = Math.round(keuAngka_(d.jumlah));
   if (jumlah <= 0) throw new Error('Jumlah tagihan harus lebih dari 0.');
   if (KEU.SASARAN.indexOf(String(d.sasaran)) < 0) throw new Error('Pilih sasaran tagihan.');
-  if (d.sasaran !== 'Semua' && !String(d.nilaiSasaran || '').trim()) throw new Error('Pilih ' + (d.sasaran === 'Rombel' ? 'rombel' : 'program') + ' sasaran.');
+  if (d.sasaran !== 'Semua' && !String(d.nilaiSasaran || '').trim()) throw new Error('Pilih ' + (d.sasaran === 'Rombel' ? 'rombel' : d.sasaran === 'Siswa' ? 'siswa' : 'program') + ' sasaran.');
+  if (d.sasaran === 'Siswa') d.nilaiSasaran = (Array.isArray(d.nilaiSasaran) ? d.nilaiSasaran : String(d.nilaiSasaran).split(',')).map(function(x) { return String(x).trim(); }).filter(String).join(',');
   var jt = d.jatuhTempo ? absTglSah_(d.jatuhTempo) : '';
   var t = absBaca_(KEU.TAB_TAG, KEU.HDR_TAG);
   var isi = { 'NAMA': nama.slice(0, 120), 'KATEGORI': kat.kode, 'JUMLAH': jumlah, 'SASARAN': d.sasaran, 'NILAI SASARAN': d.sasaran === 'Semua' ? '' : String(d.nilaiSasaran), 'JATUH TEMPO': jt, 'KETERANGAN': String(d.keterangan || '').slice(0, 300) };
@@ -3565,7 +3570,7 @@ function keuTagCari_(id) {
 function waStafTagihanRinci(token, id) {
   var p = stafDariToken_(token), r = keuWajib_(p, 'lihat');
   var tag = keuTagCari_(id), rows = keuRinci_(tag, keuWbSemua_(), keuBayarPeta_());
-  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }), onlineAktif: gwDoku_().aktif };
+  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }), onlineAktif: gwDoku_().aktif, metode: gwDoku_().aktif ? gwMetode_() : [] };
 }
 // d: {idTagihan, idWb, jumlah, tanggal, catatan, bukti?}
 function waStafTagihanBayar(token, d) {

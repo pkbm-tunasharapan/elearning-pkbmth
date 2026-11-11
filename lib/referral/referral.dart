@@ -3,12 +3,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../absensi/umum.dart';
 import '../api.dart';
 import '../berkas.dart';
 import '../theme.dart';
+import '../keuangan/bayar_online.dart';
 import '../widgets.dart';
 
 String rpRef(dynamic n) {
@@ -536,12 +536,18 @@ class _LembarBayarState extends State<_LembarBayar> {
 
   Future<void> _bukaOnline() async {
     if (_urlOnline.isEmpty) {
-      final r = await jalankan(context, () async => peta(await Api.instance('waRefBayar', [widget.token, teks(widget.x['id']), 'Online', null], const Duration(minutes: 2))),
-          teksProses: 'Membuat pembayaran DOKU...');
+      final kode = await pilihMetodeBayar(context, pokok: angka(widget.aturan['biaya']), metode: daftar(widget.aturan['metodeBayar']).map(peta).toList(), judul: 'Bayar biaya pendaftaran');
+      if (kode == null || !mounted) return;
+      final r = await jalankan(context, () async => peta(await Api.instance('waRefBayar', [widget.token, teks(widget.x['id']), 'Online', kode], const Duration(minutes: 2))),
+          teksProses: 'Menyiapkan pembayaran...');
       if (!r.ok || !mounted) return;
+      if (!await konfirmasiTotalBayar(context, r.data!) || !mounted) return;
       setState(() => _urlOnline = teks(r.data!['url']));
     }
-    if (_urlOnline.isNotEmpty) await launchUrl(Uri.parse(_urlOnline), mode: LaunchMode.externalApplication);
+    if (_urlOnline.isEmpty || !mounted) return;
+    final lunas = await bukaPembayaranDoku(context, url: _urlOnline, judul: 'Biaya pendaftaran',
+        cekStatus: () async => teks(peta(await Api.instance('waRefCekBayar', [widget.token, teks(widget.x['id'])], const Duration(minutes: 1)))['status'], 'Menunggu'));
+    if (lunas && mounted) Navigator.pop(context, true);
   }
 
   Future<void> _cekOnline() async {
@@ -623,7 +629,7 @@ class _LembarBayarState extends State<_LembarBayar> {
                 _QrisStatis(dataUrl: teks(at['qris'])),
             ],
             if (_metode == 'Online') ...[
-              const Text('Bayar lewat DOKU: QRIS, virtual account bank, e-wallet, atau kartu. Status lunas tercatat otomatis; tidak perlu unggah bukti.'),
+              const Text('Bayar lewat DOKU: Virtual Account, QRIS, e-wallet, atau gerai retail. Biaya admin sesuai metode ditanggung pembayar. Status lunas tercatat otomatis; tidak perlu unggah bukti.'),
               if (_urlOnline.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 OutlinedButton.icon(onPressed: _cekOnline, icon: const Icon(Icons.refresh_rounded), label: const Text('Saya sudah bayar — cek status')),
