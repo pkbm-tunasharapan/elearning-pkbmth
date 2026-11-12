@@ -104,6 +104,7 @@ class SesiSiswa extends ChangeNotifier {
 
   Future<void> keluar() async {
     final t = token;
+    Api.instance.bersihkanCache();   // v1.65.0
     data = {};
     final sp = await SharedPreferences.getInstance();
     await sp.remove(_kunci);

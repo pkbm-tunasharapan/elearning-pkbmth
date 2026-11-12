@@ -121,6 +121,7 @@ class Sesi extends ChangeNotifier {
 
   Future<void> keluar({bool lokal = false, String? pesan}) async {
     final t = token;
+    Api.instance.bersihkanCache();   // v1.65.0
     token = null;
     profil = {};
     pesanKeluar = pesan;

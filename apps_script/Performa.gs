@@ -15,7 +15,9 @@ var PERF = {
   SAMPEL: 4,
   CACHE_PENGGUNA: 'pengguna_v1',
   CACHE_SIM: 'abs_sim_v1',
-  POLA_UBAH: /^waAdmin|Simpan|Hapus|Atur|Ubah|Nonaktif|Pengguna|Sandi|Tambah|Impor/
+  POLA_UBAH: /^waAdmin|Simpan|Hapus|Atur|Ubah|Nonaktif|Pengguna|Sandi|Tambah|Impor/,
+  // v1.65.0: fungsi yang mengubah data lain -> versi cache data diganti (cache pengguna/pengaturan tetap)
+  POLA_DATA: /Tetapkan|Batal|Setujui|Tolak|Putus|Sahkan|Terapkan|Verifikasi|Proses|Ajukan|Input|Terbit|Gabung|Pindah|Buat|Reset|Status$/
 };
 var PERF_MEMO_ = { pengguna: null, sim: null };
 
@@ -27,6 +29,7 @@ function perfSetelah_(fn, ms, ok) {
   try { if (typeof kuCatat_ === 'function') kuCatat_(fn, ms, ok); } catch (eKu) {}   // v1.58.0: kinerja fungsi ujian per jam
   try {
     if (ok && PERF.POLA_UBAH.test(fn)) perfHapusCache_();
+    else if (ok && PERF.POLA_DATA.test(fn)) perfGantiVersi_();
   } catch (e) {}
   if (!PERF.AKTIF || fn === 'waStafHangatkan') return;
   try {
@@ -47,10 +50,51 @@ function perfSetelah_(fn, ms, ok) {
     d[fn] = x;
     var s = JSON.stringify(d);
     if (s.length < 90000) c.put(k, s, 21600);
+    perfSimpanJam_(c);
   } catch (e2) {}
 }
 
+// v1.65.0: ringkasan hari ini disalin ke tab KINERJA SERVER paling sering sekali per jam (bahan optimasi berikutnya).
+function perfSimpanJam_(c) {
+  var jam = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyyMMddHH');
+  if (c.get('perf_jam|' + jam)) return;
+  c.put('perf_jam|' + jam, '1', 7200);
+  try {
+    var r = perfRingkas_(), hdr = ['TANGGAL', 'FUNGSI', 'PANGGILAN', 'RATA MS', 'TERLAMA MS', 'LAMBAT', 'GALAT', 'BEBAN DETIK', 'DIPERBARUI'];
+    var sh = bcSheet_('KINERJA SERVER', hdr), n = sh.getLastRow() - 1, hapus = [];
+    if (n > 0) sh.getRange(2, 1, n, 1).getValues().forEach(function(v, i) { if (String(v[0]) === r.tanggal) hapus.push(i + 2); });
+    hapus.reverse().forEach(function(b) { sh.deleteRow(b); });
+    var waktu = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd HH:mm');
+    var baris = r.fungsi.slice(0, 80).map(function(x) { return ["'" + r.tanggal, x.fn, x.panggilan, x.rataMs, x.terlamaMs, x.lambat, x.galat, Math.round(x.bebanMs / 1000), waktu]; });
+    if (baris.length) sh.getRange(sh.getLastRow() + 1, 1, baris.length, hdr.length).setValues(baris);
+    var total = sh.getLastRow() - 1;
+    if (total > 2400) sh.deleteRows(2, total - 2000);
+  } catch (e) {}
+}
+
+// ---------- v1.65.0: cache data lintas permintaan, diperbarui otomatis setiap ada penyimpanan ----------
+// Versi data berganti setiap fungsi ubah/simpan berhasil (perfHapusCache_), sehingga cache lama tidak terpakai lagi.
+var PERF_DATA_MEMO_ = {};
+function perfVersiData_() {
+  var c = CacheService.getScriptCache(), v = c.get('data_versi');
+  if (!v) { v = String(Date.now()); c.put('data_versi', v, 21600); }
+  return v;
+}
+function perfCacheData_(nama, detik, hitung) {
+  if (PERF_DATA_MEMO_[nama] !== undefined) return PERF_DATA_MEMO_[nama];
+  var c = CacheService.getScriptCache(), k = 'dt|' + nama + '|' + perfVersiData_();
+  try { var l = c.get(k); if (l) return (PERF_DATA_MEMO_[nama] = JSON.parse(l)); } catch (e) {}
+  var hasil = hitung();
+  try { var s = JSON.stringify(hasil); if (s.length < 95000) c.put(k, s, detik); } catch (e2) {}
+  return (PERF_DATA_MEMO_[nama] = hasil);
+}
+
+function perfGantiVersi_() {
+  PERF_DATA_MEMO_ = {};
+  try { CacheService.getScriptCache().put('data_versi', String(Date.now()), 21600); } catch (eV) {}
+}
 function perfHapusCache_() {
+  perfGantiVersi_();
   PERF_MEMO_.pengguna = null;
   PERF_MEMO_.sim = null;
   if (typeof ABS_MEMO_ !== 'undefined') ABS_MEMO_.sim = null;

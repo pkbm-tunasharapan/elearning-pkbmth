@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import 'config.dart';
 
@@ -125,6 +127,85 @@ class Api {
   /// Dipanggil untuk galat yang perlu dicatat ke log admin (dipasang di pemeliharaan/sistem.dart).
   void Function(ApiException e)? onGalat;
 
+  // ───────────── v1.65.0: cache jawaban baca (tampil seketika, disegarkan di belakang) ─────────────
+  // Hanya dipakai di dalam Muatan (zona mode 'cache'): jawaban fungsi BACA yang pernah diterima langsung dikembalikan,
+  // lalu Muatan mengambil ulang dari server di belakang layar. Setiap fungsi TULIS yang berhasil menghapus seluruh cache,
+  // jadi setelah menyimpan/mengubah data, layar selalu memuat data terbaru. Cache disimpan juga di HP (Android).
+  static const zonaMode = #apiCacheMode;
+  static const zonaPakai = #apiCachePakai;
+  static final _tulis = RegExp(r'(Simpan|Hapus|Tetapkan|Batal|Catat|Ajukan|Setujui|Tolak|Putus|Sahkan|Impor|Terapkan|Reset|Buka|Tambah|Ubah|Kirim|Atur|Izin|'
+      r'Unggah|Upload|Proses|Lapor|Token|Login|Masuk|Keluar|Detak|Minta|Submit|Mulai|Tandai|Bayar|Verifikasi|Buat|Pindah|Selesai|Nonaktif|Aktifkan|'
+      r'Kunci|Naskah|Pdf|Ekspor|Templat|Undang|Hangatkan|Ganti|Pulih|Draft|Ucapkan|Akhiri|Putar|Jalankan|Isi$|Samakan|Sinkron|'
+      r'Cabut|Lanjut|Tarik|Sekarang|Abaikan|Gabung|Ai$|Ai[A-Z]|Uji$|Bersihkan|Otomatis|Tes$|Resmikan|Set[A-Z]|Keputusan|Disposisi|Perbaiki|Pindai|Beri$|'
+      r'Setor|Generate|Rakit|Terbit|Massal|Status$|Input|Verif|Order|Foto|CekData|Hitung|Cari)');
+  static final _hidup = RegExp(r'^(waNotif|waRuang|waStatusUjian|waStafPengawasPantau|waStafProfil|waStafRuang|waStafVersiApp|waStafHtmlPdf|waStafKartu|waUjian)');
+  final Map<String, String> _cache = {};
+  Timer? _tundaSimpan;
+  bool _cacheDimuat = false;
+  static const _maksCache = 200, _maksIsi = 400000;
+
+  bool bolehCache(String fn) => !_tulis.hasMatch(fn) && !_hidup.hasMatch(fn);
+
+  Future<File?> _berkasCache() async {
+    if (kIsWeb) return null;
+    try {
+      final d = await getApplicationSupportDirectory();
+      return File('${d.path}/api_cache_v1.json');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Dipanggil sekali saat aplikasi mulai: muat cache dari HP.
+  Future<void> muatCache() async {
+    if (_cacheDimuat) return;
+    _cacheDimuat = true;
+    try {
+      final f = await _berkasCache();
+      if (f == null || !await f.exists()) return;
+      final m = jsonDecode(await f.readAsString());
+      if (m is Map) {
+        m.forEach((k, v) {
+          if (v is String && !_cache.containsKey(k)) _cache['$k'] = v;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _simpanNanti() {
+    if (kIsWeb) return;
+    _tundaSimpan?.cancel();
+    _tundaSimpan = Timer(const Duration(seconds: 3), () async {
+      try {
+        final f = await _berkasCache();
+        await f?.writeAsString(jsonEncode(_cache));
+      } catch (_) {}
+    });
+  }
+
+  void _taruhCache(String k, dynamic data) {
+    String isi;
+    try {
+      isi = jsonEncode(data);
+    } catch (_) {
+      return;
+    }
+    if (isi.length > _maksIsi) return;
+    _cache.remove(k);
+    _cache[k] = isi;
+    while (_cache.length > _maksCache) {
+      _cache.remove(_cache.keys.first);
+    }
+    _simpanNanti();
+  }
+
+  /// Hapus seluruh cache (setelah menyimpan data, keluar akun, atau ganti pengguna).
+  void bersihkanCache() {
+    if (_cache.isEmpty) return;
+    _cache.clear();
+    _simpanNanti();
+  }
+
   /// Mengambil jawaban dari alamat pengalihan Apps Script (googleusercontent). Langkah ini hanya MEMBACA
   /// hasil yang sudah jadi, jadi aman diulang saat koneksi putus sesaat (maks. 3 kali).
   Future<http.Response> _ambilJawaban(http.Client client, Uri lokasi, Duration batas) async {
@@ -150,6 +231,15 @@ class Api {
 
   Future<dynamic> call(String fn, [List<dynamic> args = const [], Duration batas = const Duration(seconds: 120)]) async {
     final body = jsonEncode({'fn': fn, 'args': args, 'v': kVersi, 'pf': kIsWeb ? 'web' : 'android'});
+    final kunciCache = bolehCache(fn) ? '$fn|${jsonEncode(args)}' : null;
+    if (kunciCache != null && Zone.current[zonaMode] == 'cache') {
+      final c = _cache[kunciCache];
+      if (c != null) {
+        final pakai = Zone.current[zonaPakai];
+        if (pakai is List) pakai.add(fn);
+        return jsonDecode(c);
+      }
+    }
     final uri = Uri.parse(kApiUrl);
     http.Response res;
     var sudahDiproses = false;
@@ -200,7 +290,14 @@ class Api {
       final awal = utf8.decode(res.bodyBytes, allowMalformed: true);
       throw _galat('Jawaban server tidak dikenali.', 'E104', fn, awal.length > 300 ? awal.substring(0, 300) : awal);
     }
-    if (data is Map && data['ok'] == true) return data['data'];
+    if (data is Map && data['ok'] == true) {
+      if (kunciCache != null) {
+        _taruhCache(kunciCache, data['data']);
+      } else if (_tulis.hasMatch(fn)) {
+        bersihkanCache();
+      }
+      return data['data'];
+    }
     final asli = data is Map ? '${data['error'] ?? 'Terjadi kesalahan.'}' : 'Terjadi kesalahan.';
     final err = ApiException(asli, fn: fn, detail: asli);
     if (err.perluDilapor) onGalat?.call(err);

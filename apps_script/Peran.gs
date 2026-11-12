@@ -126,6 +126,11 @@ function bacaEnrollment_() {
 }
 
 function mapelAktifSemua_(semua) {
+  // v1.65.0: hasil disimpan di cache data (10 menit, diperbarui otomatis saat ada perubahan data)
+  if (typeof perfCacheData_ === 'function') return perfCacheData_('mapelAktif|' + (semua ? 1 : 0), 600, function() { return mapelAktifBaca_(semua); }).map(function(m) { return Object.assign({}, m); });
+  return mapelAktifBaca_(semua);
+}
+function mapelAktifBaca_(semua) {
   var rombel = {};
   getSheetData(CONFIG.SHEETS.ROMBEL).forEach(function(r, i) {
     if (i === 0 || !String(r[0]).trim()) return;

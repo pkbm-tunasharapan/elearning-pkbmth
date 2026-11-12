@@ -26,6 +26,7 @@ import 'theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   pasangPelaporGalat();
+  Api.instance.muatCache();   // v1.65.0: cache jawaban baca dari HP
   Sesi.instance.muat();
   SesiSiswa.instance.muat();
   runApp(const AplikasiStaf());

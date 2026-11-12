@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -14,38 +16,96 @@ class Muatan<T> extends StatefulWidget {
   State<Muatan<T>> createState() => _MuatanState<T>();
 }
 
+// v1.65.0: data yang pernah dimuat langsung ditampilkan dari cache (tanpa putaran loading), lalu diambil ulang dari
+// server di belakang layar dan diganti bila sudah datang. Tarik-untuk-segarkan / segarkan() selalu ke server.
 class _MuatanState<T> extends State<Muatan<T>> {
-  late Future<T> _f;
+  T? _data;
+  bool _ada = false, _memuat = true, _diBelakang = false;
+  Object? _galat;
+  int _urut = 0;
 
   @override
   void initState() {
     super.initState();
-    _f = widget.muat();
+    _jalankan(cacheDulu: true);
+  }
+
+  Future<void> _jalankan({required bool cacheDulu}) async {
+    final no = ++_urut;
+    final pakai = <String>[];
+    try {
+      final hasil = cacheDulu
+          ? await runZoned(() => widget.muat(), zoneValues: {Api.zonaMode: 'cache', Api.zonaPakai: pakai})
+          : await widget.muat();
+      if (!mounted || no != _urut) return;
+      setState(() {
+        _data = hasil;
+        _ada = true;
+        _galat = null;
+        _memuat = false;
+        _diBelakang = pakai.isNotEmpty;
+      });
+      if (pakai.isNotEmpty) unawaited(_segarDiBelakang(no));
+    } catch (e) {
+      if (!mounted || no != _urut) return;
+      setState(() {
+        _galat = e;
+        _memuat = false;
+      });
+    }
+  }
+
+  // Ambil data terbaru tanpa menutup tampilan lama; galat diabaikan (data lama tetap tampil).
+  Future<void> _segarDiBelakang(int no) async {
+    try {
+      final hasil = await widget.muat();
+      if (!mounted || no != _urut) return;
+      setState(() {
+        _data = hasil;
+        _ada = true;
+        _diBelakang = false;
+      });
+    } catch (_) {
+      if (mounted && no == _urut) setState(() => _diBelakang = false);
+    }
   }
 
   Future<void> _segarkan() async {
-    final f = widget.muat();
-    setState(() => _f = f);
+    final no = ++_urut;
+    if (!_ada) setState(() { _memuat = true; _galat = null; });
     try {
-      await f;
-    } catch (_) {}
+      final hasil = await widget.muat();
+      if (!mounted || no != _urut) return;
+      setState(() {
+        _data = hasil;
+        _ada = true;
+        _galat = null;
+        _memuat = false;
+        _diBelakang = false;
+      });
+    } catch (e) {
+      if (!mounted || no != _urut) return;
+      setState(() {
+        if (!_ada) _galat = e;
+        _memuat = false;
+      });
+      if (_ada && mounted) kabar(context, keGalat(e).ramah, galat: true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<T>(
-      future: _f,
-      builder: (context, s) {
-        if (s.connectionState != ConnectionState.done) {
-          return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
-        }
-        if (s.hasError) {
-          final e = keGalat(s.error!);
-          return PesanGalat(pesan: e.ramah, kode: e.kodeLengkap, judul: e.judul, ulangi: _segarkan);
-        }
-        return RefreshIndicator(onRefresh: _segarkan, child: widget.bangun(context, s.data as T, _segarkan));
-      },
-    );
+    if (_ada) {
+      final isi = RefreshIndicator(onRefresh: _segarkan, child: widget.bangun(context, _data as T, _segarkan));
+      if (!_diBelakang) return isi;
+      return Stack(children: [isi, const Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator(minHeight: 2))]);
+    }
+    if (_galat != null) {
+      final e = keGalat(_galat!);
+      return PesanGalat(pesan: e.ramah, kode: e.kodeLengkap, judul: e.judul, ulangi: () => _jalankan(cacheDulu: false));
+    }
+    if (_memuat) return const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()));
+    return const SizedBox.shrink();
   }
 }
 
