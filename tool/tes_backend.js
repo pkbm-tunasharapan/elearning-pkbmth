@@ -833,5 +833,30 @@ tes('impor label unit: baca baris templat, cocokkan ID/NISN, galat per baris', (
   sama(/judul kolom/.test(galat), true, 'templat salah ditolak');
 });
 
+// 28. pemetaan & kehadiran per unit (v1.62.0)
+tes('unit: kunci unit, irisan jadwal, bentrok rombel per unit', () => {
+  sama([g.ubKunci_(['U2', 'U1', 'U2', '']), g.ubKunci_(' U3 , U1'), g.ubKunci_('')], ['U1,U2', 'U1,U3', '']);
+  sama([g.ubIris_('', 'U1'), g.ubIris_('U1,U2', 'U2'), g.ubIris_('U1', 'U2')], [true, true, false]);
+  sama([g.ubDalam_('', 'U1'), g.ubDalam_('U1,U2', 'U2'), g.ubDalam_('U1,U12', 'U2'), g.ubDalam_('U1', '')], [true, true, false, false]);
+  const pm = [{ id: 'A', aktif: true, hari: 'Senin', mulai: '08:00', selesai: '09:00', idRombel: 'R1', kodeMapel: 'MTK', idTutor: 'T1', unit: 'U1' }];
+  const d = { hari: 'Senin', mulai: '08:00', selesai: '09:00', idRombel: 'R1', kodeMapel: 'MTK', idTutor: 'T2' };
+  sama(g.jadBentrok_(pm, Object.assign({ unit: 'U2' }, d), '').length, 0, 'unit berbeda tidak bentrok');
+  sama(g.jadBentrok_(pm, Object.assign({ unit: 'U1' }, d), '').length, 1, 'unit sama bentrok');
+  sama(g.jadBentrok_(pm, Object.assign({ unit: '' }, d), '').length, 1, 'sesi bersama bentrok');
+});
+tes('unit: kehadiran tatap muka hanya sesi yang berlaku; Flexi tidak dirugikan', () => {
+  const simpan = g.ubPetaSiswa_;
+  g.ubPetaSiswa_ = () => ({ W1: { unit: 'U1', layanan: 'Reguler' }, W2: { unit: 'U2', layanan: 'Reguler' }, W3: { unit: 'U1', layanan: 'Flexi' } });
+  try {
+    const perKey = { 'R|M': [{ id: 'S1', unit: '' }, { id: 'S2', unit: 'U1' }, { id: 'S3', unit: 'U2' }, { id: 'S4', unit: 'U1' }] };
+    const rec = { 'W1|S2': true, 'W3|S1': true, 'W4|S3': true };
+    sama(g.ubTmWb_(perKey, rec, 'R|M', 'W1', 1, 4), { h: 1, t: 3 }, 'unit 1: sesi bersama + 2 sesi unit 1');
+    sama(g.ubTmWb_(perKey, rec, 'R|M', 'W2', 0, 4), { h: 0, t: 2 }, 'unit 2: sesi bersama + sesi unit 2');
+    sama(g.ubTmWb_(perKey, rec, 'R|M', 'W3', 1, 4), { h: 1, t: 1 }, 'Flexi: hanya sesi tempat ia tercatat');
+    sama(g.ubTmWb_(perKey, rec, 'R|M', 'W4', 1, 4), { h: 1, t: 2 }, 'tanpa label: sesi bersama + sesi tempat ia tercatat');
+    sama(g.ubTmWb_({}, rec, 'R|M', 'W1', 2, 5), { h: 2, t: 5 }, 'tanpa data sesi: perilaku lama');
+  } finally { g.ubPetaSiswa_ = simpan; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

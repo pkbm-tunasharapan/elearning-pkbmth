@@ -679,26 +679,29 @@ function absKelasCek_(daftar, idRombel, kodeMapel) {
 }
 
 // ---------- sesi tatap muka (satu baris SESI BELAJAR per tanggal x rombel x mapel) ----------
-function absSesiCari_(t, tanggal, idRombel, kodeMapel) {
+// v1.62.0: [unit] = kunci unit pemetaan (kosong = sesi bersama seluruh rombel). Satu sesi per tanggal x rombel x mapel x unit.
+function absSesiCari_(t, tanggal, idRombel, kodeMapel, unit) {
   for (var i = 1; i < t.v.length; i++) {
     var r = t.v[i];
     if (absTgl_(absNilai_(t, r, 'TANGGAL')) !== tanggal) continue;
     if (sTeks_(absNilai_(t, r, 'ROMBEL')).trim() !== idRombel || sTeks_(absNilai_(t, r, 'MAPEL')).trim() !== kodeMapel) continue;
+    if (sTeks_(absNilai_(t, r, 'UNIT')).trim() !== String(unit || '')) continue;
     if (sTeks_(absNilai_(t, r, 'KEGIATAN')).trim() !== ABS.KEGIATAN) continue;
     return { baris: i + 1, r: r, id: sTeks_(absNilai_(t, r, 'ID SESI')).trim() };
   }
   return null;
 }
-function absSesiPastikan_(tanggal, kelas, pencatat) {
+function absSesiPastikan_(tanggal, kelas, pencatat, unit) {
+  if (unit) ubPastikanKolom_('SESI BELAJAR', 'UNIT');
   var t = absBaca_('SESI BELAJAR');
-  var s = absSesiCari_(t, tanggal, kelas.idRombel, kelas.kodeMapel);
+  var s = absSesiCari_(t, tanggal, kelas.idRombel, kelas.kodeMapel, unit);
   if (s) return { t: t, s: s };
   var sim = absSim_();
   var id = absId_();
   var row = absBaris_(t, {
     'ID SESI': id, 'TANGGAL': tanggal, 'ROMBEL': kelas.idRombel, 'MAPEL': kelas.kodeMapel, 'TUTOR': kelas.idTutor || '',
     'KEGIATAN': ABS.KEGIATAN, 'TAHUN PELAJARAN': sim.tahun, 'SEMESTER': sim.semester,
-    'DICATAT OLEH': pencatat, 'DICATAT PADA': absWaktu_()
+    'DICATAT OLEH': pencatat, 'DICATAT PADA': absWaktu_(), 'UNIT': unit || ''
   });
   t.sh.appendRow(row);
   t.v.push(row);
@@ -754,8 +757,9 @@ function waStafAbsenWbDaftar(token, q) {
   var tanggal = absTglSah_(q.tanggal || absHariIni_());
   var kelas = absWajibWb_(p, q.idRombel, q.kodeMapel);
   var siswa = absWbRombel_(kelas.idRombel);
+  var us = ubUnitSesi_(p, kelas, tanggal, q.unit);
   var ts = absBaca_('SESI BELAJAR');
-  var s = absSesiCari_(ts, tanggal, kelas.idRombel, kelas.kodeMapel);
+  var s = absSesiCari_(ts, tanggal, kelas.idRombel, kelas.kodeMapel, us.unit);
   var catat = {};
   if (s) {
     var tp = absBaca_('PRESENSI WB');
@@ -765,10 +769,11 @@ function waStafAbsenWbDaftar(token, q) {
       catat[sTeks_(absNilai_(tp, r, 'WARGA BELAJAR')).trim()] = { status: sTeks_(absNilai_(tp, r, 'STATUS')).trim(), jam: absJam_(absNilai_(tp, r, 'JAM')), oleh: sTeks_(absNilai_(tp, r, 'DICATAT OLEH')).trim(), ket: sTeks_(absNilai_(tp, r, 'KETERANGAN')).trim() };
     }
   }
+  siswa = ubSaringWb_(siswa, us.unit, catat);
   return {
-    kelas: kelas, tanggal: tanggal,
+    kelas: kelas, tanggal: tanggal, unit: us.unit, namaUnit: us.nama, pilihanUnit: us.pilihan,
     sesi: s ? { id: s.id, tutorHadir: sTeks_(absNilai_(ts, s.r, 'STATUS')).trim() === 'Hadir', jamTutor: absJam_(absNilai_(ts, s.r, 'JAM HADIR')) } : null,
-    siswa: siswa.map(function(x) { var c = catat[x.id] || {}; return { id: x.id, nisn: x.nisn, nama: x.nama, status: c.status || '', jam: c.jam || '', oleh: c.oleh || '', ket: c.ket || '' }; })
+    siswa: siswa.map(function(x) { var c = catat[x.id] || {}; return { id: x.id, nisn: x.nisn, nama: x.nama, status: c.status || '', jam: c.jam || '', oleh: c.oleh || '', ket: c.ket || '', unit: x.namaUnit || '', layanan: x.layanan || '' }; })
   };
 }
 
@@ -794,6 +799,9 @@ function waStafAbsenWbCatat(token, d) {
     wb.rombel = kelas.idRombel;
   }
   if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ' di Data Induk, tidak dapat diabsen.');
+  var usC = ubUnitSesi_(p, kelas, tanggal, d.unit);
+  var lainUnit = ubLuarUnit_(wb.id, usC.unit);
+  if (lainUnit) throw new Error(wb.nama + ' terdaftar di ' + lainUnit + ', bukan di unit sesi ini (' + usC.nama + ').');
   if (wb.rombel !== kelas.idRombel) {
     var rbAsli = wb.rombel ? (absNamaRombel_(wb.rombel) || wb.rombel) : '(belum diisi)';
     throw new Error(wb.nama + ' tercatat di rombel ' + rbAsli + ' menurut Data Induk, bukan ' + kelas.namaRombel + '. Pilih rombel ' + rbAsli + ' di atas, atau perbaiki kolom ROMBEL siswa ini di Data Induk bila datanya keliru.');
@@ -801,7 +809,7 @@ function waStafAbsenWbCatat(token, d) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
   try {
-    var ps = absSesiPastikan_(tanggal, kelas, p.nama);
+    var ps = absSesiPastikan_(tanggal, kelas, p.nama, usC.unit);
     var tp = absBaca_('PRESENSI WB');
     for (var i = 1; i < tp.v.length; i++) {
       var r = tp.v[i];
@@ -842,9 +850,11 @@ function waStafAbsenTutorCari(token, kode) {
   var jadwal = jadTutorHari_(t.id, hari);
   var ts = absBaca_('SESI BELAJAR');
   kelas.forEach(function(k) {
-    var s = absSesiCari_(ts, hari, k.idRombel, k.kodeMapel);
-    k.hadir = !!(s && sTeks_(absNilai_(ts, s.r, 'STATUS')).trim() === 'Hadir' && sTeks_(absNilai_(ts, s.r, 'TUTOR')).trim() === t.id);
     var j = jadwal.filter(function(x) { return x.idRombel === k.idRombel && x.kodeMapel === k.kodeMapel; })[0];
+    k.unit = j ? j.unit : '';
+    k.namaUnit = k.unit ? ubNamaKunci_(k.unit) : '';
+    var s = absSesiCari_(ts, hari, k.idRombel, k.kodeMapel, k.unit);
+    k.hadir = !!(s && sTeks_(absNilai_(ts, s.r, 'STATUS')).trim() === 'Hadir' && sTeks_(absNilai_(ts, s.r, 'TUTOR')).trim() === t.id);
     k.terjadwal = !!j;
     k.jam = j ? j.mulai + '–' + j.selesai : '';
   });
@@ -877,7 +887,7 @@ function waStafAbsenTutorCatat(token, d) {
     if (q.fo) {
       kd = absKodeCek_(d.kodeDarurat, t.id, hari);
     }
-    var ps = absSesiPastikan_(hari, kelas, p.nama);
+    var ps = absSesiPastikan_(hari, kelas, p.nama, jad ? jad.unit : '');
     var ts = ps.t, b = ps.s.baris;
     var cur = ts.sh.getRange(b, 1, 1, ts.v[0].length).getValues()[0];
     if (sTeks_(absNilai_(ts, cur, 'STATUS')).trim() === 'Hadir' && sTeks_(absNilai_(ts, cur, 'TUTOR')).trim() === t.id) {
@@ -1304,6 +1314,22 @@ function absKelas_(idTutorSaja) {
     // v1.38.5: tutor dari Enrollment e-learning yang belum punya ID di Data Induk (tab TUTOR) tetap tampil namanya
     else if (!x.namaTutor && k.namaTutor) { x.namaTutor = k.namaTutor; }
   });
+  // v1.62.0: tutor yang dipetakan di jadwal (mis. tutor unit) mengampu kelas itu walau tidak tercatat di enrollment
+  if (idTutorSaja) {
+    try {
+      var semuaK = absKelas_(''), ptT = absPetaTutor_();
+      jadBacaPm_().data.forEach(function(x) {
+        if (!x.aktif || x.idTutor !== idTutorSaja) return;
+        var kk = x.idRombel + '|' + x.kodeMapel;
+        if (ada[kk]) return;
+        var asal = absKelasCek_(semuaK, x.idRombel, x.kodeMapel);
+        if (!asal) return;
+        var salin = JSON.parse(JSON.stringify(asal));
+        salin.idTutor = idTutorSaja; salin.namaTutor = ptT[idTutorSaja] ? ptT[idTutorSaja].nama : '';
+        ada[kk] = salin; a.push(salin);
+      });
+    } catch (e3) {}
+  }
   // hanya mapel berstatus Aktif di e-Learning (mapel SIM yang tak terhubung tetap dipakai)
   try { a = nilSaringAktif_(a, nilPetaBm_()); } catch (e2) {}
   a.sort(function(p, q) { return (p.namaRombel + '|' + p.namaMapel).localeCompare(q.namaRombel + '|' + q.namaMapel); });
@@ -1879,7 +1905,8 @@ function jadBacaPm_() {
       baris: i + 1, id: id, idRombel: sTeks_(absNilai_(t, r, 'ROMBEL')).trim(), kodeMapel: sTeks_(absNilai_(t, r, 'MAPEL')).trim(), idTutor: sTeks_(absNilai_(t, r, 'TUTOR')).trim(),
       hari: sTeks_(absNilai_(t, r, 'HARI')).trim(), mulai: absJam_(absNilai_(t, r, 'JAM MULAI')), selesai: absJam_(absNilai_(t, r, 'JAM SELESAI')),
       dari: absTgl_(absNilai_(t, r, 'TANGGAL MULAI')), sampai: absTgl_(absNilai_(t, r, 'TANGGAL SELESAI')), aktif: absBenar_(absNilai_(t, r, 'AKTIF')),
-      slot: sTeks_(absNilai_(t, r, 'SESI')).trim(), paket: sTeks_(absNilai_(t, r, 'PAKET')).trim()
+      slot: sTeks_(absNilai_(t, r, 'SESI')).trim(), paket: sTeks_(absNilai_(t, r, 'PAKET')).trim(),
+      unit: sTeks_(absNilai_(t, r, 'UNIT')).trim()   // v1.62.0: ID unit (koma, terurut); kosong = semua siswa rombel
     });
   }
   return { t: t, data: out };
@@ -1919,7 +1946,7 @@ function jadBentrok_(semua, d, kecualiId) {
     if (!rentang) return;
     // mapel sama pada jam sama = kelas gabungan (beberapa rombel sekaligus), bukan bentrok
       if (x.idTutor && x.idTutor === d.idTutor && x.kodeMapel !== d.kodeMapel) hasil.push('tutor sudah mengajar ' + x.kodeMapel + ' di rombel lain pada ' + x.hari + ' ' + x.mulai + '–' + x.selesai);
-    if (x.idRombel === d.idRombel) hasil.push('rombel sudah ada jadwal ' + x.kodeMapel + ' pada ' + x.hari + ' ' + x.mulai + '–' + x.selesai);
+    if (x.idRombel === d.idRombel && (typeof ubIris_ !== 'function' || ubIris_(x.unit, d.unit))) hasil.push('rombel sudah ada jadwal ' + x.kodeMapel + ' pada ' + x.hari + ' ' + x.mulai + '–' + x.selesai);
   });
   return hasil;
 }
@@ -1959,11 +1986,13 @@ function waStafPemetaanDaftar(token) {
   var saya = null;
   if (jp.tutor) { saya = absTutorSaya_(p); data = saya ? data.filter(function(x) { return x.idTutor === saya.id; }) : []; }
   jadLengkapi_(data);
+  data.forEach(function(x) { x.namaUnit = x.unit && typeof ubNamaKunci_ === 'function' ? ubNamaKunci_(x.unit) : ''; });   // v1.62.0
   var urut = {};
   JAD.HARI.forEach(function(h, i) { urut[h] = i === 0 ? 7 : i; });
   data.sort(function(a, b) { return (urut[a.hari] || 9) - (urut[b.hari] || 9) || a.mulai.localeCompare(b.mulai) || a.namaRombel.localeCompare(b.namaRombel); });
   var out = { pemetaan: data, aturan: jadAturan_(), kelola: jp.kelola, tutorSaya: saya };
   if (jp.kelola) {
+    try { out.unit = ubUnit_().filter(function(u) { return u.aktif; }).map(function(u) { return { id: u.id, nama: u.nama }; }); } catch (eU) { out.unit = []; }
     out.kelas = absKelas_('');
     var pt = absPetaTutor_();
     out.tutor = Object.keys(pt).map(function(k) { return pt[k]; }).filter(function(x) { return x.aktif; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); });
@@ -1997,13 +2026,14 @@ function waStafPemetaanSimpanBanyak(token, d) {
   rombel.forEach(function(idR) {
     var k = absKelasCek_(semuaKelas, idR, d.kodeMapel);
     if (!k) { galat.push(idR + ': mapel tidak ada di rombel ini'); return; }
-    var b = jadBentrok_(pm, { idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: String(d.idTutor || ''), hari: hari, mulai: slot.mulai, selesai: slot.selesai, dari: dari, sampai: sampai }, '');
+    var b = jadBentrok_(pm, { idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: String(d.idTutor || ''), hari: hari, mulai: slot.mulai, selesai: slot.selesai, dari: dari, sampai: sampai,
+      unit: typeof ubKunciSah_ === 'function' ? ubKunciSah_(d.unit) : '' }, '');
     if (b.length) galat.push(k.namaRombel + ': ' + b.join('; '));
   });
   if (galat.length) throw new Error('Jadwal belum disimpan. ' + galat.join(' | '));
   var hasil = [];
   rombel.forEach(function(idR) {
-    hasil.push(jadSimpanInti_(p, { idRombel: idR, kodeMapel: d.kodeMapel, idTutor: d.idTutor, hari: hari, slot: slot.id, dari: dari, sampai: sampai }).id);
+    hasil.push(jadSimpanInti_(p, { idRombel: idR, kodeMapel: d.kodeMapel, idTutor: d.idTutor, hari: hari, slot: slot.id, dari: dari, sampai: sampai, unit: d.unit }).id);
   });
   return { sukses: true, jumlah: hasil.length, id: hasil, hari: hari, dari: dari, sampai: sampai };
 }
@@ -2020,7 +2050,9 @@ function jadSimpanInti_(p, d) {
   if (selesai <= mulai) throw new Error('Jam selesai harus setelah jam mulai.');
   var dari = d.dari ? absTglSah_(d.dari) : absHariIni_(), sampai = d.sampai ? absTglSah_(d.sampai) : '';
   if (sampai && sampai < dari) throw new Error('Tanggal selesai tidak boleh sebelum tanggal mulai.');
-  var baru = { idRombel: kelas.idRombel, kodeMapel: kelas.kodeMapel, idTutor: idTutor, hari: hari, mulai: mulai, selesai: selesai, dari: dari, sampai: sampai };
+  var unitPm = typeof ubKunciSah_ === 'function' ? ubKunciSah_(d.unit) : '';
+  var baru = { idRombel: kelas.idRombel, kodeMapel: kelas.kodeMapel, idTutor: idTutor, hari: hari, mulai: mulai, selesai: selesai, dari: dari, sampai: sampai, unit: unitPm };
+  if (unitPm) ubPastikanKolom_(JAD.TAB_PM, 'UNIT');
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
   try {
@@ -2029,7 +2061,7 @@ function jadSimpanInti_(p, d) {
     if (b.length) throw new Error('Bentrok jadwal: ' + b.join('; ') + '.');
     var nilai = {
       'ROMBEL': baru.idRombel, 'MAPEL': baru.kodeMapel, 'TUTOR': idTutor, 'HARI': hari, 'JAM MULAI': mulai, 'JAM SELESAI': selesai,
-      'TANGGAL MULAI': dari, 'TANGGAL SELESAI': sampai, 'AKTIF': true, 'SESI': slot ? slot.nama : '', 'PAKET': kelas.program
+      'TANGGAL MULAI': dari, 'TANGGAL SELESAI': sampai, 'AKTIF': true, 'SESI': slot ? slot.nama : '', 'PAKET': kelas.program, 'UNIT': unitPm
     };
     var id = d.id ? String(d.id) : '';
     if (id) {
@@ -2069,8 +2101,9 @@ function waStafJadwalHari(token, tanggal) {
   jadLengkapi_(data);
   var ts = absBaca_('SESI BELAJAR');
   data.forEach(function(x) {
-    var sesi = absSesiCari_(ts, tanggal, x.idRombel, x.kodeMapel);
+    var sesi = absSesiCari_(ts, tanggal, x.idRombel, x.kodeMapel, x.unit);
     x.hadir = !!(sesi && sTeks_(absNilai_(ts, sesi.r, 'STATUS')).trim() === 'Hadir');
+    x.namaUnit = x.unit ? ubNamaKunci_(x.unit) : '';
     x.jamHadir = sesi ? absJam_(absNilai_(ts, sesi.r, 'JAM HADIR')) : '';
   });
   data.sort(function(a, b) { return a.mulai.localeCompare(b.mulai) || a.namaRombel.localeCompare(b.namaRombel); });
@@ -2381,22 +2414,27 @@ function hdrGabung_(on, tmHadir, tmTotal, bm, nama) {
 function hdrTatapMuka_(per) {
   var mk = 'tm|' + per.tahun + '|' + per.semester;
   if (HDR_MEMO_[mk]) return HDR_MEMO_[mk];
-  var ts = absBaca_('SESI BELAJAR'), sesi = {}, total = {}, hadir = {};
+  var ts = absBaca_('SESI BELAJAR'), sesi = {}, total = {}, hadir = {}, perKey = {}, rec = {};
   for (var i = 1; i < ts.v.length; i++) {
     var r = ts.v[i], tg = absTgl_(absNilai_(ts, r, 'TANGGAL'));
     if (tg < per.dari || tg > per.sampai) continue;
     var key = sTeks_(absNilai_(ts, r, 'ROMBEL')).trim() + '|' + sTeks_(absNilai_(ts, r, 'MAPEL')).trim();
-    sesi[sTeks_(absNilai_(ts, r, 'ID SESI')).trim()] = key;
+    var idS = sTeks_(absNilai_(ts, r, 'ID SESI')).trim();
+    sesi[idS] = key;
     total[key] = (total[key] || 0) + 1;
+    (perKey[key] = perKey[key] || []).push({ id: idS, unit: sTeks_(absNilai_(ts, r, 'UNIT')).trim() });   // v1.62.0
   }
   var tp = absBaca_('PRESENSI WB');
   for (var j = 1; j < tp.v.length; j++) {
-    var w = tp.v[j], kk = sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()];
-    if (!kk || (sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir') !== 'Hadir') continue;
-    var hk = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim() + '|' + kk;
+    var w = tp.v[j], idJ = sTeks_(absNilai_(tp, w, 'JADWAL')).trim(), kk = sesi[idJ];
+    if (!kk) continue;
+    var idW = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim();
+    rec[idW + '|' + idJ] = true;
+    if ((sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir') !== 'Hadir') continue;
+    var hk = idW + '|' + kk;
     hadir[hk] = (hadir[hk] || 0) + 1;
   }
-  return (HDR_MEMO_[mk] = { total: total, hadir: hadir });
+  return (HDR_MEMO_[mk] = { total: total, hadir: hadir, perKey: perKey, rec: rec });
 }
 function hdrPetaBm_() { return HDR_MEMO_.peta || (HDR_MEMO_.peta = nilPetaBm_()); }
 function hdrSiswaBm_() { return HDR_MEMO_.siswa || (HDR_MEMO_.siswa = nilSiswaBm_()); }
@@ -2418,7 +2456,8 @@ function nilHadirKelas_(per, key) {
     }
     var w = siap.wbs[String(idWb)], c = w ? nilCocokBm_(w, siap.siswa) : null;
     var bmKu = c ? siap.bm.filter(function(b) { return b.idRombel === c.idRombel; }) : [];
-    return hdrGabung_(siap.on, hadir[idWb] || 0, total, bmKu, c ? c.nama : '');
+    var tmW = typeof ubTmWb_ === 'function' ? ubTmWb_(tm.perKey, tm.rec, key, idWb, hadir[idWb] || 0, total) : { h: hadir[idWb] || 0, t: total };   // v1.62.0
+    return hdrGabung_(siap.on, tmW.h, tmW.t, bmKu, c ? c.nama : '');
   };
   return { total: total, hadir: hadir, gabung: gabung };
 }
@@ -2450,20 +2489,23 @@ function nilDisCari_(daftar, idWb, idRombel, kodeMapel, jenis) {
 
 // ---------- konteks perhitungan (sekali baca semua tabel) ----------
 function nilKtx_(per) {
-  var k = { per: per, at: nilAturan_(), sesi: {}, totalSesi: {}, hadir: {}, rekapHadir: {}, manual: {}, disk: {}, ujian: {}, hasil: {}, wb: {} };
+  var k = { per: per, at: nilAturan_(), sesi: {}, totalSesi: {}, hadir: {}, rekapHadir: {}, manual: {}, disk: {}, ujian: {}, hasil: {}, wb: {}, perKey: {}, rec: {} };
   var ts = absBaca_('SESI BELAJAR');
   for (var i = 1; i < ts.v.length; i++) {
     var r = ts.v[i], tg = absTgl_(absNilai_(ts, r, 'TANGGAL'));
     if (tg < per.dari || tg > per.sampai) continue;
     var key = sTeks_(absNilai_(ts, r, 'ROMBEL')).trim() + '|' + sTeks_(absNilai_(ts, r, 'MAPEL')).trim();
-    k.sesi[sTeks_(absNilai_(ts, r, 'ID SESI')).trim()] = key;
+    var idSk = sTeks_(absNilai_(ts, r, 'ID SESI')).trim();
+    k.sesi[idSk] = key;
     k.totalSesi[key] = (k.totalSesi[key] || 0) + 1;
+    (k.perKey[key] = k.perKey[key] || []).push({ id: idSk, unit: sTeks_(absNilai_(ts, r, 'UNIT')).trim() });   // v1.62.0
   }
   var tp = absBaca_('PRESENSI WB');
   for (var j = 1; j < tp.v.length; j++) {
     var w = tp.v[j], kk = k.sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()];
     if (!kk) continue;
     var idW = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim(), st = sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir';
+    k.rec[idW + '|' + sTeks_(absNilai_(tp, w, 'JADWAL')).trim()] = true;
     if (st === 'Hadir') k.hadir[idW + '|' + kk] = (k.hadir[idW + '|' + kk] || 0) + 1;
     var y = k.rekapHadir[idW] || (k.rekapHadir[idW] = { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 });
     y[st] = (y[st] || 0) + 1;
@@ -2534,7 +2576,8 @@ function nilRekapKelas_(k, kelas) {
   return nilWbRombelK_(k, kelas.idRombel).map(function(w) {
     var c = nilCocokBm_(w, siswaBm), nn = c ? normNama_(c.nama) : '';
     // v1.38.4: kehadiran gabungan TH.E-Course + tatap muka
-    var g = hdrGabung_(hdrOnline_(k.per), k.hadir[w.id + '|' + key] || 0, total, c ? bm.filter(function(b) { return b.idRombel === c.idRombel; }) : [], c ? c.nama : '');
+    var tmK = typeof ubTmWb_ === 'function' ? ubTmWb_(k.perKey, k.rec, key, w.id, k.hadir[w.id + '|' + key] || 0, total) : { h: k.hadir[w.id + '|' + key] || 0, t: total };
+    var g = hdrGabung_(hdrOnline_(k.per), tmK.h, tmK.t, c ? bm.filter(function(b) { return b.idRombel === c.idRombel; }) : [], c ? c.nama : '');
     var h = g.hadir, persen = g.persen, totalG = g.total;
     var lolos = !totalG || persen >= k.at.syaratHadir;
     var dis = nilDisCari_(k.dis, w.id, kelas.idRombel, kelas.kodeMapel, '');

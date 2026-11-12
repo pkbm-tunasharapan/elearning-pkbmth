@@ -24,13 +24,16 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
   String _tanggal = tglIso(DateTime.now());
   String _kodeBuka = '';
   int _v = 0;
+  // v1.62.0: unit sesi (null = ditentukan server dari pemetaan). _unitAktif = unit sesi yang sedang tampil.
+  String? _unit;
+  String _unitAktif = '';
 
   String _kunci(Map<String, dynamic> k) => '${teks(k['idRombel'])}|${teks(k['kodeMapel'])}';
 
   Future<Map<String, dynamic>> _catat(Map<String, dynamic> d) async {
     while (true) {
       try {
-        return peta(await Api.instance('waStafAbsenWbCatat', [_t, {...d, 'tanggal': _tanggal, 'idRombel': teks(_kelas!['idRombel']), 'kodeMapel': teks(_kelas!['kodeMapel']), 'kodeBuka': _kodeBuka}]));
+        return peta(await Api.instance('waStafAbsenWbCatat', [_t, {...d, 'tanggal': _tanggal, 'idRombel': teks(_kelas!['idRombel']), 'kodeMapel': teks(_kelas!['kodeMapel']), 'kodeBuka': _kodeBuka, 'unit': _unitAktif}]));
       } on ApiException catch (e) {
         if (!e.pesan.contains('Kode Buka') || !mounted) rethrow;
         final k = await mintaTeks(context, 'Di luar jam absensi', label: 'Kode Buka dari admin', huruf: true);
@@ -98,7 +101,10 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
                 initialValue: _kunci(_kelas!),
                 decoration: const InputDecoration(labelText: 'Rombel · Mapel', isDense: true),
                 items: [for (final k in kelas) DropdownMenuItem(value: _kunci(k), child: Text('${teks(k['namaRombel'])} · ${teks(k['namaMapel'])}', overflow: TextOverflow.ellipsis))],
-                onChanged: (v) => setState(() => _kelas = kelas.firstWhere((k) => _kunci(k) == v)),
+                onChanged: (v) => setState(() {
+                  _kelas = kelas.firstWhere((k) => _kunci(k) == v);
+                  _unit = null;
+                }),
               ),
               const SizedBox(height: 8),
               Row(children: [
@@ -109,7 +115,12 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
                         : () async {
                             final now = DateTime.now();
                             final d = await showDatePicker(context: context, firstDate: now.subtract(const Duration(days: 120)), lastDate: now, initialDate: DateTime.tryParse(_tanggal) ?? now);
-                            if (d != null) setState(() => _tanggal = tglIso(d));
+                            if (d != null) {
+                              setState(() {
+                                _tanggal = tglIso(d);
+                                _unit = null;
+                              });
+                            }
                           },
                     icon: const Icon(Icons.event_rounded, size: 18),
                     label: Text(tglIndo(_tanggal)),
@@ -122,10 +133,15 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
           ),
           Expanded(
             child: Muatan<Map<String, dynamic>>(
-              key: ValueKey('${_kunci(_kelas!)}|$_tanggal|$_v'),
-              muat: () async => peta(await Api.instance('waStafAbsenWbDaftar', [_t, {'tanggal': _tanggal, 'idRombel': teks(_kelas!['idRombel']), 'kodeMapel': teks(_kelas!['kodeMapel'])}])),
+              key: ValueKey('${_kunci(_kelas!)}|$_tanggal|$_v|${_unit ?? '~'}'),
+              muat: () async => peta(await Api.instance('waStafAbsenWbDaftar', [
+                    _t,
+                    {'tanggal': _tanggal, 'idRombel': teks(_kelas!['idRombel']), 'kodeMapel': teks(_kelas!['kodeMapel']), if (_unit != null) 'unit': _unit}
+                  ])),
               bangun: (context, d, segarkan) {
                 final siswa = daftar(d['siswa']).map(peta).toList();
+                _unitAktif = teks(d['unit']);
+                final pilihanUnit = ks['peran'] == 'Tutor' ? const <Map<String, dynamic>>[] : daftar(d['pilihanUnit']).map(peta).toList();
                 final jml = <String, int>{'Hadir': 0, 'Izin': 0, 'Sakit': 0, 'Alpa': 0, 'Belum': 0};
                 for (final s in siswa) {
                   final st = teks(s['status']);
@@ -139,6 +155,23 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
                         padding: const EdgeInsets.all(12),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('${siswa.length} warga belajar', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          if (_unitAktif.isNotEmpty || pilihanUnit.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text('Sesi: ${teks(d['namaUnit'], 'Semua siswa')}', style: TextStyle(fontSize: 12.5, color: cs.primary, fontWeight: FontWeight.w700)),
+                            ),
+                          if (pilihanUnit.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Wrap(spacing: 6, runSpacing: 6, children: [
+                                for (final u in pilihanUnit)
+                                  ChoiceChip(
+                                    label: Text('${teks(u['nama'])}${teks(u['tutor']).isEmpty ? '' : ' · ${teks(u['tutor'])}'}'),
+                                    selected: teks(u['unit']) == _unitAktif,
+                                    onSelected: (_) => setState(() => _unit = teks(u['unit'])),
+                                  ),
+                              ]),
+                            ),
                           const SizedBox(height: 6),
                           RingkasStatus(jumlah: jml),
                           const SizedBox(height: 6),
@@ -166,7 +199,9 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
                               child: Text(teks(s['nama'], '?')[0], style: TextStyle(color: warnaStatusHadir(context, teks(s['status'])), fontWeight: FontWeight.w800)),
                             ),
                             title: Text(teks(s['nama']), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(teks(s['status']).isEmpty ? 'Belum diabsen' : '${teks(s['status'])} · ${teks(s['jam'])}${teks(s['oleh']).isEmpty ? '' : ' · ${teks(s['oleh'])}'}',
+                            subtitle: Text(
+                                '${teks(s['status']).isEmpty ? 'Belum diabsen' : '${teks(s['status'])} · ${teks(s['jam'])}${teks(s['oleh']).isEmpty ? '' : ' · ${teks(s['oleh'])}'}'}'
+                                '${teks(s['unit']).isEmpty ? '' : ' · ${teks(s['unit'])}'}${teks(s['layanan']) == 'Flexi' ? ' · Flexi' : ''}',
                                 style: const TextStyle(fontSize: 12)),
                             trailing: PopupMenuButton<String>(
                               tooltip: 'Ubah status',

@@ -57,7 +57,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
         ]),
       ),
       title: Text('${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}', maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text([teks(x['namaTutor']), if (teks(x['slot']).isNotEmpty) teks(x['slot']), if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
+      subtitle: Text([teks(x['namaTutor']), if (teks(x['namaUnit']).isNotEmpty) teks(x['namaUnit']), if (teks(x['slot']).isNotEmpty) teks(x['slot']), if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
       trailing: status
           ? Lencana(x['hadir'] == true ? 'Hadir ${teks(x['jamHadir'])}' : 'Belum absen', warna: x['hadir'] == true ? Colors.green : cs.outline)
           : (kelola
@@ -174,6 +174,9 @@ class _FormPemetaanState extends State<FormPemetaan> {
   // mode ubah (satu jadwal)
   late String _dari;
   String _sampai = '';
+  // v1.62.0: unit belajar (kosong = semua siswa rombel)
+  final Set<String> _unitPilih = {};
+  List<Map<String, dynamic>> get _unitList => daftar(widget.data['unit']).map(peta).toList();
 
   bool get _ubah => widget.x != null;
   List<Map<String, dynamic>> get _kelas => unikKelas(daftar(widget.data['kelas']).map(peta));
@@ -214,6 +217,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
       _slot = _slotList.where((s) => teks(s['nama']) == teks(x['slot'])).map((s) => teks(s['id'])).firstOrNull;
       _dari = teks(x['dari'], _dari);
       _sampai = teks(x['sampai']);
+      _unitPilih.addAll(teks(x['unit']).split(',').where((u) => u.isNotEmpty));
       if (!_kelasTutor.any((k) => teks(k['kodeMapel']) == _mapel && teks(k['idRombel']) == teks(x['idRombel']))) _semuaMapel = true;
     }
     _slot ??= _slotList.isEmpty ? null : teks(_slotList.first['id']);
@@ -242,7 +246,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
     if (_ubah) {
       final r = await jalankan(context, () => Api.instance('waStafPemetaanSimpan', [
             _t,
-            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai}
+            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai, 'unit': _unitPilih.toList()}
           ]), teksProses: 'Menyimpan & memeriksa bentrok...');
       if (r.ok && mounted) {
         kabar(context, 'Jadwal tersimpan.');
@@ -260,6 +264,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
             'rombel': rombel.toList(),
             'hari': _hari,
             'slot': _slot,
+            'unit': _unitPilih.toList(),
             'tunggal': !_berulang,
             'dari': _berulang ? rg.$1 : _tanggal,
             'sampai': _berulang ? rg.$2 : _tanggal,
@@ -390,6 +395,28 @@ class _FormPemetaanState extends State<FormPemetaan> {
               child: Text('${terpilih.length} rombel dipilih: dijadwalkan sebagai kelas gabungan pada hari & sesi yang sama.',
                   style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
             ),
+          if (_unitList.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 14, bottom: 6),
+              child: Text('Unit belajar (opsional)', style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
+            ),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final u in _unitList)
+                FilterChip(
+                  label: Text(teks(u['nama'])),
+                  selected: _unitPilih.contains(teks(u['id'])),
+                  onSelected: (v) => setState(() => v ? _unitPilih.add(teks(u['id'])) : _unitPilih.remove(teks(u['id']))),
+                ),
+            ]),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                  _unitPilih.isEmpty
+                      ? 'Tidak dipilih = untuk semua siswa rombel. Pilih unit bila tutor ini hanya mengajar siswa unit tertentu (kelas Flexi boleh beberapa unit).'
+                      : 'Tutor hanya menangani siswa dari unit terpilih. Rombel & mapel yang sama boleh dijadwalkan untuk unit lain pada jam yang sama.',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
+          ],
           langkah('4', 'Hari & sesi'),
           if (_berulang || _ubah)
             DropdownButtonFormField<String>(

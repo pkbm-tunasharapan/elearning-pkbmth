@@ -532,3 +532,112 @@ function waStafUnitImporTerapkan(token, kunci) {
   catat_(p.peran, '', p.nama, 'Impor label unit siswa', hasil.diubah + ' diubah, ' + hasil.sama + ' sama, ' + hasil.lewat.length + ' dilewati', 'OK');
   return hasil;
 }
+
+// ============================================================================
+// TAHAP 3 (v1.62.0): PEMETAAN TUTOR PER UNIT & KEHADIRAN PER UNIT
+// - PEMETAAN punya kolom UNIT (ID unit dipisah koma, terurut). Kosong = seluruh siswa rombel (seperti dulu).
+//   Satu rombel x mapel boleh diajar beberapa tutor pada jam yang sama asalkan unitnya berbeda.
+// - SESI BELAJAR punya kolom UNIT: satu sesi per tanggal x rombel x mapel x unit, sehingga absen & honor tutor
+//   unit A tidak menimpa tutor unit B.
+// - Daftar absen siswa sesi unit = siswa unit itu + siswa yang belum berlabel unit + yang sudah tercatat.
+// - Kehadiran tatap muka per siswa hanya menghitung sesi yang berlaku untuknya: sesi bersama, sesi unitnya,
+//   atau sesi tempat ia tercatat. Siswa Flexi: hanya sesi tempat ia tercatat (tidak dirugikan pertemuan tatap muka).
+// ============================================================================
+function ubKunci_(x) {
+  var a = Array.isArray(x) ? x : String(x || '').split(',');
+  return a.map(function(s) { return String(s).trim(); }).filter(function(s, i, b) { return s && b.indexOf(s) === i; }).sort().join(',');
+}
+// Kunci unit yang sah (unit ada & aktif). Galat bila ada unit tak dikenal.
+function ubKunciSah_(x) {
+  var k = ubKunci_(x);
+  if (!k) return '';
+  var peta = ubPetaUnit_();
+  k.split(',').forEach(function(id) {
+    if (!peta[id]) throw new Error('Unit belajar tidak dikenal: ' + id);
+    if (!peta[id].aktif) throw new Error(peta[id].nama + ' sedang nonaktif.');
+  });
+  return k;
+}
+function ubDalam_(kunci, idUnit) {
+  if (!kunci) return true;
+  return !!idUnit && ('|' + String(kunci).split(',').join('|') + '|').indexOf('|' + idUnit + '|') >= 0;
+}
+// Dua jadwal berbagi siswa? (kosong = semua)
+function ubIris_(a, b) {
+  if (!a || !b) return true;
+  var x = String(a).split(',');
+  return String(b).split(',').some(function(id) { return x.indexOf(id) >= 0; });
+}
+function ubNamaKunci_(kunci) {
+  if (!kunci) return 'Semua siswa';
+  var peta = {};
+  try { peta = ubPetaUnit_(); } catch (e) {}
+  return String(kunci).split(',').map(function(id) { return peta[id] ? peta[id].nama : id; }).join(', ');
+}
+function ubPastikanKolom_(namaTab, kolom) {
+  var sh = absSs_().getSheetByName(simNamaTab_(namaTab));
+  if (!sh) return;
+  var h = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(function(x) { return String(x).trim().toUpperCase(); });
+  if (h.indexOf(String(kolom).toUpperCase()) >= 0) return;
+  sh.getRange(1, h.length + 1).setValue(kolom).setFontWeight('bold');
+  absLupakan_(namaTab);
+}
+// Unit sesi tatap muka untuk kelas pada tanggal itu. Tutor: dari pemetaannya sendiri. Pimpinan/Admin: pilihan qUnit,
+// atau satu-satunya pemetaan hari itu; selain itu sesi bersama (kosong).
+function ubUnitSesi_(p, kelas, tanggal, qUnit) {
+  var rows = [];
+  try { rows = jadBacaPm_().data.filter(function(x) { return x.idRombel === kelas.idRombel && x.kodeMapel === kelas.kodeMapel && jadBerlaku_(x, tanggal); }); } catch (e) {}
+  var pt = {};
+  try { pt = absPetaTutor_(); } catch (e2) {}
+  var pilihan = [], ada = {};
+  rows.forEach(function(x) {
+    if (ada[x.unit]) return;
+    ada[x.unit] = true;
+    pilihan.push({ unit: x.unit, nama: ubNamaKunci_(x.unit), tutor: pt[x.idTutor] ? pt[x.idTutor].nama : '', jam: x.mulai + '–' + x.selesai });
+  });
+  var unit = '';
+  if (absPeran_(p).tutor) {
+    var t = absTutorSaya_(p), milik = t ? rows.filter(function(x) { return x.idTutor === t.id; }) : [];
+    unit = milik.length ? milik[0].unit : '';
+  } else if (qUnit !== undefined && qUnit !== null) {
+    unit = ubKunci_(qUnit);
+  } else if (pilihan.length === 1) {
+    unit = pilihan[0].unit;
+  }
+  return { unit: unit, nama: ubNamaKunci_(unit), pilihan: pilihan.length > 1 || (pilihan.length === 1 && pilihan[0].unit) ? pilihan : [] };
+}
+// Saring daftar siswa rombel untuk sesi unit; tiap siswa diberi namaUnit & layanan.
+function ubSaringWb_(wbs, kunci, catat) {
+  var lab = {}, unit = {};
+  try { lab = ubPetaSiswa_(); unit = ubPetaUnit_(); } catch (e) {}
+  return wbs.filter(function(w) {
+    var l = lab[w.id];
+    w.namaUnit = l && l.unit && unit[l.unit] ? unit[l.unit].nama : '';
+    w.layanan = l ? l.layanan : '';
+    if (!kunci) return true;
+    return !(l && l.unit) || ubDalam_(kunci, l.unit) || !!(catat && catat[w.id]);
+  });
+}
+// Nama unit lain bila siswa berlabel unit di luar sesi ini; '' bila boleh.
+function ubLuarUnit_(idWb, kunci) {
+  if (!kunci) return '';
+  var l = null;
+  try { l = ubPetaSiswa_()[String(idWb)]; } catch (e) {}
+  if (!l || !l.unit || ubDalam_(kunci, l.unit)) return '';
+  return ubNamaKunci_(l.unit);
+}
+// Tatap muka yang berlaku untuk satu siswa: {h, t}. perKey: {key: [{id, unit}]}, rec: {idWb|idSesi: true}
+function ubTmWb_(perKey, rec, key, idWb, hadirLama, totalLama) {
+  var list = perKey && perKey[key];
+  if (!list) return { h: hadirLama, t: totalLama };
+  var l = null;
+  try { l = ubPetaSiswa_()[String(idWb)] || null; } catch (e) {}
+  var flexi = !!(l && l.layanan === 'Flexi'), u = l ? l.unit : '';
+  var t = 0;
+  list.forEach(function(s) {
+    var tercatat = !!(rec && rec[idWb + '|' + s.id]);
+    if (flexi) { if (tercatat) t++; return; }
+    if (tercatat || !s.unit || (u && ubDalam_(s.unit, u))) t++;
+  });
+  return { h: Math.min(hadirLama, t), t: t };
+}

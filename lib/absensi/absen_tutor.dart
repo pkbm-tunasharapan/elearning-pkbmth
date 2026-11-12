@@ -55,7 +55,7 @@ class _AbsenTutorScreenState extends State<AbsenTutorScreen> {
                 leading: Icon(k['hadir'] == true ? Icons.check_circle_rounded : (k['terjadwal'] == true ? Icons.event_available_rounded : Icons.event_busy_rounded),
                     color: k['hadir'] == true ? Colors.green : (k['terjadwal'] == true ? Gaya.ungu : Theme.of(c).colorScheme.outline)),
                 title: Text(teks(k['namaMapel'])),
-                subtitle: Text('Rombel ${teks(k['namaRombel'])}${k['terjadwal'] == true ? ' · terjadwal ${teks(k['jam'])}' : ' · tidak terjadwal hari ini'}${k['hadir'] == true ? ' · sudah tercatat hadir' : ''}'),
+                subtitle: Text('Rombel ${teks(k['namaRombel'])}${teks(k['namaUnit']).isEmpty ? '' : ' · ${teks(k['namaUnit'])}'}${k['terjadwal'] == true ? ' · terjadwal ${teks(k['jam'])}' : ' · tidak terjadwal hari ini'}${k['hadir'] == true ? ' · sudah tercatat hadir' : ''}'),
                 onTap: k['hadir'] == true ? null : () => Navigator.pop(c, k),
               ),
           ]),
