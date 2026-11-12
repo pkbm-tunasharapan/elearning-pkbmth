@@ -9,7 +9,7 @@
 //   tanda tangan notifikasi.
 // - Pemasukan dicatat sebesar yang dibayar; biaya layanan per kanal (QRIS, VA, e-wallet, kartu) dicatat terpisah
 //   sebagai pengeluaran ADM dengan nomor invoice yang sama. Akun kas: Saldo Payment Gateway.
-// - Jenis order: Pendaftaran (referral) dan Tagihan WB.
+// - Jenis order: Pendaftaran (referral), Tagihan WB, dan Custom (VA custom pembayar umum, v1.68.0 - VaCustom.gs).
 // ============================================================================
 var GW = {
   TAB: 'GATEWAY ORDER',
@@ -117,7 +117,7 @@ function gwBuatOrder_(o) {
   })[0];
   if (lama) return { invoice: lama['INVOICE'], url: lama['URL'], jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: lama['KADALUARSA'], lama: true,
     judul: o.judul || o.uraian || '', nama: o.nama || '' };
-  var awal = o.jenis === 'Pendaftaran' ? 'REG' : 'TAG';
+  var awal = o.jenis === 'Pendaftaran' ? 'REG' : o.jenis === 'Custom' ? 'VAC' : 'TAG';
   var invoice = (awal + '-' + Utilities.formatDate(new Date(), absTz_(), 'yyMMdd') + '-' + absId_().toUpperCase()).slice(0, 60);
   var isi = {
     order: { amount: jml, invoice_number: invoice, currency: 'IDR', line_items: [{ name: String(o.uraian || o.jenis).slice(0, 60), price: h.pokok, quantity: 1 }]
@@ -190,6 +190,8 @@ function gwSelesai_(x, bayar, kanal) {
         rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online lewat DOKU (' + kanal + ').');
         npKirim_('bayar_online_masuk', { judul: 'Biaya pendaftaran dibayar online ' + honRp_(pokok), isi: rf['NAMA'] + ' (' + (kanal || 'DOKU') + ').', aksi: 'referral_admin', ref: 'gw|' + x['INVOICE'] });   // v1.50.0: notifikasi
       }
+    } else if (x['JENIS'] === 'Custom') {
+      ids = vcCatat_(x, pokok, kanal, fee, bayar, adminBayar);   // v1.68.0: VA custom pembayar umum
     } else {
       ids = gwCatatTagihan_(x, pokok, kanal, fee, bayar, adminBayar);
     }

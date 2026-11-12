@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'honor/honor.dart';
 import 'keuangan/keuangan.dart';
+import 'keuangan/va_custom.dart';
 import 'pemberitahuan.dart';
 import 'induk/pantauan_unit.dart';
 import 'jadwal/agenda_lembaga.dart';
@@ -63,6 +64,8 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
       if (siswa) layar = const TagihanSiswaScreen();
     case 'keuangan':
       if (!siswa) layar = _bungkus('Keuangan', const KeuanganScreen());
+    case 'va_custom':
+      if (!siswa) layar = _bungkus('VA Custom', const VaCustomScreen());
     case 'transfer':
       if (!siswa) layar = const TransferTagihanScreen();
     case 'referral_admin':

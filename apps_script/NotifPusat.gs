@@ -52,6 +52,8 @@ var NP = {
     { kode: 'agenda_libur', nama: 'Libur / belajar mandiri karena agenda', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     // v1.67.0: Front Office melaporkan pembayaran aktivasi QR diterima
     { kode: 'aqr_lapor', nama: 'Pembayaran aktivasi QR diterima FO (perlu diaktifkan)', grup: 'Warga Belajar', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'], fitur: 'aktivasiQr' },
+    // v1.68.0: VA custom dibayar online
+    { kode: 'va_custom_lunas', nama: 'VA custom dibayar', grup: 'Keuangan', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], fitur: 'vaCustom' },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };

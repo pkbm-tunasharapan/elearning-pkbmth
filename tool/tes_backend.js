@@ -1024,5 +1024,61 @@ tes('aktivasi QR: belum aktif ditolak saat pindai, centang Admin catat tunai sek
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.AQR_MEMO_ = null; props.deleteProperty(g.AQR.PROP_TAG); }
 });
 
+// 35. VA custom (v1.68.0)
+tes('VA custom: kode transaksi wajib yang ada, keterangan otomatis, siswa jadi tagihan, umum dicatat sebesar pokok saat lunas', () => {
+  const nama = ['absBaca_', 'keuKatPeta_', 'keuWbSemua_', 'gwHpWb_', 'stafDariToken_', 'absSim_', 'catat_', 'npTagihanBaru_', 'npKirim_', 'keuTrxTab_',
+    'gwBarisDasar_', 'gwCatatAdminBayar_', 'gwCatatBiaya_', 'gwCatatLain_', 'rfWaktu_'];
+  const simpan = {};
+  nama.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const tab = (isi) => {
+      const h = {};
+      isi[0].forEach((x, i) => { h[String(x).toUpperCase()] = i; });
+      return { v: isi.map((b) => b.slice()), h, sh: { appendRow: (r) => isi.push(r.slice()), getRange: (r, c) => ({ setValue: (x) => { isi[r - 1][c - 1] = x; } }) } };
+    };
+    const vc = [g.VC.HDR.slice()], tg = [g.KEU.HDR_TAG.slice()], trx = [['ID TRANSAKSI', 'JENIS', 'KATEGORI KEUANGAN', 'JUMLAH', 'PIHAK TERKAIT', 'URAIAN']];
+    g.absBaca_ = (n) => (n === g.VC.TAB ? tab(vc) : n === g.KEU.TAB_TAG ? tab(tg) : (() => { throw new Error('tab ' + n); })());
+    g.keuTrxTab_ = () => tab(trx);
+    g.keuKatPeta_ = () => ({ DAF: { kode: 'DAF', nama: 'Pendaftaran', jenis: 'Pemasukan' }, ATK: { kode: 'ATK', nama: 'Belanja ATK', jenis: 'Pengeluaran' } });
+    g.keuWbSemua_ = () => [{ id: 'W1', nama: 'Ani', idRombel: 'R1', namaRombel: 'A4', aktif: true }];
+    g.gwHpWb_ = () => ({ hp: '0812', email: '' });
+    g.absSim_ = () => ({ tahun: '2026/2027' });
+    g.catat_ = () => {}; g.rfWaktu_ = () => '2026-11-12 10:00';
+    const tagBaru = [], notif = [];
+    g.npTagihanBaru_ = (id) => tagBaru.push(id);
+    g.npKirim_ = (j) => notif.push(j);
+    g.gwBarisDasar_ = () => ({ 'STATUS': 'Disetujui' });
+    g.gwCatatAdminBayar_ = () => 'ADM1'; g.gwCatatBiaya_ = () => 'FEE1';
+    g.gwCatatLain_ = () => 'LAIN';
+    const orang = { TF: { nama: 'Fia', peran: 'Front Office' }, TB: { nama: 'Bena', peran: 'Bendahara' }, TT: { nama: 'Tono', peran: 'Tutor' } };
+    g.stafDariToken_ = (t) => orang[t];
+    sama(g.vcKeterangan_('Pendaftaran', 'Budi Santoso', ''), 'Pembayaran Pendaftaran atas nama Budi Santoso');
+    sama(g.vcKeterangan_('Biaya Ujian', 'Ani', 'susulan'), 'Biaya Ujian atas nama Ani - susulan');
+    let galat = '';
+    try { g.waStafVaCustomBuat('TT', { kategori: 'DAF', nama: 'Budi', pokok: 500000 }); } catch (e) { galat = e.message; }
+    sama(/Front Office, dan Bendahara/.test(galat), true, 'tutor ditolak');
+    galat = '';
+    try { g.waStafVaCustomBuat('TF', { kategori: 'BARU', nama: 'Budi', pokok: 500000 }); } catch (e) { galat = e.message; }
+    sama(/sudah ada/.test(galat), true, 'kode baru ditolak');
+    galat = '';
+    try { g.waStafVaCustomBuat('TF', { kategori: 'ATK', nama: 'Budi', pokok: 500000 }); } catch (e) { galat = e.message; }
+    sama(/sudah ada/.test(galat), true, 'kategori pengeluaran ditolak');
+    const u = g.waStafVaCustomBuat('TF', { kategori: 'DAF', nama: '  Budi   Santoso ', hp: '0812-11', pokok: '500.000' });
+    sama([u.siswa, u.keterangan, tg.length, vc.length - 1], [false, 'Pembayaran Pendaftaran atas nama Budi Santoso', 1, 1], 'umum: tanpa tagihan');
+    const s = g.waStafVaCustomBuat('TB', { kategori: 'DAF', idWb: 'W1', pokok: 150000 });
+    sama([s.siswa, tg.length - 1, tagBaru.length], [true, 1, 1], 'siswa: tagihan dibuat + notifikasi');
+    const tH = tab(tg).h;
+    sama([tg[1][tH['SASARAN']], tg[1][tH['NILAI SASARAN']], tg[1][tH['KATEGORI']], tg[1][tH['JUMLAH']]], ['Siswa', 'W1', 'DAF', 150000]);
+    // order DOKU "Custom" lunas: pokok 500.000 + admin 4.000
+    const x = { INVOICE: 'VAC-1', REF: u.id, NAMA: 'Budi Santoso' };
+    const ids = g.vcCatat_(x, 500000, 'VIRTUAL_ACCOUNT_BRI', { biaya: 4000 }, 504000, 4000);
+    sama([trx.length - 1, trx[1][2], trx[1][3], trx[1][4], ids.split(',').length], [1, 'DAF', 500000, 'Budi Santoso', 3], 'pemasukan sebesar pokok dengan kode terpilih');
+    sama(notif, ['va_custom_lunas']);
+    sama(g.vcBaca_().data[0].status, 'Lunas');
+    sama(g.vcCatat_(x, 500000, 'BRI', { biaya: 4000 }, 504000, 4000), 'LAIN', 'bayar ganda -> diperiksa');
+    sama(g.izFitur_('waStafVaCustomBuat'), 'vaCustom');
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

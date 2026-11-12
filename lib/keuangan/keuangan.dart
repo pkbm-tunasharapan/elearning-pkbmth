@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'arus.dart';
 import 'bayar_online.dart';
+import 'va_custom.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -106,6 +107,8 @@ class _KeuanganScreenState extends State<KeuanganScreen> {
             const SizedBox(height: 4),
             _Ubin(ikon: Icons.receipt_long_rounded, judul: 'Transaksi', sub: 'Pemasukan & pengeluaran', onTap: () => _buka(TransaksiScreen(konteks: d))),
             _Ubin(ikon: Icons.request_quote_rounded, judul: 'Tagihan Warga Belajar', sub: 'Iuran, biaya ujian, tunggakan', onTap: () => _buka(TagihanScreen(konteks: d))),
+            _Ubin(ikon: Icons.qr_code_2_rounded, judul: 'VA Custom', sub: 'Tagihan sekali bayar, nominal bebas, siswa atau umum',
+                onTap: () => _buka(Scaffold(appBar: AppBar(title: const Text('VA Custom')), body: const VaCustomScreen()))),
             _Ubin(ikon: Icons.account_balance_wallet_rounded, judul: 'Akun Kas & Mutasi', sub: 'Tunai, bank, payment gateway; pemindahan antar akun', onTap: () => _buka(AkunKasScreen(konteks: d))),
             _Ubin(ikon: Icons.receipt_rounded, judul: 'Pajak', sub: 'PPN, potongan PPh, setoran & buku pembantu pajak', onTap: () => _buka(PajakScreen(konteks: d))),
             _Ubin(ikon: Icons.assessment_rounded, judul: 'Laporan Arus Keuangan', sub: 'Cetak lengkap F4: per periode, sumber dana, kategori, akun, pajak, lampiran', onTap: () => _buka(LaporanArusScreen(konteks: d))),
