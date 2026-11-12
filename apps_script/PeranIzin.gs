@@ -41,6 +41,7 @@ var IZN = {
     ['jadwal', 'Jadwal', 'Jadwal', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStaf(JadwalHari|Pemetaan(Daftar|Simpan|SimpanBanyak|Hapus))$/],
     ['usulanJadwal', 'Usulan Jadwal', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Tutor'], /^waStafUsulan(Ajukan|Daftar|Putus)$/],
     ['aturJadwal', 'Pengaturan Jadwal', 'Jadwal', ['Admin'], /^wa(StafJadwalAturan|AdminJadwalAturanSimpan)$/],
+    ['agendaLembaga', 'Agenda Lembaga (di luar kalender akademik)', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Superadmin', 'Koordinator Kurikulum'], /^waStafAgenda\w*$/],
     ['kalender', 'Kalender Akademik', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Koordinator Unit', 'Dinas Pendidikan'], null],
     ['nilaiRapor', 'Nilai & Rapor', 'Nilai & Ujian', ['Admin', 'Kepala Sekolah', 'Tutor', 'Dinas Pendidikan'],
       /^wa(Staf(NilaiKelas|NilaiRekap|NilaiInput|NilaiFormat|NilaiUnggah\w*|Leger|Rapor|Transkrip|Kenaikan(Daftar|Simpan)|BiodataRombel|KartuPeserta)|AdminNilaiOtomatis)$/],

@@ -40,7 +40,8 @@ String _ujianTeks(Map<String, dynamic> u) {
 const _wBerjalan = Color(0xFF16A34A);
 const _wUts = Color(0xFF7C3AED);
 const _wUas = Color(0xFFDC2626);
-const _wUpk = Color(0xFF0F766E); // v1.63.0: UPK (ujian kelulusan kelas akhir)
+const _wUpk = Color(0xFF0F766E);
+const _wAgenda = Color(0xFFD97706); // v1.64.0: agenda lembaga // v1.63.0: UPK (ujian kelulusan kelas akhir)
 Color _wJenis(String j) => j == 'UTS' ? _wUts : (j == 'UPK' ? _wUpk : _wUas);
 String _namaJenisSesi(String j) => j == 'UTS' ? 'Ujian Tengah Semester' : (j == 'UPK' ? 'Ujian Pendidikan Kesetaraan (UPK)' : 'Ujian Akhir Semester');
 const _wTatapMuka = Color(0xFF1D4ED8);
@@ -241,6 +242,9 @@ class _KalenderViewState extends State<KalenderView> {
     return null;
   }
 
+  List<Map<String, dynamic>> _agendaPada(String iso) =>
+      daftar(d['agenda']).map(peta).where((a) => teks(a['dari']).compareTo(iso) <= 0 && teks(a['sampai']).compareTo(iso) >= 0).toList();
+
   Map<String, List<Map<String, dynamic>>> _petaUjian() {
     final isi = peta(d['isi']);
     final out = <String, List<Map<String, dynamic>>>{};
@@ -293,6 +297,7 @@ class _KalenderViewState extends State<KalenderView> {
                   ? _wJenis(jenis)
                   : (teks(s['status']) == 'berjalan' ? _wBerjalan : cs.primary);
           final adaUjian = ujian.containsKey(_iso(h));
+          final adaAgenda = _agendaPada(_iso(h)).isNotEmpty;
           final adaTm = tmHari.contains(_iso(h));
           final dipilih = s != null && teks(s['key']) == _pilihSesi;
           return InkWell(
@@ -309,12 +314,15 @@ class _KalenderViewState extends State<KalenderView> {
                 Center(child: Text('$t', style: TextStyle(fontWeight: adaUjian ? FontWeight.w900 : FontWeight.w600, color: adaUjian ? _wUas : null))),
                 if (adaUjian) const Positioned(right: 4, top: 4, child: Icon(Icons.circle, size: 7, color: _wUas)),
                 if (adaTm) const Positioned(left: 4, bottom: 4, child: Icon(Icons.groups_rounded, size: 10, color: _wTatapMuka)),
+                if (adaAgenda) const Positioned(right: 3, bottom: 3, child: Icon(Icons.flag_rounded, size: 10, color: _wAgenda)),
               ]),
             ),
           );
         }),
     ];
     final sesiPilih = _sesi.where((x) => teks(x['key']) == _pilihSesi).firstOrNull;
+    final awalBln = _iso(DateTime(_bln.year, _bln.month, 1)), akhirBln = _iso(DateTime(_bln.year, _bln.month + 1, 0));
+    final agendaBulan = daftar(d['agenda']).map(peta).where((a) => teks(a['sampai']).compareTo(awalBln) >= 0 && teks(a['dari']).compareTo(akhirBln) <= 0).toList();
     final ujianBulan = ujian.entries.where((e) {
       final t = _tgl(e.key);
       return t != null && t.year == _bln.year && t.month == _bln.month;
@@ -347,6 +355,21 @@ class _KalenderViewState extends State<KalenderView> {
           ]),
         ),
       ),
+      if (agendaBulan.isNotEmpty) ...[
+        const JudulBagian('Agenda lembaga bulan ini'),
+        Card(
+          child: Column(children: [
+            for (final a in agendaBulan)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.flag_rounded, color: _wAgenda),
+                title: Text('${teks(a['nama'])} · ${teks(a['jenis'])}'),
+                subtitle: Text('${teks(a['dari']) == teks(a['sampai']) ? _panjang(a['dari']) : '${_panjang(a['dari'])} – ${_panjang(a['sampai'])}'}'
+                    ' · rombel ini: ${teks(a['status'])}${teks(a['ket']).isEmpty ? '' : '\n${teks(a['ket'])}'}'),
+              ),
+          ]),
+        ),
+      ],
       if (ujianBulan.isNotEmpty) ...[
         const JudulBagian('Jadwal ujian & asesmen bulan ini'),
         Card(

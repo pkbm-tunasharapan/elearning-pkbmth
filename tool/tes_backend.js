@@ -879,5 +879,24 @@ tes('ujian: draf masa dari kalender akademik (UTS/UAS, UPK bila diatur, yang sud
   sama(g.ujsDraf_(cfg, nanti, [], []).map((x) => x.jenis + x.smt), ['UTS2', 'UAS2'], 'yang lewat tidak ditawarkan');
 });
 
+// 30. agenda lembaga (v1.64.0)
+tes('agenda: sasaran rombel/jenjang/unit dan jadwal tatap muka yang ditiadakan', () => {
+  const tka = { dari: '2027-03-01', sampai: '2027-03-03', sasaran: { mode: 'rombel', nilai: ['R12'] }, statusLain: 'Libur', gantiJadwal: true };
+  sama([g.agRombelSasaran_(tka, 'R12', 'PKT-C', ''), g.agRombelSasaran_(tka, 'R10', 'PKT-C', '')], ['penuh', '']);
+  sama(!!g.agJadwalLibur_([tka], '2027-03-02', 'R12', 'PKT-C', ''), true, 'sasaran: jadwal diganti agenda');
+  sama(!!g.agJadwalLibur_([tka], '2027-03-02', 'R10', 'PKT-C', ''), true, 'bukan sasaran: libur');
+  sama(!!g.agJadwalLibur_([tka], '2027-03-05', 'R10', 'PKT-C', ''), false, 'di luar tanggal');
+  const biasa = Object.assign({}, tka, { statusLain: 'Belajar biasa' });
+  sama(!!g.agJadwalLibur_([biasa], '2027-03-02', 'R10', 'PKT-C', ''), false, 'bukan sasaran belajar biasa: jadwal tetap');
+  const tetap = Object.assign({}, biasa, { gantiJadwal: false });
+  sama(!!g.agJadwalLibur_([tetap], '2027-03-02', 'R12', 'PKT-C', ''), false, 'sasaran tanpa ganti jadwal');
+  const jj = { dari: '2027-03-01', sampai: '2027-03-01', sasaran: { mode: 'jenjang', nilai: ['PKT-B'] }, statusLain: 'Belajar mandiri', gantiJadwal: true };
+  sama([!!g.agJadwalLibur_([jj], '2027-03-01', 'R8', 'PKT-B', ''), !!g.agJadwalLibur_([jj], '2027-03-01', 'R11', 'PKT-C', '')], [true, true]);
+  const un = { dari: '2027-03-01', sampai: '2027-03-01', sasaran: { mode: 'unit', nilai: ['U1'] }, statusLain: 'Belajar biasa', gantiJadwal: true };
+  sama([g.agRombelSasaran_(un, 'R1', '', 'U1'), g.agRombelSasaran_(un, 'R1', '', 'U1,U2'), g.agRombelSasaran_(un, 'R1', '', 'U2')], ['penuh', 'sebagian', '']);
+  sama([!!g.agJadwalLibur_([un], '2027-03-01', 'R1', '', 'U1'), !!g.agJadwalLibur_([un], '2027-03-01', 'R1', '', 'U2')], [true, false], 'sesi unit 1 diganti, unit 2 tetap');
+  sama([g.izFitur_('waStafAgendaSahkan'), g.izAksi_('waStafAgendaData')], ['agendaLembaga', 'lihat']);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

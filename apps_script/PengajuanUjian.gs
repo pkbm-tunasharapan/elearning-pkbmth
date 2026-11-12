@@ -1103,9 +1103,20 @@ function kalBangun_(idRombel) {
   return {
     sekolah: kalSekolah_(), tahunAjaran: cfg.label || '', idRombel: rb.id, namaRombel: rb.nama, sekarangMs: now,
     mulai: sesi[0].mulai, selesai: sesi[sesi.length - 1].selesai, uts: cfg.uts, uas: cfg.uas, upk: akhir ? cfg.upk : 0,
+    agenda: kalAgenda_(id, sesi[0].mulai, sesi[sesi.length - 1].selesai),
     mapel: mapel.map(function(m) { return { idMapel: m.idMapel, namaMapel: m.namaMapel, tutor: tutor[m.idMapel] || (m.tutorTeks ? [m.tutorTeks] : []) }; }),
     sesi: sesi, isi: isi
   };
+}
+
+// v1.64.0: agenda lembaga (disahkan) untuk rombel e-Learning ini, dipetakan ke rombel SIM-nya.
+function kalAgenda_(idRombelEl, dari, sampai) {
+  if (typeof agKalender_ !== 'function') return [];
+  try {
+    var peta = nilPetaBm_(), sim = '', rb = honProgramRombel_();
+    Object.keys(peta.rombel).forEach(function(r) { if (!sim && peta.rombel[r][idRombelEl]) sim = r; });
+    return agKalender_(sim, sim && rb[sim] ? rb[sim].program : '', dari, sampai);
+  } catch (e) { return []; }
 }
 
 // Hasil kalender disimpan sementara (90 detik, terkompresi) agar pembukaan berikutnya tidak membaca banyak sheet lagi.

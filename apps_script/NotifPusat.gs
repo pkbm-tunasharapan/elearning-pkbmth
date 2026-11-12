@@ -44,6 +44,12 @@ var NP = {
     // v1.61.0: hanya ke koordinator unit siswa terkait (hanyaStaf); kolom peran = sakelar aktif/nonaktif
     { kode: 'unit_pelanggaran', nama: 'Siswa unit Anda melakukan pelanggaran berat saat ujian', grup: 'Unit Belajar', sasaran: 'peran', peran: ['Koordinator Unit'], hanyaStaf: true },
     { kode: 'unit_mingguan', nama: 'Ringkasan mingguan unit (kehadiran kurang & tunggakan)', grup: 'Unit Belajar', sasaran: 'peran', peran: ['Koordinator Unit'], hanyaStaf: true },
+    // v1.64.0: agenda lembaga
+    { kode: 'agenda_minta_sah', nama: 'Agenda lembaga menunggu pengesahan', grup: 'Agenda', sasaran: 'peran', peran: ['Kepala Sekolah'], fitur: 'agendaLembaga' },
+    { kode: 'agenda_staf', nama: 'Agenda lembaga disahkan / dibatalkan', grup: 'Agenda', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Koordinator Unit', 'Front Office'] },
+    { kode: 'agenda_tutor', nama: 'Jadwal tatap muka ditiadakan karena agenda', grup: 'Agenda', sasaran: 'tutor', peran: ['Tutor'] },
+    { kode: 'agenda_sasaran', nama: 'Agenda untuk siswa sasaran', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
+    { kode: 'agenda_libur', nama: 'Libur / belajar mandiri karena agenda', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };

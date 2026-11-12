@@ -10,6 +10,7 @@ import 'induk/impor_dapodik.dart';
 import 'induk/induk.dart';
 import 'induk/pantauan_unit.dart';
 import 'induk/unit_belajar.dart';
+import 'jadwal/agenda_lembaga.dart';
 import 'jadwal/jadwal.dart';
 import 'referral/referral.dart';
 import 'referral/referral_admin.dart';
@@ -122,6 +123,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'ta', judul: 'Tahun Ajaran', ikon: Icons.event_note_outlined, peran: _admin, native: () => const TahunAjaranScreen()),
   MenuApp(id: 'log', judul: 'Log Aktivitas', ikon: Icons.receipt_long_outlined, peran: _admin, native: () => const LogScreen()),
   MenuApp(id: 'reset', judul: 'Reset Data', ikon: Icons.cleaning_services_outlined, peran: _admin, native: () => const ResetScreen()),
+  MenuApp(id: 'agendaLembaga', judul: 'Agenda Lembaga', ikon: Icons.campaign_outlined, peran: {'Admin', 'Kepala Sekolah', 'Superadmin', 'Koordinator Kurikulum'}, native: () => const AgendaLembagaScreen()),
   MenuApp(id: 'kalender', judul: 'Kalender Akademik', ikon: Icons.calendar_month_outlined, peran: {..._pimpinan, 'Koordinator Unit', 'Dinas Pendidikan'}, native: () => const KalenderStafScreen()),
   MenuApp(id: 'ruangStaf', judul: 'Ruang Staf', ikon: Icons.forum_outlined, peran: _semua, native: () => const RuangStafScreen()),
   MenuApp(id: 'pengajuanTutor', judul: 'Pengajuan Tutor', ikon: Icons.assignment_ind_outlined, peran: _admin, native: () => const PengajuanTutorScreen()),
@@ -157,7 +159,7 @@ const _grupMenu = <String, String>{
   'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
-  'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
+  'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'agendaLembaga': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
   'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'pantauanUnit': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
@@ -185,6 +187,7 @@ const _kataKunci = <String, String>{
   'referralAdmin': 'verifikasi pendaftaran berkas pembayaran penarikan cashback qris',
   'pengawasUjian': 'pengawas ujian token pantau berita acara daftar hadir ruang awas',
   'pantauanUnit': 'pantau unit koordinator kehadiran tunggakan siswa flexi reguler',
+  'agendaLembaga': 'agenda kegiatan tka libur khusus acara lembaga sasaran pengesahan',
   'unitBelajar': 'unit titik lokasi tempat belajar koordinator flexi reguler setara layanan klasifikasi siswa',
   'masaUjian': 'uts uas tryout ujian serentak masa jadwal online peserta bank soal',
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah cetak pts pas asesmen',

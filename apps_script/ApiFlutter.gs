@@ -1936,7 +1936,10 @@ function jadBerlaku_(x, tanggal) {
   if (!jadKelasAktif_()[x.idRombel + '|' + x.kodeMapel]) return false;
   if (x.dari && tanggal < x.dari) return false;
   if (x.sampai && tanggal > x.sampai) return false;
-  return x.hari === jadHariDari_(tanggal);
+  if (x.hari !== jadHariDari_(tanggal)) return false;
+  // v1.64.0: agenda lembaga yang disahkan (libur / kegiatan pengganti) meniadakan jadwal tatap muka ini
+  if (typeof agLiburPm_ === 'function' && agLiburPm_(x, tanggal)) return false;
+  return true;
 }
 // Pemetaan tutor yang berlaku pada tanggal tertentu.
 function jadTutorHari_(idTutor, tanggal) {
