@@ -8,6 +8,7 @@ import 'absensi/laporan.dart';
 import 'honor/honor.dart';
 import 'induk/impor_dapodik.dart';
 import 'induk/induk.dart';
+import 'induk/unit_belajar.dart';
 import 'jadwal/jadwal.dart';
 import 'referral/referral.dart';
 import 'referral/referral_admin.dart';
@@ -109,6 +110,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'progres', judul: 'Progres Kelas', ikon: Icons.insights_outlined, peran: {..._pimpinan, 'Dinas Pendidikan'}, native: () => const ProgresScreen(), utama: true),
   MenuApp(id: 'nilai', judul: 'Belum Dinilai', ikon: Icons.rate_review_outlined, peran: {..._semua, 'Dinas Pendidikan'}, native: () => const BelumDinilaiScreen(), utama: true),
   MenuApp(id: 'kotakUjian', judul: 'Kotak Ujian', ikon: Icons.assignment_turned_in_outlined, peran: _semua, native: () => const KotakUjianScreen()),
+  MenuApp(id: 'unitBelajar', judul: 'Unit Belajar', ikon: Icons.place_outlined, peran: {'Admin', 'Superadmin'}, native: () => const UnitBelajarScreen()),
   MenuApp(id: 'siswaRombel', judul: 'Siswa per Rombel', ikon: Icons.school_outlined, peran: {..._semua, 'Dinas Pendidikan'}, native: () => const SiswaRombelScreen()),
   MenuApp(id: 'kelolaMapel', judul: 'Kelola Mata Pelajaran', ikon: Icons.library_books_outlined, peran: _admin, native: () => const KelolaMapelScreen()),
   MenuApp(id: 'imporDapodik', judul: 'Impor Dapodik', ikon: Icons.cloud_upload_outlined, peran: _admin, native: () => const ImporDapodikScreen()),
@@ -155,7 +157,7 @@ const _grupMenu = <String, String>{
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
   'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
-  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
+  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
   'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'peranIzin': 'Sistem', 'maintenance': 'Sistem',
@@ -181,6 +183,7 @@ const _kataKunci = <String, String>{
   'promosi': 'iklan banner popup pengumuman promo',
   'referralAdmin': 'verifikasi pendaftaran berkas pembayaran penarikan cashback qris',
   'pengawasUjian': 'pengawas ujian token pantau berita acara daftar hadir ruang awas',
+  'unitBelajar': 'unit titik lokasi tempat belajar koordinator flexi reguler setara layanan klasifikasi siswa',
   'masaUjian': 'uts uas tryout ujian serentak masa jadwal online peserta bank soal',
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah cetak pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',

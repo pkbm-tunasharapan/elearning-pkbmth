@@ -1425,5 +1425,7 @@ function waStafRombelSiswa(token) {
   }
   urut.forEach(function(r) { r.siswa.sort(function(a, b) { return a.nama.localeCompare(b.nama); }); r.mapel.sort(); });
   urut.sort(function(a, b) { return a.namaRombel.localeCompare(b.namaRombel); });
+  // v1.60.0: label unit belajar & layanan (Reguler/Flexi), hanya tampil
+  if (typeof ubTempelRombelSiswa_ === 'function') { try { ubTempelRombelSiswa_(urut); } catch (eU) {} }
   return urut;
 }

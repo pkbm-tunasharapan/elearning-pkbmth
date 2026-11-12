@@ -751,5 +751,27 @@ tes('kesiapan: penggolongan alasan gagal mulai & rentang tanggal', () => {
   sama(g.KU.FUNGSI.indexOf('waMulaiUjian') >= 0, true, 'fungsi ujian dipantau');
 });
 
+// 25. unit belajar & layanan siswa (v1.60.0)
+tes('unit belajar: normalisasi layanan & rencana perubahan label', () => {
+  sama([g.ubNormLayanan_('flexi'), g.ubNormLayanan_('Setara Reguler'), g.ubNormLayanan_(' REGULER '), g.ubNormLayanan_('')], ['Flexi', 'Reguler', 'Reguler', '']);
+  let galat = '';
+  try { g.ubNormLayanan_('Paket C'); } catch (e) { galat = e.message; }
+  sama(/Reguler atau Flexi/.test(galat), true, 'layanan tak dikenal ditolak');
+  sama(g.ubRencana_({ unit: 'U1', layanan: 'Flexi' }, 'U1', null), null, 'tidak ada perubahan');
+  sama(g.ubRencana_({ unit: 'U1', layanan: 'Flexi' }, 'U2', null), { unitLama: 'U1', unitBaru: 'U2', layananLama: 'Flexi', layananBaru: 'Flexi' }, 'pindah unit, layanan tetap');
+  sama(g.ubRencana_(undefined, null, 'Reguler'), { unitLama: '', unitBaru: '', layananLama: '', layananBaru: 'Reguler' }, 'siswa baru: hanya layanan');
+  sama(g.ubRencana_({ unit: 'U1', layanan: 'Reguler' }, '', null), { unitLama: 'U1', unitBaru: '', layananLama: 'Reguler', layananBaru: 'Reguler' }, 'kosongkan unit');
+  sama([g.izFitur_('waStafUnitData'), g.izFitur_('waStafUnitTetapkan')], ['unitBelajar', 'unitBelajar'], 'fitur terdaftar');
+  sama([g.izAksi_('waStafUnitData'), g.izAksi_('waStafUnitRiwayat'), g.izAksi_('waStafUnitSimpan'), g.izAksi_('waStafUnitTetapkan')], ['lihat', 'lihat', 'ubah', 'ubah']);
+  let tolak = '';
+  try { g.ubWajib_({ peran: 'Kepala Sekolah' }); } catch (e) { tolak = e.message; }
+  sama(/hanya oleh Admin/.test(tolak), true, 'peran lain ditolak');
+  g.ubWajib_({ peran: 'Superadmin' });
+  let tolakUbah = '';
+  try { g.ubWajib_({ peran: 'Superadmin' }, true); } catch (e) { tolakUbah = e.message; }
+  sama(/hanya oleh Admin/.test(tolakUbah), true, 'Superadmin hanya melihat');
+  g.ubWajib_({ peran: 'Admin' }, true);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

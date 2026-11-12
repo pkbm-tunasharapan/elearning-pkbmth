@@ -108,6 +108,8 @@ class _SiswaRombelScreenState extends State<SiswaRombelScreen> {
                             if (teks(s['lahir']).isNotEmpty) 'lahir ${teks(s['lahir'])}',
                             if (teks(s['kontak']).isNotEmpty) teks(s['kontak']),
                             if (teks(s['daftar']).isNotEmpty) 'daftar ${teks(s['daftar'])}',
+                            if (teks(s['unit']).isNotEmpty) teks(s['unit']),
+                            if (teks(s['layanan']).isNotEmpty) teks(s['layanan']),
                           ].join(' · ')),
                           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                             if (teks(s['kontak']).isNotEmpty) const Icon(Icons.verified_outlined, color: Colors.green, size: 18),
