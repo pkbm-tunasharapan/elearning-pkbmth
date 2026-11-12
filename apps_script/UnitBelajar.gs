@@ -10,7 +10,7 @@
 // - Siswa tanpa label = perilaku aplikasi sama seperti sebelumnya.
 // ============================================================================
 var UB = {
-  TAB_UNIT: 'UNIT BELAJAR', HDR_UNIT: ['ID UNIT', 'NAMA UNIT', 'ALAMAT', 'KETERANGAN', 'AKTIF', 'DIUBAH OLEH', 'DIUBAH PADA', 'KOORDINATOR'],
+  TAB_UNIT: 'UNIT BELAJAR', HDR_UNIT: ['ID UNIT', 'NAMA UNIT', 'ALAMAT', 'KETERANGAN', 'AKTIF', 'DIUBAH OLEH', 'DIUBAH PADA', 'KOORDINATOR', 'UTAMA'],
   TAB_SISWA: 'UNIT SISWA', HDR_SISWA: ['ID WB', 'UNIT', 'LAYANAN', 'DIUBAH OLEH', 'DIUBAH PADA'],
   TAB_RIW: 'RIWAYAT UNIT SISWA', HDR_RIW: ['WAKTU', 'ID WB', 'NAMA WB', 'UNIT LAMA', 'UNIT BARU', 'LAYANAN LAMA', 'LAYANAN BARU', 'OLEH', 'CATATAN'],
   LAYANAN: ['Reguler', 'Flexi'],
@@ -52,7 +52,7 @@ function ubUnit_() {
     if (!id) continue;
     out.push({ baris: i + 1, id: id, nama: sTeks_(absNilai_(t, t.v[i], 'NAMA UNIT')).trim(), alamat: sTeks_(absNilai_(t, t.v[i], 'ALAMAT')).trim(),
       ket: sTeks_(absNilai_(t, t.v[i], 'KETERANGAN')).trim(), aktif: absBenar_(absNilai_(t, t.v[i], 'AKTIF')),
-      koordinator: ubDaftarId_(absNilai_(t, t.v[i], 'KOORDINATOR')) });
+      koordinator: ubDaftarId_(absNilai_(t, t.v[i], 'KOORDINATOR')), utama: absBenar_(absNilai_(t, t.v[i], 'UTAMA')) });
   }
   out.sort(function(a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); });
   return (UB_MEMO_.unit = out);
@@ -70,6 +70,22 @@ function ubPetaSiswa_() {
   return (UB_MEMO_.siswa = o);
 }
 // Label siap tampil untuk satu siswa: {unit: idUnit, namaUnit, layanan}. Dipakai tahap berikutnya.
+// v1.64.2: UNIT UTAMA. Satu unit aktif dapat ditandai utama; siswa yang belum berlabel unit dianggap anggota unit
+// itu (absensi, kehadiran, pantauan koordinator, ruang ujian, sasaran agenda). Label di data tidak berubah.
+function ubUtama_() {
+  var u = ubUnit_().filter(function(x) { return x.utama && x.aktif; })[0];
+  return u ? u.id : '';
+}
+// Koordinator efektif unit: yang ditunjuk Admin; unit UTAMA tanpa koordinator -> Kepala Sekolah aktif (bawaan).
+function ubKoordEf_(u) {
+  if (u.koordinator.length || !u.utama) return u.koordinator.slice();
+  return bacaPengguna_().filter(function(x) { return x.peran === 'Kepala Sekolah' && x.status === 'Aktif'; }).map(function(x) { return x.id; });
+}
+// Unit efektif siswa: label unitnya, atau unit utama bila belum berlabel.
+function ubUnitEf_(idWb, lab) {
+  var l = (lab || ubPetaSiswa_())[String(idWb)];
+  return l && l.unit ? l.unit : ubUtama_();
+}
 function ubLabel_(idWb) {
   var s = ubPetaSiswa_()[String(idWb)];
   if (!s) return { unit: '', namaUnit: '', layanan: '' };
@@ -103,8 +119,9 @@ function waStafUnitData(token) {
   calon.forEach(function(c) { namaK[c.id] = c.nama; });
   return {
     unit: unit.map(function(u) {
-      return { id: u.id, nama: u.nama, alamat: u.alamat, ket: u.ket, aktif: u.aktif, jumlah: hit[u.id] || 0,
-        koordinator: u.koordinator, namaKoordinator: u.koordinator.map(function(k) { return namaK[k] || k; }) };
+      return { id: u.id, nama: u.nama, alamat: u.alamat, ket: u.ket, aktif: u.aktif, jumlah: hit[u.id] || 0, utama: u.utama,
+        koordinator: u.koordinator,
+        namaKoordinator: u.koordinator.length ? u.koordinator.map(function(k) { return namaK[k] || k; }) : (u.utama && u.aktif ? ['Kepala Sekolah (bawaan unit utama)'] : []) };
     }),
     calonKoordinator: calon,
     siswa: siswa, layanan: UB.LAYANAN,
@@ -131,7 +148,8 @@ function waStafUnitSimpan(token, d) {
     var calon = {};
     ubCalonKoord_().forEach(function(c) { calon[c.id] = true; });
     var koord = (Array.isArray(d.koordinator) ? d.koordinator : []).map(String).filter(function(k, i, a) { return calon[k] && a.indexOf(k) === i; });
-    var isi = { 'KOORDINATOR': koord.join(','), 'NAMA UNIT': nama, 'ALAMAT': ubNormNama_(d.alamat).slice(0, 200), 'KETERANGAN': String(d.ket || '').trim().slice(0, 300),
+    var isi = { 'KOORDINATOR': koord.join(','), 'NAMA UNIT': nama,
+      'UTAMA': d.utama === true && aktif ? 'Ya' : (d.utama === false || !aktif ? '' : undefined), 'ALAMAT': ubNormNama_(d.alamat).slice(0, 200), 'KETERANGAN': String(d.ket || '').trim().slice(0, 300),
       'AKTIF': aktif ? 'Ya' : 'Tidak', 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': absWaktu_() };
     var id = String(d.id || '');
     if (id) {
@@ -142,12 +160,19 @@ function waStafUnitSimpan(token, d) {
         Object.keys(lab).forEach(function(k) { if (lab[k].unit === id) n++; });
         if (n) throw new Error('Masih ada ' + n + ' siswa di ' + u.nama + '. Pindahkan dulu sebelum menonaktifkan unit.');
       }
+      if (isi['UTAMA'] === undefined) delete isi['UTAMA'];   // aplikasi lama tidak mengirim pilihan utama: biarkan
       var baris = absBaris_(t, isi);
       Object.keys(isi).forEach(function(k) { var c = absCol_(t, k); if (c >= 0) t.sh.getRange(u.baris, c + 1).setValue(baris[c]); });
     } else {
       id = 'UNIT-' + absId_().toUpperCase();
       isi['ID UNIT'] = id;
+      if (isi['UTAMA'] === undefined) isi['UTAMA'] = '';
       t.sh.appendRow(absBaris_(t, isi));
+    }
+    // hanya satu unit utama
+    if (isi['UTAMA'] === 'Ya') {
+      var cU = absCol_(t, 'UTAMA');
+      semua.forEach(function(x) { if (x.id !== id && x.utama && cU >= 0) t.sh.getRange(x.baris, cU + 1).setValue(''); });
     }
     UB_MEMO_ = {};
   } finally { kunci.releaseLock(); }
@@ -242,7 +267,7 @@ function waStafUnitRiwayat(token, idWb) {
 // rombel SIM yang terpetakan + nama. Bila belum ada label sama sekali, tidak ada yang dikerjakan.
 function ubTempelRombelSiswa_(rom) {
   var lab = ubPetaSiswa_();
-  if (!Object.keys(lab).length) return rom;
+  if (!Object.keys(lab).length && !ubUtama_()) return rom;
   var peta = nilPetaBm_(), keSim = {};
   Object.keys(peta.rombel).forEach(function(simR) { Object.keys(peta.rombel[simR]).forEach(function(elR) { (keSim[elR] = keSim[elR] || []).push(simR); }); });
   var wbR = {};
@@ -253,10 +278,10 @@ function ubTempelRombelSiswa_(rom) {
     (keSim[String(r.idRombel)] || []).forEach(function(s) { wbs = wbs.concat(wbR[s] || []); });
     if (!wbs.length) return;
     r.siswa.forEach(function(s) {
-      var w = nilCocokWb_(wbs, '', s.nama), l = w && lab[w.id];
-      if (!l) return;
-      s.unit = l.unit && unit[l.unit] ? unit[l.unit].nama : '';
-      s.layanan = l.layanan;
+      var w = nilCocokWb_(wbs, '', s.nama), l = w && lab[w.id], ue = w ? ubUnitEf_(w.id, lab) : '';
+      if (!l && !ue) return;
+      s.unit = ue && unit[ue] ? unit[ue].nama + (l && l.unit ? '' : ' (utama)') : '';
+      s.layanan = l ? l.layanan : '';
     });
   });
   return rom;
@@ -284,9 +309,9 @@ function ubUnitSaya_(p) {
 }
 // ID pengguna koordinator untuk siswa (ID WB).
 function ubKoordWb_(idWb) {
-  var s = ubPetaSiswa_()[String(idWb)];
-  var u = s && s.unit ? ubPetaUnit_()[s.unit] : null;
-  return u && u.aktif ? u.koordinator.slice() : [];
+  var ue = ubUnitEf_(idWb);
+  var u = ue ? ubPetaUnit_()[ue] : null;
+  return u && u.aktif ? ubKoordEf_(u) : [];
 }
 
 // Ringkas satu siswa: urutan masalah (kurang hadir, lalu tunggakan lewat tempo).
@@ -298,11 +323,11 @@ function ubPantau_(idUnit, paksa) {
   if (!paksa) { try { var l = c.get(ck); if (l) return JSON.parse(l); } catch (e) {} }
   var u = ubPetaUnit_()[idUnit];
   if (!u) throw new Error('Unit tidak ditemukan.');
-  var lab = ubPetaSiswa_(), wb = keuWbSemua_().filter(function(w) { return w.aktif && lab[w.id] && lab[w.id].unit === idUnit; });
+  var lab = ubPetaSiswa_(), wb = keuWbSemua_().filter(function(w) { return w.aktif && ubUnitEf_(w.id, lab) === idUnit; });
   var per = nilPeriode_(), at = nilAturan_(), byR = {}, data = {}, hari = absHariIni_();
   wb.forEach(function(w) {
     (byR[w.idRombel] = byR[w.idRombel] || []).push(w);
-    data[w.id] = { id: w.id, nama: w.nama, nisn: w.nisn, namaRombel: w.namaRombel, layanan: lab[w.id].layanan, jml: 0, n: 0, kurang: [], sisa: 0, lewat: 0 };
+    data[w.id] = { id: w.id, nama: w.nama, nisn: w.nisn, namaRombel: w.namaRombel, layanan: lab[w.id] ? lab[w.id].layanan : '', jml: 0, n: 0, kurang: [], sisa: 0, lewat: 0 };
   });
   // kehadiran gabungan per rombel|mapel aktif (sama dengan syarat ujian)
   var peta = nilPetaBm_(), nmMapel = honNamaMapel_();
@@ -395,12 +420,12 @@ function ubNotifPelanggaran_(idRombel, nama, j, kunciKe) {
 
 // Ringkasan mingguan (dipanggil npMingguan_, Senin).
 function ubMingguan_(hari) {
-  ubUnit_().filter(function(u) { return u.aktif && u.koordinator.length; }).forEach(function(u) {
+  ubUnit_().filter(function(u) { return u.aktif && ubKoordEf_(u).length; }).forEach(function(u) {
     try {
       var r = ubPantau_(u.id, true).ringkas;
       if (!r.siswa) return;
       npKirim_('unit_mingguan', { judul: 'Ringkasan ' + u.nama, isi: r.siswa + ' siswa · ' + r.kurangHadir + ' kehadiran di bawah syarat · ' + r.lewatTempo +
-        ' tunggakan lewat jatuh tempo (' + honRp_(r.nilaiLewat) + '). Buka Pantauan Unit untuk rinciannya.', aksi: 'pantauan_unit', staf: u.koordinator, ref: 'ubm|' + u.id + '|' + hari });
+        ' tunggakan lewat jatuh tempo (' + honRp_(r.nilaiLewat) + '). Buka Pantauan Unit untuk rinciannya.', aksi: 'pantauan_unit', staf: ubKoordEf_(u), ref: 'ubm|' + u.id + '|' + hari });
     } catch (e) {}
   });
 }
@@ -608,23 +633,23 @@ function ubUnitSesi_(p, kelas, tanggal, qUnit) {
 }
 // Saring daftar siswa rombel untuk sesi unit; tiap siswa diberi namaUnit & layanan.
 function ubSaringWb_(wbs, kunci, catat) {
-  var lab = {}, unit = {};
-  try { lab = ubPetaSiswa_(); unit = ubPetaUnit_(); } catch (e) {}
+  var lab = {}, unit = {}, utama = '';
+  try { lab = ubPetaSiswa_(); unit = ubPetaUnit_(); utama = ubUtama_(); } catch (e) {}
   return wbs.filter(function(w) {
-    var l = lab[w.id];
-    w.namaUnit = l && l.unit && unit[l.unit] ? unit[l.unit].nama : '';
+    var l = lab[w.id], ue = l && l.unit ? l.unit : utama;
+    w.namaUnit = ue && unit[ue] ? unit[ue].nama + (l && l.unit ? '' : ' (utama)') : '';
     w.layanan = l ? l.layanan : '';
     if (!kunci) return true;
-    return !(l && l.unit) || ubDalam_(kunci, l.unit) || !!(catat && catat[w.id]);
+    return !ue || ubDalam_(kunci, ue) || !!(catat && catat[w.id]);
   });
 }
 // Nama unit lain bila siswa berlabel unit di luar sesi ini; '' bila boleh.
 function ubLuarUnit_(idWb, kunci) {
   if (!kunci) return '';
-  var l = null;
-  try { l = ubPetaSiswa_()[String(idWb)]; } catch (e) {}
-  if (!l || !l.unit || ubDalam_(kunci, l.unit)) return '';
-  return ubNamaKunci_(l.unit);
+  var ue = '';
+  try { ue = ubUnitEf_(idWb); } catch (e) {}
+  if (!ue || ubDalam_(kunci, ue)) return '';
+  return ubNamaKunci_(ue);
 }
 // Tatap muka yang berlaku untuk satu siswa: {h, t}. perKey: {key: [{id, unit}]}, rec: {idWb|idSesi: true}
 function ubTmWb_(perKey, rec, key, idWb, hadirLama, totalLama) {
@@ -632,7 +657,8 @@ function ubTmWb_(perKey, rec, key, idWb, hadirLama, totalLama) {
   if (!list) return { h: hadirLama, t: totalLama };
   var l = null;
   try { l = ubPetaSiswa_()[String(idWb)] || null; } catch (e) {}
-  var flexi = !!(l && l.layanan === 'Flexi'), u = l ? l.unit : '';
+  var flexi = !!(l && l.layanan === 'Flexi'), u = l && l.unit ? l.unit : '';
+  if (!u) { try { u = ubUtama_(); } catch (e2) {} }
   var t = 0;
   list.forEach(function(s) {
     var tercatat = !!(rec && rec[idWb + '|' + s.id]);

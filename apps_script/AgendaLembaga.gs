@@ -89,7 +89,7 @@ function agPenerima_(a) {
   keuWbSemua_().forEach(function(w) {
     if (!w.aktif) return;
     var masuk = s.mode === 'semua' || (s.mode === 'jenjang' && v.indexOf(String(w.program)) >= 0) || (s.mode === 'rombel' && v.indexOf(w.idRombel) >= 0) ||
-      (s.mode === 'unit' && lab[w.id] && v.indexOf(lab[w.id].unit) >= 0) || (s.mode === 'siswa' && v.indexOf(w.id) >= 0);
+      (s.mode === 'unit' && v.indexOf(typeof ubUnitEf_ === 'function' ? ubUnitEf_(w.id, lab) : (lab[w.id] || {}).unit) >= 0) || (s.mode === 'siswa' && v.indexOf(w.id) >= 0);
     (masuk ? ya : tidak).push(w.id);
     if (masuk) rombel[w.idRombel] = true;
   });

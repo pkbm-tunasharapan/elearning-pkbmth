@@ -120,7 +120,9 @@ class _TabUnit extends StatelessWidget {
                 if (teks(u['alamat']).isNotEmpty) teks(u['alamat']),
                 if (teks(u['ket']).isNotEmpty) teks(u['ket']),
               ].join(' · ')),
-              trailing: u['aktif'] == true ? const Icon(Icons.edit_outlined) : const Lencana('Nonaktif', warna: Colors.grey),
+              trailing: u['aktif'] != true
+                  ? const Lencana('Nonaktif', warna: Colors.grey)
+                  : (u['utama'] == true ? const Lencana('Utama', warna: Colors.teal) : const Icon(Icons.edit_outlined)),
               onTap: Sesi.instance.hanyaLihat ? null : () => _form(context, u),
             ),
           ),
@@ -149,6 +151,7 @@ class _DialogUnitState extends State<_DialogUnit> {
   late final _alamat = TextEditingController(text: teks(widget.u?['alamat']));
   late final _ket = TextEditingController(text: teks(widget.u?['ket']));
   late bool _aktif = widget.u == null || widget.u!['aktif'] == true;
+  late bool _utama = widget.u?['utama'] == true;
   late final Set<String> _koord = {for (final k in daftar(widget.u?['koordinator'])) '$k'};
 
   @override
@@ -163,7 +166,7 @@ class _DialogUnitState extends State<_DialogUnit> {
     if (_nama.text.trim().length < 2) return kabar(context, 'Isi nama unit.', galat: true);
     final r = await jalankan(
       context,
-      () => Api.instance('waStafUnitSimpan', [_t, {'id': teks(widget.u?['id']), 'nama': _nama.text.trim(), 'alamat': _alamat.text.trim(), 'ket': _ket.text.trim(), 'aktif': _aktif, 'koordinator': _koord.toList()}]),
+      () => Api.instance('waStafUnitSimpan', [_t, {'id': teks(widget.u?['id']), 'nama': _nama.text.trim(), 'alamat': _alamat.text.trim(), 'ket': _ket.text.trim(), 'aktif': _aktif, 'koordinator': _koord.toList(), 'utama': _utama}]),
       teksProses: 'Menyimpan...',
     );
     if (r.ok && mounted) {
@@ -198,6 +201,13 @@ class _DialogUnitState extends State<_DialogUnit> {
                   onSelected: (v) => setState(() => v ? _koord.add(teks(c['id'])) : _koord.remove(teks(c['id']))),
                 ),
             ]),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _utama,
+            onChanged: (v) => setState(() => _utama = v),
+            title: const Text('Unit utama'),
+            subtitle: const Text('Siswa yang belum berlabel unit dianggap anggota unit ini. Hanya satu unit utama.'),
+          ),
           if (widget.u != null)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

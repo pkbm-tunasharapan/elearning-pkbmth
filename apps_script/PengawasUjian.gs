@@ -650,8 +650,7 @@ function pwRuangRombel_(m, idRombelSim) {
   if (m.peserta.mode === 'siswa') { pilih = {}; m.peserta.siswa.forEach(function(x) { pilih[x] = true; }); }
   (absWbRombel_(idRombelSim) || []).forEach(function(w) {
     if (pilih && !pilih[w.id]) return;
-    var l = lab[w.id];
-    unit[l && l.unit ? l.unit : '-'] = true;
+    unit[ubUnitEf_(w.id, lab) || '-'] = true;   // v1.64.2: belum berlabel -> unit utama (bila ada)
   });
   var out = Object.keys(unit).sort().map(function(u) { return String(idRombelSim) + '~' + u; });
   return (PW_RUANG_MEMO_[ck] = out.length ? out : [String(idRombelSim)]);
@@ -660,6 +659,6 @@ function pwRuangRombel_(m, idRombelSim) {
 function pwSiswaUnitCocok_(idRombelEl, nama, unit) {
   var w = typeof sbWbSiswa_ === 'function' ? sbWbSiswa_(idRombelEl, nama) : null;
   var l = w && typeof ubPetaSiswa_ === 'function' ? ubPetaSiswa_()[w.id] : null;
-  var u = l && l.unit ? l.unit : '-';
+  var u = w && typeof ubUnitEf_ === 'function' ? (ubUnitEf_(w.id) || '-') : (l && l.unit ? l.unit : '-');
   return u === unit;
 }

@@ -898,5 +898,20 @@ tes('agenda: sasaran rombel/jenjang/unit dan jadwal tatap muka yang ditiadakan',
   sama([g.izFitur_('waStafAgendaSahkan'), g.izAksi_('waStafAgendaData')], ['agendaLembaga', 'lihat']);
 });
 
+// 31. unit utama (v1.64.2)
+tes('unit utama: siswa tanpa label ikut unit utama; koordinator bawaan KS', () => {
+  const sU = g.ubUnit_, sP = g.ubPetaSiswa_, sB = g.bacaPengguna_;
+  g.ubUnit_ = () => [{ id: 'U1', nama: 'Pusat', aktif: true, utama: true, koordinator: [] }, { id: 'U2', nama: 'Unit 2', aktif: true, utama: false, koordinator: ['P2'] }];
+  g.ubPetaSiswa_ = () => ({ W2: { unit: 'U2', layanan: 'Reguler' } });
+  g.bacaPengguna_ = () => [{ id: 'KS1', peran: 'Kepala Sekolah', status: 'Aktif' }, { id: 'KS0', peran: 'Kepala Sekolah', status: 'Nonaktif' }];
+  try {
+    sama([g.ubUnitEf_('W2'), g.ubUnitEf_('W9')], ['U2', 'U1'], 'tanpa label -> unit utama');
+    sama([g.ubKoordEf_(g.ubUnit_()[0]), g.ubKoordEf_(g.ubUnit_()[1])], [['KS1'], ['P2']], 'unit utama tanpa koordinator -> KS aktif');
+    const perKey = { k: [{ id: 'S1', unit: 'U1' }, { id: 'S2', unit: 'U2' }] };
+    sama(g.ubTmWb_(perKey, {}, 'k', 'W9', 0, 2), { h: 0, t: 1 }, 'siswa tanpa label menghitung sesi unit utama');
+    sama(g.ubLuarUnit_('W9', 'U2'), 'Unit 2'.replace('Unit 2', 'Pusat'), 'siswa unit utama ditolak di sesi unit lain');
+  } finally { g.ubUnit_ = sU; g.ubPetaSiswa_ = sP; g.bacaPengguna_ = sB; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
