@@ -794,6 +794,7 @@ function waStafAbsenWbCatat(token, d) {
   if (d.kode) {
     wb = absCariWb_(d.kode, kelas.idRombel);
     if (!wb) throw new Error('QR tidak dikenali sebagai kartu warga belajar.');
+    if (!wb.status || wb.status === 'Aktif') aqrWajibAktif_(wb);   // v1.67.0: QR harus sudah diaktivasi
   } else {
     wb = absWbRombel_(kelas.idRombel).filter(function(x) { return x.id === String(d.idWb); })[0] || null;
     if (!wb) throw new Error('Warga belajar tidak ditemukan di rombel ini.');
@@ -3675,6 +3676,7 @@ function waStafTagihanBayar(token, d) {
   } finally { lock.releaseLock(); }
   catat_(p.peran, w.idRombel, p.nama, 'Bayar tagihan', tag.nama + ' ' + w.nama + ' ' + jumlah, 'OK');
   npBayarDiterima_(w.id, tag.nama, jumlah, 'dicatat petugas');   // v1.50.0: notifikasi
+  aqrSetelahBayar_(tag.id, w.id, 'Dicatat ' + p.nama, id);   // v1.67.0: tagihan aktivasi QR lunas -> QR aktif
   return { sukses: true, id: id, tanggal: tgl, jumlah: jumlah, sisa: row.sisa - jumlah, nama: w.nama, nisn: w.nisn, rombel: w.namaRombel, tagihan: tag.nama, petugas: p.nama, lembaga: nilLembaga_() };
 }
 // d: {idTagihan, idWb, jumlah, alasan}

@@ -9,6 +9,7 @@ import 'jadwal/agenda_lembaga.dart';
 import 'referral/referral_admin.dart';
 import 'screens/admin_lain.dart' show PengajuanTutorScreen;
 import 'screens/ujian.dart' show KotakUjianScreen;
+import 'siswa/aktivasi_qr.dart';
 import 'siswa/pencapaian_siswa.dart';
 import 'ujian/masa_ujian.dart' show MasaUjianScreen;
 import 'ujian/pengawas.dart' show PengawasScreen;
@@ -80,6 +81,8 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
       if (!siswa) layar = _bungkus('Pengajuan Tutor', const PengajuanTutorScreen());
     case 'agenda_lembaga':
       if (!siswa) layar = const AgendaLembagaScreen();
+    case 'aktivasi_qr':
+      if (!siswa) layar = _bungkus('Aktivasi QR Siswa', const AktivasiQrScreen());
     case 'pantauan_unit':
       if (!siswa) layar = const PantauanUnitScreen();
     case 'honor':

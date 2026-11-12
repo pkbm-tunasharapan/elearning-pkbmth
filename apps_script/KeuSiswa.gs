@@ -50,7 +50,9 @@ function ksTfUbah_(t, baris, isi) {
 
 // ---------- siswa ----------
 function waSiswaTagihan(token) {
-  var s = siswaDariSesi_(token), w = ksWb_(s), pb = keuBayarPeta_(), kat = keuKatPeta_();
+  var s = siswaDariSesi_(token), w = ksWb_(s);
+  try { aqrTagihan_(true); } catch (eQ) {}   // v1.67.0: tagihan aktivasi QR dibuat saat pertama dibutuhkan
+  var pb = keuBayarPeta_(), kat = keuKatPeta_();
   var tf = ksTfBaca_().data.filter(function(x) { return x.idWb === w.id; });
   var menungguTf = {};
   tf.forEach(function(x) { if (x.status === 'Menunggu') menungguTf[x.idTagihan] = (menungguTf[x.idTagihan] || 0) + x.jumlah; });
@@ -171,6 +173,7 @@ function waStafTagihanTransferPutus(token, id, terima, catatan, akun) {
     ksTfUbah_(tf.t, x.baris, { 'STATUS': 'Diterima', 'DIPROSES OLEH': p.nama, 'DIPROSES PADA': rfWaktu_(), 'CATATAN': catatan, 'ID TRANSAKSI': idTrx });
     catat_(p.peran, w.idRombel, p.nama, 'Terima transfer tagihan', tag.nama + ' ' + w.nama + ' ' + x.jumlah, 'OK');
     npBayarDiterima_(w.id, tag.nama, x.jumlah, 'transfer diverifikasi');   // v1.50.0: notifikasi
+    aqrSetelahBayar_(tag.id, w.id, 'Transfer', idTrx);   // v1.67.0
     return { sukses: true, idTransaksi: idTrx };
   } finally { lock.releaseLock(); }
 }

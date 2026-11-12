@@ -46,6 +46,7 @@ import 'pengguna/peran_izin.dart';
 import 'pemeliharaan/sistem.dart';
 import 'api.dart';
 import 'session.dart';
+import 'siswa/aktivasi_qr.dart';
 import 'siswa/kartu_qr_massal.dart';
 
 /// Satu menu aplikasi. Bila [native] null, menu dibuka lewat versi web staf
@@ -117,6 +118,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'kelolaMapel', judul: 'Kelola Mata Pelajaran', ikon: Icons.library_books_outlined, peran: _admin, native: () => const KelolaMapelScreen()),
   MenuApp(id: 'imporDapodik', judul: 'Impor Dapodik', ikon: Icons.cloud_upload_outlined, peran: _admin, native: () => const ImporDapodikScreen()),
   MenuApp(id: 'kartuQr', judul: 'Kartu QR Siswa (ID Card)', ikon: Icons.qr_code_2_rounded, peran: {'Admin', 'Front Office'}, native: () => const KartuQrMassalScreen()),
+  MenuApp(id: 'aktivasiQr', judul: 'Aktivasi QR Siswa', ikon: Icons.qr_code_scanner_rounded, peran: {'Admin', 'Kepala Sekolah', 'Front Office'}, native: () => const AktivasiQrScreen()),
   MenuApp(id: 'daftar', judul: 'Pendaftaran Siswa', ikon: Icons.how_to_reg_outlined, peran: _admin, native: () => const PendaftaranScreen()),
   MenuApp(id: 'ganda', judul: 'Sinkron & Data Ganda', ikon: Icons.sync_alt, peran: _admin, native: () => const GandaScreen()),
   MenuApp(id: 'susulan', judul: 'Buka Susulan Massal', ikon: Icons.lock_open_rounded, peran: _admin, native: () => const SusulanMassalScreen()),
@@ -160,7 +162,7 @@ const _grupMenu = <String, String>{
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
   'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'agendaLembaga': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
-  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'pantauanUnit': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
+  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'pantauanUnit': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'aktivasiQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
   'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
   'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'peranIzin': 'Sistem', 'maintenance': 'Sistem',
@@ -175,6 +177,7 @@ const _kataKunci = <String, String>{
   'dataInduk': 'siswa warga belajar wb nisn nik',
   'imporDapodik': 'import excel xlsx dapodik biodata',
   'kartuQr': 'id card kartu siswa cetak',
+  'aktivasiQr': 'aktivasi qr kunci id card bayar 20000 lapor fo',
   'keuangan': 'kas uang spp pembayaran',
   'rekapHonor': 'gaji bayar tutor',
   'pengguna': 'akun tutor enroll staf',

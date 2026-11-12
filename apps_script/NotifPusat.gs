@@ -50,6 +50,8 @@ var NP = {
     { kode: 'agenda_tutor', nama: 'Jadwal tatap muka ditiadakan karena agenda', grup: 'Agenda', sasaran: 'tutor', peran: ['Tutor'] },
     { kode: 'agenda_sasaran', nama: 'Agenda untuk siswa sasaran', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     { kode: 'agenda_libur', nama: 'Libur / belajar mandiri karena agenda', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
+    // v1.67.0: Front Office melaporkan pembayaran aktivasi QR diterima
+    { kode: 'aqr_lapor', nama: 'Pembayaran aktivasi QR diterima FO (perlu diaktifkan)', grup: 'Warga Belajar', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'], fitur: 'aktivasiQr' },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };

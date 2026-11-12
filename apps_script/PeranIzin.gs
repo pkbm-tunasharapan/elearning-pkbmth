@@ -70,6 +70,8 @@ var IZN = {
     ['dataInduk', 'Data Induk', 'Warga Belajar', ['Admin', 'Superadmin', 'Kepala Sekolah'], /^waStafInduk\w*$/],
     ['imporDapodik', 'Impor Dapodik & data master', 'Warga Belajar', ['Admin'], /^waAdmin(Dapodik\w*|Impor\w*|Siswa(Pratinjau|Terapkan))$/],
     ['kartuQr', 'Kartu QR Siswa (ID Card)', 'Warga Belajar', ['Admin', 'Front Office'], /^waAdminKartuQr$/],
+    // v1.67.0: centang QR Aktif hanya Admin & KS (diperiksa di fungsinya); Front Office melaporkan pembayaran diterima
+    ['aktivasiQr', 'Aktivasi QR Siswa', 'Warga Belajar', ['Admin', 'Kepala Sekolah', 'Front Office'], /^waStafAqr(Daftar|Atur|Lapor)$/],
     ['daftar', 'Pendaftaran Siswa', 'Warga Belajar', ['Admin'], /^waAdmin(DaftarPendaftaran|AturDaftar)$/],
     ['ganda', 'Sinkron & Data Ganda', 'Warga Belajar', ['Admin'], /^waAdmin(Ganda\w*|Sinkron\w*|KirimKeMenu|SamakanInduk)$/],
     ['referral', 'Referral Pendaftaran', 'Warga Belajar', ['Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara'], /^waStafRef(Aturan|Berkas)$/],

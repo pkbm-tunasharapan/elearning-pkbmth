@@ -961,5 +961,65 @@ tes('izin: Front Office punya fitur absensi sendiri, terpisah dari Tutor', () =>
   } finally { g.izData_ = sD; }
 });
 
+// 34. aktivasi QR kartu siswa (v1.67.0)
+tes('aktivasi QR: belum aktif ditolak saat pindai, centang Admin catat tunai sekali, VA lunas aktif otomatis, FO tidak boleh centang', () => {
+  const nama = ['absBaca_', 'keuTagCari_', 'keuWbSemua_', 'keuBayarPeta_', 'keuTrxTab_', 'stafDariToken_', 'absSim_', 'kalAkunBawaan_', 'kalAkunSah_', 'catat_', 'npBayarDiterima_', 'npKirim_', 'aqrTagihan_'];
+  const simpan = {};
+  nama.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const v = [g.AQR.HDR.slice()], trx = [['ID TRANSAKSI', 'JENIS', 'WARGA BELAJAR', 'TAGIHAN', 'JUMLAH', 'AKUN KAS']];
+    const tab = (isi) => {
+      const h = {};
+      isi[0].forEach((x, i) => { h[String(x).toUpperCase()] = i; });
+      return { v: isi.map((b) => b.slice()), h, sh: { appendRow: (r) => isi.push(r.slice()), getLastRow: () => isi.length,
+        getRange: (r, c) => ({ setValue: (x) => { isi[r - 1][c - 1] = x; }, insertCheckboxes: () => { isi[r - 1][c - 1] = false; } }) } };
+    };
+    const tag = { id: 'TAG-AQR-1', nama: 'Aktivasi QR ID Card', kategori: 'AQR', jumlah: 20000, sasaran: 'Semua', aktif: true };
+    const wbs = [{ id: 'W1', nama: 'Ani', idRombel: 'R1', namaRombel: 'A4', aktif: true }, { id: 'W2', nama: 'Budi', idRombel: 'R1', namaRombel: 'A4', aktif: true }];
+    props.setProperty(g.AQR.PROP_TAG, tag.id);
+    g.absBaca_ = (n) => (n === g.AQR.TAB ? tab(v) : (() => { throw new Error('tab ' + n); })());
+    g.keuTrxTab_ = () => tab(trx);
+    g.keuTagCari_ = () => tag;
+    g.aqrTagihan_ = () => tag;
+    g.keuWbSemua_ = () => wbs;
+    g.keuBayarPeta_ = () => {
+      const bayar = {};
+      trx.slice(1).forEach((r) => { const k = r[3] + '|' + r[2]; bayar[k] = (bayar[k] || 0) + r[4]; });
+      return { bayar, ker: {} };
+    };
+    g.absSim_ = () => ({ tahun: '2026/2027' });
+    g.kalAkunBawaan_ = (m) => (m === 'tunai' ? 'TUNAI' : 'BANK');
+    g.kalAkunSah_ = () => '';
+    g.catat_ = () => {}; g.npBayarDiterima_ = () => {};
+    const notif = [];
+    g.npKirim_ = (j, o) => { notif.push(j); };
+    const orang = { TA: { id: 'A', nama: 'Admin', peran: 'Admin' }, TF: { id: 'F', nama: 'Fia', peran: 'Front Office' } };
+    g.stafDariToken_ = (t) => orang[t];
+    g.AQR_MEMO_ = null;
+    let galat = '';
+    try { g.aqrWajibAktif_({ id: 'W1' }); } catch (e) { galat = e.message; }
+    sama(galat, 'QR Belum diaktifkan, silahkan lakukan aktivasi terlebih dahulu di bagian akademik', 'pesan kunci');
+    galat = '';
+    try { g.waStafAqrAtur('TF', { idWb: 'W1', aktif: true }); } catch (e) { galat = e.message; }
+    sama(/Admin atau Kepala Sekolah/.test(galat), true, 'FO tidak boleh centang');
+    sama(g.waStafAqrLapor('TF', { idWb: 'W1', catatan: 'tunai' }).sukses, true, 'FO melapor');
+    sama(notif, ['aqr_lapor'], 'notifikasi ke Admin/KS');
+    const h = g.waStafAqrAtur('TA', { idWb: 'W1', aktif: true });
+    sama([h.jumlah, trx.length - 1, trx[1][5]], [20000, 1, 'TUNAI'], 'tunai tercatat ke arus keuangan');
+    g.AQR_MEMO_ = null;
+    sama(g.aqrAktif_('W1'), true, 'W1 aktif');
+    g.waStafAqrAtur('TA', { idWb: 'W1', aktif: false });
+    g.waStafAqrAtur('TA', { idWb: 'W1', aktif: true });
+    sama(trx.length - 1, 1, 'centang ulang tidak mencatat dua kali');
+    // VA: pembayaran masuk lewat tagihan -> aktif otomatis
+    trx.push(['TRX-VA', 'Pemasukan', 'W2', tag.id, 20000, 'PG']);
+    sama(g.aqrSetelahBayar_(tag.id, 'W2', 'VA / online', 'TRX-VA'), true, 'VA lunas');
+    g.AQR_MEMO_ = null;
+    sama([g.aqrAktif_('W2'), g.aqrPeta_().W2.cara], [true, 'VA / online']);
+    sama(g.aqrSetelahBayar_('TAG-LAIN', 'W2', 'x', 'y'), false, 'tagihan lain diabaikan');
+    sama(g.izFitur_('waStafAqrAtur'), 'aktivasiQr');
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.AQR_MEMO_ = null; props.deleteProperty(g.AQR.PROP_TAG); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

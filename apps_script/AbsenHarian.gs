@@ -74,6 +74,7 @@ function ahWbPindai_(kode) {
   var wb = absCariWb_(kode);
   if (!wb) throw new Error('QR tidak dikenali sebagai kartu warga belajar.');
   if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ', tidak dapat diabsen.');
+  aqrWajibAktif_(wb);   // v1.67.0: QR harus sudah diaktivasi (AktivasiQr.gs)
   return wb;
 }
 
