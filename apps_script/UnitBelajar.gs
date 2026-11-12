@@ -168,29 +168,38 @@ function waStafUnitTetapkan(token, d) {
   var layBaru = d.layanan === null || d.layanan === undefined ? null : ubNormLayanan_(d.layanan);
   if (unitBaru === null && layBaru === null) throw new Error('Pilih unit atau layanan yang akan diterapkan.');
   var catatan = String(d.catatan || '').trim().slice(0, 200);
+  if (unitBaru) {
+    var u = ubPetaUnit_()[unitBaru];
+    if (!u) throw new Error('Unit tidak ditemukan.');
+    if (!u.aktif) throw new Error(u.nama + ' sedang nonaktif.');
+  }
+  var hasil = ubTulis_(p, ids.map(function(id) { return { id: id, unit: unitBaru, layanan: layBaru }; }), catatan);
+  catat_(p.peran, '', p.nama, 'Label unit siswa', hasil.diubah + ' diubah, ' + hasil.sama + ' sama, ' + hasil.lewat.length + ' dilewati', 'OK');
+  return hasil;
+}
+
+// Tulis label banyak siswa (dipakai atur massal & impor). item: [{id, unit, layanan}] (null = tidak diubah).
+function ubTulis_(p, item, catatan) {
   var hasil = { diubah: 0, sama: 0, lewat: [] };
   var kunci = kmKunciUnik_();
   kunci.waitLock(30000);
   try {
     UB_MEMO_ = {};
-    if (unitBaru) {
-      var u = ubPetaUnit_()[unitBaru];
-      if (!u) throw new Error('Unit tidak ditemukan.');
-      if (!u.aktif) throw new Error(u.nama + ' sedang nonaktif.');
-    }
     var wb = {};
     keuWbSemua_().forEach(function(w) { wb[w.id] = w; });
     var lab = ubPetaSiswa_(), t = absBaca_(UB.TAB_SISWA, UB.HDR_SISWA), waktu = absWaktu_();
     var cU = absCol_(t, 'UNIT'), cL = absCol_(t, 'LAYANAN'), cO = absCol_(t, 'DIUBAH OLEH'), cP = absCol_(t, 'DIUBAH PADA');
     var baru = [], riw = [], ubahBaris = [];
-    ids.forEach(function(id) {
+    item.forEach(function(it) {
+      var id = String(it.id);
       if (!wb[id]) { hasil.lewat.push({ id: id, alasan: 'siswa tidak ditemukan' }); return; }
-      var r = ubRencana_(lab[id], unitBaru, layBaru);
+      var r = ubRencana_(lab[id], it.unit, it.layanan);
       if (!r) { hasil.sama++; return; }
-      if (lab[id]) ubahBaris.push({ baris: lab[id].baris, r: r });
-      else baru.push(absBaris_(t, { 'ID WB': ubTeks_(id), 'UNIT': r.unitBaru, 'LAYANAN': r.layananBaru, 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': waktu }));
-      riw.push([waktu, ubTeks_(id), wb[id].nama, r.unitLama, r.unitBaru, r.layananLama, r.layananBaru, p.nama, catatan]);
-      lab[id] = { unit: r.unitBaru, layanan: r.layananBaru, baris: lab[id] ? lab[id].baris : 0 };
+      if (lab[id] && lab[id].baris) ubahBaris.push({ baris: lab[id].baris, r: r });
+      else if (lab[id] && lab[id].baru) { lab[id].baru[cU] = r.unitBaru; lab[id].baru[cL] = r.layananBaru; }
+      else { var rowB = absBaris_(t, { 'ID WB': ubTeks_(id), 'UNIT': r.unitBaru, 'LAYANAN': r.layananBaru, 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': waktu }); baru.push(rowB); lab[id] = { baru: rowB }; }
+      riw.push([waktu, ubTeks_(id), wb[id].nama, r.unitLama, r.unitBaru, r.layananLama, r.layananBaru, p.nama, String(catatan || '')]);
+      lab[id].unit = r.unitBaru; lab[id].layanan = r.layananBaru;
       hasil.diubah++;
     });
     ubahBaris.forEach(function(x) {
@@ -206,7 +215,6 @@ function waStafUnitTetapkan(token, d) {
     }
     UB_MEMO_ = {};
   } finally { kunci.releaseLock(); }
-  catat_(p.peran, '', p.nama, 'Label unit siswa', hasil.diubah + ' diubah, ' + hasil.sama + ' sama, ' + hasil.lewat.length + ' dilewati', 'OK');
   return hasil;
 }
 
@@ -395,4 +403,132 @@ function ubMingguan_(hari) {
         ' tunggakan lewat jatuh tempo (' + honRp_(r.nilaiLewat) + '). Buka Pantauan Unit untuk rinciannya.', aksi: 'pantauan_unit', staf: u.koordinator, ref: 'ubm|' + u.id + '|' + hari });
     } catch (e) {}
   });
+}
+
+// ============================================================================
+// IMPOR LABEL DARI EXCEL (v1.61.0)
+// Admin mengunduh templat xlsx (semua siswa aktif, atau hanya yang belum berlabel, opsional satu rombel),
+// mengisi kolom UNIT dan LAYANAN (sel kuning), lalu mengunggahnya: pratinjau -> terapkan.
+// Sel kosong = tidak diubah; tanda "-" = kosongkan. Unit ditulis dengan nama unit (tidak peka huruf besar/kecil).
+// ============================================================================
+var UBI = { LEMBAR: 'LABEL UNIT', LEMBAR_REF: 'PILIHAN', WARNA: 'FF0F766E', MAKS_BYTE: 4 * 1024 * 1024, CACHE_DETIK: 1200 };
+
+// q: {hanyaKosong: bool, idRombel}
+function waStafUnitTemplat(token, q) {
+  var p = stafDariToken_(token);
+  ubWajib_(p, true);
+  q = q || {};
+  var lab = ubPetaSiswa_(), unit = ubPetaUnit_();
+  var wb = keuWbSemua_().filter(function(w) {
+    if (!w.aktif) return false;
+    if (q.idRombel && w.idRombel !== String(q.idRombel)) return false;
+    var l = lab[w.id];
+    return !(q.hanyaKosong && l && l.unit && l.layanan);
+  }).sort(function(a, b) { return (a.namaRombel + '|' + a.nama).localeCompare(b.namaRombel + '|' + b.nama); });
+  if (!wb.length) throw new Error(q.hanyaKosong ? 'Semua siswa sudah punya unit dan layanan.' : 'Tidak ada siswa aktif.');
+  var kolom = ['NO', 'ID WB', 'NISN', 'NAMA', 'ROMBEL', 'UNIT', 'LAYANAN'];
+  var isiJudul = [{ v: 'LABEL UNIT BELAJAR & LAYANAN SISWA', s: 1 }];
+  for (var i = 1; i < kolom.length; i++) isiJudul.push({ v: '', s: 1 });
+  var aktif = ubUnit_().filter(function(u) { return u.aktif; }).map(function(u) { return u.nama; });
+  var b = [
+    isiJudul,
+    [{ v: 'Diunduh', s: 2 }, { v: absWaktu_() + ' oleh ' + p.nama }],
+    [{ v: 'Unit tersedia', s: 2 }, { v: aktif.join(', ') || '(belum ada unit aktif)' }],
+    [{ v: 'Layanan', s: 2 }, { v: 'Reguler atau Flexi' }],
+    [{ v: 'Isi kolom UNIT dengan nama unit persis seperti di atas, LAYANAN dengan Reguler atau Flexi. Daftar lengkap ada di lembar PILIHAN.', s: 6 }],
+    [{ v: 'Sel kosong = tidak diubah. Tulis tanda - untuk mengosongkan. Jangan ubah ID WB, baris 1–8, atau nama lembar.', s: 6 }],
+    [],
+    kolom.map(function(k) { return { v: k, s: 3 }; })
+  ];
+  wb.forEach(function(w, n) {
+    var l = lab[w.id] || {};
+    b.push([{ v: n + 1, n: true, s: 4 }, { v: w.id, s: 4 }, { v: w.nisn, s: 4 }, { v: w.nama, s: 4 }, { v: w.namaRombel, s: 4 },
+      { v: l.unit && unit[l.unit] ? unit[l.unit].nama : '', s: 5 }, { v: l.layanan || '', s: 5 }]);
+  });
+  var ref = [[{ v: 'UNIT AKTIF', s: 3 }, { v: 'LAYANAN', s: 3 }]];
+  var nRef = Math.max(aktif.length, UB.LAYANAN.length);
+  for (var j = 0; j < nRef; j++) ref.push([{ v: aktif[j] || '', s: 4 }, { v: UB.LAYANAN[j] || '', s: 4 }]);
+  var lembar = [
+    { nama: UBI.LEMBAR, xml: nxlSheetXml_(b, [5, 14, 13, 32, 16, 22, 12], ['A1:G1']) },
+    { nama: UBI.LEMBAR_REF, xml: nxlSheetXml_(ref, [26, 14], []) }
+  ];
+  var nama = 'Label_Unit_Siswa_' + absHariIni_() + '.xlsx';
+  var blob = oflZip_(lembar, nxlStylesXml_(UBI.WARNA), nama);
+  return { nama: nama, b64: Utilities.base64Encode(blob.getBytes()), jumlah: wb.length };
+}
+
+// Rencana impor dari baris lembar (murni, diuji). baris: [[sel...]]; unitPeta: {namaKecil|ID: {id, nama, aktif}};
+// wb: {id: {id, nisn, nama}}; nisnKe: {nisn: id}; lab: {id: {unit, layanan}}
+function ubRencanaImpor_(baris, unitPeta, wb, nisnKe, lab) {
+  var h = -1, kol = {};
+  for (var i = 0; i < Math.min(baris.length, 20) && h < 0; i++) {
+    var r = (baris[i] || []).map(function(x) { return String(x || '').trim().toUpperCase(); });
+    if (r.indexOf('ID WB') >= 0 && r.indexOf('UNIT') >= 0) { h = i; r.forEach(function(k, j) { if (k) kol[k] = j; }); }
+  }
+  if (h < 0) throw new Error('Baris judul kolom (ID WB, UNIT, LAYANAN) tidak ditemukan. Pakai templat dari aplikasi.');
+  var out = { item: [], ubah: [], galat: [], sama: 0, kosong: 0 }, sudah = {};
+  var sel = function(r, k) { return kol[k] === undefined ? '' : String(r[kol[k]] === undefined || r[kol[k]] === null ? '' : r[kol[k]]).trim(); };
+  for (var n = h + 1; n < baris.length; n++) {
+    var r2 = baris[n] || [], noBaris = n + 1;
+    var id = sel(r2, 'ID WB'), nisn = sel(r2, 'NISN').replace(/\D/g, ''), nm = sel(r2, 'NAMA');
+    var uT = sel(r2, 'UNIT'), lT = sel(r2, 'LAYANAN');
+    if (!id && !nisn && !nm) continue;
+    if (!uT && !lT) { out.kosong++; continue; }
+    if (!wb[id] && nisn && nisnKe[nisn]) id = nisnKe[nisn];
+    if (!wb[id]) { out.galat.push({ baris: noBaris, nama: nm, alasan: 'siswa tidak ditemukan (ID WB/NISN)' }); continue; }
+    if (sudah[id]) { out.galat.push({ baris: noBaris, nama: wb[id].nama, alasan: 'siswa muncul dua kali (baris ' + sudah[id] + ')' }); continue; }
+    sudah[id] = noBaris;
+    var unit = null, lay = null;
+    if (uT === '-') unit = '';
+    else if (uT) {
+      var u = unitPeta[uT.toLowerCase().replace(/\s+/g, ' ')] || unitPeta[uT];
+      if (!u) { out.galat.push({ baris: noBaris, nama: wb[id].nama, alasan: 'unit "' + uT + '" tidak dikenal' }); continue; }
+      if (!u.aktif) { out.galat.push({ baris: noBaris, nama: wb[id].nama, alasan: u.nama + ' nonaktif' }); continue; }
+      unit = u.id;
+    }
+    if (lT === '-') lay = '';
+    else if (lT) {
+      try { lay = ubNormLayanan_(lT); } catch (e) { out.galat.push({ baris: noBaris, nama: wb[id].nama, alasan: 'layanan "' + lT + '" harus Reguler atau Flexi' }); continue; }
+    }
+    var rc = ubRencana_(lab[id], unit, lay);
+    if (!rc) { out.sama++; continue; }
+    out.item.push({ id: id, unit: unit, layanan: lay });
+    out.ubah.push({ id: id, nama: wb[id].nama, unitLama: rc.unitLama, unitBaru: rc.unitBaru, layananLama: rc.layananLama, layananBaru: rc.layananBaru });
+  }
+  return out;
+}
+
+function waStafUnitImporPratinjau(token, d) {
+  var p = stafDariToken_(token);
+  ubWajib_(p, true);
+  d = d || {};
+  if (String(d.b64 || '').length > UBI.MAKS_BYTE * 1.4) throw new Error('File terlalu besar (maksimal 4 MB).');
+  var lembar = oflBacaXlsx_(d.b64), baris = lembar[UBI.LEMBAR];
+  if (!baris) { var k = Object.keys(lembar); baris = lembar[k[0]]; }
+  var unitPeta = {}, wb = {}, nisnKe = {};
+  ubUnit_().forEach(function(u) { unitPeta[u.nama.toLowerCase().replace(/\s+/g, ' ')] = u; unitPeta[u.id] = u; });
+  keuWbSemua_().forEach(function(w) { if (!w.aktif) return; wb[w.id] = w; if (w.nisn) nisnKe[String(w.nisn).replace(/\D/g, '')] = w.id; });
+  var r = ubRencanaImpor_(baris, unitPeta, wb, nisnKe, ubPetaSiswa_());
+  var kunci = 'ubi_' + p.id + '_' + absId_();
+  CacheService.getScriptCache().put(kunci, JSON.stringify({ item: r.item, oleh: p.id }), UBI.CACHE_DETIK);
+  var nm = function(id) { return id ? (unitPeta[id] ? unitPeta[id].nama : id) : '-'; };
+  return {
+    kunci: kunci, jumlah: { ubah: r.ubah.length, sama: r.sama, kosong: r.kosong, galat: r.galat.length },
+    ubah: r.ubah.slice(0, 400).map(function(x) { return { nama: x.nama, unit: nm(x.unitLama) + ' → ' + nm(x.unitBaru), layanan: (x.layananLama || '-') + ' → ' + (x.layananBaru || '-') }; }),
+    galat: r.galat.slice(0, 200)
+  };
+}
+
+function waStafUnitImporTerapkan(token, kunci) {
+  var p = stafDariToken_(token);
+  ubWajib_(p, true);
+  var c = CacheService.getScriptCache(), s = c.get(String(kunci || ''));
+  if (!s) throw new Error('Pratinjau kedaluwarsa. Unggah ulang berkasnya.');
+  var d = JSON.parse(s);
+  if (d.oleh !== p.id) throw new Error('Pratinjau ini milik pengguna lain.');
+  if (!d.item.length) throw new Error('Tidak ada perubahan untuk diterapkan.');
+  var hasil = ubTulis_(p, d.item, 'Impor Excel');
+  c.remove(String(kunci));
+  catat_(p.peran, '', p.nama, 'Impor label unit siswa', hasil.diubah + ' diubah, ' + hasil.sama + ' sama, ' + hasil.lewat.length + ' dilewati', 'OK');
+  return hasil;
 }

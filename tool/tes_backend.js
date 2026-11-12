@@ -798,5 +798,40 @@ tes('koordinator unit: peran, cakupan unit, izin & notifikasi khusus akun', () =
   sama(g.ubSkor_({ kurang: [1], lewat: 5 }) > g.ubSkor_({ kurang: [], lewat: 5 }), true, 'kurang hadir diurutkan dulu');
 });
 
+// 27. impor label unit dari Excel (v1.61.0)
+tes('impor label unit: baca baris templat, cocokkan ID/NISN, galat per baris', () => {
+  const U1 = { id: 'UNIT-1', nama: 'Unit 1 Cibinong', aktif: true }, U2 = { id: 'UNIT-2', nama: 'Unit 2', aktif: false };
+  const unitPeta = { 'unit 1 cibinong': U1, 'UNIT-1': U1, 'unit 2': U2, 'UNIT-2': U2 };
+  const wb = { 'WB-1': { id: 'WB-1', nama: 'Ani' }, 'WB-2': { id: 'WB-2', nama: 'Budi' }, 'WB-3': { id: 'WB-3', nama: 'Cici' }, 'WB-4': { id: 'WB-4', nama: 'Dodi' } };
+  const nisnKe = { '0012345678': 'WB-3' };
+  const lab = { 'WB-2': { unit: 'UNIT-1', layanan: 'Reguler' }, 'WB-4': { unit: 'UNIT-1', layanan: 'Flexi' } };
+  const baris = [
+    ['LABEL UNIT BELAJAR'], ['Diunduh', 'x'], [], [], [], [], [],
+    ['NO', 'ID WB', 'NISN', 'NAMA', 'ROMBEL', 'UNIT', 'LAYANAN'],
+    ['1', 'WB-1', '', 'Ani', 'C10', 'UNIT 1  cibinong', 'flexi'],      // baru: unit & layanan
+    ['2', 'WB-2', '', 'Budi', 'C10', 'Unit 1 Cibinong', 'Reguler'],   // sama
+    ['3', 'SALAH', '0012345678', 'Cici', 'C10', '', 'Setara Reguler'], // cocok lewat NISN, hanya layanan
+    ['4', 'WB-4', '', 'Dodi', 'C10', '-', ''],                         // kosongkan unit
+    ['5', 'WB-1', '', 'Ani', 'C10', 'Unit 1 Cibinong', ''],            // dobel
+    ['6', 'WB-9', '', 'Eko', 'C10', 'Unit 1 Cibinong', ''],            // tidak ada
+    ['7', 'WB-2', '', 'Budi', 'C10', 'Unit 2', ''],                    // dobel (WB-2 sudah) -> galat dobel
+    ['8', '', '', '', '', '', ''],
+    ['9', 'WB-3', '', 'Cici', 'C10', '', ''],                          // kosong -> dilewati (tapi dobel? kosong dulu)
+  ];
+  const r = g.ubRencanaImpor_(baris, unitPeta, wb, nisnKe, lab);
+  sama(r.item, [
+    { id: 'WB-1', unit: 'UNIT-1', layanan: 'Flexi' },
+    { id: 'WB-3', unit: null, layanan: 'Reguler' },
+    { id: 'WB-4', unit: '', layanan: null },
+  ], 'rencana perubahan');
+  sama([r.sama, r.kosong, r.galat.length], [1, 1, 3], 'sama/kosong/galat');
+  sama(r.galat.map((x) => x.baris), [13, 14, 15], 'nomor baris galat');
+  const r2 = g.ubRencanaImpor_([['ID WB', 'UNIT', 'LAYANAN'], ['WB-1', 'Unit 2', ''], ['WB-3', 'Unit 9', ''], ['WB-4', '', 'Paket C']], unitPeta, wb, nisnKe, lab);
+  sama(r2.galat.map((x) => x.alasan), ['Unit 2 nonaktif', 'unit "Unit 9" tidak dikenal', 'layanan "Paket C" harus Reguler atau Flexi']);
+  let galat = '';
+  try { g.ubRencanaImpor_([['A', 'B']], unitPeta, wb, nisnKe, lab); } catch (e) { galat = e.message; }
+  sama(/judul kolom/.test(galat), true, 'templat salah ditolak');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

@@ -1,6 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
 
@@ -26,6 +32,26 @@ class _UnitBelajarScreenState extends State<UnitBelajarScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Unit Belajar'),
+          actions: [
+            if (!Sesi.instance.hanyaLihat)
+              PopupMenuButton<String>(
+                tooltip: 'Impor dari Excel',
+                icon: const Icon(Icons.upload_file_rounded),
+                onSelected: (v) async {
+                  if (v == 'unggah') {
+                    final ok = await _unggahLabel(context);
+                    if (ok && mounted) setState(() => _ulang++);
+                  } else {
+                    await _unduhTemplat(context, hanyaKosong: v == 'kosong');
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'kosong', child: ListTile(leading: Icon(Icons.download_rounded), title: Text('Unduh templat'), subtitle: Text('Siswa yang belum lengkap labelnya'))),
+                  PopupMenuItem(value: 'semua', child: ListTile(leading: Icon(Icons.download_rounded), title: Text('Unduh templat'), subtitle: Text('Semua siswa aktif'))),
+                  PopupMenuItem(value: 'unggah', child: ListTile(leading: Icon(Icons.upload_rounded), title: Text('Unggah templat terisi'))),
+                ],
+              ),
+          ],
           bottom: const TabBar(tabs: [Tab(text: 'Unit'), Tab(text: 'Siswa')]),
         ),
         body: Muatan<Map<String, dynamic>>(
@@ -464,4 +490,71 @@ class _DialogTerapkanState extends State<_DialogTerapkan> {
       ],
     );
   }
+}
+
+// ───────────────────────── impor dari Excel ─────────────────────────
+
+Future<void> _unduhTemplat(BuildContext context, {required bool hanyaKosong}) async {
+  final r = await jalankan(context, () async => peta(await Api.instance('waStafUnitTemplat', [_t, {'hanyaKosong': hanyaKosong}], const Duration(minutes: 3))),
+      teksProses: 'Menyiapkan templat...');
+  if (!r.ok || r.data == null || !context.mounted) return;
+  await bagikanXlsx(context, base64Decode(teks(r.data!['b64'])), teks(r.data!['nama'], 'Label_Unit_Siswa.xlsx'));
+}
+
+/// Unggah templat terisi: pratinjau -> terapkan. true bila ada yang disimpan.
+Future<bool> _unggahLabel(BuildContext context) async {
+  final f = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['xlsx'], withData: true);
+  if (f == null || f.files.isEmpty || !context.mounted) return false;
+  final x = f.files.first;
+  if (x.size > 4 * 1048576) {
+    kabar(context, 'File terlalu besar (maksimal 4 MB).', galat: true);
+    return false;
+  }
+  final Uint8List b = x.bytes ?? (x.path != null ? await File(x.path!).readAsBytes() : Uint8List(0));
+  if (!context.mounted) return false;
+  final h = await jalankan(context, () async => peta(await Api.instance('waStafUnitImporPratinjau', [_t, {'b64': base64Encode(b)}], const Duration(minutes: 3))),
+      teksProses: 'Memeriksa file...');
+  if (!h.ok || h.data == null || !context.mounted) return false;
+  final p = h.data!;
+  final j = peta(p['jumlah']);
+  final ubah = daftar(p['ubah']).map(peta).toList();
+  final galat = daftar(p['galat']).map(peta).toList();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: const Text('Pratinjau impor label'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView(shrinkWrap: true, children: [
+          Text('${angka(j['ubah'])} siswa akan diperbarui · ${angka(j['sama'])} sudah sesuai · ${angka(j['kosong'])} baris kosong (tidak diubah)',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          if (ubah.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final u in ubah.take(60))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text('• ${teks(u['nama'])}: unit ${teks(u['unit'])}, layanan ${teks(u['layanan'])}', style: const TextStyle(fontSize: 12)),
+              ),
+            if (ubah.length > 60) Text('… dan ${ubah.length - 60} lainnya', style: const TextStyle(fontSize: 12)),
+          ],
+          if (galat.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Tidak diproses (${angka(j['galat'])}):', style: TextStyle(color: Theme.of(c).colorScheme.error, fontWeight: FontWeight.w700)),
+            for (final g in galat) Text('• Baris ${angka(g['baris'])} ${teks(g['nama'])}: ${teks(g['alasan'])}', style: const TextStyle(fontSize: 12)),
+          ],
+          const SizedBox(height: 8),
+          const Text('Setiap perubahan tercatat di riwayat siswa dengan catatan "Impor Excel".', style: TextStyle(fontSize: 12)),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+        FilledButton(onPressed: ubah.isEmpty ? null : () => Navigator.pop(c, true), child: Text('Terapkan ${angka(j['ubah'])} perubahan')),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return false;
+  final s = await jalankan(context, () async => peta(await Api.instance('waStafUnitImporTerapkan', [_t, teks(p['kunci'])], const Duration(minutes: 3))), teksProses: 'Menyimpan...');
+  if (!s.ok || s.data == null || !context.mounted) return false;
+  kabar(context, '${angka(s.data!['diubah'])} siswa diperbarui dari Excel.');
+  return true;
 }
