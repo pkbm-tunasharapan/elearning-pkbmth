@@ -40,6 +40,9 @@ String _ujianTeks(Map<String, dynamic> u) {
 const _wBerjalan = Color(0xFF16A34A);
 const _wUts = Color(0xFF7C3AED);
 const _wUas = Color(0xFFDC2626);
+const _wUpk = Color(0xFF0F766E); // v1.63.0: UPK (ujian kelulusan kelas akhir)
+Color _wJenis(String j) => j == 'UTS' ? _wUts : (j == 'UPK' ? _wUpk : _wUas);
+String _namaJenisSesi(String j) => j == 'UTS' ? 'Ujian Tengah Semester' : (j == 'UPK' ? 'Ujian Pendidikan Kesetaraan (UPK)' : 'Ujian Akhir Semester');
 const _wTatapMuka = Color(0xFF1D4ED8);
 
 /// Tampilan kalender akademik (sama dengan kalGambar_ di web): daftar sesi per semester dan kisi bulanan.
@@ -136,7 +139,7 @@ class _KalenderViewState extends State<KalenderView> {
       o.write('</tr></thead><tbody>');
       for (final s in _sesi.where((s) => angka(s['smt']) == smt)) {
         final jenis = teks(s['jenis'], 'Biasa');
-        final kls = jenis == 'UTS' ? 'uts' : (jenis == 'UAS' ? 'uas' : (teks(s['status']) == 'berjalan' ? 'br' : ''));
+        final kls = jenis == 'UTS' ? 'uts' : (jenis == 'UAS' || jenis == 'UPK' ? 'uas' : (teks(s['status']) == 'berjalan' ? 'br' : ''));
         o.write('<tr class="$kls"><td><b>Sesi ${angka(s['n'])}</b>${jenis != 'Biasa' ? '<br>$jenis' : ''}</td><td>${escHtml(_rentang(s))}</td>');
         for (final r in _baris(s)) {
           final u = r['ujian'] as Map<String, dynamic>?;
@@ -163,7 +166,7 @@ class _KalenderViewState extends State<KalenderView> {
     final cs = Theme.of(context).colorScheme;
     final st = teks(s['status']);
     final jenis = teks(s['jenis'], 'Biasa');
-    final w = jenis == 'UTS' ? _wUts : (jenis == 'UAS' ? _wUas : (st == 'berjalan' ? _wBerjalan : cs.outlineVariant));
+    final w = jenis != 'Biasa' ? _wJenis(jenis) : (st == 'berjalan' ? _wBerjalan : cs.outlineVariant);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -179,11 +182,11 @@ class _KalenderViewState extends State<KalenderView> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(
-                child: Text('Sesi ${angka(s['n'])}${jenis != 'Biasa' ? ' · ${jenis == 'UTS' ? 'Ujian Tengah Semester' : 'Ujian Akhir Semester'}' : ''}',
+                child: Text('Sesi ${angka(s['n'])}${jenis != 'Biasa' ? ' · ${_namaJenisSesi(jenis)}' : ''}',
                     style: const TextStyle(fontWeight: FontWeight.w800)),
               ),
               if (st == 'berjalan') _chip('berjalan', _wBerjalan) else if (st == 'lewat') _chip('selesai', cs.outline),
-              if (jenis != 'Biasa') _chip(jenis, jenis == 'UTS' ? _wUts : _wUas),
+              if (jenis != 'Biasa') _chip(jenis, _wJenis(jenis)),
             ]),
             Text(_rentang(s), style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
             for (final r in _baris(s)) ...[
@@ -286,11 +289,9 @@ class _KalenderViewState extends State<KalenderView> {
           final jenis = s == null ? '' : teks(s['jenis'], 'Biasa');
           final w = s == null
               ? null
-              : jenis == 'UTS'
-                  ? _wUts
-                  : jenis == 'UAS'
-                      ? _wUas
-                      : (teks(s['status']) == 'berjalan' ? _wBerjalan : cs.primary);
+              : jenis != 'Biasa'
+                  ? _wJenis(jenis)
+                  : (teks(s['status']) == 'berjalan' ? _wBerjalan : cs.primary);
           final adaUjian = ujian.containsKey(_iso(h));
           final adaTm = tmHari.contains(_iso(h));
           final dipilih = s != null && teks(s['key']) == _pilihSesi;
@@ -417,7 +418,7 @@ class _KalenderViewState extends State<KalenderView> {
         onChanged: (v) => setState(() => _mapel = v ?? ''),
       ),
       const SizedBox(height: 8),
-      Wrap(spacing: 4, children: [_chip('berjalan', _wBerjalan), _chip('UTS', _wUts), _chip('UAS', _wUas)]),
+      Wrap(spacing: 4, children: [_chip('berjalan', _wBerjalan), _chip('UTS', _wUts), _chip('UAS', _wUas), if (_sesi.any((s) => teks(s['jenis']) == 'UPK')) _chip('UPK', _wUpk)]),
       const SizedBox(height: 12),
       if (_bulanan)
         _kisi()

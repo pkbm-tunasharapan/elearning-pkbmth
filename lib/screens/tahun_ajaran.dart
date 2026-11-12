@@ -77,6 +77,7 @@ class _PengaturanState extends State<_Pengaturan> {
   final _per = TextEditingController();
   final _uts = TextEditingController();
   final _uas = TextEditingController();
+  final _upk = TextEditingController(); // v1.63.0
   final _masa = TextEditingController();
   DateTime? _mulai;
   TimeOfDay? _tayang;
@@ -101,6 +102,7 @@ class _PengaturanState extends State<_Pengaturan> {
     _per.text = teks(d['sesiPerSemester']);
     _uts.text = teks(d['uts']);
     _uas.text = teks(d['uas']);
+    _upk.text = angka(d['upk']) > 0 ? teks(d['upk']) : '';
     _masa.text = teks(d['masaBukaHari']);
     _mulai = _dariIso(teks(d['mulai']));
     _tayang = _jam(teks(d['jamTayang']));
@@ -124,6 +126,7 @@ class _PengaturanState extends State<_Pengaturan> {
       'sesiPerSemester': _per.text.trim(),
       'uts': _uts.text.trim(),
       'uas': _uas.text.trim(),
+      'upk': _upk.text.trim().isEmpty ? '0' : _upk.text.trim(),
       'jamTayang': _jamTeks(_tayang),
       'jamBatas': _jamTeks(_batas),
       'masaBukaHari': _masa.text.trim(),
@@ -179,6 +182,16 @@ class _PengaturanState extends State<_Pengaturan> {
                 ),
                 const SizedBox(height: 10),
                 Row(children: [_angka(_per, 'Sesi/semester'), const SizedBox(width: 8), _angka(_uts, 'Sesi UTS'), const SizedBox(width: 8), _angka(_uas, 'Sesi UAS')]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _angka(_upk, 'Sesi UPK (Smt 2)'),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    flex: 2,
+                    child: Text('UPK = ujian kelulusan kelas akhir (6, 9, 12). Kosongkan bila belum ditentukan. Pelaksanaan pasti diatur di Masa Ujian.',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ]),
                 const SizedBox(height: 10),
                 Row(children: [
                   Expanded(

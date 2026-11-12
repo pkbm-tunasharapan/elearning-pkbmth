@@ -293,6 +293,11 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
                   const SizedBox(width: 8),
                   Expanded(child: FilledButton.tonalIcon(onPressed: () => _input(d, 'UAS'), icon: const Icon(Icons.edit_note_rounded), label: const Text('Input UAS'))),
                 ]),
+                // v1.63.0: nilai UPK (ujian kelulusan kelas akhir 6/9/12) bila dilaksanakan offline
+                if (RegExp(r'(?:^|\D)(6|9|12)\s*$').hasMatch(teks(peta(d['kelas'])['namaRombel']).trim())) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(onPressed: () => _input(d, 'UPK'), icon: const Icon(Icons.school_outlined), label: const Text('Input nilai UPK (ujian tulis)')),
+                ],
                 if (bolehUnduh) ...[
                   const SizedBox(height: 8),
                   Row(children: [

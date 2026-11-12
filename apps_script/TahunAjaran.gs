@@ -16,7 +16,8 @@ var TA = {
   PROP: 'TA_KONFIG',
   HARI_PER_SESI: 7,
   JUMLAH_SEMESTER: 2,
-  DEFAULT: { label: '2026/2027', mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, jamTayang: '00:01', jamBatas: '23:59', masaBukaHari: 7 },
+  // upk (v1.63.0): sesi UPK (ujian kelulusan kelas akhir) di Semester 2; 0 = belum diatur
+  DEFAULT: { label: '2026/2027', mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, upk: 0, jamTayang: '00:01', jamBatas: '23:59', masaBukaHari: 7 },
   SHEET_BUKA: 'Buka Sesi',
   HEADERS_BUKA: ['ID', 'Waktu', 'ID Rombel', 'Nama Siswa', 'ID Mapel', 'Semester', 'Sesi', 'Alasan', 'Dibuka Oleh', 'Berlaku Sampai', 'Dicabut'],
   MIN_ALASAN: 15,
@@ -42,6 +43,7 @@ function taBaca_() {
   cfg.sesiPerSemester = parseInt(cfg.sesiPerSemester, 10) || TA.DEFAULT.sesiPerSemester;
   cfg.uts = parseInt(cfg.uts, 10) || TA.DEFAULT.uts;
   cfg.uas = parseInt(cfg.uas, 10) || TA.DEFAULT.uas;
+  cfg.upk = parseInt(cfg.upk, 10) || 0;
   cfg.masaBukaHari = parseInt(cfg.masaBukaHari, 10) || TA.DEFAULT.masaBukaHari;
   cfg.jumlahSemester = TA.JUMLAH_SEMESTER;
   TA_MEMO_ = cfg;
@@ -142,7 +144,7 @@ function taPaket_(cfg, nowMs) {
   var tahunAkhir = new Date(daftar[daftar.length - 1].selesaiMs);
   return {
     label: cfg.label, mulai: cfg.mulai, sesiPerSemester: cfg.sesiPerSemester, jumlahSemester: cfg.jumlahSemester,
-    uts: cfg.uts, uas: cfg.uas, jamTayang: cfg.jamTayang, jamBatas: cfg.jamBatas, masaBukaHari: cfg.masaBukaHari,
+    uts: cfg.uts, uas: cfg.uas, upk: cfg.upk, jamTayang: cfg.jamTayang, jamBatas: cfg.jamBatas, masaBukaHari: cfg.masaBukaHari,
     rentangTahun: taTeksTgl_(awal) + ' – ' + taTeksTgl_(tahunAkhir),
     sekarang: kini ? kini.nama : '', terdekat: (kini || depan || akhir).nama,
     sesi: daftar
@@ -297,12 +299,15 @@ function waAdminTaSimpan(token, d) {
   var uts = parseInt(d.uts, 10), uas = parseInt(d.uas, 10);
   if (!(uts >= 1 && uts <= per) || !(uas >= 1 && uas <= per)) throw new Error('Sesi UTS dan UAS harus berada di antara 1 dan ' + per + '.');
   if (uts === uas) throw new Error('Sesi UTS dan UAS tidak boleh sama.');
+  var upk = parseInt(d.upk, 10) || 0;
+  if (upk < 0 || upk > per) throw new Error('Sesi UPK antara 1 dan ' + per + ' (atau 0 bila belum diatur).');
+  if (upk && upk === uts) throw new Error('Sesi UPK tidak boleh sama dengan sesi UTS.');
   var jt = taJam_(d.jamTayang), jb = taJam_(d.jamBatas);
   if (!jt || !jb) throw new Error('Jam tayang dan jam batas harus berformat HH:MM.');
   var masa = parseInt(d.masaBukaHari, 10);
   if (!(masa >= 1 && masa <= 30)) throw new Error('Lama sesi yang dibuka tutor antara 1 dan 30 hari.');
   var simpan = {
-    label: label, mulai: taIso_(tgl), sesiPerSemester: per, uts: uts, uas: uas,
+    label: label, mulai: taIso_(tgl), sesiPerSemester: per, uts: uts, uas: uas, upk: upk,
     jamTayang: ('0' + jt[0]).slice(-2) + ':' + ('0' + jt[1]).slice(-2), jamBatas: ('0' + jb[0]).slice(-2) + ':' + ('0' + jb[1]).slice(-2), masaBukaHari: masa
   };
   PropertiesService.getScriptProperties().setProperty(TA.PROP, JSON.stringify(simpan));

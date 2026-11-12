@@ -15,7 +15,6 @@ import 'referral/referral.dart';
 import 'referral/referral_admin.dart';
 import 'ujian/masa_ujian.dart';
 import 'ujian/pengawas.dart';
-import 'ujian/ujian_terpusat.dart';
 import 'keuangan/keuangan.dart';
 import 'nilai/nilai.dart';
 import 'kalender.dart';
@@ -87,8 +86,8 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'aturJadwal', judul: 'Pengaturan Jadwal', ikon: Icons.schedule_rounded, peran: {'Admin'}, native: () => const AturJadwalScreen()),
   MenuApp(id: 'nilaiRapor', judul: 'Nilai & Rapor', ikon: Icons.grading_rounded, peran: {'Admin', 'Kepala Sekolah', 'Tutor', 'Dinas Pendidikan'}, native: () => const NilaiRaporScreen()),
   MenuApp(id: 'waliKelas', judul: 'Wali Kelas', ikon: Icons.supervisor_account_outlined, peran: {'Admin', 'Kepala Sekolah'}, native: () => const WaliKelasScreen()),
-  MenuApp(id: 'asesmen', judul: 'Asesmen Tatap Muka', ikon: Icons.assignment_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'}, native: () => const AsesmenScreen()),
-  MenuApp(id: 'ujianTerpusat', judul: 'Ujian Kertas Tatap Muka', ikon: Icons.event_available_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const UjianTerpusatScreen()),
+  // v1.63.0: menu Asesmen Tatap Muka & Ujian Kertas Tatap Muka disembunyikan; semua ujian lewat Masa Ujian Serentak
+  // (data lamanya tetap dibaca rapor, kalender, dan nilai).
   MenuApp(id: 'masaUjian', judul: 'Masa Ujian Serentak', ikon: Icons.date_range_rounded, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const MasaUjianScreen()),
   MenuApp(id: 'pengawasUjian', judul: 'Pengawas Ujian', ikon: Icons.badge_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara'}, native: () => const PengawasScreen()),
   MenuApp(id: 'referral', judul: 'Referral Pendaftaran', ikon: Icons.campaign_outlined, peran: {'Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara'}, native: () => ReferralScreen(token: Sesi.instance.token ?? '')),

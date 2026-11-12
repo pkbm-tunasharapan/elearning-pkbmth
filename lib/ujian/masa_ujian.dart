@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../absensi/umum.dart';
 import '../api.dart';
+import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
 import 'laporan_kesiapan.dart';
@@ -10,7 +11,7 @@ import 'tinjauan.dart';
 
 String? get _t => Sesi.instance.token;
 
-const _namaJenis = {'UTS': 'UTS', 'UAS': 'UAS', 'LAIN': 'Ujian Lainnya', 'TRYOUT': 'Tryout'};
+const _namaJenis = {'UTS': 'UTS', 'UAS': 'UAS', 'UPK': 'UPK (kelulusan)', 'LAIN': 'Ujian Lainnya', 'TRYOUT': 'Tryout'};
 const _hariNama = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
 String _hari(String iso) {
@@ -63,13 +64,63 @@ class MasaUjianScreen extends StatefulWidget {
 class _MasaUjianScreenState extends State<MasaUjianScreen> {
   int _ulang = 0;
 
-  Future<Map<String, dynamic>> _muat() async => peta(await Api.instance('waStafMasaDaftar', [_t], const Duration(seconds: 90)));
+  Future<Map<String, dynamic>> _muat() async {
+    final d = peta(await Api.instance('waStafMasaDaftar', [_t], const Duration(seconds: 90)));
+    try {
+      d['_draf'] = peta(await Api.instance('waStafMasaDraf', [_t]));
+    } catch (_) {}
+    return d;
+  }
 
-  Future<void> _form(Map<String, dynamic> d, [Map<String, dynamic>? m]) async {
-    final id = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => _FormMasa(data: d, masa: m)));
+  Future<void> _form(Map<String, dynamic> d, [Map<String, dynamic>? m, Map<String, dynamic>? awal]) async {
+    final id = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => _FormMasa(data: d, masa: m, awal: awal)));
     if (id == null || !mounted) return;
     setState(() => _ulang++);
     if (m == null) await _buka(id);
+  }
+
+  // v1.63.0: setujui draf dari kalender akademik apa adanya
+  Future<void> _setujuiDraf(Map<String, dynamic> d, Map<String, dynamic> x) async {
+    if (!await konfirmasi(context, 'Setujui ${teks(x['nama'])}?', 'Masa ujian dibuat untuk ${teks(x['rentang'])} (online). Setelah itu atur mapel per hari, rombel, dan pengawas.', ya: 'Setujui')) return;
+    if (!mounted) return;
+    final kkm = angka(peta(d['_draf'])['kkm'], 70);
+    final r = await jalankan(context, () async => peta(await Api.instance('waStafMasaSimpan', [
+          _t,
+          {'nama': x['nama'], 'jenis': x['jenis'], 'smt': x['smt'], 'dari': x['dari'], 'sampai': x['sampai'], 'kkm': kkm, 'cakupan': 'UAS', 'mode': 'Online', 'peserta': x['peserta']}
+        ])), teksProses: 'Membuat masa ujian...');
+    if (!r.ok || !mounted) return;
+    setState(() => _ulang++);
+    await _buka(teks(r.data!['id']));
+  }
+
+  Widget _kartuDraf(Map<String, dynamic> d, Map<String, dynamic> x) {
+    final sudah = teks(x['sudah']);
+    return Card(
+      color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(teks(x['nama']), style: const TextStyle(fontWeight: FontWeight.w800))),
+            Lencana(sudah.isEmpty ? 'Draf kalender' : 'Sudah dibuat', warna: sudah.isEmpty ? Colors.indigo : Colors.green.shade700),
+          ]),
+          const SizedBox(height: 4),
+          Text('Sesi ${x['sesi']} · ${teks(x['rentang'])}', style: const TextStyle(fontSize: 13)),
+          Text(teks(x['cakupanTeks']), style: const TextStyle(fontSize: 12.5)),
+          const SizedBox(height: 6),
+          if (sudah.isEmpty)
+            Wrap(spacing: 8, children: [
+              FilledButton.tonal(onPressed: () => _setujuiDraf(d, x), child: const Text('Setujui')),
+              OutlinedButton(
+                onPressed: () => _form(d, null, {'nama': x['nama'], 'jenis': x['jenis'], 'smt': x['smt'], 'dari': x['dari'], 'sampai': x['sampai'], 'peserta': x['peserta']}),
+                child: const Text('Ubah dulu'),
+              ),
+            ])
+          else
+            TextButton(onPressed: () => _buka(sudah), child: const Text('Buka masa ujian')),
+        ]),
+      ),
+    );
   }
 
   Future<void> _buka(String id) async {
@@ -97,23 +148,35 @@ class _MasaUjianScreenState extends State<MasaUjianScreen> {
         muat: _muat,
         bangun: (c, d, segar) {
           final masa = daftar(d['masa']).map(peta).toList();
+          final dr = peta(d['_draf']);
+          final draf = daftar(dr['draf']).map(peta).toList();
           return Stack(children: [
             RefreshIndicator(
               onRefresh: segar,
               child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), children: [
                 const Text(
-                    'Atur UTS, UAS, Ujian Lainnya, atau Tryout dengan tanggal bebas (mis. satu minggu setiap hari). Setiap slot berlaku serentak '
-                    'untuk semua rombel peserta, tatap muka maupun full online, dan dikerjakan di aplikasi. Soal diambil dari bank soal kurikulum. '
-                    'Jadwal per sesi yang sudah ditetapkan sebelumnya tetap berjalan.',
+                    'Semua ujian (UTS, UAS, UPK, Ujian Lainnya, Tryout) diatur di sini. Kalender akademik memberi draf waktu pelaksanaan; '
+                    'setujui atau ubah dulu tanggalnya, lalu atur mapel per hari, rombel, mode online/offline, dan pengawas. Soal dari bank soal kurikulum.',
                     style: TextStyle(fontSize: 12.5)),
                 const SizedBox(height: 12),
+                if (draf.isNotEmpty) ...[
+                  const JudulBagian('Draf dari kalender akademik', sub: 'Setujui untuk membuat masa ujian, atau ubah tanggalnya dulu.'),
+                  for (final x in draf) _kartuDraf(d, x),
+                  const SizedBox(height: 8),
+                ],
+                if (dr.isNotEmpty && dr['upkDiatur'] != true)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text('Sesi UPK belum diatur. Atur di menu Tahun Ajaran agar draf UPK kelas akhir muncul.', style: TextStyle(fontSize: 12)),
+                  ),
+                if (masa.isNotEmpty) const JudulBagian('Masa ujian'),
                 if (masa.isEmpty) const Kosong(pesan: 'Belum ada masa ujian. Tekan "Masa ujian baru".', ikon: Icons.event_available_outlined),
                 for (final m in masa)
                   Card(
                     child: ListTile(
                       onTap: () => _buka(teks(m['id'])),
                       title: Text(teks(m['nama']), style: const TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text('${_namaJenis[teks(m['jenis'])] ?? teks(m['jenis'])} · Semester ${m['smt']} · ${teks(m['dari'])} s.d. ${teks(m['sampai'])}\n'
+                      subtitle: Text('${_namaJenis[teks(m['jenis'])] ?? teks(m['jenis'])} · Semester ${m['smt']} · ${teks(m['mode'], 'Online')} · ${teks(m['dari'])} s.d. ${teks(m['sampai'])}\n'
                           '${_pesertaTeks(m)} · ${m['jumlahSlot'] ?? 0} slot · ${m['jumlahJadwal'] ?? 0} jadwal kelas'),
                       isThreeLine: true,
                       trailing: Lencana(teks(m['status'], 'Draft'), warna: teks(m['status']) == 'Ditetapkan' ? Colors.green.shade700 : Colors.orange.shade800),
@@ -135,9 +198,10 @@ class _MasaUjianScreenState extends State<MasaUjianScreen> {
 
 // ---------------------------------------------------------------- form masa
 class _FormMasa extends StatefulWidget {
-  const _FormMasa({required this.data, this.masa});
+  const _FormMasa({required this.data, this.masa, this.awal});
   final Map<String, dynamic> data;
   final Map<String, dynamic>? masa;
+  final Map<String, dynamic>? awal; // v1.63.0: isian awal dari draf kalender (masa baru)
 
   @override
   State<_FormMasa> createState() => _FormMasaState();
@@ -147,7 +211,8 @@ class _FormMasaState extends State<_FormMasa> {
   final _nama = TextEditingController();
   final _kkm = TextEditingController();
   final _catatan = TextEditingController();
-  String _jenis = 'UTS', _mode = 'semua', _cakupan = 'UAS';
+  String _jenis = 'UTS', _mode = 'semua', _cakupan = 'UAS', _cara = 'Online';
+  bool _pisahUnit = false;
   int _smt = 1;
   String _dari = '', _sampai = '';
   final Set<String> _rombel = {};
@@ -156,7 +221,7 @@ class _FormMasaState extends State<_FormMasa> {
   @override
   void initState() {
     super.initState();
-    final m = widget.masa;
+    final m = widget.masa ?? widget.awal;
     final b = peta(widget.data['bawaan']);
     _kkm.text = '${b['kkm'] ?? 70}';
     if (m != null) {
@@ -168,6 +233,8 @@ class _FormMasaState extends State<_FormMasa> {
       _dari = teks(m['dari']);
       _sampai = teks(m['sampai']);
       _cakupan = teks(m['cakupan'], 'UAS');
+      _cara = teks(m['mode'], 'Online');
+      _pisahUnit = m['pisahUnit'] == true;
       final ps = peta(m['peserta']);
       _mode = teks(ps['mode'], 'semua');
       _rombel.addAll(daftar(ps['rombel']).map((e) => '$e'));
@@ -203,6 +270,8 @@ class _FormMasaState extends State<_FormMasa> {
             'cakupan': _cakupan,
             'kkm': num.tryParse(_kkm.text.trim().replaceAll(',', '.')) ?? 70,
             'catatan': _catatan.text.trim(),
+            'mode': _cara,
+            'pisahUnit': _pisahUnit,
             'peserta': {'mode': _mode, 'rombel': _rombel.toList(), 'siswa': _siswa.toList()},
           }
         ])), teksProses: 'Menyimpan masa ujian...');
@@ -215,7 +284,7 @@ class _FormMasaState extends State<_FormMasa> {
     final d = widget.data;
     final rombel = daftar(d['rombel']).map(peta).toList();
     final maksSmt = angka(d['jumlahSemester'], 2);
-    final lain = _jenis == 'LAIN' || _jenis == 'TRYOUT';
+    final lain = _jenis == 'LAIN' || _jenis == 'TRYOUT' || _jenis == 'UPK';
     return Scaffold(
       appBar: AppBar(title: Text(widget.masa == null ? 'Masa ujian baru' : 'Ubah masa ujian')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
@@ -231,7 +300,35 @@ class _FormMasaState extends State<_FormMasa> {
             child: Text('Tryout untuk menguji kesiapan sistem, kelancaran, dan pengamanan ujian. Nilainya tidak masuk rapor dan tidak memakai syarat kehadiran.',
                 style: TextStyle(fontSize: 12)),
           ),
+        if (_jenis == 'UPK')
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('UPK (Ujian Pendidikan Kesetaraan) untuk kelas akhir (6, 9, 12). Peserta "Semua" otomatis berarti semua rombel kelas akhir. Nilai tidak masuk rapor.',
+                style: TextStyle(fontSize: 12)),
+          ),
         const SizedBox(height: 14),
+        const Text('Pelaksanaan (bawaan untuk semua jadwal)', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(value: 'Online', label: Text('Online (aplikasi)'), icon: Icon(Icons.phone_android_rounded)),
+            ButtonSegment(value: 'Offline', label: Text('Offline (tulis)'), icon: Icon(Icons.description_outlined)),
+          ],
+          selected: {_cara},
+          onSelectionChanged: (v) => setState(() => _cara = v.first),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text('Offline: naskah & kunci dicetak dari bank soal, nilai diinput tutor di menu Nilai. Tiap jadwal mapel bisa diubah sendiri.', style: TextStyle(fontSize: 12)),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _pisahUnit,
+          onChanged: (v) => setState(() => _pisahUnit = v),
+          title: const Text('Pisah ruang per unit belajar'),
+          subtitle: const Text('Pengawas, daftar hadir, dan berita acara dibuat per rombel × unit.'),
+        ),
+        const SizedBox(height: 8),
         TextField(controller: _nama, decoration: InputDecoration(labelText: 'Nama masa ujian', hintText: '${_namaJenis[_jenis]} Semester $_smt 2026/2027')),
         const SizedBox(height: 14),
         SegmentedButton<int>(
@@ -407,10 +504,9 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
   void _urut() => _slot.sort((a, b) => '${a['tanggal']}${a['jam']}'.compareTo('${b['tanggal']}${b['jam']}'));
 
   Future<void> _ubahSlot([Map<String, dynamic>? s]) async {
-    final dipakai = _slot.where((x) => x != s).map((x) => teks(x['kode'])).toSet();
     final hasil = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _DialogSlot(slot: s, mapel: _mapel.where((m) => !dipakai.contains(teks(m['kode']))).toList(), masa: _masa),
+      builder: (_) => _DialogSlot(slot: s, mapel: _mapel, masa: _masa),
     );
     if (hasil == null) return;
     setState(() {
@@ -447,7 +543,10 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
           _t,
           widget.id,
           _slot
-              .map((s) => {'tanggal': s['tanggal'], 'jam': s['jam'], 'durasi': s['durasi'], 'kode': s['kode'], 'jumlah': s['jumlah'], 'mudah': s['mudah'], 'sedang': s['sedang'], 'sulit': s['sulit']})
+              .map((s) => {
+                    'tanggal': s['tanggal'], 'jam': s['jam'], 'durasi': s['durasi'], 'kode': s['kode'], 'jumlah': s['jumlah'], 'mudah': s['mudah'], 'sedang': s['sedang'], 'sulit': s['sulit'],
+                    'rombel': daftar(s['rombel']), 'mode': teks(s['mode']),
+                  })
               .toList(),
         ], const Duration(seconds: 90)), teksProses: 'Menyimpan slot...');
     if (!r.ok || !mounted) return false;
@@ -521,6 +620,24 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
     if (r.ok && mounted) _muat();
   }
 
+  String _namaRombelSlot(Map<String, dynamic> s) {
+    final ids = daftar(s['rombel']).map((e) => '$e').toSet();
+    final nama = <String>{};
+    for (final m in _mapel) {
+      for (final r in daftar(m['rombelId']).map(peta)) {
+        if (ids.contains(teks(r['id']))) nama.add(teks(r['nama']));
+      }
+    }
+    return 'Rombel: ${nama.isEmpty ? ids.join(', ') : (nama.toList()..sort()).join(', ')}';
+  }
+
+  Future<void> _naskah(String idUjian, bool kunci) async {
+    final r = await jalankan(context, () async => peta(await Api.instance('waStafUjtNaskah', [_t, idUjian, kunci], const Duration(minutes: 2))),
+        teksProses: kunci ? 'Menyusun kunci jawaban...' : 'Menyusun naskah ujian...');
+    if (!r.ok || !mounted) return;
+    await bukaPdfB64(context, teks(r.data!['b64']), teks(r.data!['nama'], 'naskah.pdf'));
+  }
+
   Future<void> _ubahMasa() async {
     final r = await jalankan(context, () async => peta(await Api.instance('waStafMasaDaftar', [_t])), teksProses: 'Memuat...');
     if (!r.ok || !mounted) return;
@@ -539,6 +656,7 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
       perHari.putIfAbsent(teks(s['tanggal']), () => []).add(s);
     }
     final terpakai = _slot.map((s) => teks(s['kode'])).toSet();
+    final kertas = daftar(_d!['kertas']).map(peta).toList();
     final belum = _mapel.where((x) => !terpakai.contains(teks(x['kode']))).toList();
     return PopScope(
       canPop: !_berubah,
@@ -610,7 +728,9 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
                   dense: true,
                   leading: Text(teks(s['jam']), style: const TextStyle(fontWeight: FontWeight.w800)),
                   title: Text(teks(s['namaMapel'], teks(s['kode']))),
-                  subtitle: Text('${s['durasi']} menit · ${s['jumlah']} soal (${s['mudah'] ?? '-'}/${s['sedang'] ?? '-'}/${s['sulit'] ?? '-'})'),
+                  subtitle: Text('${s['durasi']} menit · ${s['jumlah']} soal (${s['mudah'] ?? '-'}/${s['sedang'] ?? '-'}/${s['sulit'] ?? '-'})'
+                      ' · ${teks(s['mode']).isEmpty ? teks(m['mode'], 'Online') : teks(s['mode'])}'
+                      '${daftar(s['rombel']).isEmpty ? '' : '\n${_namaRombelSlot(s)}'}'),
                   onTap: draft ? () => _ubahSlot(s) : null,
                   trailing: draft
                       ? IconButton(
@@ -632,6 +752,27 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
           if (draft) ...[
             const SizedBox(height: 8),
             FilledButton.icon(onPressed: _tetapkan, icon: const Icon(Icons.verified_rounded), label: const Text('Tetapkan masa ujian')),
+          ],
+          if (!draft && kertas.isNotEmpty) ...[
+            JudulBagian('Ujian tulis (offline) · ${kertas.length} jadwal kelas', sub: 'Cetak naskah untuk peserta dan kunci jawaban untuk tutor. Nilai diinput di menu Nilai.'),
+            for (final x in kertas)
+              Card(
+                margin: const EdgeInsets.symmetric(vertical: 3),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text('${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}'),
+                  subtitle: Text('${_hari(teks(x['tanggal']))}, ${teks(x['tanggal'])} · ${teks(x['jam'])}'),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (v) => _naskah(teks(x['idUjian']), v == 'kunci'),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'naskah', child: Text('Cetak naskah soal (PDF)')),
+                      PopupMenuItem(value: 'kunci', child: Text('Cetak kunci jawaban (PDF)')),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
           ],
           if (!draft) OutlinedButton.icon(onPressed: _batal, icon: const Icon(Icons.undo_rounded), label: const Text('Batalkan penetapan')),
         ]),
@@ -656,6 +797,9 @@ class _DialogSlotState extends State<_DialogSlot> {
   late String _jam = teks(widget.slot?['jam'], '07:30');
   late final _durasi = TextEditingController(text: teks(widget.slot?['durasi'], '90'));
   late final _jumlah = TextEditingController(text: teks(widget.slot?['jumlah'], '40'));
+  // v1.63.0: rombel slot (kosong = semua rombel peserta yang punya mapel) & mode ('' = ikut masa)
+  late final Set<String> _rombelSlot = {for (final r in daftar(widget.slot?['rombel'])) '$r'};
+  late String _modeSlot = teks(widget.slot?['mode']);
 
   @override
   void dispose() {
@@ -683,11 +827,36 @@ class _DialogSlotState extends State<_DialogSlot> {
           if (_kode.isNotEmpty)
             Builder(builder: (_) {
               final m = mapel.firstWhere((x) => teks(x['kode']) == _kode, orElse: () => {});
-              final rb = daftar(m['rombel']);
-              return rb.isEmpty
-                  ? const SizedBox.shrink()
-                  : Padding(padding: const EdgeInsets.only(top: 4), child: Text('Rombel: ${rb.join(', ')}', style: const TextStyle(fontSize: 12)));
+              final rb = daftar(m['rombelId']).map(peta).toList();
+              if (rb.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_rombelSlot.isEmpty ? 'Rombel: semua (${rb.length}). Pilih bila hanya sebagian rombel.' : 'Rombel terpilih: ${_rombelSlot.length}',
+                      style: const TextStyle(fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 4, runSpacing: 4, children: [
+                    for (final r in rb)
+                      FilterChip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(teks(r['nama']), style: const TextStyle(fontSize: 12)),
+                        selected: _rombelSlot.contains(teks(r['id'])),
+                        onSelected: (v) => setState(() => v ? _rombelSlot.add(teks(r['id'])) : _rombelSlot.remove(teks(r['id']))),
+                      ),
+                  ]),
+                ]),
+              );
             }),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: [
+              ButtonSegment(value: '', label: Text('Ikut masa (${teks(widget.masa['mode'], 'Online')})')),
+              const ButtonSegment(value: 'Online', label: Text('Online')),
+              const ButtonSegment(value: 'Offline', label: Text('Offline')),
+            ],
+            selected: {_modeSlot},
+            onSelectionChanged: (v) => setState(() => _modeSlot = v.first),
+          ),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(
@@ -733,6 +902,8 @@ class _DialogSlotState extends State<_DialogSlot> {
               'jumlah': jml,
               'kode': _kode,
               'namaMapel': teks(m['nama'], _kode),
+              'rombel': _rombelSlot.toList(),
+              'mode': _modeSlot,
               // komposisi lama hanya dipakai bila jumlah soal tidak berubah
               if (sama) ...{'mudah': widget.slot!['mudah'], 'sedang': widget.slot!['sedang'], 'sulit': widget.slot!['sulit']},
             });

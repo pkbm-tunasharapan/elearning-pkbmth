@@ -117,7 +117,11 @@ function pwRombelSlot_(m, slot, kelas) {
   var out = {};
   slot.forEach(function(s) {
     out[s.id] = {};
-    kelas.forEach(function(k) { if (k.kode === s.kode) (out[s.id][k.idRombelSim] = out[s.id][k.idRombelSim] || []).push(k); });
+    kelas.forEach(function(k) {
+      if (k.kode !== s.kode || !muSlotKena_(s, k.idRombelSim)) return;
+      // v1.63.0: masa "pisah ruang per unit" -> satu ruang per rombel x unit (kunci "rombel~unit", "~-" = belum berlabel)
+      (pwRuangRombel_(m, k.idRombelSim)).forEach(function(kr) { (out[s.id][kr] = out[s.id][kr] || []).push(k); });
+    });
   });
   return out;
 }
@@ -131,7 +135,7 @@ function waStafMasaPengawas(token, idMasa) {
   return {
     masa: m,
     slot: slot.map(function(s) { return { id: s.id, tanggal: s.tanggal, jam: s.jam, durasi: s.durasi, namaMapel: s.namaMapel }; }),
-    rombel: Object.keys(rombel).map(function(r) { return { id: r, nama: rb[r] ? rb[r].nama : r, slot: rombel[r] }; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); }),
+    rombel: Object.keys(rombel).map(function(r) { return { id: r, nama: pwNamaRuang_(r, rb), slot: rombel[r] }; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); }),
     tugas: pwTugasMasa_(m.id).map(function(r) { return { slot: r['SLOT'], rombel: r['ROMBEL'], ruang: r['RUANG'], idPengawas: r['ID PENGAWAS'], namaPengawas: r['NAMA PENGAWAS'] }; }),
     staf: pwStaf_()
   };
@@ -178,7 +182,7 @@ function waStafPengawasTugas(token) {
         if (!milik && !kelola) return;
         var mulai = ujMs_(s.tanggal, s.jam);
         out.push({ masa: m.id, namaMasa: m.nama, jenis: m.jenis, slot: s.id, tanggal: s.tanggal, jam: s.jam, durasi: s.durasi, mapel: s.namaMapel,
-          rombel: r, namaRombel: rb[r] ? rb[r].nama : r, ruang: ef ? ef.ruang : '', pengawas: ef ? ef.namaPengawas : '', milik: milik,
+          rombel: r, namaRombel: pwNamaRuang_(r, rb), ruang: ef ? ef.ruang : '', offline: muModeSlot_(m, s) === 'Offline', pengawas: ef ? ef.namaPengawas : '', milik: milik,
           mulaiMs: mulai, akhirMs: mulai + s.durasi * 60000, beritaAcara: ba[s.id + '|' + r] || '' });
       });
     });
@@ -196,12 +200,14 @@ function pwKonteks_(p, idSlot, idRombelSim) {
   var ef = pwEfektif_(pwTugasMasa_(m.id), s.id, idRombelSim);
   var milik = !!(ef && ef.idPengawas === p.id);
   if (!milik && !ujtKelola_(p)) throw new Error('Anda bukan pengawas ruang ini.');
-  var kelas = muKelas_(m).filter(function(k) { return k.kode === s.kode && k.idRombelSim === String(idRombelSim); });
+  var kr = pwUraiRuang_(idRombelSim);
+  var kelas = muKelas_(m).filter(function(k) { return k.kode === s.kode && k.idRombelSim === kr.rombel; });
   var idx = {};
   kelas.forEach(function(k) { idx[k.idMapel] = k; });
   var jad = ujJadwalSemua_().filter(function(j) { return j.slot === s.id && idx[String(j.idMapel)]; });
   var rb = honProgramRombel_();
-  return { p: p, s: s, m: m, ef: ef, milik: milik, kelas: kelas, jadwal: jad, namaRombel: rb[idRombelSim] ? rb[idRombelSim].nama : idRombelSim, idRombelSim: String(idRombelSim) };
+  return { p: p, s: s, m: m, ef: ef, milik: milik, kelas: kelas, jadwal: jad, namaRombel: pwNamaRuang_(String(idRombelSim), rb), idRombelSim: kr.rombel,
+    kunciRuang: String(idRombelSim), unit: kr.unit };
 }
 // Peserta: siswa e-Learning tiap rombel jadwal; mode "siswa tertentu" disaring dengan nama WB terpilih.
 function pwPeserta_(cx) {
@@ -217,6 +223,7 @@ function pwPeserta_(cx) {
     var k = cx.kelas.filter(function(x) { return x.idMapel === String(j.idMapel); })[0];
     (bm[k.idRombel] || []).forEach(function(sw) {
       if (pilih && !pilih[normNama_(sw.nama)]) return;
+      if (cx.unit && !pwSiswaUnitCocok_(k.idRombel, sw.nama, cx.unit)) return;   // v1.63.0
       out.push({ nama: sw.nama, nisn: sw.nisn, idRombel: k.idRombel, idUjian: String(j.idUjian), j: j });
     });
   });
@@ -236,7 +243,7 @@ function pwJam_(ms) { return ms ? Utilities.formatDate(new Date(ms), Session.get
 
 // v1.56.0: siswa ruang ini yang kehadirannya di bawah syarat dan belum disetujui KS (disimpan 5 menit).
 function pwKurangHadir_(cx) {
-  var c = CacheService.getScriptCache(), k = 'pw_kh_' + cx.s.id + '_' + cx.idRombelSim, s = c.get(k);
+  var c = CacheService.getScriptCache(), k = 'pw_kh_' + cx.s.id + '_' + cx.kunciRuang, s = c.get(k);
   if (s) { try { return JSON.parse(s); } catch (e) {} }
   var o = {};
   try {
@@ -288,7 +295,8 @@ function pwRuang_(cx) {
   return {
     slot: { id: cx.s.id, tanggal: cx.s.tanggal, jam: cx.s.jam, durasi: cx.s.durasi, mapel: cx.s.namaMapel, token: cx.s.token,
       mulaiMs: j0 ? j0.mulaiMs : ujMs_(cx.s.tanggal, cx.s.jam), masukSampaiMs: j0 ? j0.masukSampaiMs : 0, akhirMs: j0 ? j0.akhirMs : 0 },
-    masa: { id: cx.m.id, nama: cx.m.nama, jenis: cx.m.jenis, smt: cx.m.smt }, rombel: cx.idRombelSim, namaRombel: cx.namaRombel,
+    masa: { id: cx.m.id, nama: cx.m.nama, jenis: cx.m.jenis, smt: cx.m.smt }, rombel: cx.kunciRuang, namaRombel: cx.namaRombel,
+    offline: cx.jadwal.some(function(j) { return j.mode === 'Kertas'; }),
     ruang: cx.ef ? cx.ef.ruang : '', pengawas: cx.ef ? cx.ef.namaPengawas : '', idPengawas: cx.ef ? cx.ef.idPengawas : '', milik: cx.milik,
     siswa: siswa, ringkas: hitung, sekarangMs: now, jumlahJadwal: cx.jadwal.length, log: log, sekolah: pwSekolah_(),
     sanksi: sk, pimpinan: PW.PIMPINAN.indexOf(cx.p.peran) >= 0, tryout: cx.m.jenis === 'TRYOUT'
@@ -358,7 +366,7 @@ function waStafPengawasTambahWaktu(token, idSlot, idRombelSim, idUjian, idRombel
 function waStafPengawasBeritaAcara(token, idSlot, idRombelSim) {
   var p = stafDariToken_(token);
   var cx = pwKonteks_(p, idSlot, idRombelSim), d = pwRuang_(cx);
-  var lama = pwBaca_(PW.TAB_BA, PW.HDR_BA).filter(function(r) { return r['SLOT'] === cx.s.id && r['ROMBEL'] === cx.idRombelSim; })[0] || null;
+  var lama = pwBaca_(PW.TAB_BA, PW.HDR_BA).filter(function(r) { return r['SLOT'] === cx.s.id && r['ROMBEL'] === cx.kunciRuang; })[0] || null;
   var kejadian = d.log.filter(function(r) { return r['OLEH'] !== 'Jaringan'; }).map(function(r) {
     return { waktu: r['WAKTU'], jam: String(r['WAKTU']).slice(11, 16), nama: r['NAMA SISWA'], jenis: r['JENIS'], detail: r['DETAIL'], oleh: r['OLEH'], sistem: r['OLEH'] === 'Sistem' };
   }).sort(function(a, b) { return String(a.waktu).localeCompare(String(b.waktu)); });
@@ -381,8 +389,8 @@ function waStafPengawasBeritaAcaraSimpan(token, idSlot, idRombelSim, isi) {
   var d = pwRuang_(cx), hadir = 0, tidak = 0, pel = 0;
   d.siswa.forEach(function(x) { if (x.status === 'Belum hadir') tidak++; else hadir++; pel += x.pelanggaran; });
   var sh = pwTab_(PW.TAB_BA, PW.HDR_BA);
-  var lama = pwBaca_(PW.TAB_BA, PW.HDR_BA).filter(function(r) { return r['SLOT'] === cx.s.id && r['ROMBEL'] === cx.idRombelSim; })[0];
-  var row = [lama ? lama['ID'] : 'BA-' + absId_().toUpperCase(), cx.m.id, cx.s.id, cx.idRombelSim, p.id, p.nama, pwWaktu_(), d.siswa.length, hadir, tidak, pel, ket.slice(0, 2000), ttd];
+  var lama = pwBaca_(PW.TAB_BA, PW.HDR_BA).filter(function(r) { return r['SLOT'] === cx.s.id && r['ROMBEL'] === cx.kunciRuang; })[0];
+  var row = [lama ? lama['ID'] : 'BA-' + absId_().toUpperCase(), cx.m.id, cx.s.id, cx.kunciRuang, p.id, p.nama, pwWaktu_(), d.siswa.length, hadir, tidak, pel, ket.slice(0, 2000), ttd];
   if (lama) sh.getRange(lama._baris, 1, 1, row.length).setNumberFormat('@').setValues([row]);
   else sh.appendRow(row.map(function(v) { return typeof v === 'number' ? v : pwTeks_(v); }));
   catat_(p.peran, p.id, p.nama, 'Berita acara ujian', cx.m.nama + ' · ' + cx.s.namaMapel + ' · ' + cx.namaRombel, 'OK');
@@ -617,4 +625,41 @@ function waStafMasaTinjauPutus(token, idUjian, idRombel, nama, keputusan, catata
   try { CacheService.getScriptCache().remove('pw_berat_' + pwKunciSiswa_(idUjian, idRombel, nama)); } catch (e2) {}
   catat_(p.peran, p.id, p.nama, 'Keputusan pelanggaran berat ujian', nama + ' (ujian ' + idUjian + '): ' + teks + ' - ' + a, 'OK');
   return { sukses: true, keputusan: teks };
+}
+
+// ============================================================================
+// v1.63.0: RUANG UJIAN PER UNIT BELAJAR
+// Masa dengan "pisah ruang per unit": tiap rombel dibagi per unit siswa (kunci ruang "idRombel~idUnit";
+// "~-" = siswa belum berlabel unit). Pengawas, pantauan, daftar hadir, dan berita acara mengikuti kunci ini.
+// ============================================================================
+function pwUraiRuang_(kunci) {
+  var s = String(kunci || ''), i = s.indexOf('~');
+  return i < 0 ? { rombel: s, unit: '' } : { rombel: s.slice(0, i), unit: s.slice(i + 1) || '-' };
+}
+function pwNamaRuang_(kunci, rb) {
+  var k = pwUraiRuang_(kunci), nama = rb && rb[k.rombel] ? rb[k.rombel].nama : k.rombel;
+  if (!k.unit) return nama;
+  return nama + ' · ' + (k.unit === '-' ? 'Belum ada unit' : (typeof ubNamaKunci_ === 'function' ? ubNamaKunci_(k.unit) : k.unit));
+}
+var PW_RUANG_MEMO_ = {};
+function pwRuangRombel_(m, idRombelSim) {
+  if (!m.pisahUnit || typeof ubPetaSiswa_ !== 'function') return [String(idRombelSim)];
+  var ck = m.id + '|' + idRombelSim;
+  if (PW_RUANG_MEMO_[ck]) return PW_RUANG_MEMO_[ck];
+  var lab = ubPetaSiswa_(), unit = {}, pilih = null;
+  if (m.peserta.mode === 'siswa') { pilih = {}; m.peserta.siswa.forEach(function(x) { pilih[x] = true; }); }
+  (absWbRombel_(idRombelSim) || []).forEach(function(w) {
+    if (pilih && !pilih[w.id]) return;
+    var l = lab[w.id];
+    unit[l && l.unit ? l.unit : '-'] = true;
+  });
+  var out = Object.keys(unit).sort().map(function(u) { return String(idRombelSim) + '~' + u; });
+  return (PW_RUANG_MEMO_[ck] = out.length ? out : [String(idRombelSim)]);
+}
+// Siswa e-Learning (rombel e-Learning + nama) termasuk unit ruang ini? unit '-' = belum berlabel.
+function pwSiswaUnitCocok_(idRombelEl, nama, unit) {
+  var w = typeof sbWbSiswa_ === 'function' ? sbWbSiswa_(idRombelEl, nama) : null;
+  var l = w && typeof ubPetaSiswa_ === 'function' ? ubPetaSiswa_()[w.id] : null;
+  var u = l && l.unit ? l.unit : '-';
+  return u === unit;
 }

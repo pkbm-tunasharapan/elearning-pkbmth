@@ -858,5 +858,26 @@ tes('unit: kehadiran tatap muka hanya sesi yang berlaku; Flexi tidak dirugikan',
   } finally { g.ubPetaSiswa_ = simpan; }
 });
 
+// 29. satu pintu ujian: UPK, draf kalender, slot per rombel, ruang per unit (v1.63.0)
+tes('ujian: kelas akhir, slot per rombel, mode, kunci ruang unit', () => {
+  sama(['A6', 'B9', 'C12', 'Kelas 12 IPS', 'C10', 'B7', 'Paket A Kelas 5'].map(g.ujsKelasAkhir_), [true, true, true, true, false, false, false]);
+  sama([g.muSlotKena_({ rombel: [] }, 'R1'), g.muSlotKena_({ rombel: ['R1', 'R2'] }, 'R2'), g.muSlotKena_({ rombel: ['R1'] }, 'R3')], [true, true, false]);
+  sama([g.muModeSlot_({ mode: 'Online' }, { mode: '' }), g.muModeSlot_({ mode: 'Offline' }, { mode: '' }), g.muModeSlot_({ mode: 'Offline' }, { mode: 'Online' })], ['Online', 'Offline', 'Online']);
+  sama([g.pwUraiRuang_('R1'), g.pwUraiRuang_('R1~UNIT-A'), g.pwUraiRuang_('R1~')], [{ rombel: 'R1', unit: '' }, { rombel: 'R1', unit: 'UNIT-A' }, { rombel: 'R1', unit: '-' }]);
+  sama(g.MU.JENIS.indexOf('UPK') >= 0 && /Kesetaraan/.test(g.ujJudul_('UPK', 2)), true, 'jenis UPK');
+});
+tes('ujian: draf masa dari kalender akademik (UTS/UAS, UPK bila diatur, yang sudah dibuat ditandai)', () => {
+  const cfg = { label: '2026/2027', mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, upk: 15, jumlahSemester: 2, jamTayang: '00:01', jamBatas: '23:59' };
+  const now = new Date('2026-08-01T03:00:00Z').getTime();
+  const d = g.ujsDraf_(cfg, now, [{ jenis: 'UTS', smt: 1, id: 'MU-1' }], ['R12']);
+  sama(d.map((x) => x.jenis + x.smt), ['UTS1', 'UAS1', 'UTS2', 'UPK2', 'UAS2'], 'urut tanggal');
+  sama(d[0].sudah, 'MU-1', 'UTS 1 sudah dibuat');
+  sama([d[0].dari, d[0].sampai], ['2026-09-21', '2026-09-27'], 'rentang sesi 9');
+  sama(d.filter((x) => x.jenis === 'UPK')[0].peserta, { mode: 'rombel', rombel: ['R12'] }, 'UPK kelas akhir');
+  sama(g.ujsDraf_(Object.assign({}, cfg, { upk: 0 }), now, [], ['R12']).some((x) => x.jenis === 'UPK'), false, 'UPK belum diatur');
+  const nanti = new Date('2026-12-20T03:00:00Z').getTime();
+  sama(g.ujsDraf_(cfg, nanti, [], []).map((x) => x.jenis + x.smt), ['UTS2', 'UAS2'], 'yang lewat tidak ditawarkan');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

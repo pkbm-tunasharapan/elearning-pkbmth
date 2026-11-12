@@ -22,6 +22,7 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
   late String _sampai;
   int _tab = 0;
   String _cari = '';
+  String _unit = ''; // v1.63.0: saring unit belajar ('' = semua, '-' = belum ada unit)
 
   @override
   void initState() {
@@ -144,15 +145,26 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
               case 'Warga Belajar':
                 final rombel = daftar(d['rombel']).map(peta).toList();
                 final q = _cari.toLowerCase();
+                final namaUnit = <String>{for (final r in rombel) for (final w in daftar(r['wb']).map(peta)) if (teks(w['unit']).isNotEmpty) teks(w['unit'])}.toList()..sort();
+                bool cocokUnit(Map<String, dynamic> w) => _unit.isEmpty || (_unit == '-' ? teks(w['unit']).isEmpty : teks(w['unit']) == _unit);
                 return ListView(padding: const EdgeInsets.all(16), children: [
                   TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari nama warga belajar'), onChanged: (v) => setState(() => _cari = v)),
+                  if (namaUnit.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Wrap(spacing: 6, runSpacing: 6, children: [
+                        ChoiceChip(label: const Text('Semua unit'), selected: _unit.isEmpty, onSelected: (_) => setState(() => _unit = '')),
+                        for (final u in namaUnit) ChoiceChip(label: Text(u), selected: _unit == u, onSelected: (_) => setState(() => _unit = u)),
+                        ChoiceChip(label: const Text('Belum ada unit'), selected: _unit == '-', onSelected: (_) => setState(() => _unit = '-')),
+                      ]),
+                    ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text('Persentase = hadir ÷ jumlah sesi rombel (tatap muka + belajar mandiri). Syarat ujian minimal $syarat%.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                   ),
                   for (final r in rombel)
                     Builder(builder: (context) {
-                      final wb = daftar(r['wb']).map(peta).where((w) => q.isEmpty || teks(w['nama']).toLowerCase().contains(q)).toList();
+                      final wb = daftar(r['wb']).map(peta).where((w) => (q.isEmpty || teks(w['nama']).toLowerCase().contains(q)) && cocokUnit(w)).toList();
                       if (wb.isEmpty) return const SizedBox.shrink();
                       final kurang = wb.where((w) => w['persen'] != null && (w['persen'] as num) < syarat).length;
                       return Card(
@@ -164,7 +176,8 @@ class _LaporanHadirScreenState extends State<LaporanHadirScreen> {
                               ListTile(
                                 dense: true,
                                 title: Text(teks(w['nama'])),
-                                subtitle: Text('Hadir ${w['hadir']} · Izin ${w['izin']} · Sakit ${w['sakit']} · Alpa ${w['alpa']}'),
+                                subtitle: Text('Hadir ${w['hadir']} · Izin ${w['izin']} · Sakit ${w['sakit']} · Alpa ${w['alpa']}'
+                                    '${teks(w['unit']).isEmpty ? '' : ' · ${teks(w['unit'])}'}${teks(w['layanan']) == 'Flexi' ? ' · Flexi' : ''}'),
                                 trailing: Text(w['persen'] == null ? '–' : '${w['persen']}%',
                                     style: TextStyle(fontWeight: FontWeight.w900, color: w['persen'] != null && (w['persen'] as num) < syarat ? cs.error : Colors.green)),
                               ),

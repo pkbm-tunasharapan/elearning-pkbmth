@@ -220,7 +220,7 @@ function ujBuatItemUjian_(idMapel, judul, konten, sesiNama, durasi) {
 // Tutor menetapkan jadwal SEKALI. Setelah tersimpan terkunci; perubahan hanya lewat admin.
 function waStafUjianSimpan(token, idMapel, d) {
   var pTm = stafDariToken_(token);
-  if (pTm.peran === 'Tutor' && typeof ujtTatapMuka_ === 'function' && ujtTatapMuka_(idMapel)) throw new Error('Jadwal ujian kelas tatap muka ditetapkan terpusat oleh Admin/Kepala Sekolah. Ujian di aplikasi lewat menu Masa Ujian; ujian kertas lewat menu Ujian Kertas Tatap Muka.');
+  if (pTm.peran === 'Tutor' && typeof ujtTatapMuka_ === 'function' && ujtTatapMuka_(idMapel)) throw new Error('Jadwal ujian kelas tatap muka ditetapkan terpusat oleh Admin/Kepala Sekolah. Semua ujian dijadwalkan lewat menu Masa Ujian Serentak.');
   var r = wajibMapel_(token, idMapel);
   d = d || {};
   var cfg = taBaca_(), now = Date.now();
@@ -1031,10 +1031,12 @@ function kalBangun_(idRombel) {
   try { ujJadwalSemua_().forEach(function(x) { jadwal[x.idMapel + '|' + x.smt + '|' + x.jenis] = x; }); } catch (e) {}
 
   var sesi = [];
+  var akhir = typeof ujsKelasAkhir_ === 'function' && cfg.upk > 0 && ujsKelasAkhir_(rb.nama);   // v1.63.0: UPK hanya kelas akhir
   for (var smt = 1; smt <= cfg.jumlahSemester; smt++) {
     for (var n = 1; n <= cfg.sesiPerSemester; n++) {
       var info = taInfo_(cfg, smt, n, now);
-      sesi.push({ smt: smt, n: n, key: smt + '|' + n, nama: info.nama, jenis: info.jenis, status: info.status, mulai: info.mulaiIso, selesai: info.selesaiIso, rentang: info.rentang });
+      var jenisS = akhir && smt === 2 && n === cfg.upk ? 'UPK' : info.jenis;
+      sesi.push({ smt: smt, n: n, key: smt + '|' + n, nama: info.nama, jenis: jenisS, status: info.status, mulai: info.mulaiIso, selesai: info.selesaiIso, rentang: info.rentang });
     }
   }
 
@@ -1059,6 +1061,7 @@ function kalBangun_(idRombel) {
   try {
     ujJadwalSemua_().forEach(function(x) {
       if (!adaMapel[x.idMapel] || x.jenis === 'UTS' || x.jenis === 'UAS' || !x.tanggal) return;
+      if (x.jenis === 'UPK' && akhir) { jadwal[x.idMapel + '|2|UPK'] = jadwal[x.idMapel + '|2|UPK'] || x; return; }
       (ujLain[x.idMapel] = ujLain[x.idMapel] || []).push({ jenis: x.jenis === 'TRYOUT' ? 'Tryout' : 'Ujian', judul: x.judulKhusus || ujJudul_(x.jenis, x.smt), tanggal: x.tanggal, jam: x.jam, durasi: x.durasi, kkm: x.kkm });
     });
   } catch (eL) {}
@@ -1099,7 +1102,7 @@ function kalBangun_(idRombel) {
 
   return {
     sekolah: kalSekolah_(), tahunAjaran: cfg.label || '', idRombel: rb.id, namaRombel: rb.nama, sekarangMs: now,
-    mulai: sesi[0].mulai, selesai: sesi[sesi.length - 1].selesai, uts: cfg.uts, uas: cfg.uas,
+    mulai: sesi[0].mulai, selesai: sesi[sesi.length - 1].selesai, uts: cfg.uts, uas: cfg.uas, upk: akhir ? cfg.upk : 0,
     mapel: mapel.map(function(m) { return { idMapel: m.idMapel, namaMapel: m.namaMapel, tutor: tutor[m.idMapel] || (m.tutorTeks ? [m.tutorTeks] : []) }; }),
     sesi: sesi, isi: isi
   };

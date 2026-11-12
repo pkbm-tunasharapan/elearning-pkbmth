@@ -152,7 +152,7 @@ function ujJadwalDariUjian_(idUjian) {
 // dipakai taGerbang_: ujian yang dikelola jadwal tidak memakai gerbang sesi mingguan
 function ujKelola_(idUjian) { return !!ujJadwalDariUjian_(idUjian); }
 
-function ujJudul_(jenis, smt) { if (jenis === 'LAIN') return 'Ujian Lainnya Semester ' + smt; if (jenis === 'TRYOUT') return 'Tryout Semester ' + smt; return (jenis === 'UTS' ? 'Ujian Tengah Semester ' : 'Ujian Akhir Semester ') + smt; }
+function ujJudul_(jenis, smt) { if (jenis === 'UPK') return 'Ujian Pendidikan Kesetaraan (UPK)'; if (jenis === 'LAIN') return 'Ujian Lainnya Semester ' + smt; if (jenis === 'TRYOUT') return 'Tryout Semester ' + smt; return (jenis === 'UTS' ? 'Ujian Tengah Semester ' : 'Ujian Akhir Semester ') + smt; }
 
 // ---------------- bank soal dan undian ----------------
 function ujPool_(idMapel, smt, jenis) {

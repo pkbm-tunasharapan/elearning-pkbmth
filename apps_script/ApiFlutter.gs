@@ -1167,7 +1167,7 @@ function waStafLaporanHadir(token, q) {
   kelas.forEach(function(k) { bolehRombel[k.idRombel] = true; namaRombel[k.idRombel] = k.namaRombel; namaMapel[k.kodeMapel] = k.namaMapel; });
   var tutor = absPetaTutor_();
   var ts = absBaca_('SESI BELAJAR');
-  var sesi = {}, perTutor = {}, sesiRombel = {}, daftarSesi = [];
+  var sesi = {}, perTutor = {}, sesiRombel = {}, daftarSesi = [], sesiUnitR = {}, recWb = {};
   for (var i = 1; i < ts.v.length; i++) {
     var r = ts.v[i];
     var tg = absTgl_(absNilai_(ts, r, 'TANGGAL'));
@@ -1183,6 +1183,7 @@ function waStafLaporanHadir(token, q) {
     var ket = sTeks_(absNilai_(ts, r, 'KETERANGAN')).trim();
     sesi[id] = { idRombel: idR };
     sesiRombel[idR] = (sesiRombel[idR] || 0) + 1;
+    (sesiUnitR[idR] = sesiUnitR[idR] || []).push({ id: id, unit: sTeks_(absNilai_(ts, r, 'UNIT')).trim() });   // v1.63.0
     daftarSesi.push({ id: id, tanggal: tg, rombel: namaRombel[idR] || idR, mapel: namaMapel[km] || km, kegiatan: keg, tutor: tt && tutor[tt] ? tutor[tt].nama : '', tutorHadir: hadirT, jam: absJam_(absNilai_(ts, r, 'JAM HADIR')), darurat: /^DARURAT/.test(ket) });
     if (keg === ABS.KEGIATAN && tt) {
       if (r0.tutor && tutorSaya && tt !== tutorSaya.id) continue;
@@ -1198,15 +1199,19 @@ function waStafLaporanHadir(token, q) {
     var s = sesi[sTeks_(absNilai_(tp, w, 'JADWAL')).trim()];
     if (!s) continue;
     var idW = sTeks_(absNilai_(tp, w, 'WARGA BELAJAR')).trim();
+    recWb[idW + '|' + sTeks_(absNilai_(tp, w, 'JADWAL')).trim()] = true;
     var st = sTeks_(absNilai_(tp, w, 'STATUS')).trim() || 'Hadir';
     var y = perWb[idW] || (perWb[idW] = { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 });
     y[st] = (y[st] || 0) + 1;
   }
   var rombelOut = Object.keys(bolehRombel).map(function(idR) {
     var total = sesiRombel[idR] || 0;
-    var anggota = absWbRombel_(idR).map(function(wb) {
+    var anggota = (typeof ubSaringWb_ === 'function' ? ubSaringWb_(absWbRombel_(idR), '', null) : absWbRombel_(idR)).map(function(wb) {
       var y = perWb[wb.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 };
-      return { id: wb.id, nama: wb.nama, hadir: y.Hadir, izin: y.Izin, sakit: y.Sakit, alpa: y.Alpa, persen: total ? Math.round(y.Hadir * 1000 / total) / 10 : null };
+      // v1.63.0: total per siswa = sesi yang berlaku untuk unit/layanannya
+      var tW = typeof ubTmWb_ === 'function' ? ubTmWb_({ k: sesiUnitR[idR] || [] }, recWb, 'k', wb.id, y.Hadir, total).t : total;
+      return { id: wb.id, nama: wb.nama, hadir: y.Hadir, izin: y.Izin, sakit: y.Sakit, alpa: y.Alpa, persen: tW ? Math.round(y.Hadir * 1000 / tW) / 10 : null,
+        totalSesi: tW, unit: wb.namaUnit || '', layanan: wb.layanan || '' };
     });
     return { id: idR, nama: namaRombel[idR], totalSesi: total, wb: anggota };
   }).sort(function(a, b) { return a.nama.localeCompare(b.nama); });
@@ -2707,7 +2712,7 @@ function waStafNilaiInput(token, d) {
   if (!r.input) throw new Error('Peran Anda tidak dapat menginput nilai.');
   d = d || {};
   // v1.38.3: 'Lainnya' (ujian lainnya, lewat unggah xlsx) juga diterima; rapor tetap memakai UTS & UAS.
-  if (NIL.JENIS.indexOf(String(d.jenis)) < 0 && String(d.jenis) !== 'Lainnya') throw new Error('Jenis nilai harus UTS, UAS, atau Lainnya.');
+  if (NIL.JENIS.indexOf(String(d.jenis)) < 0 && String(d.jenis) !== 'Lainnya' && String(d.jenis) !== 'UPK') throw new Error('Jenis nilai harus UTS, UAS, UPK, atau Lainnya.');
   var kelas = absKelasCek_(nilKelasBoleh_(p), d.idRombel, d.kodeMapel);
   if (!kelas) throw new Error('Kelas tidak ditemukan atau bukan kelas Anda.');
   var per = nilPeriode_(), at = nilAturan_(), key = kelas.idRombel + '|' + kelas.kodeMapel;
@@ -3739,7 +3744,7 @@ function brdAgenda_(bolehBm, bolehSim, hari) {
   return out.slice(0, 10).map(function(x) { return { t: x.t, s: x.s, n: brdTglPendek_(x.tgl), w: x.tgl === h0 ? 'merah' : (x.tgl <= h3 ? 'kuning' : 'biru') }; });
 }
 function brdKartuAgenda_(bolehBm, bolehSim) {
-  return { judul: 'Agenda ujian 3 minggu ke depan', ikon: 'agenda', menu: 'asesmen', item: brdAgenda_(bolehBm, bolehSim, 21), kosong: 'Belum ada UTS/UAS terjadwal dalam 3 minggu ke depan.' };
+  return { judul: 'Agenda ujian 3 minggu ke depan', ikon: 'agenda', menu: 'kalender', item: brdAgenda_(bolehBm, bolehSim, 21), kosong: 'Belum ada UTS/UAS terjadwal dalam 3 minggu ke depan.' };
 }
 // Jawaban diskusi/tugas yang belum dinilai, per mapel.
 function brdBelumDinilai_(mapelBoleh) {
