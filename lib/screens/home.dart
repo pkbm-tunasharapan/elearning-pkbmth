@@ -368,6 +368,10 @@ class Beranda extends StatelessWidget {
                       _Ringkas(ikon: Icons.account_balance_rounded, warna: Gaya.warnaMenu('keuangan'), nilai: 'Kas', label: 'Keuangan', onTap: () => onPilih('keuangan')),
                       const VerticalDivider(width: 1),
                       _Ringkas(ikon: Icons.payments_rounded, warna: Gaya.warnaMenu('rekapHonor'), nilai: 'Bayar', label: 'Honor tutor', onTap: () => onPilih('rekapHonor')),
+                    ] else if (s.peran == 'Koordinator Unit') ...[
+                      _Ringkas(ikon: Icons.share_location_rounded, warna: Gaya.warnaMenu('pantauanUnit'), nilai: 'Unit', label: 'Pantauan unit', onTap: () => onPilih('pantauanUnit')),
+                      const VerticalDivider(width: 1),
+                      _Ringkas(ikon: Icons.calendar_month_rounded, warna: Gaya.warnaMenu('kalender'), nilai: 'Lihat', label: 'Kalender', onTap: () => onPilih('kalender')),
                     ] else if (s.peran == 'Front Office') ...[
                       _Ringkas(ikon: Icons.badge_rounded, warna: Gaya.warnaMenu('absenTutor'), nilai: 'Darurat', label: 'Absen tutor', onTap: () => onPilih('absenTutor')),
                       const VerticalDivider(width: 1),

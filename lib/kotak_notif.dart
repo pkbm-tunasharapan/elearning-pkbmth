@@ -4,6 +4,7 @@ import 'api.dart';
 import 'honor/honor.dart';
 import 'keuangan/keuangan.dart';
 import 'pemberitahuan.dart';
+import 'induk/pantauan_unit.dart';
 import 'referral/referral_admin.dart';
 import 'screens/admin_lain.dart' show PengajuanTutorScreen;
 import 'screens/ujian.dart' show KotakUjianScreen;
@@ -76,6 +77,8 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
       if (!siswa) layar = const TinjauanPelanggaranScreen();
     case 'pengajuan_tutor':
       if (!siswa) layar = _bungkus('Pengajuan Tutor', const PengajuanTutorScreen());
+    case 'pantauan_unit':
+      if (!siswa) layar = const PantauanUnitScreen();
     case 'honor':
       if (!siswa) layar = Sesi.instance.peran == 'Tutor' ? _bungkus('Saldo Honor', const HonorSayaScreen()) : _bungkus('Rekap Honor', const RekapHonorScreen());
   }

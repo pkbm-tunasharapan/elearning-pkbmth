@@ -526,6 +526,7 @@ function pwSetelahKunci_(idUjian, idRombel, nama) {
         npKirim_('ujian_pelanggaran_berat', { judul: 'Pelanggaran berat saat ujian', isi: nama + ' (' + (m.namaRombel || idRombel) + ') terkunci ' + rs.kunci + ' kali pada ' +
           (m.namaMapel || 'ujian') + '. Jawaban dikirim otomatis dan perlu ditinjau.', aksi: 'tinjau_ujian', ref: 'berat|' + pwKunciSiswa_(idUjian, idRombel, nama) + '|' + rs.kunciTotal });
       } catch (e2) {}
+      try { if (typeof ubNotifPelanggaran_ === 'function') ubNotifPelanggaran_(idRombel, nama, j, rs.kunci); } catch (e3) {}   // v1.61.0
     }
   } else if (rs.berat && !tryout) {
     out.kirimOtomatis = true; out.berat = true;

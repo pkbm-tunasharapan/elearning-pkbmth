@@ -45,6 +45,7 @@ function normPeran_(v) {
   if (t === 'superadmin' || t === 'ketua yayasan') return 'Superadmin';
   if (t === 'front office' || t === 'fo') return 'Front Office';
   if (t === 'bendahara') return 'Bendahara';
+  if (t === 'koordinator unit') return 'Koordinator Unit';   // v1.61.0
   if (t === 'dinas pendidikan' || t === 'dinas') return 'Dinas Pendidikan';
   return '';
 }
@@ -76,7 +77,7 @@ function pastikanSheetPeran_() {
       sh.setFrozenRows(1);
       if (d[0] === PERAN.SHEET_PENGGUNA) {
         sh.getRange(2, 1, 500, 7).setNumberFormat('@');
-        var aturan = SpreadsheetApp.newDataValidation().requireValueInList(['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Dinas Pendidikan'], true).setAllowInvalid(false).build();
+        var aturan = SpreadsheetApp.newDataValidation().requireValueInList(['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan'], true).setAllowInvalid(false).build();
         sh.getRange(2, 3, 500, 1).setDataValidation(aturan);
         var aturanStatus = SpreadsheetApp.newDataValidation().requireValueInList(['Aktif', 'Nonaktif'], true).setAllowInvalid(false).build();
         sh.getRange(2, 6, 500, 1).setDataValidation(aturanStatus);
@@ -1188,7 +1189,7 @@ function sinkronTutorSemua_() {
   function ada_(e) { try { return !!ssoCariDiSim_(e); } catch (x) { return false; } }
   for (j = 1; j < vp.length; j++) {
     var prP = normPeran_(vp[j][2]);
-    if (!String(vp[j][1]).trim() || !prP || prP === 'Admin' || prP === 'Superadmin' || prP === 'Front Office' || prP === 'Bendahara') continue;
+    if (!String(vp[j][1]).trim() || !prP || prP === 'Admin' || prP === 'Superadmin' || prP === 'Front Office' || prP === 'Bendahara' || prP === 'Koordinator Unit') continue;
     var emP = String(vp[j][4]).trim().toLowerCase();
     var idP = sTeks_(vp[j][0]).trim();
     var sahEmail = !!emP && (emailAktif[emP] || ada_(emP));

@@ -52,7 +52,7 @@ class _TabUnit extends StatelessWidget {
   final VoidCallback muatUlang;
 
   Future<void> _form(BuildContext context, [Map<String, dynamic>? u]) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => _DialogUnit(u: u));
+    final ok = await showDialog<bool>(context: context, builder: (_) => _DialogUnit(u: u, calon: daftar(d['calonKoordinator']).map(peta).toList()));
     if (ok == true) muatUlang();
   }
 
@@ -90,6 +90,7 @@ class _TabUnit extends StatelessWidget {
               title: Text(teks(u['nama']), style: const TextStyle(fontWeight: FontWeight.w700)),
               subtitle: Text([
                 '${angka(u['jumlah'])} siswa',
+                daftar(u['namaKoordinator']).isEmpty ? 'belum ada koordinator' : 'koordinator: ${daftar(u['namaKoordinator']).join(', ')}',
                 if (teks(u['alamat']).isNotEmpty) teks(u['alamat']),
                 if (teks(u['ket']).isNotEmpty) teks(u['ket']),
               ].join(' · ')),
@@ -109,8 +110,9 @@ class _TabUnit extends StatelessWidget {
 }
 
 class _DialogUnit extends StatefulWidget {
-  const _DialogUnit({this.u});
+  const _DialogUnit({this.u, required this.calon});
   final Map<String, dynamic>? u;
+  final List<Map<String, dynamic>> calon;
 
   @override
   State<_DialogUnit> createState() => _DialogUnitState();
@@ -121,6 +123,7 @@ class _DialogUnitState extends State<_DialogUnit> {
   late final _alamat = TextEditingController(text: teks(widget.u?['alamat']));
   late final _ket = TextEditingController(text: teks(widget.u?['ket']));
   late bool _aktif = widget.u == null || widget.u!['aktif'] == true;
+  late final Set<String> _koord = {for (final k in daftar(widget.u?['koordinator'])) '$k'};
 
   @override
   void dispose() {
@@ -134,7 +137,7 @@ class _DialogUnitState extends State<_DialogUnit> {
     if (_nama.text.trim().length < 2) return kabar(context, 'Isi nama unit.', galat: true);
     final r = await jalankan(
       context,
-      () => Api.instance('waStafUnitSimpan', [_t, {'id': teks(widget.u?['id']), 'nama': _nama.text.trim(), 'alamat': _alamat.text.trim(), 'ket': _ket.text.trim(), 'aktif': _aktif}]),
+      () => Api.instance('waStafUnitSimpan', [_t, {'id': teks(widget.u?['id']), 'nama': _nama.text.trim(), 'alamat': _alamat.text.trim(), 'ket': _ket.text.trim(), 'aktif': _aktif, 'koordinator': _koord.toList()}]),
       teksProses: 'Menyimpan...',
     );
     if (r.ok && mounted) {
@@ -154,6 +157,21 @@ class _DialogUnitState extends State<_DialogUnit> {
           TextField(controller: _alamat, decoration: const InputDecoration(labelText: 'Alamat (opsional)')),
           const SizedBox(height: 8),
           TextField(controller: _ket, maxLines: 2, decoration: const InputDecoration(labelText: 'Keterangan (opsional)')),
+          const SizedBox(height: 12),
+          Align(alignment: Alignment.centerLeft, child: Text('Koordinator unit', style: Theme.of(context).textTheme.labelLarge)),
+          const SizedBox(height: 6),
+          if (widget.calon.isEmpty)
+            Text('Belum ada pengguna berperan Koordinator Unit. Tambahkan di menu Kelola Tutor & Enrollment.',
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))
+          else
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final c in widget.calon)
+                FilterChip(
+                  label: Text(teks(c['nama'])),
+                  selected: _koord.contains(teks(c['id'])),
+                  onSelected: (v) => setState(() => v ? _koord.add(teks(c['id'])) : _koord.remove(teks(c['id']))),
+                ),
+            ]),
           if (widget.u != null)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

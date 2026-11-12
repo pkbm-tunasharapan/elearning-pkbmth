@@ -10,12 +10,14 @@
 // - Siswa tanpa label = perilaku aplikasi sama seperti sebelumnya.
 // ============================================================================
 var UB = {
-  TAB_UNIT: 'UNIT BELAJAR', HDR_UNIT: ['ID UNIT', 'NAMA UNIT', 'ALAMAT', 'KETERANGAN', 'AKTIF', 'DIUBAH OLEH', 'DIUBAH PADA'],
+  TAB_UNIT: 'UNIT BELAJAR', HDR_UNIT: ['ID UNIT', 'NAMA UNIT', 'ALAMAT', 'KETERANGAN', 'AKTIF', 'DIUBAH OLEH', 'DIUBAH PADA', 'KOORDINATOR'],
   TAB_SISWA: 'UNIT SISWA', HDR_SISWA: ['ID WB', 'UNIT', 'LAYANAN', 'DIUBAH OLEH', 'DIUBAH PADA'],
   TAB_RIW: 'RIWAYAT UNIT SISWA', HDR_RIW: ['WAKTU', 'ID WB', 'NAMA WB', 'UNIT LAMA', 'UNIT BARU', 'LAYANAN LAMA', 'LAYANAN BARU', 'OLEH', 'CATATAN'],
   LAYANAN: ['Reguler', 'Flexi'],
   PERAN_LIHAT: ['Admin', 'Superadmin'], PERAN_UBAH: ['Admin'],
-  MAKS_SEKALI: 500
+  MAKS_SEKALI: 500,
+  // v1.61.0 (Tahap 2): Koordinator Unit memantau siswa di unitnya (hanya lihat; pemetaan & persetujuan tetap KS)
+  PERAN_KOORD: 'Koordinator Unit', PERAN_PANTAU_SEMUA: ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], CACHE_DETIK: 600
 };
 var UB_MEMO_ = {};
 
@@ -31,14 +33,26 @@ function ubNormLayanan_(x) {
 function ubNormNama_(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
 
 // ---------- baca ----------
+function ubTabUnit_() {
+  var t = absBaca_(UB.TAB_UNIT, UB.HDR_UNIT);
+  var kurang = UB.HDR_UNIT.filter(function(h) { return absCol_(t, h) < 0; });
+  if (kurang.length) {
+    var c = t.v[0].length;
+    t.sh.getRange(1, c + 1, 1, kurang.length).setValues([kurang]).setFontWeight('bold');
+    t = absBaca_(UB.TAB_UNIT, UB.HDR_UNIT);
+  }
+  return t;
+}
+function ubDaftarId_(s) { return String(s || '').split(',').map(function(x) { return x.trim(); }).filter(String); }
 function ubUnit_() {
   if (UB_MEMO_.unit) return UB_MEMO_.unit;
-  var t = absBaca_(UB.TAB_UNIT, UB.HDR_UNIT), out = [];
+  var t = ubTabUnit_(), out = [];
   for (var i = 1; i < t.v.length; i++) {
     var id = sTeks_(absNilai_(t, t.v[i], 'ID UNIT')).trim();
     if (!id) continue;
     out.push({ baris: i + 1, id: id, nama: sTeks_(absNilai_(t, t.v[i], 'NAMA UNIT')).trim(), alamat: sTeks_(absNilai_(t, t.v[i], 'ALAMAT')).trim(),
-      ket: sTeks_(absNilai_(t, t.v[i], 'KETERANGAN')).trim(), aktif: absBenar_(absNilai_(t, t.v[i], 'AKTIF')) });
+      ket: sTeks_(absNilai_(t, t.v[i], 'KETERANGAN')).trim(), aktif: absBenar_(absNilai_(t, t.v[i], 'AKTIF')),
+      koordinator: ubDaftarId_(absNilai_(t, t.v[i], 'KOORDINATOR')) });
   }
   out.sort(function(a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); });
   return (UB_MEMO_.unit = out);
@@ -85,8 +99,14 @@ function waStafUnitData(token) {
     return { id: w.id, nisn: w.nisn, nama: w.nama, idRombel: w.idRombel, namaRombel: w.namaRombel, program: w.program, unit: s.unit, layanan: s.layanan };
   });
   siswa.sort(function(a, b) { return (a.namaRombel + '|' + a.nama).localeCompare(b.namaRombel + '|' + b.nama); });
+  var calon = ubCalonKoord_(), namaK = {};
+  calon.forEach(function(c) { namaK[c.id] = c.nama; });
   return {
-    unit: unit.map(function(u) { return { id: u.id, nama: u.nama, alamat: u.alamat, ket: u.ket, aktif: u.aktif, jumlah: hit[u.id] || 0 }; }),
+    unit: unit.map(function(u) {
+      return { id: u.id, nama: u.nama, alamat: u.alamat, ket: u.ket, aktif: u.aktif, jumlah: hit[u.id] || 0,
+        koordinator: u.koordinator, namaKoordinator: u.koordinator.map(function(k) { return namaK[k] || k; }) };
+    }),
+    calonKoordinator: calon,
     siswa: siswa, layanan: UB.LAYANAN,
     ringkas: { total: siswa.length, tanpaUnit: hit[''] || 0, reguler: hitL.Reguler || 0, flexi: hitL.Flexi || 0, tanpaLayanan: hitL[''] || 0 }
   };
@@ -107,8 +127,11 @@ function waStafUnitSimpan(token, d) {
     var semua = ubUnit_();
     var ganda = semua.filter(function(u) { return u.nama.toLowerCase() === nama.toLowerCase() && u.id !== String(d.id || ''); });
     if (ganda.length) throw new Error('Nama unit "' + nama + '" sudah ada.');
-    var t = absBaca_(UB.TAB_UNIT, UB.HDR_UNIT);
-    var isi = { 'NAMA UNIT': nama, 'ALAMAT': ubNormNama_(d.alamat).slice(0, 200), 'KETERANGAN': String(d.ket || '').trim().slice(0, 300),
+    var t = ubTabUnit_();
+    var calon = {};
+    ubCalonKoord_().forEach(function(c) { calon[c.id] = true; });
+    var koord = (Array.isArray(d.koordinator) ? d.koordinator : []).map(String).filter(function(k, i, a) { return calon[k] && a.indexOf(k) === i; });
+    var isi = { 'KOORDINATOR': koord.join(','), 'NAMA UNIT': nama, 'ALAMAT': ubNormNama_(d.alamat).slice(0, 200), 'KETERANGAN': String(d.ket || '').trim().slice(0, 300),
       'AKTIF': aktif ? 'Ya' : 'Tidak', 'DIUBAH OLEH': p.nama, 'DIUBAH PADA': absWaktu_() };
     var id = String(d.id || '');
     if (id) {
@@ -229,4 +252,147 @@ function ubTempelRombelSiswa_(rom) {
     });
   });
   return rom;
+}
+
+// ============================================================================
+// TAHAP 2 (v1.61.0): KOORDINATOR UNIT
+// - Peran bawaan baru "Koordinator Unit" (di bawah KS). Ditunjuk Admin per unit (kolom KOORDINATOR, bisa
+//   lebih dari satu orang, satu orang bisa beberapa unit). Hanya MELIHAT siswa unitnya: kehadiran gabungan per
+//   mapel (semester berjalan) dan sisa tagihan. Tidak memetakan tutor dan tidak menyetujui apa pun.
+// - Admin, Superadmin, KS, Koordinator Kurikulum dapat membuka pantauan semua unit.
+// - Notifikasi: pelanggaran berat ujian siswa unitnya, dan ringkasan mingguan (Senin).
+// ============================================================================
+function ubCalonKoord_() {
+  return bacaPengguna_().filter(function(u) { return u.peran === UB.PERAN_KOORD && u.status === 'Aktif'; })
+    .map(function(u) { return { id: u.id, nama: u.nama + (u.peranKustom ? ' (' + u.peranKustom + ')' : '') }; })
+    .sort(function(a, b) { return a.nama.localeCompare(b.nama); });
+}
+// Unit yang boleh dipantau pengguna ini (aktif saja).
+function ubUnitSaya_(p) {
+  var semua = ubUnit_().filter(function(u) { return u.aktif; });
+  if (UB.PERAN_PANTAU_SEMUA.indexOf(p.peran) >= 0) return semua;
+  if (p.peran === UB.PERAN_KOORD) return semua.filter(function(u) { return u.koordinator.indexOf(String(p.id)) >= 0; });
+  return [];
+}
+// ID pengguna koordinator untuk siswa (ID WB).
+function ubKoordWb_(idWb) {
+  var s = ubPetaSiswa_()[String(idWb)];
+  var u = s && s.unit ? ubPetaUnit_()[s.unit] : null;
+  return u && u.aktif ? u.koordinator.slice() : [];
+}
+
+// Ringkas satu siswa: urutan masalah (kurang hadir, lalu tunggakan lewat tempo).
+function ubSkor_(x) { return (x.kurang.length ? 2 : 0) + (x.lewat > 0 ? 1 : 0); }
+
+// Data pantauan satu unit (cache 10 menit).
+function ubPantau_(idUnit, paksa) {
+  var c = CacheService.getScriptCache(), ck = 'ubp|' + idUnit;
+  if (!paksa) { try { var l = c.get(ck); if (l) return JSON.parse(l); } catch (e) {} }
+  var u = ubPetaUnit_()[idUnit];
+  if (!u) throw new Error('Unit tidak ditemukan.');
+  var lab = ubPetaSiswa_(), wb = keuWbSemua_().filter(function(w) { return w.aktif && lab[w.id] && lab[w.id].unit === idUnit; });
+  var per = nilPeriode_(), at = nilAturan_(), byR = {}, data = {}, hari = absHariIni_();
+  wb.forEach(function(w) {
+    (byR[w.idRombel] = byR[w.idRombel] || []).push(w);
+    data[w.id] = { id: w.id, nama: w.nama, nisn: w.nisn, namaRombel: w.namaRombel, layanan: lab[w.id].layanan, jml: 0, n: 0, kurang: [], sisa: 0, lewat: 0 };
+  });
+  // kehadiran gabungan per rombel|mapel aktif (sama dengan syarat ujian)
+  var peta = nilPetaBm_(), nmMapel = honNamaMapel_();
+  Object.keys(peta.aktif).forEach(function(key) {
+    var idR = key.split('|')[0];
+    if (!byR[idR]) return;
+    var hk = nilHadirKelas_(per, key), kode = key.split('|')[1];
+    byR[idR].forEach(function(w) {
+      var g = hk.gabung(w.id);
+      if (!g.total) return;
+      var x = data[w.id];
+      x.jml += g.persen; x.n++;
+      if (g.persen < at.syaratHadir) x.kurang.push({ mapel: nmMapel[kode] || kode, persen: g.persen });
+    });
+  });
+  // tagihan: sisa & yang sudah lewat jatuh tempo
+  if (wb.length) {
+    var pb = keuBayarPeta_();
+    keuTagSemua_().data.forEach(function(tag) {
+      if (!tag.aktif) return;
+      keuRinci_(tag, wb, pb).forEach(function(r) {
+        var x = data[r.idWb];
+        if (!x || r.sisa <= 0) return;
+        x.sisa += r.sisa;
+        if (tag.jatuhTempo && String(tag.jatuhTempo) < hari) x.lewat += r.sisa;
+      });
+    });
+  }
+  var siswa = Object.keys(data).map(function(id) {
+    var x = data[id];
+    x.kurang.sort(function(a, b) { return a.persen - b.persen; });
+    return { id: x.id, nama: x.nama, nisn: x.nisn, namaRombel: x.namaRombel, layanan: x.layanan, hadir: x.n ? Math.round(x.jml / x.n) : null,
+      kurang: x.kurang, sisa: x.sisa, lewat: x.lewat };
+  });
+  siswa.sort(function(a, b) { return (ubSkor_(b) - ubSkor_(a)) || (a.namaRombel + a.nama).localeCompare(b.namaRombel + b.nama); });
+  var ringkas = { siswa: siswa.length, reguler: 0, flexi: 0, kurangHadir: 0, menunggak: 0, lewatTempo: 0, sisa: 0, nilaiLewat: 0 };
+  siswa.forEach(function(x) {
+    if (x.layanan === 'Reguler') ringkas.reguler++;
+    if (x.layanan === 'Flexi') ringkas.flexi++;
+    if (x.kurang.length) ringkas.kurangHadir++;
+    if (x.sisa > 0) ringkas.menunggak++;
+    if (x.lewat > 0) ringkas.lewatTempo++;
+    ringkas.sisa += x.sisa; ringkas.nilaiLewat += x.lewat;
+  });
+  var rombel = {};
+  siswa.forEach(function(x) { rombel[x.namaRombel] = (rombel[x.namaRombel] || 0) + 1; });
+  var out = { unit: { id: u.id, nama: u.nama, alamat: u.alamat }, syaratHadir: at.syaratHadir, periode: per.tahun + ' ' + per.semester,
+    ringkas: ringkas, rombel: Object.keys(rombel).sort().map(function(n) { return { nama: n, jumlah: rombel[n] }; }), siswa: siswa, waktu: absWaktu_() };
+  try { var js = JSON.stringify(out); if (js.length < 95000) c.put(ck, js, UB.CACHE_DETIK); } catch (e2) {}
+  return out;
+}
+
+// API: pantauan unit. idUnit kosong = unit pertama yang boleh.
+function waStafPantauUnit(token, idUnit, paksa) {
+  var p = stafDariToken_(token);
+  var boleh = ubUnitSaya_(p);
+  if (UB.PERAN_PANTAU_SEMUA.indexOf(p.peran) < 0 && p.peran !== UB.PERAN_KOORD) throw new Error('Pantauan unit untuk Koordinator Unit dan pimpinan.');
+  var daftarU = boleh.map(function(u) { return { id: u.id, nama: u.nama }; });
+  if (!boleh.length) return { daftar: [], data: null, pesan: p.peran === UB.PERAN_KOORD ? 'Anda belum ditunjuk sebagai koordinator unit mana pun. Hubungi Admin.' : 'Belum ada unit belajar aktif.' };
+  var id = String(idUnit || '') || boleh[0].id;
+  if (!boleh.some(function(u) { return u.id === id; })) throw new Error('Anda tidak memegang unit ini.');
+  return { daftar: daftarU, data: ubPantau_(id, paksa === true) };
+}
+
+// Kartu beranda Koordinator Unit.
+function ubKartuBeranda_(p) {
+  var boleh = ubUnitSaya_(p);
+  if (!boleh.length) return { judul: 'Unit saya', ikon: 'info', menu: 'pantauanUnit', item: [], kosong: 'Anda belum ditunjuk sebagai koordinator unit. Hubungi Admin.' };
+  var item = [], tot = 0, masalah = 0;
+  boleh.forEach(function(u) {
+    var d = ubPantau_(u.id), r = d.ringkas;
+    tot += r.siswa;
+    masalah += r.kurangHadir;
+    item.push({ t: u.nama, s: r.siswa + ' siswa · Reguler ' + r.reguler + ' · Flexi ' + r.flexi, n: r.kurangHadir ? r.kurangHadir + ' kurang hadir' : 'Hadir baik', w: r.kurangHadir ? 'merah' : 'hijau' });
+    if (r.lewatTempo) item.push({ t: 'Tunggakan lewat jatuh tempo · ' + u.nama, s: r.lewatTempo + ' siswa', n: honRp_(r.nilaiLewat), w: 'kuning' });
+  });
+  return { judul: 'Unit saya', ikon: 'peringatan', menu: 'pantauanUnit', ringkas: tot + ' siswa', item: item.slice(0, 8), kosong: '' };
+}
+
+// Notifikasi pelanggaran berat ujian ke koordinator unit siswa. idRombel = rombel e-Learning.
+function ubNotifPelanggaran_(idRombel, nama, j, kunciKe) {
+  var w = typeof sbWbSiswa_ === 'function' ? sbWbSiswa_(idRombel, nama) : null;
+  if (!w || !w.id) return;
+  var staf = ubKoordWb_(w.id);
+  if (!staf.length) return;
+  var m = j ? (ujtPetaMapel_()[String(j.idMapel)] || {}) : {};
+  npKirim_('unit_pelanggaran', { judul: 'Pelanggaran berat: ' + nama, isi: nama + ' (' + (m.namaRombel || idRombel) + ') terkunci ' + kunciKe + ' kali saat ujian ' +
+    (m.namaMapel || '') + '. Kasus ditinjau Kepala Sekolah; mohon tindak lanjut pembinaan di unit.', aksi: '', staf: staf, ref: 'ubpl|' + w.id + '|' + (j ? j.idUjian : '') });
+}
+
+// Ringkasan mingguan (dipanggil npMingguan_, Senin).
+function ubMingguan_(hari) {
+  ubUnit_().filter(function(u) { return u.aktif && u.koordinator.length; }).forEach(function(u) {
+    try {
+      var r = ubPantau_(u.id, true).ringkas;
+      if (!r.siswa) return;
+      npKirim_('unit_mingguan', { judul: 'Ringkasan ' + u.nama, isi: r.siswa + ' siswa · ' + r.kurangHadir + ' kehadiran di bawah syarat · ' + r.lewatTempo +
+        ' tunggakan lewat jatuh tempo (' + honRp_(r.nilaiLewat) + '). Buka Pantauan Unit untuk rinciannya.', aksi: 'pantauan_unit', staf: u.koordinator, ref: 'ubm|' + u.id + '|' + hari });
+    } catch (e) {}
+  });
 }

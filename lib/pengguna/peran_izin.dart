@@ -7,7 +7,7 @@ import '../widgets.dart';
 
 String? get _t => Sesi.instance.token;
 
-const _peranDasar = ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Dinas Pendidikan'];
+const _peranDasar = ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan'];
 const _labelTingkat = {'tidak': 'Tidak', 'lihat': 'Lihat', 'ubah': 'Ubah'};
 
 /// v1.41.0 (Tahap 1): daftar peran (bawaan & kustom) dan izin per fitur. Khusus Admin utama.

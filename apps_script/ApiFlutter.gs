@@ -3888,6 +3888,9 @@ function waStafBeranda(token, paksa) {
   } else if (q.fo) {
     brdKartu_(k, function() { return brdKartuJadwalHariIni_(token); });
     brdKartu_(k, function() { return brdKartuAgenda_(null, null); });
+  } else if (p.peran === 'Koordinator Unit') {   // v1.61.0
+    brdKartu_(k, function() { return ubKartuBeranda_(p); });
+    brdKartu_(k, function() { return brdKartuAgenda_(null, null); });
   } else if (q.koord) {
     brdKartu_(k, function() { return brdKartuAgenda_(null, null); });
     brdKartu_(k, function() { return brdKartuBelumDinilai_(null, true); });

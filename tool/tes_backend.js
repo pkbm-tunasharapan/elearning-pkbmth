@@ -773,5 +773,30 @@ tes('unit belajar: normalisasi layanan & rencana perubahan label', () => {
   g.ubWajib_({ peran: 'Admin' }, true);
 });
 
+// 26. koordinator unit (v1.61.0)
+tes('koordinator unit: peran, cakupan unit, izin & notifikasi khusus akun', () => {
+  sama([g.normPeran_('koordinator unit'), g.normPeran_('Koordinator Unit')], ['Koordinator Unit', 'Koordinator Unit']);
+  sama(g.IZN.BAWAAN.indexOf('Koordinator Unit') >= 0 && g.BC.PERAN.indexOf('Koordinator Unit') >= 0, true, 'terdaftar sebagai peran bawaan');
+  sama([g.izFitur_('waStafPantauUnit'), g.izAksi_('waStafPantauUnit'), g.izFitur_('waStafUnitSimpan')], ['pantauanUnit', 'lihat', 'unitBelajar']);
+  const simpan = g.ubUnit_;
+  g.ubUnit_ = () => [
+    { id: 'U1', nama: 'Unit 1', aktif: true, koordinator: ['P1'] },
+    { id: 'U2', nama: 'Unit 2', aktif: true, koordinator: ['P1', 'P2'] },
+    { id: 'U3', nama: 'Unit 3', aktif: false, koordinator: ['P1'] },
+  ];
+  try {
+    sama(g.ubUnitSaya_({ id: 'P1', peran: 'Koordinator Unit' }).map((u) => u.id), ['U1', 'U2'], 'hanya unit aktif yang dipegang');
+    sama(g.ubUnitSaya_({ id: 'P2', peran: 'Koordinator Unit' }).map((u) => u.id), ['U2']);
+    sama(g.ubUnitSaya_({ id: 'X', peran: 'Kepala Sekolah' }).length, 2, 'KS melihat semua unit aktif');
+    sama(g.ubUnitSaya_({ id: 'P1', peran: 'Tutor' }).length, 0, 'tutor tidak');
+  } finally { g.ubUnit_ = simpan; }
+  const at = g.npAturan_(), ctx = { wb: () => '', tutor: () => '' };
+  const e = { jenis: 'unit_mingguan', staf: ['P1'], siswa: [], tutor: [] };
+  sama(g.npCocok_(e, { jenis: 'staf', id: 'P1', peran: 'Koordinator Unit' }, at, ctx), true, 'koordinator yang dituju');
+  sama(g.npCocok_(e, { jenis: 'staf', id: 'P2', peran: 'Koordinator Unit' }, at, ctx), false, 'koordinator unit lain tidak menerima');
+  sama(g.npCocok_(e, { jenis: 'staf', id: 'A1', peran: 'Admin' }, at, ctx), false, 'peran lain tidak menerima');
+  sama(g.ubSkor_({ kurang: [1], lewat: 5 }) > g.ubSkor_({ kurang: [], lewat: 5 }), true, 'kurang hadir diurutkan dulu');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

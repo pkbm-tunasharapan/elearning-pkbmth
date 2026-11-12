@@ -17,7 +17,7 @@ var BC = {
   CACHE: 'bc_aktif_v1',
   HARI_TAMPIL: 7,          // broadcast lebih lama dari ini tidak dikirim ke perangkat lagi
   MAKS_HARI: 30,
-  PERAN: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Superadmin', 'Dinas Pendidikan']
+  PERAN: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Superadmin', 'Koordinator Unit', 'Dinas Pendidikan']
 };
 
 function bcSheet_(nama, head) {

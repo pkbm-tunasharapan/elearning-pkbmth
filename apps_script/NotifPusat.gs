@@ -41,6 +41,9 @@ var NP = {
     { kode: 'remedial_diajukan', nama: 'Pengajuan remedial siswa (tutor mapel + pemantau)', grup: 'Ujian', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'] },
     { kode: 'remedial_lewat', nama: 'Remedial belum diputuskan tutor lebih dari 2 hari', grup: 'Ujian', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'] },
     { kode: 'remedial_diputus', nama: 'Remedial disetujui / ditolak', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
+    // v1.61.0: hanya ke koordinator unit siswa terkait (hanyaStaf); kolom peran = sakelar aktif/nonaktif
+    { kode: 'unit_pelanggaran', nama: 'Siswa unit Anda melakukan pelanggaran berat saat ujian', grup: 'Unit Belajar', sasaran: 'peran', peran: ['Koordinator Unit'], hanyaStaf: true },
+    { kode: 'unit_mingguan', nama: 'Ringkasan mingguan unit (kehadiran kurang & tunggakan)', grup: 'Unit Belajar', sasaran: 'peran', peran: ['Koordinator Unit'], hanyaStaf: true },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };
@@ -147,6 +150,7 @@ function npCocok_(e, a, at, ctx) {
   if (j.sasaran === 'siswa') return a.jenis === 'siswa' && !!ctx.wb() && e.siswa.indexOf(ctx.wb()) >= 0;
   if (a.jenis !== 'staf') return false;
   if (j.sasaran === 'tutor') return !!ctx.tutor() && e.tutor.indexOf(ctx.tutor()) >= 0;
+  if (j.hanyaStaf) return e.staf.indexOf(String(a.id)) >= 0;
   if (e.staf.length && e.staf.indexOf(String(a.id)) >= 0) return true;
   if (j.fitur) {
     // notifikasi yang terikat fitur: penerima wajib punya izin fitur itu (peran bawaan atau izin tambahan dari admin)
@@ -235,6 +239,7 @@ function npMingguan_() {
     if (!keuSah_(x) || x.jenis === 'Mutasi' || x.tanggal < dari || x.tanggal >= hari) return;
     if (x.jenis === 'Pengeluaran') keluar += x.jumlah; else masuk += x.jumlah;
   });
+  try { if (typeof ubMingguan_ === 'function') ubMingguan_(hari); } catch (eU) {}   // v1.61.0
   var tunggak = 0, wbs = keuWbSemua_(), pb = keuBayarPeta_();
   keuTagSemua_().data.forEach(function(t) { if (t.aktif) keuRinci_(t, wbs, pb).forEach(function(r) { tunggak += r.sisa; }); });
   npKirim_('ringkasan_keuangan', { judul: 'Ringkasan keuangan 7 hari terakhir',

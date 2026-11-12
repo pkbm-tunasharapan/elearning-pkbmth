@@ -92,7 +92,7 @@ function aturValidasiPeranDinas() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PERAN.SHEET_PENGGUNA);
   if (!sh) return 'Sheet pengguna tidak ditemukan.';
   var aturan = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', DINAS.PERAN], true)
+    .requireValueInList(['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Koordinator Unit', DINAS.PERAN], true)
     .setAllowInvalid(false).build();
   sh.getRange(2, 3, Math.max(1, sh.getMaxRows() - 1), 1).setDataValidation(aturan);
   return 'Pilihan peran diperbarui.';

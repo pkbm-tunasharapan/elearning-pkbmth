@@ -4,7 +4,7 @@ import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
 
-const _daftarPeran = ['Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara', 'Dinas Pendidikan'];
+const _daftarPeran = ['Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan'];
 
 /// Kelola pengguna staf (admin, tutor, kepala sekolah) dan enrollment mapel tutor.
 class PenggunaScreen extends StatefulWidget {
