@@ -721,7 +721,7 @@ function waStafAbsenKonteks(token) {
   }
   return {
     peran: p.peran, nama: p.nama,
-    bolehWb: q.tutor || q.ks || q.admin,
+    bolehWb: q.tutor || q.ks || q.admin || q.fo,
     bolehTutor: q.ks || q.admin || q.fo,
     perluKodeDarurat: q.fo,
     bolehAbsenDiri: q.ks,
@@ -737,7 +737,8 @@ function waStafAbsenKonteks(token) {
 
 function absWajibWb_(p, idRombel, kodeMapel) {
   var q = absPeran_(p);
-  if (!(q.tutor || q.ks || q.admin)) throw new Error('Peran Anda tidak dapat mengabsen warga belajar.');
+  // v1.66.1: Front Office lewat izin "Absensi Warga Belajar (Front Office)" (diperiksa izPeriksa_)
+  if (!(q.tutor || q.ks || q.admin || q.fo)) throw new Error('Peran Anda tidak dapat mengabsen warga belajar.');
   var kelas;
   if (q.tutor) {
     var t = absTutorSaya_(p);

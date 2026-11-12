@@ -943,5 +943,23 @@ tes('input nilai: tutor unit hanya melihat siswa unit pemetaannya', () => {
   } finally { sv.forEach(([n, f]) => { g[n] = f; }); }
 });
 
+// 33. izin absensi khusus Front Office (v1.66.1)
+tes('izin: Front Office punya fitur absensi sendiri, terpisah dari Tutor', () => {
+  const sD = g.izData_;
+  let izin = {};
+  g.izData_ = () => ({ peran: {}, izin });
+  try {
+    const fo = { peran: 'Front Office' }, tutor = { peran: 'Tutor' };
+    sama([g.izPetaPengguna_(fo).absensi, g.izPetaPengguna_(fo).absensiFo, g.izPetaPengguna_(tutor).absensi, g.izPetaPengguna_(tutor).absensiFo], ['ubah', 'ubah', 'ubah', undefined], 'bawaan');
+    izin = { 'Front Office': { absensiFo: 'tidak' } };
+    sama([g.izPetaPengguna_(fo).absensi, g.izPetaPengguna_(tutor).absensi], ['tidak', 'ubah'], 'FO dicabut, Tutor tetap');
+    izin = { Tutor: { absensi: 'lihat' } };
+    sama([g.izPetaPengguna_(fo).absensi, g.izPetaPengguna_(tutor).absensi], ['ubah', 'lihat'], 'Tutor diubah, FO tetap');
+    const f = g.IZN.FITUR.filter((x) => x[0] === 'absensi')[0];
+    sama(g.izBisaTambah_(f, 'Front Office'), false, 'absensi Tutor tidak lagi muncul sebagai fitur tambahan FO');
+    sama(g.izFiturPeran_(g.izFitur_('waStafAbsenWbCatat'), 'Front Office'), 'absensiFo');
+  } finally { g.izData_ = sD; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

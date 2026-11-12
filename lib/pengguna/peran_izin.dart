@@ -135,7 +135,13 @@ class _EditorPeranState extends State<_EditorPeran> {
 
   /// v1.41.1 (Tahap 2): fitur di luar peran dasar yang boleh diberikan (bukan fitur terkunci; bukan peran Dinas).
   List<Map<String, dynamic>> get _fiturTambahan =>
-      widget.fitur.where((f) => !daftar(f['peran']).map(teks).contains(_dasar) && f['kunci'] != true && teks(f['pelaksanaLihat']).isNotEmpty).toList();
+      widget.fitur
+          .where((f) =>
+              !daftar(f['peran']).map(teks).contains(_dasar) &&
+              f['kunci'] != true &&
+              teks(f['pelaksanaLihat']).isNotEmpty &&
+              !daftar(f['gantiUntuk']).map(teks).contains(_dasar)) // v1.66.1: mis. FO memakai izin absensi sendiri
+          .toList();
   String _tingkatTambahan(String id) {
     final t = _izin[id] ?? 'tidak';
     return t == 'ubah' && _maks == 'lihat' ? 'lihat' : t;   // Dinas: hanya lihat

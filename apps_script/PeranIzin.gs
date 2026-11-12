@@ -32,6 +32,8 @@ var IZN = {
     ['mapelSaya', 'Mata Pelajaran (konten, kurikulum, ujian, media ajar)', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'],
       /^waStaf(Materi|MateriLengkap|MateriSimpan|MateriStatus|MateriHapus|MateriHapusMassal|SesiBaca|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai|Nilai|Absensi|Siswa|KodeAkses(Daftar|Generate)|BukaKunci|BukaSesi|BukaSesiCabut|BukaSesiDaftar|Ujian(Terkunci|Info|Simpan|Pratinjau|PerubahanAjukan)|Soal(Daftar|Simpan|Hapus)|MediaAjar\w*|Ai\w*|Kurikulum\w*|AjuTutorProses)$/],
     ['absensi', 'Absensi Warga Belajar', 'Absensi', ['Admin', 'Tutor', 'Kepala Sekolah'], /^waStafAbsen(Harian\w*|Konteks|WbCatat|WbDaftar)$/],
+    // v1.66.1: izin absensi warga belajar khusus Front Office (terpisah dari izin Absensi milik Tutor/Admin/KS)
+    ['absensiFo', 'Absensi Warga Belajar (Front Office)', 'Absensi', ['Front Office'], null],
     ['absenTutor', 'Absen Tutor', 'Absensi', ['Admin', 'Kepala Sekolah', 'Front Office'], /^waStafAbsenTutor(Cari|Catat)$/],
     ['absenSaya', 'Absen Saya (Kepala Sekolah)', 'Absensi', ['Kepala Sekolah'], /^waStafKs(AbsenMasuk|AbsenStatus|Foto|IzinAjukan)$/],
     ['persetujuanKs', 'Persetujuan Kehadiran KS', 'Absensi', ['Superadmin'], /^waStafKs(PresensiDaftar|PresensiDaftarInti|Putus)$/],
@@ -89,6 +91,8 @@ var IZN = {
   ],
   // menu aplikasi yang memakai fitur lain (id menu -> id fitur)
   MENU_ALIAS: { rppSemua: 'rpp' },
+  // v1.66.1: fitur pengganti per peran dasar. Fungsi fitur kiri, bila dipanggil peran ini, diperiksa dengan izin fitur kanan.
+  FITUR_PERAN: { 'Front Office': { absensi: 'absensiFo' } },
   // v1.41.1 (Tahap 2): fitur yang TIDAK dapat diberikan di luar peran dasarnya (keamanan / melekat pada orangnya)
   KUNCI: { peranIzin: true, pengguna: true, reset: true, maintenance: true, pemeliharaan: true, ai: true, absenSaya: true, honorSaya: true },
   // urutan peran "pelaksana" untuk fitur tambahan: lihat = paling ringan yang punya fitur; ubah = Admin bila ada
@@ -98,11 +102,17 @@ var IZN = {
 
 // Peran bawaan yang menjalankan fitur tambahan (fitur di luar peran dasar yang diberikan admin).
 function izProksi_(f, tingkat) {
+  if (!f[4]) return '';   // v1.66.1: fitur tanpa fungsi sendiri (mis. absensiFo) tidak dapat diberikan ke peran lain
   var urut = tingkat === 'ubah' ? IZN.URUT_UBAH : IZN.URUT_LIHAT;
   for (var i = 0; i < urut.length; i++) if (f[3].indexOf(urut[i]) >= 0) return urut[i];
   return '';
 }
-function izBisaTambah_(f, dasar) { return !IZN.KUNCI[f[0]] && f[3].indexOf(dasar) < 0 && !!izProksi_(f, 'lihat'); }
+function izBisaTambah_(f, dasar) { return !IZN.KUNCI[f[0]] && f[3].indexOf(dasar) < 0 && !izFiturPeran_(f[0], dasar, true) && !!izProksi_(f, 'lihat'); }
+// Fitur pengganti untuk peran dasar ini (IZN.FITUR_PERAN). adaSaja: true -> hanya cek ada/tidak.
+function izFiturPeran_(fitur, dasar, adaSaja) {
+  var m = IZN.FITUR_PERAN[dasar], g = m && m[fitur];
+  return adaSaja ? !!g : (g || fitur);
+}
 function izMaks_(dasar) { return dasar === 'Dinas Pendidikan' ? 'lihat' : 'ubah'; }   // Dinas selalu hanya lihat
 
 // ---------- katalog ----------
@@ -172,7 +182,10 @@ function izPetaPengguna_(p) {
   if (!p) return {};
   var kunci = p.peranKustom || (p.peranAsli || p.peran), dasar = p.peranAsli || p.peran;
   if (!p.peranKustom && dasar === 'Admin') { var semua = {}; IZN.FITUR.forEach(function(f) { semua[f[0]] = 'ubah'; }); return semua; }
-  return izPetaPeran_(kunci, dasar);
+  var peta = izPetaPeran_(kunci, dasar), ganti = IZN.FITUR_PERAN[dasar] || {};
+  // menu aplikasi memakai id fitur asal (mis. 'absensi'): ikut tingkat fitur penggantinya
+  Object.keys(ganti).forEach(function(asal) { if (peta[ganti[asal]]) peta[asal] = peta[ganti[asal]]; else delete peta[asal]; });
+  return peta;
 }
 
 // Penjaga pusat: dipanggil stafDariToken_ untuk fungsi tingkat atas (globalThis.__API_FN).
@@ -187,6 +200,7 @@ function izPeriksa_(p) {
   if (!fitur || fitur === 'umum') { globalThis.__IZN_OK = fn; return p; }
   var dasar = p.peranAsli || p.peran;
   if (!p.peranKustom && dasar === 'Admin') { globalThis.__IZN_OK = fn; return p; }
+  fitur = izFiturPeran_(fitur, dasar);   // v1.66.1: mis. absensi -> absensiFo untuk Front Office
   var peta = izPetaPengguna_(p), punya = peta[fitur], perlu = izAksi_(fn);
   var ftr = IZN.FITUR.filter(function(f) { return f[0] === fitur; })[0];
   if (ftr && ftr[3].indexOf(dasar) < 0) {
@@ -250,7 +264,11 @@ function waAdminPeranDaftar(token) {
   izWajibAdminBawaan_(token);
   return {
     peran: izRingkasPeran_(),
-    fitur: IZN.FITUR.map(function(f) { return { id: f[0], judul: f[1], kelompok: f[2], peran: f[3], kunci: !!IZN.KUNCI[f[0]], pelaksanaLihat: izProksi_(f, 'lihat'), pelaksanaUbah: izProksi_(f, 'ubah') }; }),
+    fitur: IZN.FITUR.map(function(f) {
+      // v1.66.1: gantiUntuk = peran dasar yang memakai fitur pengganti (fitur ini tidak ditawarkan sebagai tambahan)
+      var ganti = Object.keys(IZN.FITUR_PERAN).filter(function(d) { return izFiturPeran_(f[0], d, true); });
+      return { id: f[0], judul: f[1], kelompok: f[2], peran: f[3], kunci: !!IZN.KUNCI[f[0]], pelaksanaLihat: izProksi_(f, 'lihat'), pelaksanaUbah: izProksi_(f, 'ubah'), gantiUntuk: ganti };
+    }),
     menuAlias: IZN.MENU_ALIAS
   };
 }
