@@ -24,6 +24,7 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
   String _tanggal = tglIso(DateTime.now());
   String _kodeBuka = '';
   int _v = 0;
+  bool _sudah = false;   // v1.66.2: tampilkan yang sudah absen (true) atau belum (false)
   // v1.62.0: unit sesi (null = ditentukan server dari pemetaan). _unitAktif = unit sesi yang sedang tampil.
   String? _unit;
   String _unitAktif = '';
@@ -148,6 +149,9 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
                   jml[st.isEmpty ? 'Belum' : st] = (jml[st.isEmpty ? 'Belum' : st] ?? 0) + 1;
                 }
                 final sesi = peta(d['sesi']);
+                final belumAbsen = siswa.where((s) => teks(s['status']).isEmpty).toList();
+                final sudahAbsen = siswa.where((s) => teks(s['status']).isNotEmpty).toList();
+                final tampil = _sudah ? sudahAbsen : belumAbsen;
                 return Stack(children: [
                   ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
                     Card(
@@ -189,9 +193,26 @@ class _AbsensiWbScreenState extends State<AbsensiWbScreen> {
                       ),
                     ),
                     if (siswa.isEmpty) const Kosong(pesan: 'Rombel ini belum punya warga belajar aktif.'),
+                    if (siswa.isNotEmpty) ...[
+                      // v1.66.2: daftar "belum absen" dan "sudah absen" dipisah
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: SegmentedButton<bool>(
+                          showSelectedIcon: false,
+                          segments: [
+                            ButtonSegment(value: false, label: Text('Belum absen (${belumAbsen.length})'), icon: const Icon(Icons.pending_actions_rounded, size: 18)),
+                            ButtonSegment(value: true, label: Text('Sudah absen (${sudahAbsen.length})'), icon: const Icon(Icons.how_to_reg_rounded, size: 18)),
+                          ],
+                          selected: {_sudah},
+                          onSelectionChanged: (v) => setState(() => _sudah = v.first),
+                        ),
+                      ),
+                      if (tampil.isEmpty) Kosong(pesan: _sudah ? 'Belum ada warga belajar yang diabsen.' : 'Semua warga belajar sudah diabsen.'),
+                    ],
+                    if (tampil.isNotEmpty)
                     Card(
                       child: Column(children: [
-                        for (final s in siswa)
+                        for (final s in tampil)
                           ListTile(
                             contentPadding: const EdgeInsets.fromLTRB(14, 4, 8, 4),
                             leading: CircleAvatar(

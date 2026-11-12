@@ -36,6 +36,7 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
   String _rombel = '';
   String _cari = '';
   int _v = 0;
+  bool _sudah = false;   // v1.66.2: tampilkan yang sudah absen (true) atau belum (false)
   final _antre = AntreanPindai.harian;
   int _menungguLalu = 0;
 
@@ -169,7 +170,10 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
               bangun: (context, d, segarkan) {
                 final semua = daftar(d['siswa']).map(peta).toList();
                 if (_rombel.isEmpty || _roster.isEmpty) _roster = semua;
-                final siswa = _cari.isEmpty ? semua : semua.where((s) => teks(s['nama']).toLowerCase().contains(_cari)).toList();
+                final dicari = _cari.isEmpty ? semua : semua.where((s) => teks(s['nama']).toLowerCase().contains(_cari)).toList();
+                final belumAbsen = dicari.where((s) => teks(s['status']).isEmpty).toList();
+                final sudahAbsen = dicari.where((s) => teks(s['status']).isNotEmpty).toList();
+                final siswa = _sudah ? sudahAbsen : belumAbsen;
                 final jml = <String, int>{'Hadir': 0, 'Pulang': 0, 'Izin': 0, 'Sakit': 0, 'Alpa': 0, 'Belum': 0};
                 for (final s in semua) {
                   final st = teks(s['status']);
@@ -191,7 +195,25 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
                           ]),
                         ),
                       ),
-                      if (siswa.isEmpty) const Kosong(pesan: 'Tidak ada warga belajar untuk ditampilkan.'),
+                      // v1.66.2: daftar "belum absen" dan "sudah absen" dipisah
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: SegmentedButton<bool>(
+                          showSelectedIcon: false,
+                          segments: [
+                            ButtonSegment(value: false, label: Text('Belum absen (${belumAbsen.length})'), icon: const Icon(Icons.pending_actions_rounded, size: 18)),
+                            ButtonSegment(value: true, label: Text('Sudah absen (${sudahAbsen.length})'), icon: const Icon(Icons.how_to_reg_rounded, size: 18)),
+                          ],
+                          selected: {_sudah},
+                          onSelectionChanged: (v) => setState(() => _sudah = v.first),
+                        ),
+                      ),
+                      if (siswa.isEmpty)
+                        Kosong(
+                            pesan: dicari.isEmpty
+                                ? 'Tidak ada warga belajar untuk ditampilkan.'
+                                : (_sudah ? 'Belum ada warga belajar yang diabsen.' : 'Semua warga belajar sudah diabsen.')),
+                      if (siswa.isNotEmpty)
                       Card(
                         child: Column(children: [
                           for (final s in siswa)
