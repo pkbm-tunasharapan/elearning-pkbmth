@@ -1131,7 +1131,7 @@ function kalDapat_(id, segar) {
 // Halaman staf: admin dan pimpinan boleh semua rombel; tutor hanya rombel yang mapelnya ia ampu.
 function kalRombelStaf_(p) {
   var semua = pgRombelAktif_();
-  if (p.peran === 'Admin' || p.peran === 'Kepala Sekolah' || p.peran === 'Koordinator Kurikulum') return semua;
+  if (p.peran === 'Admin' || p.peran === 'Kepala Sekolah' || p.peran === 'Koordinator Kurikulum' || p.peran === 'Koordinator Unit') return semua;   // v1.62.0: koordinator unit (siswa unit tersebar di banyak rombel)
   var milik = {};
   bacaEnrollment_().forEach(function(e) { if (e.idPengguna === p.id) milik[e.idMapel] = true; });
   var rombel = {};
@@ -1147,7 +1147,7 @@ function waStafKalenderDaftar(token) {
 function waStafKalender(token, idRombel, segar) {
   var p = stafDariToken_(token);
   // admin dan pimpinan boleh semua rombel: tidak perlu membaca daftar rombel dua kali
-  if (p.peran === 'Admin' || p.peran === 'Kepala Sekolah' || p.peran === 'Koordinator Kurikulum') return kalDapat_(String(idRombel), segar);
+  if (p.peran === 'Admin' || p.peran === 'Kepala Sekolah' || p.peran === 'Koordinator Kurikulum' || p.peran === 'Koordinator Unit') return kalDapat_(String(idRombel), segar);
   var boleh = kalRombelStaf_(p).filter(function(r) { return r.id === String(idRombel); });
   if (!boleh.length) throw new Error('Anda tidak memiliki akses ke kalender rombel ini.');
   return kalDapat_(boleh[0].id, segar);
