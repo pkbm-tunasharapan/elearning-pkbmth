@@ -501,6 +501,7 @@ function waAdminSimpanPengguna(token, data) {
       }
     }
     var sheet = getSheet(PERAN.SHEET_PENGGUNA);
+    pnValidasiPeran_(sheet);   // v1.64.1: pilihan peran di sheet ikut peran bawaan terbaru + peran kustom
     if (data.id) {
       var ada = null;
       daftar.forEach(function(p) { if (p.id === data.id) ada = p; });
@@ -1429,4 +1430,15 @@ function waStafRombelSiswa(token) {
   // v1.60.0: label unit belajar & layanan (Reguler/Flexi), hanya tampil
   if (typeof ubTempelRombelSiswa_ === 'function') { try { ubTempelRombelSiswa_(urut); } catch (eU) {} }
   return urut;
+}
+
+// v1.64.1: validasi kolom Peran di sheet Pengguna dulu hanya berisi 8 peran lama, sehingga menyimpan peran baru
+// (mis. Koordinator Unit) atau peran kustom ditolak Google Sheets. Daftar diperbarui setiap kali menyimpan pengguna.
+function pnValidasiPeran_(sheet) {
+  try {
+    var daftar = (typeof IZN !== 'undefined' ? IZN.BAWAAN : ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan']).slice();
+    try { var d = izData_(); Object.keys(d.peran || {}).forEach(function(k) { if (daftar.indexOf(d.peran[k].nama) < 0) daftar.push(d.peran[k].nama); }); } catch (e) {}
+    var aturan = SpreadsheetApp.newDataValidation().requireValueInList(daftar, true).setAllowInvalid(false).build();
+    sheet.getRange(2, 3, Math.max(1, sheet.getMaxRows() - 1), 1).setDataValidation(aturan);
+  } catch (e2) {}
 }
