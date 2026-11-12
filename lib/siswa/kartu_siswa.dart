@@ -32,6 +32,7 @@ class KartuSiswaScreen extends StatelessWidget {
         muat: () async => peta(staf ? await Api.instance('waStafKartu', [Sesi.instance.token]) : await Api.instance('waKartuSiswa', [SesiSiswa.instance.token])),
         bangun: (context, d, segarkan) {
           final kode = teks(d['kode']);
+          final terkunci = !staf && d['qrAktif'] == false;   // v1.67.1: QR belum diaktivasi
           return ListView(padding: const EdgeInsets.fromLTRB(20, 16, 20, 32), children: [
             Container(
               decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(24), boxShadow: Gaya.bayangan(context)),
@@ -51,7 +52,20 @@ class KartuSiswaScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-                  child: kode.isEmpty
+                  child: terkunci
+                      ? SizedBox(
+                          width: 230,
+                          height: 230,
+                          child: Center(
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.lock_outline_rounded, size: 56, color: cs.error),
+                              const SizedBox(height: 12),
+                              Text(teks(d['pesanQr'], 'QR Belum diaktifkan, silahkan lakukan aktivasi terlebih dahulu di bagian akademik'),
+                                  textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                            ]),
+                          ),
+                        )
+                      : kode.isEmpty
                       ? const SizedBox(
                           width: 230,
                           height: 230,
@@ -64,7 +78,7 @@ class KartuSiswaScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(teks(d['nama']), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
                 Text(staf ? teks(d['peran']) : teks(d['namaRombel']), style: const TextStyle(color: Colors.white70)),
-                if (kode.isNotEmpty) ...[
+                if (kode.isNotEmpty && !terkunci) ...[
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -84,7 +98,7 @@ class KartuSiswaScreen extends StatelessWidget {
                     'Naikkan kecerahan layar agar mudah dipindai.'),
               ),
             ),
-            if (kode.isNotEmpty)
+            if (kode.isNotEmpty && !terkunci)
               TextButton.icon(
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: kode));

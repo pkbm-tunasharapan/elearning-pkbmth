@@ -1,8 +1,8 @@
 // ============================================================================
 // AKTIVASI QR KARTU SISWA (v1.67.0)
 // - Kartu ID (QR) wajib dicetak, tetapi QR baru dapat dipakai absen setelah biaya aktivasi Rp20.000 dibayar.
-// - Kunci = kotak centang "QR AKTIF" di tab AKTIVASI QR. Belum dicentang -> pindai QR absensi ditolak dengan pesan AQR.PESAN.
-//   Absen manual dari daftar (Izin/Sakit/Alpa/Hadir oleh petugas) tidak terkena kunci ini.
+// - Kunci = kotak centang "QR AKTIF" di tab AKTIVASI QR. Belum dicentang -> absensi ditolak dengan pesan AQR.PESAN,
+//   baik lewat pindai QR maupun memilih nama secara manual (v1.67.1); kartu siswa digital juga menampilkan pesan itu.
 // - Biaya tercatat sebagai TAGIHAN "Aktivasi QR ID Card" (sasaran semua WB aktif), dibuat otomatis saat pertama dibutuhkan,
 //   sehingga siswa dapat membayar lewat VA (DOKU) dari menu Tagihan Saya dan pemasukannya masuk Arus Keuangan.
 // - Tunai: Front Office hanya melaporkan bahwa pembayaran sudah diterima (notifikasi ke Admin & KS); Admin / Kepala Sekolah
@@ -35,7 +35,7 @@ function aqrPeta_() {
   return (AQR_MEMO_ = out);
 }
 function aqrAktif_(idWb) { var x = aqrPeta_()[String(idWb || '').trim()]; return !!(x && x.aktif); }
-// Dipanggil setiap pindai QR absensi (harian & per mapel).
+// Dipanggil setiap pencatatan absensi warga belajar (harian & per mapel, pindai maupun manual).
 function aqrWajibAktif_(wb) { if (wb && !aqrAktif_(wb.id)) throw new Error(AQR.PESAN); }
 
 // Tulis / perbarui baris satu WB. w: {id, nama}

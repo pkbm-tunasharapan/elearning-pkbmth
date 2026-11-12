@@ -215,6 +215,7 @@ function waStafAbsenHarianCatat(token, d) {
     }
   }
   if (!wb) throw new Error('Warga belajar tidak ditemukan.');
+  aqrWajibAktif_(wb);   // v1.67.1: absen manual juga memerlukan aktivasi QR
   var ket = String(d.keterangan || '').slice(0, 200);
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);

@@ -378,8 +378,10 @@ function waKartuSiswa(token) {
       }
     }
   } catch (e) {}
-  var kode = nisn || idWb;
-  return { nama: s.nama, idRombel: s.idRombel, namaRombel: getNamaRombel_(s.idRombel), nisn: nisn, idWb: idWb, kode: kode, jenis: nisn ? 'NISN' : (idWb ? 'ID Warga Belajar' : '') };
+  var kode = nisn || idWb, qrAktif = true;
+  try { qrAktif = !idWb || aqrAktif_(idWb); } catch (eQ) {}   // v1.67.1: QR belum diaktivasi -> aplikasi siswa menampilkan pesan kunci
+  return { nama: s.nama, idRombel: s.idRombel, namaRombel: getNamaRombel_(s.idRombel), nisn: nisn, idWb: idWb, kode: kode, jenis: nisn ? 'NISN' : (idWb ? 'ID Warga Belajar' : ''),
+    qrAktif: qrAktif, pesanQr: qrAktif ? '' : AQR.PESAN };
 }
 
 // ============================================================================
@@ -794,13 +796,13 @@ function waStafAbsenWbCatat(token, d) {
   if (d.kode) {
     wb = absCariWb_(d.kode, kelas.idRombel);
     if (!wb) throw new Error('QR tidak dikenali sebagai kartu warga belajar.');
-    if (!wb.status || wb.status === 'Aktif') aqrWajibAktif_(wb);   // v1.67.0: QR harus sudah diaktivasi
   } else {
     wb = absWbRombel_(kelas.idRombel).filter(function(x) { return x.id === String(d.idWb); })[0] || null;
     if (!wb) throw new Error('Warga belajar tidak ditemukan di rombel ini.');
     wb.rombel = kelas.idRombel;
   }
   if (wb.status && wb.status !== 'Aktif') throw new Error(wb.nama + ' berstatus ' + wb.status + ' di Data Induk, tidak dapat diabsen.');
+  aqrWajibAktif_(wb);   // v1.67.1: semua jalur (pindai QR maupun pilih nama manual) memerlukan aktivasi QR
   var usC = ubUnitSesi_(p, kelas, tanggal, d.unit);
   var lainUnit = ubLuarUnit_(wb.id, usC.unit);
   if (lainUnit) throw new Error(wb.nama + ' terdaftar di ' + lainUnit + ', bukan di unit sesi ini (' + usC.nama + ').');

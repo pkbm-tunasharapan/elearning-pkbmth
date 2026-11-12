@@ -1018,6 +1018,9 @@ tes('aktivasi QR: belum aktif ditolak saat pindai, centang Admin catat tunai sek
     sama([g.aqrAktif_('W2'), g.aqrPeta_().W2.cara], [true, 'VA / online']);
     sama(g.aqrSetelahBayar_('TAG-LAIN', 'W2', 'x', 'y'), false, 'tagihan lain diabaikan');
     sama(g.izFitur_('waStafAqrAtur'), 'aktivasiQr');
+    // v1.67.1: jalur manual ikut terkunci
+    const src = fs.readFileSync(path.join(dir, 'AbsenHarian.gs'), 'utf8') + fs.readFileSync(path.join(dir, 'ApiFlutter.gs'), 'utf8');
+    sama((src.match(/aqrWajibAktif_\(wb\)/g) || []).length, 3, 'pindai harian, manual harian, per mapel (pindai & manual)');
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.AQR_MEMO_ = null; props.deleteProperty(g.AQR.PROP_TAG); }
 });
 
