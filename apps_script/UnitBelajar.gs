@@ -643,6 +643,30 @@ function ubSaringWb_(wbs, kunci, catat) {
     return !ue || ubDalam_(kunci, ue) || !!(catat && catat[w.id]);
   });
 }
+// v1.66.0: unit yang dipegang tutor untuk satu kelas (rombel+mapel) menurut pemetaan jadwal yang masih berlaku.
+// '' = tanpa saringan: bukan tutor (Admin/KS/Koordinator melihat semua), tutor tanpa pemetaan di kelas itu,
+// atau salah satu pemetaannya tanpa unit (untuk semua siswa rombel).
+function ubKunciTutorKelas_(p, kelas) {
+  try {
+    var r = nilPeran_(p);
+    if (!r.tutor || r.lihatSemua || !kelas) return '';
+    var t = absTutorSaya_(p);
+    if (!t) return '';
+    var kini = absHariIni_(), unit = [], semua = false;
+    jadBacaPm_().data.forEach(function(x) {
+      if (!x.aktif || x.idTutor !== t.id || x.idRombel !== kelas.idRombel || x.kodeMapel !== kelas.kodeMapel) return;
+      if (x.sampai && x.sampai < kini) return;
+      if (!x.unit) semua = true; else unit = unit.concat(x.unit.split(','));
+    });
+    return semua ? '' : ubKunci_(unit);
+  } catch (e) { return ''; }
+}
+// Siswa rombel yang boleh dinilai tutor ini: siswa berlabel unit pemetaannya (tanpa label = unit utama).
+function ubWbNilai_(p, kelas, wbs) {
+  var k = ubKunciTutorKelas_(p, kelas);
+  return k ? ubSaringWb_(wbs, k, null) : wbs;
+}
+
 // Nama unit lain bila siswa berlabel unit di luar sesi ini; '' bila boleh.
 function ubLuarUnit_(idWb, kunci) {
   if (!kunci) return '';

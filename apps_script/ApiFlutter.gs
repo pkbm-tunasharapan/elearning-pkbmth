@@ -2703,8 +2703,15 @@ function waStafNilaiRekap(token, q) {
   if (!kelas) throw new Error('Kelas tidak ditemukan atau bukan kelas Anda.');
   var per = nilPeriode_(q), k = nilKtx_(per);
   var dis = k.dis.filter(function(d) { return d.idRombel === kelas.idRombel && (d.kodeMapel === '*' || d.kodeMapel === kelas.kodeMapel); });
+  var wbRekap = nilRekapKelas_(k, kelas);
+  // v1.66.0: tutor unit hanya melihat & menilai siswa unit pemetaannya
+  if (typeof ubKunciTutorKelas_ === 'function' && ubKunciTutorKelas_(p, kelas)) {
+    var bolehWb = {};
+    ubWbNilai_(p, kelas, absWbRombel_(kelas.idRombel)).forEach(function(w) { bolehWb[w.id] = true; });
+    wbRekap = wbRekap.filter(function(w) { return bolehWb[w.idWb]; });
+  }
   return {
-    kelas: kelas, periode: per, aturan: k.at, wb: nilRekapKelas_(k, kelas), dispensasi: dis,
+    kelas: kelas, periode: per, aturan: k.at, wb: wbRekap, dispensasi: dis,
     terhubungElearning: (k.peta.kelas[kelas.idRombel + '|' + kelas.kodeMapel] || []).length > 0,
     bolehInput: r.input, bolehDispensasi: r.dispensasi
   };
@@ -2720,8 +2727,10 @@ function waStafNilaiInput(token, d) {
   if (!kelas) throw new Error('Kelas tidak ditemukan atau bukan kelas Anda.');
   var per = nilPeriode_(), at = nilAturan_(), key = kelas.idRombel + '|' + kelas.kodeMapel;
   var hk = nilHadirKelas_(per, key), dis = nilDisBaca_(per);
-  var wbs = {};
-  absWbRombel_(kelas.idRombel).forEach(function(w) { wbs[w.id] = w; });
+  var wbs = {}, luar = {};
+  var wbRombel = absWbRombel_(kelas.idRombel), wbBoleh = typeof ubWbNilai_ === 'function' ? ubWbNilai_(p, kelas, wbRombel.slice()) : wbRombel;
+  wbBoleh.forEach(function(w) { wbs[w.id] = w; });
+  wbRombel.forEach(function(w) { if (!wbs[w.id]) luar[w.id] = w; });   // v1.66.0: siswa unit lain ditolak
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -2734,7 +2743,7 @@ function waStafNilaiInput(token, d) {
     var simpan = 0, ditolak = [], baru = [];
     (d.nilai || []).forEach(function(it) {
       var w = wbs[String(it.idWb || '')];
-      if (!w) return;
+      if (!w) { if (luar[String(it.idWb || '')]) ditolak.push(luar[String(it.idWb || '')].nama + ' (siswa unit lain)'); return; }
       var s = String(it.nilai === null || it.nilai === undefined ? '' : it.nilai).trim().replace(',', '.');
       if (s !== '') {
         var n = Number(s);

@@ -913,5 +913,35 @@ tes('unit utama: siswa tanpa label ikut unit utama; koordinator bawaan KS', () =
   } finally { g.ubUnit_ = sU; g.ubPetaSiswa_ = sP; g.bacaPengguna_ = sB; }
 });
 
+// 32. input nilai per unit pemetaan jadwal (v1.66.0)
+tes('input nilai: tutor unit hanya melihat siswa unit pemetaannya', () => {
+  const sv = ['nilPeran_', 'absTutorSaya_', 'jadBacaPm_', 'absHariIni_', 'ubUnit_', 'ubPetaSiswa_'].map((n) => [n, g[n]]);
+  const peran = { tutor: { tutor: true, lihatSemua: false }, admin: { tutor: false, lihatSemua: true } };
+  let pm = [];
+  g.nilPeran_ = (p) => peran[p.r];
+  g.absTutorSaya_ = (p) => ({ id: p.t });
+  g.jadBacaPm_ = () => ({ data: pm });
+  g.absHariIni_ = () => '2026-11-12';
+  g.ubUnit_ = () => [{ id: 'U1', nama: 'Sampiran', aktif: true, utama: true, koordinator: [] }, { id: 'U2', nama: 'Losari', aktif: true, utama: false, koordinator: [] }];
+  g.ubPetaSiswa_ = () => ({ W1: { unit: 'U1', layanan: 'Reguler' }, W2: { unit: 'U2', layanan: 'Flexi' } });
+  try {
+    const kelas = { idRombel: 'C12', kodeMapel: 'PPKN' };
+    const wb = () => [{ id: 'W1' }, { id: 'W2' }, { id: 'W3' }];
+    const ids = (p) => g.ubWbNilai_(p, kelas, wb()).map((w) => w.id);
+    pm = [
+      { aktif: true, idTutor: 'PAT', idRombel: 'C12', kodeMapel: 'PPKN', unit: 'U2', sampai: '2026-12-31' },
+      { aktif: true, idTutor: 'SIL', idRombel: 'C12', kodeMapel: 'PPKN', unit: 'U1', sampai: '' },
+      { aktif: true, idTutor: 'LAIN', idRombel: 'C12', kodeMapel: 'PPKN', unit: '', sampai: '' },
+      { aktif: true, idTutor: 'LAMA', idRombel: 'C12', kodeMapel: 'PPKN', unit: 'U2', sampai: '2026-10-01' },
+    ];
+    sama(ids({ r: 'tutor', t: 'PAT' }), ['W2'], 'Patimah: hanya siswa Losari');
+    sama(ids({ r: 'tutor', t: 'SIL' }), ['W1', 'W3'], 'Silvi: siswa Sampiran + tanpa label (unit utama)');
+    sama(ids({ r: 'tutor', t: 'LAIN' }), ['W1', 'W2', 'W3'], 'pemetaan tanpa unit: semua siswa');
+    sama(ids({ r: 'tutor', t: 'LAMA' }), ['W1', 'W2', 'W3'], 'pemetaan sudah berakhir: tanpa saringan');
+    sama(ids({ r: 'tutor', t: 'X' }), ['W1', 'W2', 'W3'], 'tutor enrollment tanpa pemetaan: semua siswa');
+    sama(ids({ r: 'admin', t: 'PAT' }), ['W1', 'W2', 'W3'], 'admin/KS melihat semua');
+  } finally { sv.forEach(([n, f]) => { g[n] = f; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

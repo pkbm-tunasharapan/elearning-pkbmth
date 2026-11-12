@@ -144,6 +144,7 @@ function waStafNilaiFormat(token, d) {
   d = d || {};
   var jenis = nxlJenis_(d.jenis), kelas = nxlKelas_(p, d.idRombel, d.kodeMapel), per = nilPeriode_();
   var ada = nxlNilaiAda_(kelas, jenis, per), wbs = absWbRombel_(kelas.idRombel);
+  if (typeof ubWbNilai_ === 'function') wbs = ubWbNilai_(p, kelas, wbs);   // v1.66.0: hanya siswa unit tutor
   var label = NXL.LABEL[jenis], judulNilai = jenis === 'Lainnya' ? 'NILAI UJIAN LAINNYA' : 'NILAI ' + jenis;
   var baris = [
     [{ v: 'FORMAT ' + judulNilai + ' — hanya untuk ' + label, s: 1 }, { v: '', s: 1 }, { v: '', s: 1 }, { v: '', s: 1 }, { v: '', s: 1 }, { v: '', s: 1 }],
@@ -224,7 +225,9 @@ function waStafNilaiUnggahPratinjau(token, d) {
   }
   if (hdr < 0 || kNilai < 0) throw new Error('Tabel nilai (kolom ID WB dan NILAI) tidak ditemukan di file.');
   var wbs = {}, urut = [];
-  absWbRombel_(kelas.idRombel).forEach(function(w) { wbs[w.id] = w; urut.push(w.id); });
+  var wbUnit = absWbRombel_(kelas.idRombel);
+  if (typeof ubWbNilai_ === 'function') wbUnit = ubWbNilai_(p, kelas, wbUnit);   // v1.66.0: hanya siswa unit tutor
+  wbUnit.forEach(function(w) { wbs[w.id] = w; urut.push(w.id); });
   var ada = nxlNilaiAda_(kelas, jenis, per), at = nilAturan_();
   var hk = nilHadirKelas_(per, kelas.idRombel + '|' + kelas.kodeMapel);
   var dis = nilDisBaca_(per);
