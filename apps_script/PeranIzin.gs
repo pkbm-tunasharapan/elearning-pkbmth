@@ -79,6 +79,8 @@ var IZN = {
     ['keuangan', 'Keuangan & Tagihan', 'Keuangan', ['Admin', 'Bendahara', 'Superadmin', 'Kepala Sekolah'], /^waStaf(Keu\w*|Tagihan\w*|TunggakanWb)$/],
     // v1.68.0: tagihan VA sekali bayar dengan kode transaksi yang sudah ada
     ['vaCustom', 'VA Custom (tagihan sekali bayar)', 'Keuangan', ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], /^waStafVaCustom(Daftar|Buat|Bayar|Cek|Batal)$/],
+    // v1.69.0: kwitansi pemasukan & pengeluaran (3 per lembar F4)
+    ['kwitansi', 'Kwitansi', 'Keuangan', ['Admin', 'Bendahara', 'Kepala Sekolah', 'Front Office'], /^waStafKwitansi(Daftar)?$/],
     ['rekapHonor', 'Rekap Honor', 'Keuangan', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Bendahara'], /^waStafHonor(Rekap|Hitung|Setujui|BatalSetuju|Bayar|BayarBatal|Bukti|Tunggakan|Aturan)$/],
     ['honorSaya', 'Saldo Honor (tutor)', 'Keuangan', ['Tutor'], /^waStafHonorSaya$/],
     ['aturHonor', 'Aturan Honor', 'Keuangan', ['Admin'], /^waAdminHonorAturanSimpan$/],

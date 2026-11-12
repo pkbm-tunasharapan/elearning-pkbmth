@@ -5,6 +5,7 @@ import '../absensi/umum.dart';
 import '../api.dart';
 import '../honor/honor.dart' show rp;
 import '../keuangan/bayar_online.dart';
+import '../keuangan/kwitansi.dart';
 import '../widgets.dart';
 import 'sesi_siswa.dart';
 
@@ -166,6 +167,7 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
                   leading: const Icon(Icons.receipt_long_rounded, color: Colors.green),
                   title: Text('${teks(r['tagihan'])} · ${rp(r['jumlah'])}'),
                   subtitle: Text('${tglIndo(teks(r['tanggal']))} · ${teks(r['cara'])} · No. ${teks(r['id'])}'),
+                  trailing: IconButton(tooltip: 'Unduh kwitansi', icon: const Icon(Icons.download_rounded), onPressed: () => cetakKwitansi(context, [teks(r['id'])], siswa: true)),
                 ),
             ]),
           );

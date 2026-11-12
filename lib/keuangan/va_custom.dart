@@ -13,6 +13,7 @@ import '../honor/honor.dart' show rp;
 import '../session.dart';
 import '../widgets.dart';
 import 'bayar_online.dart';
+import 'kwitansi.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -118,6 +119,15 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
                   style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
           const SizedBox(height: 14),
+          if (st == 'Lunas' && teks(x['idTransaksi']).isNotEmpty)
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(c);
+                cetakKwitansi(context, [teks(x['idTransaksi']).split(',').first]);
+              },
+              icon: const Icon(Icons.receipt_outlined),
+              label: const Text('Cetak kwitansi'),
+            ),
           if (belum)
             FilledButton.icon(
               onPressed: () {

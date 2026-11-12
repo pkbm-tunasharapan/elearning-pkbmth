@@ -1080,5 +1080,68 @@ tes('VA custom: kode transaksi wajib yang ada, keterangan otomatis, siswa jadi t
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 36. kwitansi (v1.69.0)
+tes('kwitansi: terbilang, nama penandatangan wajib nama orang, nomor tetap per transaksi, verifikasi SAH / tidak berlaku', () => {
+  sama(g.kwTerbilang_(504000), 'Lima ratus empat ribu rupiah');
+  sama(g.kwTerbilang_(1250000), 'Satu juta dua ratus lima puluh ribu rupiah');
+  sama(g.kwTerbilang_(111), 'Seratus sebelas rupiah');
+  sama(g.kwTerbilang_(1000), 'Seribu rupiah');
+  sama(g.kwTerbilang_(19), 'Sembilan belas rupiah');
+  const nama = ['absBaca_', 'keuSemua_', 'stafDariToken_', 'catat_', 'keuKatPeta_', 'keuWbSemua_', 'kalAkun_', 'nilLembaga_', 'kwUrl_'];
+  const simpan = {};
+  nama.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const kwt = [g.KW.HDR.slice()];
+    const tab = (isi) => {
+      const h = {};
+      isi[0].forEach((x, j) => { h[String(x).toUpperCase()] = j; });
+      return { v: isi.map((b) => b.slice()), h, sh: { appendRow: (r) => isi.push(r.slice()), getLastRow: () => isi.length, getRange: (r, c) => ({ setValue: (x) => { isi[r - 1][c - 1] = x; } }) } };
+    };
+    g.absBaca_ = (n) => (n === g.KW.TAB ? tab(kwt) : (() => { throw new Error('tab ' + n); })());
+    const trx = [
+      { id: 'T1', tanggal: '2026-11-12', jenis: 'Pemasukan', kategori: 'DAF', jumlah: 500000, pihak: 'Budi', uraian: 'Pembayaran Pendaftaran atas nama Budi', status: 'Disetujui', akun: 'TUNAI', dicatatOleh: 'Fia' },
+      { id: 'T2', tanggal: '2026-11-12', jenis: 'Pengeluaran', kategori: 'ATK', jumlah: 75000, pihak: 'Toko', uraian: 'Kertas', status: 'Disetujui', akun: 'TUNAI' },
+      { id: 'T3', tanggal: '2026-11-12', jenis: 'Pengeluaran', kategori: 'ATK', jumlah: 9000, uraian: 'x', status: 'Menunggu' },
+      { id: 'T4', tanggal: '2026-11-12', jenis: 'Pemasukan', kategori: 'DAF', jumlah: 20000, pihak: 'Cici', uraian: 'y', status: 'Disetujui' }];
+    g.keuSemua_ = () => trx;
+    g.catat_ = () => {};
+    g.keuKatPeta_ = () => ({ DAF: { nama: 'Pendaftaran' } });
+    g.keuWbSemua_ = () => [];
+    g.kalAkun_ = () => [{ kode: 'TUNAI', nama: 'Kas Tunai' }];
+    g.nilLembaga_ = () => ({ nama: 'PKBM Uji', alamat: 'Jl. A', npsn: '1' });
+    g.kwUrl_ = (k) => 'U?kw=' + k;
+    const orang = { TA: { nama: 'Administrator', peran: 'Admin' }, TF: { nama: 'Fia Rahma', peran: 'Front Office' }, TT: { nama: 'Tono', peran: 'Tutor' } };
+    g.stafDariToken_ = (t) => orang[t];
+    let galat = '';
+    try { g.waStafKwitansi('TA', ['T1']); } catch (e) { galat = e.message; }
+    sama(/bukan nama orang/.test(galat), true, 'nama generik ditolak');
+    galat = '';
+    try { g.waStafKwitansi('TT', ['T1']); } catch (e) { galat = e.message; }
+    sama(/Front Office/.test(galat), true, 'tutor ditolak');
+    galat = '';
+    try { g.waStafKwitansi('TF', ['T3']); } catch (e) { galat = e.message; }
+    sama(/belum disetujui/.test(galat), true, 'transaksi menunggu ditolak');
+    const a = g.waStafKwitansi('TF', ['T1', 'T2']).kwitansi;
+    const thn = new Date().getFullYear();
+    sama([a[0].nomor, a[1].nomor, a[0].ttd, a[0].terbilang, a[0].cara], ['KW-M/' + thn + '/0001', 'KW-K/' + thn + '/0001', { nama: 'Fia Rahma', jabatan: 'Front Office' }, 'Lima ratus ribu rupiah', 'Kas Tunai']);
+    const b = g.waStafKwitansi('TF', ['T4', 'T1']).kwitansi;
+    sama([b[0].nomor, b[1].nomor, b[1].kode], ['KW-M/' + thn + '/0002', 'KW-M/' + thn + '/0001', a[0].kode], 'nomor & kode tetap saat cetak ulang');
+    sama(kwt.length - 1, 3, 'tidak ada nomor ganda');
+    const H = g.HtmlService;
+    let html = '';
+    g.HtmlService = { createHtmlOutput: (x) => { html = x; const o = { setTitle: () => o, addMetaTag: () => o }; return o; } };
+    try {
+      g.kwHalaman_(a[0].kode);
+      sama(/KWITANSI SAH/.test(html), true, 'sah');
+      trx[0].status = 'Dibatalkan';
+      g.kwHalaman_(a[0].kode);
+      sama(/TIDAK BERLAKU/.test(html), true, 'dibatalkan -> tidak berlaku');
+      g.kwHalaman_('SALAH');
+      sama(/tidak terdaftar/.test(html), true, 'kode palsu');
+    } finally { g.HtmlService = H; }
+    sama([g.izFitur_('waStafKwitansi'), g.izFitur_('waStafKwitansiDaftar')], ['kwitansi', 'kwitansi']);
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

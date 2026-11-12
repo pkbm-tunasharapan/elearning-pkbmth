@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'arus.dart';
 import 'bayar_online.dart';
+import 'kwitansi.dart';
 import 'va_custom.dart';
 
 String? get _t => Sesi.instance.token;
@@ -197,6 +198,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
               Text('Keputusan: ${teks(x['diputusOleh'])} ${teks(x['catatanPutus'])}', style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 6, children: [
+              if (st == 'Disetujui' && !mutasi) FilledButton.tonalIcon(onPressed: () => Navigator.pop(c, 'kwitansi'), icon: const Icon(Icons.receipt_outlined), label: const Text('Kwitansi')),
               if (x['adaBukti'] == true) OutlinedButton.icon(onPressed: () => Navigator.pop(c, 'bukti'), icon: const Icon(Icons.image_outlined), label: const Text('Lihat bukti')),
               if (bolehPutus) FilledButton.icon(onPressed: () => Navigator.pop(c, 'setuju'), icon: const Icon(Icons.check_rounded), label: const Text('Setujui')),
               if (bolehPutus) OutlinedButton.icon(onPressed: () => Navigator.pop(c, 'tolak'), icon: const Icon(Icons.close_rounded), label: const Text('Tolak')),
@@ -209,7 +211,9 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       ),
     );
     if (!mounted || aksi == null) return;
-    if (aksi == 'bukti') {
+    if (aksi == 'kwitansi') {
+      await cetakKwitansi(context, [teks(x['id'])]);
+    } else if (aksi == 'bukti') {
       await lihatFoto(context, () async => peta(await Api.instance('waStafKeuBukti', [_t, teks(x['id'])])));
     } else if (aksi == 'ubah') {
       await _form(x);
