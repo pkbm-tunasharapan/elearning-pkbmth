@@ -35,7 +35,8 @@ class _UjianTerpusatScreenState extends State<UjianTerpusatScreen> {
   final _jumlah = TextEditingController();
   final _kkm = TextEditingController();
   final _judul = TextEditingController();
-  String _modeBawaan = 'APK';
+  // v1.59.0: menu ini khusus ujian kertas; ujian di aplikasi lewat Masa Ujian.
+  final String _modeBawaan = 'Kertas';
 
   @override
   void initState() {
@@ -264,21 +265,13 @@ class _UjianTerpusatScreenState extends State<UjianTerpusatScreen> {
               ]),
               const SizedBox(height: 10),
               Row(children: [
-                const Text('Mode bawaan: '),
-                const SizedBox(width: 8),
-                SegmentedButton<String>(
-                  segments: const [ButtonSegment(value: 'APK', label: Text('APK'), icon: Icon(Icons.phone_android_rounded)), ButtonSegment(value: 'Kertas', label: Text('Kertas'), icon: Icon(Icons.description_outlined))],
-                  selected: {_modeBawaan},
-                  onSelectionChanged: (v) => setState(() {
-                    _modeBawaan = v.first;
-                    for (final x in [..._pilih.values, ..._manual.values]) {
-                      x['mode'] = _modeBawaan;
-                    }
-                  }),
-                ),
+                Icon(Icons.description_outlined, size: 18, color: cs.primary),
+                const SizedBox(width: 6),
+                const Expanded(child: Text('Mode: Kertas', style: TextStyle(fontWeight: FontWeight.w700))),
               ]),
               const SizedBox(height: 4),
-              Text('APK: siswa mengerjakan di aplikasi di kelas dengan kode akses dari pengawas. Kertas: naskah dicetak dari bank soal, nilai diinput tutor di menu Nilai.',
+              Text('Naskah dicetak dari bank soal, nilai diinput tutor di menu Nilai. Ujian yang dikerjakan di aplikasi '
+                  '(dengan pengawas, kode akses, dan anti-kecurangan) dijadwalkan lewat menu Masa Ujian.',
                   style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
             ]),
           ),
@@ -333,12 +326,6 @@ class _UjianTerpusatScreenState extends State<UjianTerpusatScreen> {
             Wrap(spacing: 8, runSpacing: 6, children: [
               const SizedBox(width: 8),
               OutlinedButton.icon(onPressed: () => _ubahWaktu(x), icon: const Icon(Icons.edit_calendar_rounded, size: 18), label: const Text('Ubah waktu')),
-              SegmentedButton<String>(
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: const [ButtonSegment(value: 'APK', label: Text('APK')), ButtonSegment(value: 'Kertas', label: Text('Kertas'))],
-                selected: {teks(x['mode'], 'APK')},
-                onSelectionChanged: (v) => setState(() => x['mode'] = v.first),
-              ),
             ]),
         ]),
       ),
@@ -353,7 +340,7 @@ class _UjianTerpusatScreenState extends State<UjianTerpusatScreen> {
       if (!kelola)
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('Jadwal ujian kelas tatap muka ditetapkan terpusat oleh Admin/Kepala Sekolah. Untuk ujian kertas, cetak naskah & kunci di sini.',
+          child: Text('Jadwal ujian kertas ditetapkan terpusat oleh Admin/Kepala Sekolah. Cetak naskah & kunci di sini.',
               style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
         ),
       if (list.isEmpty) const Kosong(pesan: 'Belum ada jadwal ujian untuk pilihan ini.', ikon: Icons.event_note_rounded),
@@ -363,7 +350,7 @@ class _UjianTerpusatScreenState extends State<UjianTerpusatScreen> {
             leading: Icon(teks(x['mode']) == 'Kertas' ? Icons.description_outlined : Icons.phone_android_rounded, color: cs.primary),
             title: Text('${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text('${teks(x['judul'])}\n${teks(x['teks'])} · ${x['durasi']} menit · ${x['jumlah']} soal · KKM ${x['kkm']}'
-                '${x['terpusat'] == true ? '' : ' · dijadwalkan tutor'}'),
+                '${teks(x['masa']).isNotEmpty ? ' · Masa Ujian' : x['terpusat'] == true ? '' : ' · dijadwalkan tutor'}'),
             isThreeLine: true,
             trailing: PopupMenuButton<String>(
               onSelected: (v) {
@@ -375,8 +362,8 @@ class _UjianTerpusatScreenState extends State<UjianTerpusatScreen> {
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'naskah', child: Text('Cetak naskah soal (PDF)')),
                 const PopupMenuItem(value: 'kunci', child: Text('Cetak kunci jawaban (PDF)')),
-                if (kelola && x['sudahMulai'] != true) const PopupMenuItem(value: 'ubah', child: Text('Ubah waktu / mode')),
-                if (kelola && x['sudahMulai'] != true) const PopupMenuItem(value: 'hapus', child: Text('Batalkan jadwal')),
+                if (kelola && x['sudahMulai'] != true && teks(x['masa']).isEmpty) const PopupMenuItem(value: 'ubah', child: Text('Ubah waktu')),
+                if (kelola && x['sudahMulai'] != true && teks(x['masa']).isEmpty) const PopupMenuItem(value: 'hapus', child: Text('Batalkan jadwal')),
               ],
             ),
           ),
@@ -457,12 +444,17 @@ class _DialogUbahState extends State<_DialogUbah> {
         ),
         const SizedBox(height: 8),
         TextField(controller: _durasi, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Durasi (menit)', isDense: true)),
-        const SizedBox(height: 10),
-        SegmentedButton<String>(
-          segments: const [ButtonSegment(value: 'APK', label: Text('APK')), ButtonSegment(value: 'Kertas', label: Text('Kertas'))],
-          selected: {_mode},
-          onSelectionChanged: (v) => setState(() => _mode = v.first),
-        ),
+        // v1.59.0: jadwal APK lama boleh dialihkan ke Kertas, tidak sebaliknya.
+        if (teks(widget.x['mode']) == 'APK') ...[
+          const SizedBox(height: 4),
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: _mode == 'Kertas',
+            onChanged: (v) => setState(() => _mode = v == true ? 'Kertas' : 'APK'),
+            title: const Text('Alihkan ke ujian kertas'),
+          ),
+        ],
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),

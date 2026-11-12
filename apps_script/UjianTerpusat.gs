@@ -10,6 +10,10 @@
 // - Mode per jadwal: APK (dikerjakan di aplikasi di kelas) atau Kertas (naskah dicetak dari bank soal,
 //   nilai diinput manual tutor di menu Nilai).
 // Data: sheet "Jadwal Ujian" (kolom tambahan Mode, Terpusat, Judul).
+// v1.59.0: sejak ada Masa Ujian serentak, menu ini khusus UJIAN KERTAS. Jadwal baru selalu mode Kertas;
+//   ujian di aplikasi (APK) dijadwalkan lewat Masa Ujian supaya pengawas, token, dan anti-kecurangan berlaku.
+//   Jadwal APK lama tetap tampil dan bisa diubah waktunya (tidak bisa diubah dari Kertas ke APK).
+//   Jadwal milik Masa Ujian hanya tampil (cetak naskah); ubah/batal lewat menu Masa Ujian.
 // ============================================================================
 var UJT = { PERAN: ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], JENIS: ['UTS', 'UAS', 'LAIN'], MAKS_HARI: 62 };
 
@@ -95,7 +99,7 @@ function waStafUjtData(token, q) {
     return {
       idUjian: j.idUjian, idMapel: j.idMapel, namaMapel: m.namaMapel, namaRombel: m.namaRombel, tanggal: j.tanggal, jam: j.jam, durasi: j.durasi,
       kkm: j.kkm, jumlah: j.jumlah, mode: j.mode, terpusat: j.terpusat, judul: j.judulKhusus || ujJudul_(j.jenis, j.smt),
-      teks: ujTeksWaktu_(j.mulaiMs), sudahMulai: now >= j.mulaiMs, tatapMuka: !!pt.tm[String(j.idMapel)], dibuatOleh: j.dibuatOleh
+      teks: ujTeksWaktu_(j.mulaiMs), sudahMulai: now >= j.mulaiMs, tatapMuka: !!pt.tm[String(j.idMapel)], dibuatOleh: j.dibuatOleh, masa: j.masa || ''
     };
   });
   terjadwal.sort(function(a, b) { return (a.tanggal + a.jam + a.namaRombel).localeCompare(b.tanggal + b.jam + b.namaRombel); });
@@ -189,7 +193,7 @@ function waStafUjtTetapkan(token, d) {
         if (!sesiNama) { var ses = ujtSesiDariTanggal_(cfg, tgl); sesiNama = ses ? ses.nama : ''; }
         if (!sesiNama) throw new Error('tanggal di luar kalender akademik');
         if (ujianSesi[idM + '|' + sesiNama]) throw new Error('sudah ada ujian "' + ujianSesi[idM + '|' + sesiNama] + '" pada ' + sesiNama);
-        var mode = it.mode === 'Kertas' ? 'Kertas' : 'APK';
+        var mode = 'Kertas'; // v1.59.0: ujian APK lewat Masa Ujian
         var dur = parseInt(it.durasi, 10);
         if (!(dur >= UJ.DURASI_MIN && dur <= UJ.DURASI_MAKS)) dur = durasi;
         var judul = jenis === 'LAIN' ? judulLain + ' Semester ' + smt : ujJudul_(jenis, smt);
@@ -228,13 +232,15 @@ function waStafUjtUbah(token, idUjian, d) {
   if (!ujtKelola_(p)) throw new Error('Hanya Admin, Kepala Sekolah, atau Koordinator Kurikulum.');
   d = d || {};
   var j = ujtCariJadwal_(idUjian);
+  if (j.masa) throw new Error('Jadwal ini bagian dari Masa Ujian. Ubah lewat menu Masa Ujian.');
   if (Date.now() >= j.mulaiMs) throw new Error('Ujian sudah dimulai atau lewat; jadwal tidak dapat diubah. Gunakan susulan.');
   var tgl = ujTgl_(d.tanggal || j.tanggal), jam = ujJam_(d.jam || j.jam);
   var mulaiMs = ujMs_(tgl, jam);
   if (isNaN(mulaiMs) || mulaiMs < Date.now()) throw new Error('Tanggal dan jam baru harus di masa mendatang.');
   var dur = parseInt(d.durasi, 10) || j.durasi;
   if (!(dur >= UJ.DURASI_MIN && dur <= UJ.DURASI_MAKS)) throw new Error('Durasi ' + UJ.DURASI_MIN + ' sampai ' + UJ.DURASI_MAKS + ' menit.');
-  var mode = d.mode === 'Kertas' ? 'Kertas' : (d.mode === 'APK' ? 'APK' : j.mode);
+  // v1.59.0: boleh APK -> Kertas, tidak sebaliknya (ujian APK baru lewat Masa Ujian)
+  var mode = d.mode === 'Kertas' ? 'Kertas' : j.mode;
   ujUbah_('JADWAL', j.baris, { 'Tanggal': tgl, 'Jam Mulai': jam, 'Durasi Menit': dur, 'Mode': mode, 'Diubah Oleh': p.nama, 'Diubah Pada': ujNow_() });
   try { catat_(p.peran, '', p.nama, 'Ubah jadwal ujian', j.jenis + ' ' + j.idMapel + ' -> ' + tgl + ' ' + jam + ' ' + mode, 'OK'); } catch (e) {}
   return { sukses: true, teks: ujTeksWaktu_(mulaiMs) };
@@ -245,6 +251,7 @@ function waStafUjtHapus(token, idUjian) {
   var p = stafDariToken_(token);
   if (!ujtKelola_(p)) throw new Error('Hanya Admin, Kepala Sekolah, atau Koordinator Kurikulum.');
   var j = ujtCariJadwal_(idUjian);
+  if (j.masa) throw new Error('Jadwal ini bagian dari Masa Ujian. Batalkan lewat menu Masa Ujian.');
   if (Date.now() >= j.mulaiMs) throw new Error('Ujian sudah dimulai atau lewat; tidak dapat dibatalkan.');
   if (ujBaca_('HASIL').some(function(h) { return String(h['ID Ujian']) === String(idUjian); })) throw new Error('Sudah ada hasil ujian; tidak dapat dibatalkan.');
   var kunci = kmKunciUnik_();

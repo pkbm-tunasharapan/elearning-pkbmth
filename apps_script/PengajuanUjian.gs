@@ -220,7 +220,7 @@ function ujBuatItemUjian_(idMapel, judul, konten, sesiNama, durasi) {
 // Tutor menetapkan jadwal SEKALI. Setelah tersimpan terkunci; perubahan hanya lewat admin.
 function waStafUjianSimpan(token, idMapel, d) {
   var pTm = stafDariToken_(token);
-  if (pTm.peran === 'Tutor' && typeof ujtTatapMuka_ === 'function' && ujtTatapMuka_(idMapel)) throw new Error('Jadwal ujian kelas tatap muka ditetapkan terpusat oleh Admin/Kepala Sekolah. Lihat menu Jadwal Ujian Tatap Muka.');
+  if (pTm.peran === 'Tutor' && typeof ujtTatapMuka_ === 'function' && ujtTatapMuka_(idMapel)) throw new Error('Jadwal ujian kelas tatap muka ditetapkan terpusat oleh Admin/Kepala Sekolah. Ujian di aplikasi lewat menu Masa Ujian; ujian kertas lewat menu Ujian Kertas Tatap Muka.');
   var r = wajibMapel_(token, idMapel);
   d = d || {};
   var cfg = taBaca_(), now = Date.now();

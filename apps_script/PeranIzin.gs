@@ -46,7 +46,7 @@ var IZN = {
       /^wa(Staf(NilaiKelas|NilaiRekap|NilaiInput|NilaiFormat|NilaiUnggah\w*|Leger|Rapor|Transkrip|Kenaikan(Daftar|Simpan)|BiodataRombel|KartuPeserta)|AdminNilaiOtomatis)$/],
     ['waliKelas', 'Wali Kelas', 'Nilai & Ujian', ['Admin', 'Kepala Sekolah'], /^waStafWali(Daftar|Simpan)$/],
     ['asesmen', 'Asesmen Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'], /^waStafAsesmen\w*$/],
-    ['ujianTerpusat', 'Jadwal Ujian Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'], /^waStafUjt\w*$/],
+    ['ujianTerpusat', 'Ujian Kertas Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'], /^waStafUjt\w*$/],
     ['masaUjian', 'Masa Ujian Serentak', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafMasa\w*$/],
     ['pengawasUjian', 'Pengawas Ujian', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara'], /^waStafPengawas\w*$/],
     ['kotakUjian', 'Kotak Ujian (pengajuan ujian)', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waAdminUjian(BukaAkses|Disposisi|Tolak)$/],
