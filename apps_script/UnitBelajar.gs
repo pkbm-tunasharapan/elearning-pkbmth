@@ -117,6 +117,7 @@ function waStafUnitData(token) {
   siswa.sort(function(a, b) { return (a.namaRombel + '|' + a.nama).localeCompare(b.namaRombel + '|' + b.nama); });
   var calon = ubCalonKoord_(), namaK = {};
   calon.forEach(function(c) { namaK[c.id] = c.nama; });
+  try { bacaPengguna_().forEach(function(u) { if (!namaK[u.id]) namaK[u.id] = u.nama; }); } catch (eK) {}   // v1.74.1: nama, bukan ID
   return {
     unit: unit.map(function(u) {
       return { id: u.id, nama: u.nama, alamat: u.alamat, ket: u.ket, aktif: u.aktif, jumlah: hit[u.id] || 0, utama: u.utama,

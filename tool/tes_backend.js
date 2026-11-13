@@ -1425,7 +1425,7 @@ tes('penugasan: impor per unit, kunci unit tutor, tutor online hanya menilai, mo
 
 // 45. laporan pemetaan siswa (v1.74.0)
 tes('laporan pemetaan: rekap unit × rombel × layanan, siswa tanpa label ke unit utama, KU hanya unitnya', () => {
-  const sv = ['stafDariToken_', 'ubUnitSaya_', 'ubPetaSiswa_', 'ubUtama_', 'ubCalonKoord_', 'keuWbSemua_', 'kwKop_', 'catat_', 'absWaktu_'];
+  const sv = ['stafDariToken_', 'ubUnitSaya_', 'ubPetaSiswa_', 'ubUtama_', 'bacaPengguna_', 'keuWbSemua_', 'kwKop_', 'catat_', 'absWaktu_'];
   const simpan = {};
   sv.forEach((k) => { simpan[k] = g[k]; });
   try {
@@ -1435,7 +1435,7 @@ tes('laporan pemetaan: rekap unit × rombel × layanan, siswa tanpa label ke uni
     g.ubUnitSaya_ = (p) => (p.peran === 'Admin' ? unit : unit.filter((u) => u.koordinator.includes(p.id)));
     g.ubPetaSiswa_ = () => ({ W1: { unit: 'U1', layanan: 'Reguler' }, W2: { unit: 'U3', layanan: 'Flexi' }, W4: { unit: 'U3', layanan: '' } });
     g.ubUtama_ = () => 'U1';
-    g.ubCalonKoord_ = () => [{ id: 'K1', nama: 'Bu Koor' }];
+    g.bacaPengguna_ = () => [{ id: 'K1', nama: 'Bu Koor', peran: 'Tutor', status: 'Aktif' }];   // peran sudah bukan KU: tetap tampil nama
     g.keuWbSemua_ = () => [{ id: 'W1', nama: 'Ani', idRombel: 'R1', namaRombel: 'XII', aktif: true }, { id: 'W2', nama: 'Budi', idRombel: 'R1', namaRombel: 'XII', aktif: true },
       { id: 'W3', nama: 'Cici', idRombel: 'R2', namaRombel: 'IX', aktif: true }, { id: 'W4', nama: 'Dodi', idRombel: 'R1', namaRombel: 'XII', aktif: true },
       { id: 'W5', nama: 'Eka', idRombel: 'R1', namaRombel: 'XII', aktif: false }];

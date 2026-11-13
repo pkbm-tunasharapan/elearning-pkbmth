@@ -15,7 +15,8 @@ function waStafLaporanPemetaanSiswa(token) {
   if (!boleh.length && !semua) throw new Error('Anda belum ditunjuk sebagai koordinator unit mana pun. Hubungi Admin.');
   var lab = ubPetaSiswa_(), utama = '', namaK = {};
   try { utama = ubUtama_(); } catch (e) {}
-  try { ubCalonKoord_().forEach(function(c) { namaK[c.id] = c.nama; }); } catch (e1) {}
+  // nama koordinator dari seluruh akun (termasuk yang peran/statusnya sudah berubah), bukan ID
+  try { bacaPengguna_().forEach(function(u) { namaK[u.id] = u.nama; }); } catch (e1) {}
   var unit = {}, urut = [];
   boleh.forEach(function(u) {
     unit[u.id] = { id: u.id, nama: u.nama, utama: !!u.utama, koordinator: (u.koordinator || []).map(function(k) { return namaK[k] || k; }),
