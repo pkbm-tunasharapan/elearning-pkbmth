@@ -134,7 +134,13 @@ function profilBarisSiswa_(s) {
 }
 
 function waProfilSiswa(token) {
-  var s = siswaDariSesi_(token);
+  // v1.78.1: token kedaluwarsa dijawab sebagai data (bukan galat) supaya aplikasi tidak mengulang terus-menerus
+  // (88% panggilan sebelumnya gagal SESI_HABIS). Pemulihan sesi tetap lewat waPulihSesiSiswa di aplikasi.
+  var s;
+  try { s = siswaDariSesi_(token); } catch (e) {
+    if (String(e && e.message) === 'SESI_HABIS') return { jenis: 'Siswa', sesiHabis: true, nama: '', email: '', hp: '', foto: '' };
+    throw e;
+  }
   var p = profilCari_(profilKunciSiswa_(s)) || {};
   var baris = profilBarisSiswa_(s);
   var utama = baris.filter(function(x) { return sTeks_(x.r[3]).trim(); })[0] || baris[0];

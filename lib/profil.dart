@@ -89,15 +89,22 @@ class ProfilAkun extends ChangeNotifier {
       }
       return;
     }
-    if (!paksa && id == _milik && data.isNotEmpty) return;
+    if (!paksa && id == _milik) return;   // v1.78.1: sudah dimuat (atau sesi habis) untuk token ini
     try {
       final r = siswa
           ? await Api.instance('waProfilSiswa', [SesiSiswa.instance.token])
           : await Api.instance('waStafProfilAkun', [Sesi.instance.token]);
       if (id != _identitas) return;
-      data = peta(r);
-      _milik = id;
+      final d = peta(r);
+      _milik = id;   // v1.78.1: juga saat sesi habis -> tidak diulang sampai sesi diperbarui (token berganti)
+      if (d['sesiHabis'] == true) {
+        if (siswa) SesiSiswa.instance.segarkan(paksa: true);
+        return;
+      }
+      data = d;
       notifyListeners();
+    } on ApiException catch (e) {
+      if (e.sesiHabis) _milik = id;   // APK ke server lama: jangan ulang untuk token yang sama
     } catch (_) {}
   }
 
@@ -203,6 +210,12 @@ class _ProfilScreenState extends State<ProfilScreen> {
       final r = p.siswa
           ? await Api.instance('waProfilSiswa', [SesiSiswa.instance.token])
           : await Api.instance('waStafProfilAkun', [Sesi.instance.token]);
+      if (peta(r)['sesiHabis'] == true) {
+        // v1.78.1: server menjawab sesi habis sebagai data
+        _galat = 'Sesi Anda sudah berakhir. Keluar lalu masuk kembali untuk mengubah profil.';
+        SesiSiswa.instance.segarkan(paksa: true);
+        return;
+      }
       p.pasang(peta(r));
       _email.text = teks(p.data['email']);
       _hp.text = teks(p.data['hp']);

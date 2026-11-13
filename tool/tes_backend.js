@@ -1729,5 +1729,19 @@ tes('pengajuan mapel tutor disetujui -> Tutor Online semua unit di Pengampu (buk
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 55. profil siswa: sesi habis dijawab sebagai data, bukan galat (v1.78.1)
+tes('profil siswa: token kedaluwarsa -> {sesiHabis: true} tanpa galat; galat lain tetap dilempar', () => {
+  const simpan = g.siswaDariSesi_;
+  try {
+    g.siswaDariSesi_ = () => { throw new Error('SESI_HABIS'); };
+    const r = g.waProfilSiswa('token-lama');
+    sama([r.sesiHabis, r.jenis, r.nama], [true, 'Siswa', '']);
+    g.siswaDariSesi_ = () => { throw new Error('Lain'); };
+    let galat = '';
+    try { g.waProfilSiswa('x'); } catch (e) { galat = e.message; }
+    sama(galat, 'Lain');
+  } finally { g.siswaDariSesi_ = simpan; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
