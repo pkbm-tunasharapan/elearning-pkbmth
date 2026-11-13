@@ -35,8 +35,10 @@ class Pemberitahuan {
     }
     if (kunci.isEmpty) return [];
     final h = peta(await Api.instance('waNotifKotak', [kunci], const Duration(minutes: 1)));
-    final p = daftar(h['pesan']).map(peta).toList();
     final dib = await dibaca();
+    // v1.70.1: pengumuman "tampil sekali" yang sudah dibuka tidak ditampilkan lagi
+    final dilihat = (sp.getStringList('bc_dilihat') ?? <String>[]).toSet();
+    final p = daftar(h['pesan']).map(peta).where((x) => !(x['sekali'] == true && (dilihat.contains(teks(x['id'])) || dib.contains(teks(x['id']))))).toList();
     belumDibaca.value = p.where((x) => teks(x['tipe']) == 'event' && !dib.contains(teks(x['id']))).length;
     return p;
   }

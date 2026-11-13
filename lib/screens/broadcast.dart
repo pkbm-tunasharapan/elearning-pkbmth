@@ -27,11 +27,14 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
   final Set<String> _rombel = {};
   final Set<String> _peran = {};
   int _hari = 7;
+  bool _sekali = false;
+  final _gulir = ScrollController();
 
   @override
   void dispose() {
     _judul.dispose();
     _isi.dispose();
+    _gulir.dispose();
     super.dispose();
   }
 
@@ -67,6 +70,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
           'rombel': _siswa && !_semuaRombel ? _rombel.toList() : <String>[],
           'peran': _staf && !_semuaPeran ? _peran.toList() : <String>[],
           'hari': _hari,
+          'sekali': _sekali,
         }
       ]),
       teksProses: 'Mengirim...',
@@ -77,6 +81,27 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
       kabar(context, 'Pemberitahuan terkirim.');
       setState(() => _versi++);
     }
+  }
+
+  /// v1.70.1: ulangi broadcast dari riwayat - form diisi ulang (judul, isi, penerima, masa tampil), tinggal diperiksa lalu dikirim.
+  void _ulangi(Map<String, dynamic> p) {
+    final rb = daftar(p['rombel']).map(teks).where((x) => x.isNotEmpty).toSet();
+    final pr = daftar(p['peran']).map(teks).where((x) => x.isNotEmpty).toSet();
+    final h = angka(p['hari'], 7);
+    setState(() {
+      _judul.text = teks(p['judul']);
+      _isi.text = teks(p['isi']);
+      _siswa = p['siswa'] == true;
+      _staf = p['staf'] == true;
+      _semuaRombel = rb.isEmpty;
+      _rombel..clear()..addAll(rb);
+      _semuaPeran = pr.isEmpty;
+      _peran..clear()..addAll(pr);
+      _sekali = p['sekali'] == true;
+      _hari = const [1, 3, 7, 14, 30].reduce((a, b) => (a - h).abs() <= (b - h).abs() ? a : b);
+    });
+    if (_gulir.hasClients) _gulir.animateTo(0, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+    kabar(context, 'Form diisi dari riwayat. Periksa atau ubah, lalu tekan Kirim sekarang.');
   }
 
   Future<void> _tarik(Map<String, dynamic> p) async {
@@ -99,7 +124,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
           final peran = daftar(d['peran']).map(teks).toList();
           final pesan = daftar(d['pesan']).map(peta).toList();
           final pr = peta(d['perangkat']);
-          return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
+          return ListView(controller: _gulir, padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
             Card(
               color: cs.secondaryContainer,
               child: Padding(
@@ -160,6 +185,13 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                     items: [for (final h in const [1, 3, 7, 14, 30]) DropdownMenuItem(value: h, child: Text('$h hari'))],
                     onChanged: (v) => setState(() => _hari = v ?? 7),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _sekali,
+                    onChanged: (v) => setState(() => _sekali = v),
+                    title: const Text('Tampilkan hanya satu kali'),
+                    subtitle: const Text('Tiap penerima melihatnya sekali. Setelah dibuka, tidak muncul lagi di kotak masuk agar tidak menumpuk.'),
+                  ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
@@ -185,7 +217,10 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                       Text('${teks(p['waktu'])} · ${teks(p['penerima'])} · s/d ${teks(p['berlaku'])}', style: const TextStyle(fontSize: 12)),
                     ]),
                   ]),
-                  trailing: teks(p['status']) == 'Aktif' ? IconButton(tooltip: 'Tarik', icon: const Icon(Icons.undo_rounded), onPressed: () => _tarik(p)) : null,
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(tooltip: 'Ulangi broadcast', icon: const Icon(Icons.replay_rounded), onPressed: () => _ulangi(p)),
+                    if (teks(p['status']) == 'Aktif') IconButton(tooltip: 'Tarik', icon: const Icon(Icons.undo_rounded), onPressed: () => _tarik(p)),
+                  ]),
                 ),
               ),
           ]);

@@ -108,7 +108,7 @@ function waNotifCek(kunci) {
   var a = bcAudiens_(kunci);
   if (!a) return { sah: false, pesan: [], sekarangMs: now };
   var pesan = bcAktif_().filter(function(b) { return b.berlakuMs > now && bcCocok_(b, a); }).slice(0, 20)
-    .map(function(b) { return { id: b.id, judul: b.judul, isi: b.isi, waktu: b.waktu, oleh: b.oleh }; });
+    .map(function(b) { return { id: b.id, judul: b.judul, isi: b.isi, waktu: b.waktu, oleh: b.oleh, sekali: !!(b.sasaran && b.sasaran.sekali) }; });
   // v1.39.0: pengingat harian membuat PIN untuk WB yang belum punya PIN
   try { var ingat = pinPengingat_(a); if (ingat) pesan.unshift(ingat); } catch (eP) {}
   try { pesan = pesan.concat(npUntuk_(a)); } catch (eN) {}   // v1.50.0: notifikasi per peran (tagihan, keuangan, honor, ...)
@@ -131,9 +131,13 @@ function bcRingkas_(b, now) {
   var s = b.sasaran || {}, bag = [];
   if (s.siswa) bag.push('Siswa' + (s.rombel && s.rombel.length ? ' (' + (s.namaRombel || s.rombel).join(', ') + ')' : ''));
   if (s.staf) bag.push('Staf' + (s.peran && s.peran.length ? ' (' + s.peran.join(', ') + ')' : ''));
+  if (s.sekali) bag.push('tampil sekali');
   return {
     id: b.id, waktu: b.waktu, judul: b.judul, isi: b.isi, penerima: bag.join(' · '), oleh: b.oleh, berlaku: b.berlaku,
-    status: b.status !== 'Aktif' ? b.status : (b.berlakuMs <= now ? 'Kedaluwarsa' : 'Aktif'), ditarikOleh: b.ditarikOleh
+    status: b.status !== 'Aktif' ? b.status : (b.berlakuMs <= now ? 'Kedaluwarsa' : 'Aktif'), ditarikOleh: b.ditarikOleh,
+    // v1.70.1: untuk "Ulangi" (isi form dari riwayat)
+    siswa: !!s.siswa, staf: !!s.staf, rombel: s.rombel || [], peran: s.peran || [], sekali: !!s.sekali,
+    hari: b.waktuMs && b.berlakuMs ? Math.max(1, Math.round((b.berlakuMs - b.waktuMs) / 86400000)) : 7
   };
 }
 
@@ -170,6 +174,7 @@ function waAdminBroadcastKirim(token, d) {
   if (peran.length === BC.PERAN.length) peran = [];
   var now = new Date().getTime(), berlakuMs = now + hari * 86400000, tz = Session.getScriptTimeZone();
   var sas = { siswa: siswa, staf: staf, rombel: rombel, namaRombel: rombel.map(function(x) { return namaRb[x]; }), peran: peran };
+  if (d.sekali === true) sas.sekali = true;   // v1.70.1: tiap penerima hanya melihat sekali; sesudah dibuka hilang dari kotak masuk
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
   try {

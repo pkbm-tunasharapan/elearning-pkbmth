@@ -205,7 +205,7 @@ function waNotifKotak(kunci) {
   var bc = [];
   try {
     bc = bcAktif_().filter(function(b) { return b.berlakuMs > now && bcCocok_(b, a); }).slice(0, 20)
-      .map(function(b) { return { id: b.id, judul: b.judul, isi: b.isi, waktu: b.waktu, oleh: b.oleh, tipe: 'pengumuman', jenis: 'pengumuman', aksi: '' }; });
+      .map(function(b) { return { id: b.id, judul: b.judul, isi: b.isi, waktu: b.waktu, oleh: b.oleh, tipe: 'pengumuman', jenis: 'pengumuman', aksi: '', sekali: !!(b.sasaran && b.sasaran.sekali) }; });
   } catch (e) {}
   return { sah: true, pesan: bc.concat(ev), sekarangMs: now };
 }
