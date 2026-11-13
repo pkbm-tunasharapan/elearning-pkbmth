@@ -1222,5 +1222,28 @@ tes('kelayakan ujian: rumus absen A, ketuntasan per cakupan UTS/UAS, UPK kelas a
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.KL_MEMO_ = null; }
 });
 
+// 38. batalkan jadwal mulai tanggal (v1.70.2)
+tes('batalkan jadwal: berlaku sampai sehari sebelum tanggal, yang belum berjalan dinonaktifkan, tanggal lampau ditolak', () => {
+  const nama = ['jadBacaPm_', 'stafDariToken_', 'jadPeran_', 'absHariIni_', 'catat_'];
+  const simpan = {};
+  nama.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const isi = [['ID PEMETAAN', 'AKTIF', 'TANGGAL SELESAI'], ['P1', true, ''], ['P2', true, ''], ['P3', true, '2026-11-10']];
+    const data = [{ id: 'P1', baris: 2, aktif: true, dari: '2026-07-20', sampai: '' }, { id: 'P2', baris: 3, aktif: true, dari: '2026-11-20', sampai: '' },
+      { id: 'P3', baris: 4, aktif: true, dari: '2026-07-20', sampai: '2026-11-10' }];
+    g.jadBacaPm_ = () => ({ t: { h: { 'ID PEMETAAN': 0, AKTIF: 1, 'TANGGAL SELESAI': 2 }, sh: { getRange: (r, c) => ({ setValue: (x) => { isi[r - 1][c - 1] = x; } }) } }, data });
+    g.stafDariToken_ = () => ({ nama: 'Adi', peran: 'Admin' });
+    g.jadPeran_ = () => ({ kelola: true });
+    g.absHariIni_ = () => '2026-11-13';
+    g.catat_ = () => {};
+    let galat = '';
+    try { g.waStafPemetaanBatal('t', { id: ['P1'], mulai: '2026-11-01' }); } catch (e) { galat = e.message; }
+    sama(/sebelum hari ini/.test(galat), true);
+    const h = g.waStafPemetaanBatal('t', { id: ['P1', 'P2', 'P3'], mulai: '2026-11-16' });
+    sama([h.jumlah, h.dilewati, isi[1][2], isi[2][1], isi[3][2]], [2, 1, '2026-11-15', false, '2026-11-10']);
+    sama(g.izFitur_('waStafPemetaanBatal'), 'jadwal');
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

@@ -1994,7 +1994,8 @@ function waAdminJadwalAturanSimpan(token, d) {
 function waStafPemetaanDaftar(token) {
   var p = stafDariToken_(token), jp = jadPeran_(p);
   if (!jp.lihatSemua && !jp.tutor) throw new Error('Peran Anda tidak dapat melihat jadwal.');
-  var data = jadBacaPm_().data.filter(function(x) { return x.aktif && jadKelasAktif_()[x.idRombel + '|' + x.kodeMapel]; });
+  var hariIni = absHariIni_();   // v1.70.2: jadwal yang sudah berakhir (dibatalkan) tidak ditampilkan lagi
+  var data = jadBacaPm_().data.filter(function(x) { return x.aktif && (!x.sampai || x.sampai >= hariIni) && jadKelasAktif_()[x.idRombel + '|' + x.kodeMapel]; });
   var saya = null;
   if (jp.tutor) { saya = absTutorSaya_(p); data = saya ? data.filter(function(x) { return x.idTutor === saya.id; }) : []; }
   jadLengkapi_(data);
@@ -2102,6 +2103,35 @@ function waStafPemetaanHapus(token, id) {
   if (cs >= 0 && !x.sampai) pm.t.sh.getRange(x.baris, cs + 1).setValue(absHariIni_());
   catat_(p.peran, x.idRombel, p.nama, 'Hapus jadwal', x.kodeMapel + ' ' + x.hari + ' ' + x.mulai, 'OK');
   return { sukses: true };
+}
+// v1.70.2: batalkan satu / beberapa jadwal mulai tanggal tertentu (revisi). d: {id: [..], mulai: 'yyyy-MM-dd'}
+// Jadwal tetap berlaku sampai sehari sebelum [mulai]; yang belum pernah berlaku (dari >= mulai) dinonaktifkan.
+// Riwayat sesi, absensi, dan honor yang sudah tercatat tidak berubah.
+function waStafPemetaanBatal(token, d) {
+  var p = stafDariToken_(token);
+  if (!jadPeran_(p).kelola) throw new Error('Hanya Admin atau Kepala Sekolah.');
+  d = d || {};
+  var ids = (Array.isArray(d.id) ? d.id : [d.id]).map(String).filter(function(x, i, a) { return x && a.indexOf(x) === i; });
+  if (!ids.length) throw new Error('Pilih jadwal yang akan dibatalkan.');
+  if (ids.length > 200) throw new Error('Terlalu banyak jadwal sekaligus (maks 200).');
+  var hariIni = absHariIni_(), mulai = d.mulai ? absTglSah_(d.mulai) : hariIni;
+  if (mulai < hariIni) throw new Error('Tanggal berlaku pembatalan tidak boleh sebelum hari ini.');
+  var akhir = Utilities.formatDate(new Date(new Date(mulai + 'T12:00:00+07:00').getTime() - 86400000), absTz_(), 'yyyy-MM-dd');
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    var pm = jadBacaPm_(), cA = absCol_(pm.t, 'AKTIF'), cS = absCol_(pm.t, 'TANGGAL SELESAI'), n = 0, lewati = [];
+    ids.forEach(function(id) {
+      var x = pm.data.filter(function(y) { return y.id === id; })[0];
+      if (!x || !x.aktif) { lewati.push(id); return; }
+      if (x.sampai && x.sampai <= akhir) { lewati.push(id); return; }   // sudah berakhir sebelum tanggal itu
+      if (!x.dari || x.dari >= mulai) { if (cA >= 0) pm.t.sh.getRange(x.baris, cA + 1).setValue(false); }
+      else if (cS >= 0) pm.t.sh.getRange(x.baris, cS + 1).setValue(akhir);
+      n++;
+      catat_(p.peran, x.idRombel, p.nama, 'Batalkan jadwal', x.kodeMapel + ' ' + x.hari + ' ' + x.mulai + ' mulai ' + mulai, 'OK');
+    });
+    return { sukses: true, jumlah: n, dilewati: lewati.length, mulai: mulai };
+  } finally { kunci.releaseLock(); }
 }
 // Jadwal satu tanggal + status absen tutor. Tutor: miliknya.
 function waStafJadwalHari(token, tanggal) {

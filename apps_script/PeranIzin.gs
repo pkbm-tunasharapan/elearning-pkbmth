@@ -40,7 +40,7 @@ var IZN = {
     ['laporanHadir', 'Laporan Kehadiran', 'Absensi', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStafLaporanHadir$/],
     ['kodeDarurat', 'Kode Darurat FO', 'Absensi', ['Kepala Sekolah'], /^waStafKodeDarurat(Buat|Daftar)$/],
     ['aturAbsensi', 'Pengaturan Absensi', 'Absensi', ['Admin'], /^waAdminAbsen\w*$/],
-    ['jadwal', 'Jadwal', 'Jadwal', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStaf(JadwalHari|Pemetaan(Daftar|Simpan|SimpanBanyak|Hapus))$/],
+    ['jadwal', 'Jadwal', 'Jadwal', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStaf(JadwalHari|Pemetaan(Daftar|Simpan|SimpanBanyak|Hapus|Batal))$/],
     ['usulanJadwal', 'Usulan Jadwal', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Tutor'], /^waStafUsulan(Ajukan|Daftar|Putus)$/],
     ['aturJadwal', 'Pengaturan Jadwal', 'Jadwal', ['Admin'], /^wa(StafJadwalAturan|AdminJadwalAturanSimpan)$/],
     ['agendaLembaga', 'Agenda Lembaga (di luar kalender akademik)', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Superadmin', 'Koordinator Kurikulum'], /^waStafAgenda\w*$/],

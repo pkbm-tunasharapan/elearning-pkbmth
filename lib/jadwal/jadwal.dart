@@ -31,22 +31,66 @@ class _JadwalScreenState extends State<JadwalScreen> {
   int _tab = 0;
   String _tgl = tglIso(DateTime.now());
   int _v = 0;
+  bool _pilihMode = false;   // v1.70.2: batalkan beberapa jadwal sekaligus
+  final Set<String> _pilih = {};
 
   Future<void> _ubah(Map<String, dynamic> data, [Map<String, dynamic>? x]) async {
     final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => FormPemetaan(data: data, x: x)));
     if (ok == true && mounted) setState(() => _v++);
   }
 
-  Future<void> _hapus(Map<String, dynamic> x) async {
-    if (!await konfirmasi(context, 'Hapus jadwal ini?', '${teks(x['namaMapel'])} · ${teks(x['namaRombel'])} · ${teks(x['hari'])} ${teks(x['mulai'])}. Jadwal dinonaktifkan mulai hari ini.', ya: 'Hapus')) return;
-    if (!mounted) return;
-    final r = await jalankan(context, () => Api.instance('waStafPemetaanHapus', [_t, teks(x['id'])]), teksProses: 'Menghapus...');
-    if (r.ok && mounted) setState(() => _v++);
+  /// v1.70.2: batalkan satu / beberapa jadwal mulai tanggal tertentu. Riwayat absensi & honor yang sudah tercatat tetap aman.
+  Future<void> _batal(List<Map<String, dynamic>> xs) async {
+    if (xs.isEmpty) return;
+    final kini = DateTime.now();
+    var mulai = DateTime(kini.year, kini.month, kini.day);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, atur) => AlertDialog(
+          title: Text(xs.length == 1 ? 'Batalkan jadwal?' : 'Batalkan ${xs.length} jadwal?'),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final x in xs.take(6))
+              Text('• ${teks(x['namaMapel'])} · ${teks(x['namaRombel'])} · ${teks(x['hari'])} ${teks(x['mulai'])}', style: const TextStyle(fontSize: 13)),
+            if (xs.length > 6) Text('… dan ${xs.length - 6} lainnya', style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 12),
+            const Text('Berlaku mulai', style: TextStyle(fontWeight: FontWeight.w700)),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final p = await showDatePicker(context: c, firstDate: DateTime(kini.year, kini.month, kini.day), lastDate: DateTime(kini.year + 1, 12, 31), initialDate: mulai);
+                if (p != null) atur(() => mulai = p);
+              },
+              icon: const Icon(Icons.event_rounded),
+              label: Text(tglIso(mulai) == tglIso(kini) ? 'Hari ini (${tglIndo(tglIso(mulai))})' : tglIndo(tglIso(mulai))),
+            ),
+            const SizedBox(height: 8),
+            Text('Jadwal tetap berjalan sampai sehari sebelum tanggal itu. Absensi, sesi, dan honor yang sudah tercatat tidak berubah.',
+                style: TextStyle(fontSize: 12, color: Theme.of(c).colorScheme.onSurfaceVariant)),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Kembali')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Batalkan jadwal'))],
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final r = await jalankan(context, () => Api.instance('waStafPemetaanBatal', [_t, {'id': xs.map((x) => teks(x['id'])).toList(), 'mulai': tglIso(mulai)}]), teksProses: 'Membatalkan...');
+    if (r.ok && mounted) {
+      final h = peta(r.data);
+      final lewat = angka(h['dilewati']);
+      kabar(context, '${angka(h['jumlah'])} jadwal dibatalkan mulai ${tglIndo(teks(h['mulai']))}.${lewat > 0 ? ' $lewat dilewati (sudah berakhir).' : ''}');
+      setState(() {
+        _pilih.clear();
+        _pilihMode = false;
+        _v++;
+      });
+    }
   }
 
   Widget _item(Map<String, dynamic> x, {bool status = false, bool kelola = false, Map<String, dynamic>? data}) {
     final cs = Theme.of(context).colorScheme;
+    final id = teks(x['id']);
+    final pilih = _pilihMode && kelola && !status;
     return ListTile(
+      onTap: pilih ? () => setState(() => _pilih.contains(id) ? _pilih.remove(id) : _pilih.add(id)) : null,
       leading: Container(
         width: 62,
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -58,12 +102,14 @@ class _JadwalScreenState extends State<JadwalScreen> {
       ),
       title: Text('${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}', maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text([teks(x['namaTutor']), if (teks(x['namaUnit']).isNotEmpty) teks(x['namaUnit']), if (teks(x['slot']).isNotEmpty) teks(x['slot']), if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
-      trailing: status
+      trailing: pilih
+          ? Checkbox(value: _pilih.contains(id), onChanged: (v) => setState(() => v == true ? _pilih.add(id) : _pilih.remove(id)))
+          : status
           ? Lencana(x['hadir'] == true ? 'Hadir ${teks(x['jamHadir'])}' : 'Belum absen', warna: x['hadir'] == true ? Colors.green : cs.outline)
           : (kelola
               ? PopupMenuButton<String>(
-                  onSelected: (v) => v == 'ubah' ? _ubah(data!, x) : _hapus(x),
-                  itemBuilder: (_) => const [PopupMenuItem(value: 'ubah', child: Text('Ubah')), PopupMenuItem(value: 'hapus', child: Text('Hapus'))],
+                  onSelected: (v) => v == 'ubah' ? _ubah(data!, x) : _batal([x]),
+                  itemBuilder: (_) => const [PopupMenuItem(value: 'ubah', child: Text('Ubah')), PopupMenuItem(value: 'batal', child: Text('Batalkan'))],
                 )
               : null),
     );
@@ -117,6 +163,18 @@ class _JadwalScreenState extends State<JadwalScreen> {
                   final kelola = d['kelola'] == true;
                   return Stack(children: [
                     ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
+                      if (kelola && pm.isNotEmpty)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => setState(() {
+                              _pilihMode = !_pilihMode;
+                              _pilih.clear();
+                            }),
+                            icon: Icon(_pilihMode ? Icons.close_rounded : Icons.checklist_rounded),
+                            label: Text(_pilihMode ? 'Selesai memilih' : 'Pilih beberapa untuk dibatalkan'),
+                          ),
+                        ),
                       if (pm.isEmpty) Kosong(pesan: kelola ? 'Belum ada pemetaan jadwal. Ketuk "Tambah jadwal".' : 'Belum ada jadwal tatap muka untuk Anda.', ikon: Icons.event_note_rounded),
                       for (final h in hariMinggu)
                         if (pm.any((x) => x['hari'] == h)) ...[
@@ -124,11 +182,23 @@ class _JadwalScreenState extends State<JadwalScreen> {
                           Card(child: Column(children: [for (final x in pm.where((x) => x['hari'] == h)) _item(x, kelola: kelola, data: d)])),
                         ],
                     ]),
-                    if (kelola)
+                    if (kelola && !_pilihMode)
                       Positioned(
                         right: 16,
                         bottom: 16,
                         child: FloatingActionButton.extended(heroTag: 'tambahJadwal', onPressed: () => _ubah(d), icon: const Icon(Icons.add_rounded), label: const Text('Tambah jadwal')),
+                      ),
+                    if (kelola && _pilihMode)
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 16,
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50), backgroundColor: Theme.of(context).colorScheme.error),
+                          onPressed: _pilih.isEmpty ? null : () => _batal(pm.where((x) => _pilih.contains(teks(x['id']))).toList()),
+                          icon: const Icon(Icons.event_busy_rounded),
+                          label: Text(_pilih.isEmpty ? 'Centang jadwal yang akan dibatalkan' : 'Batalkan terpilih (${_pilih.length})'),
+                        ),
                       ),
                   ]);
                 },
