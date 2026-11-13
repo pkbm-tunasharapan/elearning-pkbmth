@@ -94,6 +94,21 @@ class _JadwalScreenState extends State<JadwalScreen> {
     }
   }
 
+  /// v1.76.3: status centang sekelompok jadwal (true semua, false tidak ada, null sebagian) & pembaliknya.
+  bool? _centang(List<Map<String, dynamic>> xs) {
+    final n = xs.where((x) => _pilih.contains(teks(x['id']))).length;
+    return n == 0 ? false : (n == xs.length ? true : null);
+  }
+
+  void _ganti(List<Map<String, dynamic>> xs) {
+    final ids = xs.map((x) => teks(x['id']));
+    if (_centang(xs) == true) {
+      _pilih.removeAll(ids);
+    } else {
+      _pilih.addAll(ids);
+    }
+  }
+
   Widget _item(Map<String, dynamic> x, {bool status = false, bool kelola = false, Map<String, dynamic>? data}) {
     final cs = Theme.of(context).colorScheme;
     final id = teks(x['id']);
@@ -225,9 +240,30 @@ class _JadwalScreenState extends State<JadwalScreen> {
                           ),
                         ),
                       if (pm.isEmpty) Kosong(pesan: kelola ? 'Belum ada pemetaan jadwal. Ketuk "Tambah jadwal" atau unggah templat Excel.' : 'Belum ada jadwal tatap muka untuk Anda.', ikon: Icons.event_note_rounded),
+                      // v1.76.3: pilih semua jadwal sekaligus (mode pembatalan)
+                      if (kelola && _pilihMode && pm.isNotEmpty)
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          tristate: true,
+                          value: _centang(pm),
+                          onChanged: (_) => setState(() => _ganti(pm)),
+                          title: Text('Pilih semua jadwal (${_pilih.length}/${pm.length})', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: const Text('Atau centang per hari di bawah.', style: TextStyle(fontSize: 12)),
+                        ),
                       for (final h in hariMinggu)
                         if (pm.any((x) => x['hari'] == h)) ...[
-                          JudulBagian(h, sub: '${pm.where((x) => x['hari'] == h).length} jadwal'),
+                          if (kelola && _pilihMode)
+                            CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              tristate: true,
+                              value: _centang(pm.where((x) => x['hari'] == h).toList()),
+                              onChanged: (_) => setState(() => _ganti(pm.where((x) => x['hari'] == h).toList())),
+                              title: Text('$h · ${pm.where((x) => x['hari'] == h).length} jadwal', style: const TextStyle(fontWeight: FontWeight.w800)),
+                            )
+                          else
+                            JudulBagian(h, sub: '${pm.where((x) => x['hari'] == h).length} jadwal'),
                           Card(child: Column(children: [for (final x in pm.where((x) => x['hari'] == h)) _item(x, kelola: kelola, data: d)])),
                         ],
                     ]),
