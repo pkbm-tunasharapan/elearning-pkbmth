@@ -6,6 +6,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'jadwal_impor.dart';
+import 'pengampu_online.dart';
 
 String? get _t => Sesi.instance.token;
 /// Satu entri per rombel·mapel (data kelas bisa ganda dari SIM & e-Learning).
@@ -30,6 +31,8 @@ class JadwalScreen extends StatefulWidget {
 
 class _JadwalScreenState extends State<JadwalScreen> {
   int _tab = 0;
+  static const _peranPengampu = ['Admin', 'Kepala Sekolah', 'Superadmin', 'Front Office', 'Koordinator Kurikulum'];
+  bool get _lihatPengampu => _peranPengampu.contains(Sesi.instance.peran);
   String _tgl = tglIso(DateTime.now());
   int _v = 0;
   bool _pilihMode = false;   // v1.70.2: batalkan beberapa jadwal sekaligus
@@ -124,13 +127,20 @@ class _JadwalScreenState extends State<JadwalScreen> {
         color: cs.surfaceContainerLowest,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         child: SegmentedButton<int>(
-          segments: const [ButtonSegment(value: 0, label: Text('Per tanggal'), icon: Icon(Icons.today_rounded)), ButtonSegment(value: 1, label: Text('Mingguan'), icon: Icon(Icons.view_week_rounded))],
+          segments: [
+            const ButtonSegment(value: 0, label: Text('Per tanggal'), icon: Icon(Icons.today_rounded)),
+            const ButtonSegment(value: 1, label: Text('Mingguan'), icon: Icon(Icons.view_week_rounded)),
+            // v1.73.0: Tutor Online per rombel × mapel (Admin, KS, Superadmin, FO, Koordinator Kurikulum)
+            if (_lihatPengampu) const ButtonSegment(value: 2, label: Text('Pengampu'), icon: Icon(Icons.cast_for_education_rounded)),
+          ],
           selected: {_tab},
           onSelectionChanged: (s) => setState(() => _tab = s.first),
         ),
       ),
       Expanded(
-        child: _tab == 0
+        child: _tab == 2
+            ? const PengampuOnlineTab()
+            : _tab == 0
             ? Muatan<Map<String, dynamic>>(
                 key: ValueKey('h|$_tgl|$_v'),
                 muat: () async => peta(await Api.instance('waStafJadwalHari', [_t, _tgl])),

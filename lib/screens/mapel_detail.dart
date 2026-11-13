@@ -94,9 +94,9 @@ class MapelDetailScreen extends StatelessWidget {
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'kalender', child: ListTile(leading: Icon(Icons.calendar_month_rounded), title: Text('Kalender akademik'))),
-                if (!lihat)
+                if (!Sesi.instance.kontenHanyaLihat)
                   const PopupMenuItem(value: 'media', child: ListTile(leading: Icon(Icons.edit_note_rounded), title: Text('LKPD untuk semua materi'))),
-                if (!lihat)
+                if (!Sesi.instance.kontenHanyaLihat)
                   const PopupMenuItem(value: 'terbitMedia', child: ListTile(leading: Icon(Icons.publish_rounded), title: Text('Terbitkan semua media ajar'))),
               ],
             ),
@@ -204,8 +204,8 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
   void _menuItem(Map<String, dynamic> item, List<String> sesi) {
     final jenis = teks(item['jenis']);
     final status = teks(item['status']);
-    // v1.39.1: pimpinan & Dinas (khusus-lihat) tidak mendapat tombol ubah
-    final boleh = item['boleh'] == true && !Sesi.instance.hanyaLihat;
+    // v1.39.1 / v1.73.0: hanya Admin, KS, Koordinator Kurikulum yang menyusun materi; tutor & Dinas hanya melihat
+    final boleh = item['boleh'] == true && !Sesi.instance.kontenHanyaLihat;
     final bolehNilai = item['bolehNilai'] == true && !Sesi.instance.isDinas;
     showModalBottomSheet<void>(
       context: context,
@@ -304,7 +304,7 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
 
         return Scaffold(
           backgroundColor: Colors.transparent,
-          floatingActionButton: _pilih.isNotEmpty || Sesi.instance.hanyaLihat
+          floatingActionButton: _pilih.isNotEmpty || Sesi.instance.kontenHanyaLihat
               ? null
               : FloatingActionButton.extended(
                   onPressed: () => showModalBottomSheet<void>(
@@ -358,7 +358,7 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
                     ),
                 ]),
               ),
-              if (!Sesi.instance.hanyaLihat) Builder(builder: (_) {
+              if (!Sesi.instance.kontenHanyaLihat) Builder(builder: (_) {
                 final pending = semua.where((x) => x['boleh'] == true && teks(x['status']) == 'Draft' && !(teks(x['jenis']) == 'Ujian' && x['terjadwal'] == true)).toList();
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -397,7 +397,7 @@ class _TabKontenState extends State<_TabKonten> with AutomaticKeepAliveClientMix
                   child: Column(children: [
                     for (final x in grup[s]!)
                       ListTile(
-                        onLongPress: x['boleh'] == true && !Sesi.instance.hanyaLihat ? () => setState(() => _pilih.contains(teks(x['id'])) ? _pilih.remove(teks(x['id'])) : _pilih.add(teks(x['id']))) : null,
+                        onLongPress: x['boleh'] == true && !Sesi.instance.kontenHanyaLihat ? () => setState(() => _pilih.contains(teks(x['id'])) ? _pilih.remove(teks(x['id'])) : _pilih.add(teks(x['id']))) : null,
                         onTap: _pilih.isNotEmpty
                             ? () => setState(() => _pilih.contains(teks(x['id'])) ? _pilih.remove(teks(x['id'])) : _pilih.add(teks(x['id'])))
                             : () => _menuItem(x, sesi),

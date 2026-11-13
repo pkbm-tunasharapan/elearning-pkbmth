@@ -114,7 +114,7 @@ function waStafHonorSlip(token, ids, keperluan) {
       var dibayar = d.bayar.reduce(function(a, b) { return a + b.jumlah; }, 0), pph = d.bayar.reduce(function(a, b) { return a + b.pph; }, 0);
       if (!s) {
         var ben = shBendahara_(d.bayar.map(function(b) { return String(b.oleh).trim().toLowerCase(); }));
-        if (!ben) throw new Error('Belum ada akun Bendahara aktif dengan nama lengkap. Slip honor ditandatangani Bendahara; tambahkan/ubah akunnya di Kelola Tutor & Enrollment.');
+        if (!ben) throw new Error('Belum ada akun Bendahara aktif dengan nama lengkap. Slip honor ditandatangani Bendahara; tambahkan/ubah akunnya di Kelola Pengguna.');
         urut++;
         s = { nomor: 'SH/' + thn + '/' + ('000' + urut).slice(-4), id: o.id, kode: Utilities.getUuid().replace(/-/g, '').slice(0, 14).toUpperCase(), bendahara: ben, kali: 0 };
         k.t.sh.appendRow(absBaris_(k.t, { 'NOMOR': s.nomor, 'ID REKAP': o.id, 'KODE': s.kode, 'TUTOR': (tutorPeta[o.tutor] || {}).nama || o.tutor, 'BULAN': o.bulan,

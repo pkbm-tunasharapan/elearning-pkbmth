@@ -80,14 +80,23 @@ class _MapelScreenState extends State<MapelScreen> {
                     ListTile(
                       leading: IkonBulat(Icons.menu_book_rounded, warna: Gaya.warnaMenu(teks(m['namaMapel'])), ukuran: 42, sudut: 14),
                       title: Text(teks(m['namaMapel'])),
+                      // v1.73.0: mapel tatap muka milik Tutor Online lain -> hanya lihat
+                      subtitle: m['lihatSaja'] == true ? const Text('Tatap muka · lihat saja', style: TextStyle(fontSize: 12)) : null,
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MapelDetailScreen(
-                          idMapel: teks(m['idMapel']),
-                          namaMapel: teks(m['namaMapel']),
-                          namaRombel: teks(m['namaRombel']),
-                        ),
-                      )),
+                      onTap: () async {
+                        Sesi.instance.lihatMapelIni = m['lihatSaja'] == true;
+                        try {
+                          await Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => MapelDetailScreen(
+                              idMapel: teks(m['idMapel']),
+                              namaMapel: teks(m['namaMapel']),
+                              namaRombel: teks(m['namaRombel']),
+                            ),
+                          ));
+                        } finally {
+                          Sesi.instance.lihatMapelIni = false;
+                        }
+                      },
                     ),
                 ]),
               ),

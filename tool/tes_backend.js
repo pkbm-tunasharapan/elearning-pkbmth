@@ -928,17 +928,16 @@ tes('input nilai: tutor unit hanya melihat siswa unit pemetaannya', () => {
     const kelas = { idRombel: 'C12', kodeMapel: 'PPKN' };
     const wb = () => [{ id: 'W1' }, { id: 'W2' }, { id: 'W3' }];
     const ids = (p) => g.ubWbNilai_(p, kelas, wb()).map((w) => w.id);
-    pm = [
-      { aktif: true, idTutor: 'PAT', idRombel: 'C12', kodeMapel: 'PPKN', unit: 'U2', sampai: '2026-12-31' },
-      { aktif: true, idTutor: 'SIL', idRombel: 'C12', kodeMapel: 'PPKN', unit: 'U1', sampai: '' },
-      { aktif: true, idTutor: 'LAIN', idRombel: 'C12', kodeMapel: 'PPKN', unit: '', sampai: '' },
-      { aktif: true, idTutor: 'LAMA', idRombel: 'C12', kodeMapel: 'PPKN', unit: 'U2', sampai: '2026-10-01' },
-    ];
-    sama(ids({ r: 'tutor', t: 'PAT' }), ['W2'], 'Patimah: hanya siswa Losari');
-    sama(ids({ r: 'tutor', t: 'SIL' }), ['W1', 'W3'], 'Silvi: siswa Sampiran + tanpa label (unit utama)');
-    sama(ids({ r: 'tutor', t: 'LAIN' }), ['W1', 'W2', 'W3'], 'pemetaan tanpa unit: semua siswa');
-    sama(ids({ r: 'tutor', t: 'LAMA' }), ['W1', 'W2', 'W3'], 'pemetaan sudah berakhir: tanpa saringan');
-    sama(ids({ r: 'tutor', t: 'X' }), ['W1', 'W2', 'W3'], 'tutor enrollment tanpa pemetaan: semua siswa');
+    // v1.73.0: dasar saringan = Penugasan Online per unit (bukan jadwal)
+    const sP = g.pgoPeta_;
+    g.pgoPeta_ = () => ({ 'C12|PPKN': { semua: 'LAIN', unit: { U2: 'PAT', U1: 'SIL' }, ada: true }, 'C12|MTK': { semua: 'BUDI', unit: { U2: 'PAT' }, ada: true } });
+    try {
+      sama(ids({ r: 'tutor', t: 'PAT' }), ['W2'], 'Patimah: hanya siswa Losari');
+      sama(ids({ r: 'tutor', t: 'SIL' }), ['W1', 'W3'], 'Silvi: siswa Sampiran + tanpa label (unit utama)');
+      sama(ids({ r: 'tutor', t: 'LAIN' }), [], 'bawaan yang semua unitnya ditimpa: tidak ada siswa');
+      sama(ids({ r: 'tutor', t: 'X' }), ['W1', 'W2', 'W3'], 'bukan Tutor Online kelas ini: tanpa saringan (akses kelas diatur terpisah)');
+      sama(g.ubWbNilai_({ r: 'tutor', t: 'BUDI' }, { idRombel: 'C12', kodeMapel: 'MTK' }, wb()).map((w) => w.id), ['W1', 'W3'], 'bawaan: semua unit kecuali yang ditimpa');
+    } finally { g.pgoPeta_ = sP; }
     sama(ids({ r: 'admin', t: 'PAT' }), ['W1', 'W2', 'W3'], 'admin/KS melihat semua');
   } finally { sv.forEach(([n, f]) => { g[n] = f; }); }
 });
@@ -1375,6 +1374,53 @@ tes('slip honor: rincian beku dibaca dari rekap, Bendahara dipilih, keperluan & 
     try { g.waStafHonorSlip('T', ['R1'], 'Pengajuan pinjaman'); } catch (e) { galat = e.message; }
     sama(/belum dibayar/.test(galat), true);
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
+// 44. penugasan tutor per unit + tugas tambahan (v1.73.0)
+tes('penugasan: impor per unit, kunci unit tutor, tutor online hanya menilai, mode Tutor tugas tambahan', () => {
+  const d = { pasang: [{ idRombel: 'R1', namaRombel: 'XII A', kodeMapel: 'MTK', namaMapel: 'Matematika' }],
+    unit: [{ id: 'U1', nama: 'Sampiran' }, { id: 'U3', nama: 'Losari' }],
+    peta: { 'R1|MTK': { semua: 'T1', unit: {}, ada: true } },
+    tutor: [{ id: 'T1', nama: 'Ikman', label: 'Ikman' }, { id: 'T2', nama: 'Patimah', label: 'Patimah' }] };
+  const b = [[], [], [], [], [], [], [1, 'XII A [R1]', 'MTK - Matematika', 'Semua unit', 'Ikman'], [2, 'XII A [R1]', 'MTK - Matematika', 'Losari [U3]', 'Patimah'],
+    [3, 'XII A [R1]', 'MTK - Matematika', 'Sampiran [U1]', ''], [4, 'XII A [R1]', 'MTK - Matematika', 'Cirebon [U9]', 'Ikman']];
+  const r = g.pgoRencana_(b, d);
+  sama([r.sama, r.item.map((x) => x.unit + ':' + x.idTutor), r.galat.map((x) => x.baris)], [2, ['U3:T2'], [10]]);
+  const sv = ['pgoPeta_', 'ubUnit_', 'pgoMapelTatapMuka_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.pgoPeta_ = () => ({ 'R1|MTK': { semua: 'T1', unit: { U3: 'T2' }, ada: true } });
+    g.ubUnit_ = () => [{ id: 'U1', aktif: true }, { id: 'U2', aktif: true }, { id: 'U3', aktif: true }];
+    sama([g.pgoKunciTutor_('R1|MTK', 'T1'), g.pgoKunciTutor_('R1|MTK', 'T2'), g.pgoKunciTutor_('R1|MTK', 'T9'), g.pgoTutorUnit_('R1|MTK', 'U3'), g.pgoTutorUnit_('R1|MTK', 'U1')],
+      ['U1,U2', 'U3', null, 'T2', 'T1']);
+    sama(g.pgoSemuaTutor_('R1|MTK'), ['T1', 'T2']);
+    const tutor = { id: 'P1', peran: 'Tutor' }, ks = { id: 'P2', peran: 'Kepala Sekolah' };
+    g.API_FN_SAAT_INI_ = 'waStafMateriSimpan';
+    const tolak = [g.pgoCekTutorOnline_(tutor) !== '', g.pgoCekTutorOnline_(ks)];
+    g.API_FN_SAAT_INI_ = 'waStafDiskusiSimpanNilai';
+    tolak.push(g.pgoCekTutorOnline_(tutor));
+    g.API_FN_SAAT_INI_ = 'waStafMateri';
+    tolak.push(g.pgoCekTutorOnline_(tutor));
+    sama(tolak, [true, '', '', '']);
+    g.pgoMapelTatapMuka_ = () => ({ M1: true });
+    sama([g.pgoBolehLihat_(tutor, 'M1'), g.pgoBolehLihat_(tutor, 'M2')], [true, false]);
+    g.API_FN_SAAT_INI_ = 'waStafSoalSimpan';
+    sama(g.pgoBolehLihat_(tutor, 'M1'), false);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); g.API_FN_SAAT_INI_ = ''; }
+  // tugas tambahan: mode Tutor hanya bila sesi memilihnya
+  const sT = g.tgPeta_, sC = g.CacheService;
+  try {
+    g.tgPeta_ = () => ({ KU1: true });
+    const mode = {};
+    g.CacheService = { getScriptCache: () => ({ get: (k) => mode[k] || null, put: (k, v) => { mode[k] = v; }, remove: (k) => { delete mode[k]; } }) };
+    const ku = { id: 'KU1', peran: 'Koordinator Unit', peranKustom: '' };
+    const a = g.tgTerapkanMode_(ku, 'TOK');
+    mode.mode_TOK = 'Tutor';
+    const b2 = g.tgTerapkanMode_(ku, 'TOK');
+    const c = g.tgTerapkanMode_({ id: 'KU2', peran: 'Koordinator Unit' }, 'TOK');
+    sama([a.peran, b2.peran, b2.peranUtama, ku.peran, c.peran], ['Koordinator Unit', 'Tutor', 'Koordinator Unit', 'Koordinator Unit', 'Koordinator Unit']);
+  } finally { g.tgPeta_ = sT; g.CacheService = sC; }
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

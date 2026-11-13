@@ -6,7 +6,8 @@ import '../widgets.dart';
 
 const _daftarPeran = ['Admin', 'Superadmin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan'];
 
-/// Kelola pengguna staf (admin, tutor, kepala sekolah) dan enrollment mapel tutor.
+/// Kelola pengguna staf (akun login & peran).
+/// v1.73.0: mapel tutor tidak lagi diatur di sini. Tutor Online diatur di Jadwal -> Pengampu; tatap muka lewat jadwal mingguan.
 class PenggunaScreen extends StatefulWidget {
   const PenggunaScreen({super.key});
 
@@ -45,24 +46,23 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
     }
   }
 
-  Future<void> _aturMapel(Map<String, dynamic> p, List<Map<String, dynamic>> mapel, List<Map<String, dynamic>> enr, List<Map<String, dynamic>> pengguna) async {
-    final dipilih = enr.where((e) => teks(e['idPengguna']) == teks(p['id'])).map((e) => teks(e['idMapel'])).toSet();
-    // v1.51.0: mapel-rombel yang sudah diampu tutor lain -> tidak bisa dipilih sebelum dilepas dari tutor itu
-    final namaP = {for (final x in pengguna) teks(x['id']): teks(x['nama'])};
-    final pemilikLain = <String, List<String>>{};
-    for (final e in enr.where((e) => teks(e['idPengguna']) != teks(p['id']))) {
-      pemilikLain.putIfAbsent(teks(e['idMapel']), () => []).add(namaP[teks(e['idPengguna'])] ?? teks(e['idPengguna']));
+  /// v1.73.0: tugas tambahan sebagai Tutor (satu akun; beralih mode lewat Profil). Tidak menambah honor.
+  Future<void> _tambahan(Map<String, dynamic> p) async {
+    final beri = p['tambahanTutor'] != true;
+    if (!await konfirmasi(
+        context,
+        beri ? 'Beri tugas tambahan Tutor' : 'Cabut tugas tambahan Tutor',
+        beri
+            ? '${teks(p['nama'])} tetap ${teks(p['peran'])} dan dapat beralih ke mode Tutor dari menu Profil. Penugasan mengajar diatur di Jadwal → Pengampu / jadwal mingguan. '
+                'Tugas tambahan tidak menambah honor. Pastikan namanya tercatat di Data Induk tutor.'
+            : '${teks(p['nama'])} tidak dapat lagi beralih ke mode Tutor.',
+        ya: beri ? 'Beri' : 'Cabut')) {
+      return;
     }
-    final hasil = await Navigator.of(context).push<Set<String>>(MaterialPageRoute(
-      builder: (_) => _PilihMapel(nama: teks(p['nama']), mapel: mapel, awal: dipilih, pemilikLain: pemilikLain),
-    ));
-    if (hasil == null || !mounted) return;
-    final r = await jalankan(context, () => Api.instance('waAdminSetEnrollment', [Sesi.instance.token, teks(p['id']), hasil.toList()]), teksProses: 'Menyimpan enrollment...');
+    if (!mounted) return;
+    final r = await jalankan(context, () => Api.instance('waAdminTugasTambahan', [Sesi.instance.token, teks(p['id']), beri]), teksProses: 'Menyimpan...');
     if (r.ok) {
-      if (mounted) {
-        final nama = mapel.where((m) => hasil.contains(teks(m['idMapel']))).map((m) => _kunciMapel(teks(m['namaMapel']))).toSet();
-        kabar(context, 'Enrollment ${teks(p['nama'])} disimpan (${nama.length} mapel, ${hasil.length} rombel).');
-      }
+      if (mounted) kabar(context, beri ? 'Tugas tambahan Tutor diberikan.' : 'Tugas tambahan Tutor dicabut.');
       _muatUlang();
     }
   }
@@ -76,7 +76,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
       final g = grup[k];
       grup[k] = (nama: g?.nama ?? teks(m['namaMapel']), n: (g?.n ?? 0) + 1);
     }
-    if (grup.isEmpty) return angka(p['jumlahMapel']) > 0 ? 'Mengampu ${angka(p['jumlahMapel'])} mapel' : 'Belum di-enroll ke mapel mana pun';
+    if (grup.isEmpty) return angka(p['jumlahMapel']) > 0 ? 'Mengampu ${angka(p['jumlahMapel'])} mapel' : 'Belum menjadi Tutor Online di mapel mana pun';
     final urut = grup.values.toList()..sort((a, b) => a.nama.compareTo(b.nama));
     return 'Mengampu ${urut.length} mapel: ${urut.map((g) => '${g.nama} (${g.n} rombel)').join(', ')}';
   }
@@ -105,7 +105,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                 onChanged: (v) => setState(() => _cari = v),
               ),
               const SizedBox(height: 6),
-              Text('${semua.length} pengguna · tutor hanya melihat mapel yang di-enroll-kan.', style: Theme.of(context).textTheme.bodySmall),
+              Text('${semua.length} pengguna · mapel tutor diatur di Jadwal → Pengampu (online) dan jadwal mingguan (tatap muka).', style: Theme.of(context).textTheme.bodySmall),
               for (final p in list)
                 Card(
                   margin: const EdgeInsets.symmetric(vertical: 5),
@@ -116,6 +116,7 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                         Text(teks(p['nama']), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                         Lencana(teks(p['peran'], 'tanpa peran'), warna: teks(p['peran']) == 'Admin' ? Colors.deepPurple : null),
                         if (teks(p['status']) != 'Aktif') Lencana(teks(p['status'], 'Nonaktif'), warna: cs.outline),
+                        if (p['tambahanTutor'] == true) const Lencana('+ Tugas tambahan: Tutor', warna: Colors.teal),
                       ]),
                       const SizedBox(height: 4),
                       Text(
@@ -136,10 +137,14 @@ class _PenggunaScreenState extends State<PenggunaScreen> {
                         ),
                       ]),
                       Wrap(spacing: 4, children: [
-                        if (teks(p['peranDasar'], teks(p['peran'])) == 'Tutor')
-                          TextButton.icon(onPressed: () => _aturMapel(p, mapel, enr, semua), icon: const Icon(Icons.library_add_check_outlined, size: 18), label: const Text('Atur Mapel')),
                         TextButton.icon(onPressed: () => _ubah(p), icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('Ubah')),
                         TextButton.icon(onPressed: () => _resetKode(p), icon: const Icon(Icons.key_outlined, size: 18), label: const Text('Reset Kode')),
+                        if (teks(p['peranDasar'], teks(p['peran'])) != 'Tutor' && teks(p['status']) == 'Aktif')
+                          TextButton.icon(
+                            onPressed: () => _tambahan(p),
+                            icon: Icon(p['tambahanTutor'] == true ? Icons.person_remove_outlined : Icons.school_outlined, size: 18),
+                            label: Text(p['tambahanTutor'] == true ? 'Cabut tugas Tutor' : 'Tugas tambahan Tutor'),
+                          ),
                       ]),
                     ]),
                   ),
@@ -207,88 +212,4 @@ class _DialogPenggunaState extends State<_DialogPengguna> {
   }
 }
 
-class _PilihMapel extends StatefulWidget {
-  const _PilihMapel({required this.nama, required this.mapel, required this.awal, this.pemilikLain = const {}});
-  final String nama;
-  final List<Map<String, dynamic>> mapel;
-  final Set<String> awal;
-  /// idMapel -> nama tutor lain yang sudah mengampu (v1.51.0)
-  final Map<String, List<String>> pemilikLain;
-
-  @override
-  State<_PilihMapel> createState() => _PilihMapelState();
-}
-
 String _kunciMapel(String n) => n.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
-class _PilihMapelState extends State<_PilihMapel> {
-  late final Set<String> _pilih = {...widget.awal};
-  String _cari = '';
-
-  /// Terkunci: diampu tutor lain dan bukan milik tutor ini sejak awal.
-  bool _terkunci(String id) => widget.pemilikLain[id] != null && !widget.awal.contains(id);
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    // kelompokkan per nama mapel: satu mapel, banyak rombel
-    final grup = <String, List<Map<String, dynamic>>>{};
-    for (final m in widget.mapel) {
-      grup.putIfAbsent(_kunciMapel(teks(m['namaMapel'])), () => []).add(m);
-    }
-    final kunci = grup.keys.toList()..sort((a, b) => teks(grup[a]!.first['namaMapel']).compareTo(teks(grup[b]!.first['namaMapel'])));
-    final q = _cari.toLowerCase().trim();
-    final jumlahNama = kunci.where((k) => grup[k]!.any((m) => _pilih.contains(teks(m['idMapel'])))).length;
-    return Scaffold(
-      appBar: AppBar(title: Text('Mapel ${widget.nama}'), actions: [
-        TextButton(onPressed: () => Navigator.pop(context, _pilih), child: Text('Simpan ($jumlahNama mapel)')),
-      ]),
-      body: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 24), children: [
-        TextField(decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Cari mata pelajaran'), onChanged: (v) => setState(() => _cari = v)),
-        const SizedBox(height: 6),
-        Text('${kunci.length} mata pelajaran · ${_pilih.length} rombel dipilih. Mapel dengan nama sama dihitung satu; centang rombel yang diampu.',
-            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-        Text('Rombel bertanda gembok sudah diampu tutor lain. Untuk memindahkannya, buka tutor pengampu itu lalu hilangkan centangnya terlebih dahulu.',
-            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-        const SizedBox(height: 6),
-        for (final k in kunci)
-          if (q.isEmpty || k.contains(q))
-            Builder(builder: (_) {
-              final daftarM = [...grup[k]!]..sort((a, b) => teks(a['namaRombel']).compareTo(teks(b['namaRombel'])));
-              final ids = daftarM.map((m) => teks(m['idMapel'])).toList();
-              final bebas = ids.where((id) => !_terkunci(id)).toList();
-              final nKunci = ids.length - bebas.length;
-              final n = ids.where(_pilih.contains).length;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ExpansionTile(
-                  shape: const Border(),
-                  leading: Checkbox(
-                    tristate: true,
-                    value: n == 0 ? false : (n == bebas.length ? true : null),
-                    onChanged: bebas.isEmpty ? null : (_) => setState(() => n >= bebas.length ? _pilih.removeAll(ids) : _pilih.addAll(bebas)),
-                  ),
-                  title: Text(teks(daftarM.first['namaMapel']), style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text('${ids.length} rombel${n > 0 ? ' · $n diampu' : ''}${nKunci > 0 ? ' · $nKunci diampu tutor lain' : ''}'),
-                  children: [
-                    for (final m in daftarM)
-                      CheckboxListTile(
-                        dense: true,
-                        value: _pilih.contains(teks(m['idMapel'])),
-                        title: Text(teks(m['namaRombel'], 'Tanpa rombel')),
-                        secondary: _terkunci(teks(m['idMapel'])) ? Icon(Icons.lock_outline_rounded, size: 18, color: cs.outline) : null,
-                        subtitle: widget.pemilikLain[teks(m['idMapel'])] == null
-                            ? null
-                            : Text(_terkunci(teks(m['idMapel']))
-                                ? 'Diampu ${widget.pemilikLain[teks(m['idMapel'])]!.join(', ')} — lepas dulu dari tutor tersebut'
-                                : 'Juga diampu ${widget.pemilikLain[teks(m['idMapel'])]!.join(', ')}'),
-                        onChanged: _terkunci(teks(m['idMapel'])) ? null : (v) => setState(() => v == true ? _pilih.add(teks(m['idMapel'])) : _pilih.remove(teks(m['idMapel']))),
-                      ),
-                  ],
-                ),
-              );
-            }),
-      ]),
-    );
-  }
-}

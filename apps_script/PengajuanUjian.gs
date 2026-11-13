@@ -433,7 +433,7 @@ function waAdminUjianDisposisi(token, idPerm, tujuan, catatan) {
     ujUbah_('PERM', x._baris, { 'Status': 'Didisposisikan', 'Tujuan': tujuan, 'Waktu Disposisi': ujNow_(), 'Catatan Admin': cat || x['Catatan Admin'] });
     kmCatat_(p, x['ID Mapel'], 'Disposisi permohonan ujian', x['Jenis'] + ' ke ' + tujuan, 'OK');
     var ada = ujPimpinanAda_()[tujuan];
-    return { sukses: true, peringatan: ada ? '' : 'Belum ada akun aktif berperan ' + tujuan + '. Tambahkan di tab Kelola Tutor & Enrollment agar permohonan dapat diputuskan.' };
+    return { sukses: true, peringatan: ada ? '' : 'Belum ada akun aktif berperan ' + tujuan + '. Tambahkan di menu Kelola Pengguna agar permohonan dapat diputuskan.' };
   } finally {
     kunci.releaseLock();
   }
@@ -1935,6 +1935,12 @@ function waStafProfil(token) {
   var r = waStafProfilAsliDt_(token);
   // v1.41.0: izin per fitur untuk menu aplikasi + nama peran kustom
   try { var pz = stafDariToken_(token); if (r && typeof r === 'object') { r.izin = izPetaPengguna_(pz); r.peranKustom = pz.peranKustom || ''; } } catch (eZ) {}
+  // v1.73.0: tugas tambahan Tutor -> aplikasi menampilkan tombol ganti mode
+  try {
+    var pzT = stafDariToken_(token), asliT = null;
+    bacaPengguna_().forEach(function(u) { if (u.id === pzT.id) asliT = u; });
+    if (r && asliT && typeof tgTambahanTutor_ === 'function' && tgTambahanTutor_(asliT)) { r.tambahanTutor = true; r.peranUtama = asliT.peranKustom || asliT.peran; r.modeTutor = pzT.peran === 'Tutor'; }
+  } catch (eT) {}
   try {
     if (r && r.peran === 'Tutor') {
       var p = stafDariToken_(token);

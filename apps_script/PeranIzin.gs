@@ -19,14 +19,14 @@ var IZN = {
   BAWAAN: ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan'],
   CK: 'izn_v1', TINGKAT: ['tidak', 'lihat', 'ubah'],
   // fungsi untuk semua staf (profil, beranda, notifikasi, cetak, kalender, ...): tidak diatur per peran
-  UMUM: /^waStaf(Login|MasukGoogle|MasukSso|Keluar|Profil|ProfilAkun|ProfilAkunSimpan|ProfilAsliDt|VersiApp|Beranda|Dasbor|UlangTahun|UcapkanUlangTahun|LaporGalat|Hangatkan|HtmlPdf|RuangCek|RuangPoll|Kartu|UjianKotak|Kalender|KalenderDaftar|NilaiAturan|SesiDaftar|Kerangka|Promosi)$/,
+  UMUM: /^waStaf(Login|MasukGoogle|MasukSso|Keluar|Profil|ProfilAkun|ProfilAkunSimpan|ProfilAsliDt|VersiApp|Beranda|Dasbor|UlangTahun|UcapkanUlangTahun|LaporGalat|Hangatkan|HtmlPdf|RuangCek|RuangPoll|Kartu|UjianKotak|Kalender|KalenderDaftar|NilaiAturan|SesiDaftar|Kerangka|Promosi|GantiMode)$/,
   // fungsi BACA (cukup izin "lihat"); selain ini dianggap UBAH
   BACA: /(Daftar\w*|Baca\w*|Konteks|Info|Lengkap|Rekap|Laporan\w*|Leger|Kelas|Rapor|Cari|Pratinjau|Format|Pdf|Peta|Isi|Tab|Log|Berkas|Hari|Aturan|Data|Naskah|Rinci|Aktif|Saya|Tunggakan\w*|Prompt\w*|BiodataRombel|Jawaban|Terkunci|Qr|Performa|Semua|Bacaan|Soal|Status|SesiDiskusi|CatatanNilai|KinerjaTutor|BelumDinilai|^waStaf(Nilai|Absensi|Siswa|Materi|RombelSiswa|LaporanHadir)$)$/,
   TULIS_PAKSA: { waStafMateriStatus: true, waAdminCekDataJadwal: true, waAdminSusulanAkhiri: true },
   BACA_PAKSA: { waStafMasaHadir: true, waStafMasaTinjau: true, waStafMasaSanksi: true, waStafPengawasTugas: true, waStafPengawasPantau: true, waStafPengawasBeritaAcara: true, waStafMasaPengawas: true,waStafMasaKesiapan: true, waStafMasaUsulan: true, waStafMasaDraf: true,waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true, waStafUnitRiwayat: true, waStafPantauUnit: true },
   // [id fitur (= id menu), judul, kelompok, peran bawaan yang punya fitur ini, pola fungsi]
   FITUR: [
-    ['pengguna', 'Kelola Tutor & Enrollment', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode)$/],
+    ['pengguna', 'Kelola Pengguna', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode|TugasTambahan)$/],
     ['peranIzin', 'Peran & Izin', 'Sistem', ['Admin'], /^waAdminPeran\w*$/],
     ['aturNotif', 'Pengaturan Notifikasi', 'Sistem', ['Admin'], /^waAdminNotif\w*$/],
     ['mapelSaya', 'Mata Pelajaran (konten, kurikulum, ujian, media ajar)', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'],
@@ -40,7 +40,7 @@ var IZN = {
     ['laporanHadir', 'Laporan Kehadiran', 'Absensi', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStafLaporanHadir$/],
     ['kodeDarurat', 'Kode Darurat FO', 'Absensi', ['Kepala Sekolah'], /^waStafKodeDarurat(Buat|Daftar)$/],
     ['aturAbsensi', 'Pengaturan Absensi', 'Absensi', ['Admin'], /^waAdminAbsen\w*$/],
-    ['jadwal', 'Jadwal', 'Jadwal', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStaf(JadwalHari|Pemetaan(Daftar|Simpan|SimpanBanyak|Hapus|Batal|Templat|ImporPratinjau|ImporTerapkan))$/],
+    ['jadwal', 'Jadwal', 'Jadwal', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Dinas Pendidikan'], /^waStaf(JadwalHari|Pemetaan(Daftar|Simpan|SimpanBanyak|Hapus|Batal|Templat|ImporPratinjau|ImporTerapkan)|Pengampu(Daftar|Simpan|Templat|ImporPratinjau|ImporTerapkan))$/],
     ['usulanJadwal', 'Usulan Jadwal', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Tutor'], /^waStafUsulan(Ajukan|Daftar|Putus)$/],
     ['aturJadwal', 'Pengaturan Jadwal', 'Jadwal', ['Admin'], /^wa(StafJadwalAturan|AdminJadwalAturanSimpan)$/],
     ['agendaLembaga', 'Agenda Lembaga (di luar kalender akademik)', 'Jadwal', ['Admin', 'Kepala Sekolah', 'Superadmin', 'Koordinator Kurikulum'], /^waStafAgenda\w*$/],

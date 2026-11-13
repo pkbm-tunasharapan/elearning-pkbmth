@@ -79,7 +79,7 @@ const _absWb = {'Admin', 'Tutor', 'Kepala Sekolah'};
 const _lapHadir = {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office'};
 
 final List<MenuApp> semuaMenu = [
-  MenuApp(id: 'pengguna', judul: 'Kelola Tutor & Enrollment', ikon: Icons.groups_outlined, peran: _admin, native: () => const PenggunaScreen(), utama: true),
+  MenuApp(id: 'pengguna', judul: 'Kelola Pengguna', ikon: Icons.groups_outlined, peran: _admin, native: () => const PenggunaScreen(), utama: true),
   MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: {..._semua, 'Superadmin', 'Dinas Pendidikan'}, native: () => const MapelScreen(), utama: true),
   MenuApp(id: 'absensi', judul: 'Absensi Warga Belajar', ikon: Icons.how_to_reg_outlined, peran: _absWb, native: () => const AbsensiMenuScreen(), utama: true),
   MenuApp(id: 'absenTutor', judul: 'Absen Tutor', ikon: Icons.badge_outlined, peran: {'Admin', 'Kepala Sekolah', 'Front Office'}, native: () => const AbsenTutorScreen(), utama: true),

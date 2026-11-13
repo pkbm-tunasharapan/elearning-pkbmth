@@ -190,7 +190,7 @@ class _DialogUnitState extends State<_DialogUnit> {
           Align(alignment: Alignment.centerLeft, child: Text('Koordinator unit', style: Theme.of(context).textTheme.labelLarge)),
           const SizedBox(height: 6),
           if (widget.calon.isEmpty)
-            Text('Belum ada pengguna berperan Koordinator Unit. Tambahkan di menu Kelola Tutor & Enrollment.',
+            Text('Belum ada pengguna berperan Koordinator Unit. Tambahkan di menu Kelola Pengguna.',
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))
           else
             Wrap(spacing: 6, runSpacing: 6, children: [

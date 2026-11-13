@@ -28,10 +28,24 @@ class Sesi extends ChangeNotifier {
   bool get isAdmin => peran == 'Admin';
 
   /// Kepala Sekolah / Koordinator Kurikulum: melihat semua mapel tanpa mengubah.
-  bool get hanyaLihat => peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum' || peran == 'Superadmin' || peran == 'Koordinator Unit' || isDinas;
+  bool get hanyaLihat => lihatMapelIni || peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum' || peran == 'Superadmin' || peran == 'Koordinator Unit' || isDinas;
+
+  /// v1.73.0: tutor tatap muka membuka mapel yang bukan ampuannya (Tutor Online orang lain) -> hanya lihat.
+  /// Dipasang saat membuka mapel itu dan dilepas saat kembali.
+  bool lihatMapelIni = false;
   bool get isDinas => peran == 'Dinas Pendidikan';
   bool get isPimpinan => peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum';
   bool get isTutor => peran == 'Tutor';
+
+  /// v1.73.0: materi, tugas, soal, kurikulum, dan jadwal ujian disusun Admin, Kepala Sekolah, Koordinator Kurikulum.
+  /// Tutor (online & tatap muka) hanya melihat; Tutor Online menilai siswa unit penugasannya.
+  bool get bolehSusunMateri => isAdmin || peran == 'Kepala Sekolah' || peran == 'Koordinator Kurikulum';
+  bool get kontenHanyaLihat => !bolehSusunMateri;
+
+  /// v1.73.0: tugas tambahan Tutor (mis. Koordinator Unit) -> bisa beralih ke mode Tutor.
+  bool get tambahanTutor => profil['tambahanTutor'] == true;
+  bool get modeTutor => profil['modeTutor'] == true;
+  String get peranUtama => teks(profil['peranUtama']);
   List<Map<String, dynamic>> get mapel => daftar(profil['mapel']).map(peta).toList();
 
   /// Jumlah mapel berdasarkan NAMA (mapel bernama sama di beberapa rombel dihitung satu).

@@ -181,6 +181,7 @@ class RekapNilaiScreen extends StatefulWidget {
 class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
   int _v = 0;
   Map<String, dynamic>? _data;
+  String _unit = '';   // v1.73.0: leger per unit (staf); tutor otomatis unit penugasannya
 
   Future<void> _ekspor(bool excel) async {
     final d = _data;
@@ -267,9 +268,9 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
         ],
       ]),
       body: Muatan<Map<String, dynamic>>(
-        key: ValueKey(_v),
+        key: ValueKey('$_v|$_unit'),
         muat: () async {
-          final d = peta(await Api.instance('waStafNilaiRekap', [_t, {'idRombel': teks(k['idRombel']), 'kodeMapel': teks(k['kodeMapel']), ...?widget.per}]));
+          final d = peta(await Api.instance('waStafNilaiRekap', [_t, {'idRombel': teks(k['idRombel']), 'kodeMapel': teks(k['kodeMapel']), if (_unit.isNotEmpty) 'unit': _unit, ...?widget.per}]));
           _data = d;
           return d;
         },
@@ -282,6 +283,14 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
             onRefresh: segarkan,
             child: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 32), children: [
               Text(_periodeTeks(peta(d['periode'])), style: const TextStyle(fontWeight: FontWeight.w700)),
+              if (daftar(d['unitPilihan']).length > 1)
+                Wrap(spacing: 6, children: [
+                  ChoiceChip(label: const Text('Semua unit'), selected: _unit.isEmpty, onSelected: (_) => setState(() => _unit = '')),
+                  for (final u in daftar(d['unitPilihan']).map(peta))
+                    ChoiceChip(label: Text(teks(u['nama'])), selected: _unit == teks(u['id']), onSelected: (_) => setState(() => _unit = teks(u['id']))),
+                ]),
+              if (teks(d['namaUnit']).isNotEmpty)
+                Text('Unit ${teks(d['namaUnit'])} · Tutor Online: ${teks(peta(d['kelas'])['namaTutor'], '-')}', style: const TextStyle(fontSize: 12.5)),
               if (d['terhubungElearning'] != true)
                 const Padding(padding: EdgeInsets.only(top: 6), child: Text('Mapel ini belum terhubung ke e-Learning, jadi nilai diskusi dan ujian online belum terbaca.', style: TextStyle(fontSize: 12.5))),
               if (kurang > 0)
@@ -754,7 +763,7 @@ String legerMapelHtml(Map<String, dynamic> d, {bool excel = false}) {
   final wb = daftar(d['wb']).map(peta).toList();
   final b = StringBuffer();
   if (!excel) b.write('<h2>LEGER NILAI ${escHtml(teks(k['namaMapel']).toUpperCase())}</h2>');
-  b.write('<p>Rombel ${escHtml(teks(k['namaRombel']))} · ${escHtml(namaProgram(teks(k['program'])))} · ${escHtml(_periodeTeks(per))}<br>'
+  b.write('<p>Rombel ${escHtml(teks(k['namaRombel']))}${teks(d['namaUnit']).isEmpty ? '' : ' · Unit ${escHtml(teks(d['namaUnit']))}'} · ${escHtml(namaProgram(teks(k['program'])))} · ${escHtml(_periodeTeks(per))}<br>'
       'Tutor: ${escHtml(teks(k['namaTutor'], '-'))} · Bobot Diskusi ${nilT(bb['diskusi'])}%, UTS ${nilT(bb['uts'])}%, UAS ${nilT(bb['uas'])}% · KKM ${nilT(at['kkm'])}</p>');
   b.write('<table><tr><th>No</th><th>NISN</th><th>Nama</th><th>Hadir</th><th>Diskusi</th><th>UTS</th><th>UAS</th><th>Nilai Akhir</th><th>Predikat</th><th>Keterangan</th></tr>');
   var i = 0;

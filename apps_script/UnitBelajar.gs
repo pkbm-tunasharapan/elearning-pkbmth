@@ -652,6 +652,8 @@ function ubKunciTutorKelas_(p, kelas) {
     if (!r.tutor || r.lihatSemua || !kelas) return '';
     var t = absTutorSaya_(p);
     if (!t) return '';
+    // v1.73.0: dasar saringan = Penugasan Online per unit (bukan jadwal tatap muka)
+    if (typeof pgoKunciTutor_ === 'function') { var kp = pgoKunciTutor_(kelas.idRombel + '|' + kelas.kodeMapel, t.id); return kp || ''; }
     var kini = absHariIni_(), unit = [], semua = false;
     jadBacaPm_().data.forEach(function(x) {
       if (!x.aktif || x.idTutor !== t.id || x.idRombel !== kelas.idRombel || x.kodeMapel !== kelas.kodeMapel) return;

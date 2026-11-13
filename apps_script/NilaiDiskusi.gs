@@ -114,6 +114,8 @@ function waStafDiskusiJawaban(token, idMapel, idMateri) {
   var r = wajibPengampu_(token, idMapel);
   var d = ndPastikanDiskusi_(idMapel, idMateri);
   var data = ndDaftarJawaban_(idMapel, idMateri);
+  var sr = typeof pgoSaringSiswaBm_ === 'function' ? pgoSaringSiswaBm_(r.p, r.m) : null;   // v1.73.0: hanya siswa unit penugasan
+  if (sr) data.baris = data.baris.filter(function(b) { return sr(b.siswa); });
   return {
     judul: d.judul, pertanyaan: d.pertanyaan, mapel: r.m.namaMapel, minKata: ND.MIN_KATA, minTautan: ND.MIN_TAUTAN,
     jawaban: data.baris.map(function(b) {
@@ -152,6 +154,8 @@ function ndNilaiAiInti_(token, idMapel, idMateri, mulai) {
   var d = ndPastikanDiskusi_(idMapel, idMateri);
   if (!String(d.pertanyaan).trim()) throw new Error('Pertanyaan diskusi masih kosong, tidak bisa dinilai.');
   var data = ndDaftarJawaban_(idMapel, idMateri).baris;
+  var srA = typeof pgoSaringSiswaBm_ === 'function' ? pgoSaringSiswaBm_(r.p, r.m) : null;   // v1.73.0
+  if (srA) data = data.filter(function(b) { return srA(b.siswa); });
   var awal = Math.max(0, parseInt(mulai, 10) || 0);
   var potong = data.slice(awal, awal + ND.PER_PANGGILAN);
   if (!potong.length) return { hasil: [], berikut: -1, total: data.length };
@@ -218,7 +222,8 @@ function waStafDiskusiSimpanNilai(token, idMapel, idMateri, daftar, setuju) {
     ndPastikanKolom_(getSheet(CONFIG.SHEETS.JAWABAN));
     var data = ndDaftarJawaban_(idMapel, idMateri);
     var peta = {};
-    data.baris.forEach(function(b) { peta[b.siswa.toLowerCase()] = b; });
+    var srS = typeof pgoSaringSiswaBm_ === 'function' ? pgoSaringSiswaBm_(r.p, r.m) : null;   // v1.73.0: siswa unit lain tidak dinilai
+    data.baris.forEach(function(b) { if (!srS || srS(b.siswa)) peta[b.siswa.toLowerCase()] = b; });
     var log = ndSheetLog_();
     var waktu = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
     var tersimpan = 0, kabar = [];

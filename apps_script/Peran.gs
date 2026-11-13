@@ -210,6 +210,7 @@ function stafDariToken_(token) {
       try { CacheService.getScriptCache().put('staf_' + token, id, PERAN.DURASI_SESI_DETIK); } catch (e) {}
       if (daftar[i].peran !== 'Admin' && mtAktif_()) throw new Error('MAINTENANCE');
       var hasilU = (daftar[i].peran === 'Dinas Pendidikan' && typeof dinasSaring_ === 'function') ? dinasSaring_(daftar[i]) : daftar[i];
+      if (typeof tgTerapkanMode_ === 'function') hasilU = tgTerapkanMode_(hasilU, token);   // v1.73.0: mode Tutor (tugas tambahan)
       if (typeof izPeriksa_ === 'function') hasilU = izPeriksa_(hasilU) || hasilU;   // v1.41.0/1.41.1: izin per fitur (+ peran pelaksana fitur tambahan)
       return hasilU;
     }
@@ -229,12 +230,19 @@ function wajibMapel_(token, idMapel) {
   var m = null;
   mapelAktifSemua_().forEach(function(x) { if (x.idMapel === String(idMapel)) m = x; });
   if (!m) throw new Error('Mapel tidak ditemukan atau sudah tidak aktif.');
-  if (p.peran !== 'Admin' && !pimpinanBolehBaca_(p)) {
+  // v1.73.0: Admin, Kepala Sekolah, Koordinator Kurikulum = penyusun materi (akses penuh)
+  if (!(typeof pgoPenyusun_ === 'function' ? pgoPenyusun_(p) : p.peran === 'Admin') && !pimpinanBolehBaca_(p)) {
     var boleh = false;
     bacaEnrollment_().forEach(function(e) {
       if (e.idPengguna === p.id && e.idMapel === m.idMapel) boleh = true;
     });
-    if (!boleh) throw new Error('Anda tidak mengampu mapel ini.');
+    // v1.73.0: tutor tatap muka (punya jadwal mapel ini) hanya boleh melihat
+    if (!boleh && typeof pgoBolehLihat_ === 'function' && pgoBolehLihat_(p, m.idMapel)) boleh = true;
+    if (!boleh) throw new Error(typeof pgoMapelTatapMuka_ === 'function' && pgoMapelTatapMuka_(p)[m.idMapel]
+      ? 'Anda tutor tatap muka mapel ini: hanya dapat melihat. Penilaian oleh Tutor Online.' : 'Anda tidak mengampu mapel ini.');
+    // v1.73.0: Tutor Online hanya melihat & menilai; menyusun materi/tugas/soal oleh Admin, KS, Koordinator Kurikulum
+    var tolak = typeof pgoCekTutorOnline_ === 'function' ? pgoCekTutorOnline_(p) : '';
+    if (tolak) throw new Error(tolak);
   }
   return { p: p, m: m };
 }
@@ -292,12 +300,16 @@ function waStafProfilAsliDt_(token) {
   var semua = mapelAktifSemua_();
   var boleh = {};
   bacaEnrollment_().forEach(function(e) { if (e.idPengguna === p.id) boleh[e.idMapel] = true; });
-  var mapel = semua.filter(function(m) { return p.peran === 'Admin' || boleh[m.idMapel] === true; });
+  // v1.73.0: mapel yang hanya dijadwalkan tatap muka untuk tutor ini -> ikut tampil sebagai "lihat saja"
+  var tm = typeof pgoMapelTatapMuka_ === 'function' ? pgoMapelTatapMuka_(p) : {};
+  var mapel = semua.filter(function(m) { return p.peran === 'Admin' || boleh[m.idMapel] === true || tm[m.idMapel] === true; });
   return {
     nama: p.nama,
     peran: p.peran,
     mapel: mapel.map(function(m) {
-      return { idMapel: m.idMapel, namaMapel: m.namaMapel, idRombel: m.idRombel, namaRombel: m.namaRombel };
+      var o = { idMapel: m.idMapel, namaMapel: m.namaMapel, idRombel: m.idRombel, namaRombel: m.namaRombel };
+      if (p.peran !== 'Admin' && boleh[m.idMapel] !== true) o.lihatSaja = true;
+      return o;
     })
   };
 }
@@ -466,7 +478,8 @@ function waAdminDaftar(token) {
   enr.forEach(function(e) { jumlah[e.idPengguna] = (jumlah[e.idPengguna] || 0) + 1; });
   return {
     pengguna: bacaPengguna_().map(function(p) {
-      return { id: p.id, nama: p.nama, peran: p.peranKustom || p.peran, peranDasar: p.peran, kode: p.kode, hp: p.hp, status: p.status, jumlahMapel: jumlah[p.id] || 0 };
+      return { id: p.id, nama: p.nama, peran: p.peranKustom || p.peran, peranDasar: p.peran, kode: p.kode, hp: p.hp, status: p.status, jumlahMapel: jumlah[p.id] || 0,
+        tambahanTutor: typeof tgTambahanTutor_ === 'function' && tgTambahanTutor_(p) };
     }),
     peranTersedia: (function() { try { return izRingkasPeran_().filter(function(r) { return r.status !== 'Nonaktif'; }).map(function(r) { return { nama: r.nama, dasar: r.dasar, bawaan: r.bawaan }; }); } catch (e) { return []; } })(),
     mapel: mapelAktifSemua_().map(function(m) {
@@ -1247,12 +1260,30 @@ function sinkronTutorSemua_() {
       }
     }
   }
+  // v1.73.0: kelas yang punya Penugasan Online diatur oleh penugasan (bisa beberapa Tutor Online per unit)
+  var pg = typeof pgoInginEnroll_ === 'function' ? pgoInginEnroll_() : { kelola: {}, ingin: {} };
+  daftarIngin = daftarIngin.filter(function(x) { return !pg.kelola[x.m.id]; });
+  ingin = {};
+  daftarIngin.forEach(function(x) { ingin[x.u.id + '|' + x.m.id] = true; });
+  var penggunaPg = {};
+  bacaPengguna_().forEach(function(u) { penggunaPg[u.id] = u; });
+  var bmPg = {};
+  bmMapel.forEach(function(m) { bmPg[m.id] = m; });
+  Object.keys(pg.ingin).forEach(function(k) {
+    var q2 = k.split('|'), u3 = penggunaPg[q2[0]], m3 = bmPg[q2[1]];
+    if (u3 && m3) { ingin[k] = true; daftarIngin.push({ u: u3, m: m3, rombel: '' }); }
+  });
   // bandingkan dengan Enrollment
   var shE = getSheet(PERAN.SHEET_ENROLLMENT);
   var ve = shE.getDataRange().getValues();
   var ada = {}, hapusBaris = [], tersentuh = {};
   for (j = 1; j < ve.length; j++) {
     var idU = sTeks_(ve[j][0]).trim(), idM = sTeks_(ve[j][2]).trim();
+    if (pg.kelola[idM]) {
+      var kp = idU + '|' + idM;
+      if (pg.ingin[kp] && !ada[kp]) ada[kp] = true; else { hapusBaris.push(j + 1); tersentuh[idM] = true; }
+      continue;
+    }
     if (!idU || !kelolaId[idU]) { continue; }
     var kk2 = idU + '|' + idM;
     if (ingin[kk2] && !ada[kk2]) ada[kk2] = true;

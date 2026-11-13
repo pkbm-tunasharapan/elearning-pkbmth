@@ -1335,6 +1335,7 @@ function absKelas_(idTutorSaja) {
         if (!asal) return;
         var salin = JSON.parse(JSON.stringify(asal));
         salin.idTutor = idTutorSaja; salin.namaTutor = ptT[idTutorSaja] ? ptT[idTutorSaja].nama : '';
+        salin.tatapMuka = true;   // v1.73.0: hanya tutor tatap muka (kehadiran), bukan pengampu (nilai)
         ada[kk] = salin; a.push(salin);
       });
     } catch (e3) {}
@@ -1445,6 +1446,14 @@ function honKehadiran_(bulan, aturan) {
   }
   if (bulanan) honBulanan_(bulan, aturan, out);
   Object.keys(out).forEach(function(k) { out[k].sesi.sort(function(a, b) { return a.tanggal.localeCompare(b.tanggal); }); delete out[k].hari; });
+  // v1.73.0: tutor yang hanya bertugas tambahan (peran utama bukan Tutor, mis. Koordinator Unit) tidak mendapat honor tutor
+  try {
+    if (typeof tgTambahanTutor_ === 'function') {
+      var tutorAkun = honPetaPengguna_(), tambahan = {};
+      bacaPengguna_().forEach(function(u) { if (u.status === 'Aktif' && tgTambahanTutor_(u)) { var t = absTutorSaya_(u); if (t && t.id) tambahan[t.id] = true; } });
+      Object.keys(out).forEach(function(k) { if (tambahan[k] && !(tutorAkun[k] || []).length) delete out[k]; });
+    }
+  } catch (eTg) {}
   return out;
 }
 // Mode bulanan. Pertemuan wajib = tanggal di bulan itu yang ada jadwal tutor (PEMETAAN), dikurangi hari libur.
@@ -2336,7 +2345,8 @@ function nilKelasBoleh_(p) {
     a.sort(function(x, y) { return (x.namaRombel + '|' + x.namaMapel).localeCompare(y.namaRombel + '|' + y.namaMapel); });
     return a;
   }
-  if (r.tutor) { var s = absTutorSaya_(p); return s ? absKelas_(s.id) : []; }
+  // v1.73.0: nilai hanya oleh Tutor Online (pengampu); kelas yang hanya dijadwalkan tatap muka tidak termasuk
+  if (r.tutor) { var s = absTutorSaya_(p); return s ? absKelas_(s.id).filter(function(k) { return !k.tatapMuka; }) : []; }
   throw new Error('Peran Anda tidak dapat melihat nilai.');
 }
 
@@ -2739,13 +2749,37 @@ function waStafNilaiRekap(token, q) {
   var dis = k.dis.filter(function(d) { return d.idRombel === kelas.idRombel && (d.kodeMapel === '*' || d.kodeMapel === kelas.kodeMapel); });
   var wbRekap = nilRekapKelas_(k, kelas);
   // v1.66.0: tutor unit hanya melihat & menilai siswa unit pemetaannya
-  if (typeof ubKunciTutorKelas_ === 'function' && ubKunciTutorKelas_(p, kelas)) {
+  var kunciU = typeof ubKunciTutorKelas_ === 'function' ? ubKunciTutorKelas_(p, kelas) : '';
+  if (kunciU) {
     var bolehWb = {};
     ubWbNilai_(p, kelas, absWbRombel_(kelas.idRombel)).forEach(function(w) { bolehWb[w.id] = true; });
     wbRekap = wbRekap.filter(function(w) { return bolehWb[w.idWb]; });
   }
+  // v1.73.0: leger per unit. Tutor: unit penugasannya, atas namanya. Staf: pilih unit (q.unit) -> Tutor Online unit itu.
+  var unitPil = [], namaUnit = '';
+  try {
+    var key = kelas.idRombel + '|' + kelas.kodeMapel, pu = ubPetaUnit_();
+    kelas = JSON.parse(JSON.stringify(kelas));
+    if (r.tutor) {
+      kelas.namaTutor = p.nama;
+      namaUnit = kunciU ? ubNamaKunci_(kunciU) : '';
+    } else {
+      var ur = (typeof pgoUnitRombel_ === 'function' ? pgoUnitRombel_() : {})[kelas.idRombel] || {};
+      unitPil = Object.keys(ur).filter(function(u) { return pu[u]; }).map(function(u) { return { id: u, nama: pu[u].nama }; });
+      if (q.unit && pu[q.unit]) {
+        var lab = ubPetaSiswa_(), utama = ubUtama_();
+        var dlm = {};
+        absWbRombel_(kelas.idRombel).forEach(function(w) { var l = lab[w.id]; if (((l && l.unit) || utama) === q.unit) dlm[w.id] = true; });
+        wbRekap = wbRekap.filter(function(w) { return dlm[w.idWb]; });
+        namaUnit = pu[q.unit].nama;
+        var tu = typeof pgoTutorUnit_ === 'function' ? pgoTutorUnit_(key, q.unit) : '';
+        var ptU = absPetaTutor_();
+        if (tu) kelas.namaTutor = ptU[tu] ? ptU[tu].nama : tu;
+      }
+    }
+  } catch (eU) {}
   return {
-    kelas: kelas, periode: per, aturan: k.at, wb: wbRekap, dispensasi: dis,
+    kelas: kelas, periode: per, aturan: k.at, wb: wbRekap, dispensasi: dis, unitPilihan: unitPil, namaUnit: namaUnit,
     terhubungElearning: (k.peta.kelas[kelas.idRombel + '|' + kelas.kodeMapel] || []).length > 0,
     bolehInput: r.input, bolehDispensasi: r.dispensasi
   };
@@ -4184,7 +4218,7 @@ var IND = {
   mapel: { tab: 'MAPEL', kunci: 'KODE MAPEL', manual: true, judul: 'Mata Pelajaran', label: 'NAMA MAPEL', sub: ['KODE MAPEL', 'KELOMPOK'], wajib: ['KODE MAPEL', 'NAMA MAPEL'],
     pilihan: { KELOMPOK: ['Umum', 'Pilihan', 'Muatan Lokal', 'Pemberdayaan', 'Keterampilan'] } },
   enroll: { tab: 'ENROLL MAPEL', kunci: 'ID ENROLL', judul: 'Enroll Mapel', label: 'MAPEL', sub: ['ROMBEL', 'TUTOR'], wajib: ['ROMBEL', 'MAPEL'],
-    ref: { ROMBEL: 'rombel', MAPEL: 'mapel', TUTOR: 'tutor' }, pilihan: { STATUS: ['Disetujui', 'Menunggu', 'Ditolak'] }, bool: ['AKTIF'], ro: ['DICATAT PADA', 'DIAJUKAN OLEH'],
+    ref: { ROMBEL: 'rombel', MAPEL: 'mapel', TUTOR: 'tutor' }, pilihan: { STATUS: ['Disetujui', 'Menunggu', 'Ditolak'] }, bool: ['AKTIF'], ro: ['DICATAT PADA', 'DIAJUKAN OLEH', 'TUTOR'],   // v1.73.0: TUTOR diatur di Pemetaan -> Pengampu Online
     bawaan: { AKTIF: true, STATUS: 'Disetujui' }, hapus: { AKTIF: false } },
   pengaturan: { tab: 'PENGATURAN', kunci: 'ID', tunggal: true, judul: 'Pengaturan Lembaga', label: 'NAMA LEMBAGA', ro: ['ID', 'LOGO'],
     pilihan: { SEMESTER: ['Ganjil', 'Genap'] }, bool: ['ABSENSI AKTIF'] }

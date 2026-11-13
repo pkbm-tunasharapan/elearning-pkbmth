@@ -387,6 +387,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
               child: Text('Nama, kelas, dan tanggal lahir diatur sekolah. Bila ada yang salah, hubungi tutor atau admin.',
                   style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
             ),
+          // v1.73.0: tugas tambahan Tutor (mis. Koordinator Unit) -> beralih mode
+          if (!siswa && Sesi.instance.tambahanTutor)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                onPressed: () => gantiModeTutor(context),
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: Text(Sesi.instance.modeTutor ? 'Kembali ke ${Sesi.instance.peranUtama}' : 'Beralih ke mode Tutor'),
+              ),
+            ),
           if (widget.onKeluar != null) ...[
             const SizedBox(height: 16),
             OutlinedButton.icon(
@@ -408,4 +419,19 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if (!widget.denganAppBar) return _isi();
     return Scaffold(appBar: AppBar(title: const Text('Profil Saya')), body: _isi());
   }
+}
+
+
+/// v1.73.0: ganti antara peran utama dan mode Tutor (tugas tambahan). Profil & menu dimuat ulang.
+Future<void> gantiModeTutor(BuildContext context) async {
+  final keTutor = !Sesi.instance.modeTutor;
+  final nav = Navigator.of(context);
+  final r = await jalankan(context, () async {
+    await Api.instance('waStafGantiMode', [Sesi.instance.token, keTutor ? 'Tutor' : 'utama']);
+    Api.instance.bersihkanCache();
+    await Sesi.instance.segarkanProfil();
+    return true;
+  }, teksProses: keTutor ? 'Beralih ke mode Tutor...' : 'Kembali ke peran utama...');
+  if (!r.ok) return;
+  nav.popUntil((x) => x.isFirst);
 }
