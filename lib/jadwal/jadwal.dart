@@ -126,7 +126,8 @@ class _JadwalScreenState extends State<JadwalScreen> {
       ),
       title: Text('${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}', maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text([teks(x['namaTutor']), if (teks(x['namaUnit']).isNotEmpty) teks(x['namaUnit']), if (teks(x['slot']).isNotEmpty) teks(x['slot']),
-        if (!status && teks(x['minggu']).isNotEmpty) teksMinggu(teks(x['minggu'])), if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
+        if (!status && teks(x['minggu']).isNotEmpty) teksMinggu(teks(x['minggu'])),
+        if (teks(x['teksLokasi']).isNotEmpty) '📍 ${teks(x['teksLokasi'])}', if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
       trailing: pilih
           ? Checkbox(value: _pilih.contains(id), onChanged: (v) => setState(() => v == true ? _pilih.add(id) : _pilih.remove(id)))
           : status
@@ -321,6 +322,10 @@ class _FormPemetaanState extends State<FormPemetaan> {
   String _hari = 'Sabtu';
   String? _slot;
   String _minggu = '';   // v1.76.0
+  // v1.79.0: lokasi: '' = tidak diisi, '__lain__' = keterangan bebas, selain itu kode ruang
+  String _ruang = '';
+  final _lokasi = TextEditingController();
+  List<Map<String, dynamic>> get _ruangList => daftar(widget.data['ruang']).map(peta).toList();
   bool _berulang = true;
   String _periode = 'ini'; // ini | depan | custom
   int _tahun = DateTime.now().year;
@@ -374,6 +379,8 @@ class _FormPemetaanState extends State<FormPemetaan> {
       _dari = teks(x['dari'], _dari);
       _sampai = teks(x['sampai']);
       _minggu = teks(x['minggu']);
+      _ruang = teks(x['ruang']).isNotEmpty ? teks(x['ruang']) : (teks(x['lokasi']).isNotEmpty ? '__lain__' : '');
+      _lokasi.text = teks(x['lokasi']);
       _unitPilih.addAll(teks(x['unit']).split(',').where((u) => u.isNotEmpty));
       if (!_kelasTutor.any((k) => teks(k['kodeMapel']) == _mapel && teks(k['idRombel']) == teks(x['idRombel']))) _semuaMapel = true;
     }
@@ -403,7 +410,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
     if (_ubah) {
       final r = await jalankan(context, () => Api.instance('waStafPemetaanSimpan', [
             _t,
-            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai, 'unit': _unitPilih.toList(), 'minggu': _minggu}
+            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai, 'unit': _unitPilih.toList(), 'minggu': _minggu, ..._isiLokasi()}
           ]), teksProses: 'Menyimpan & memeriksa bentrok...');
       if (r.ok && mounted) {
         kabar(context, 'Jadwal tersimpan.');
@@ -424,6 +431,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
             'unit': _unitPilih.toList(),
             'tunggal': !_berulang,
             'minggu': _berulang ? _minggu : '',
+            ..._isiLokasi(),
             'dari': _berulang ? rg.$1 : _tanggal,
             'sampai': _berulang ? rg.$2 : _tanggal,
           }
@@ -433,6 +441,16 @@ class _FormPemetaanState extends State<FormPemetaan> {
       kabar(context, '${d['jumlah']} jadwal tersimpan (${teks(d['hari'])}, ${tglIndo(teks(d['dari']))} – ${tglIndo(teks(d['sampai']))}).');
       Navigator.pop(context, true);
     }
+  }
+
+  Map<String, String> _isiLokasi() => _ruang == '__lain__'
+      ? {'ruang': '', 'lokasi': _lokasi.text.trim()}
+      : {'ruang': _ruang, 'lokasi': ''};
+
+  @override
+  void dispose() {
+    _lokasi.dispose();
+    super.dispose();
   }
 
   Future<void> _pilihTgl(void Function(String) set, String awal) async {
@@ -610,6 +628,30 @@ class _FormPemetaanState extends State<FormPemetaan> {
                   style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
             ),
           ],
+          // v1.79.0: lokasi / ruang (tidak wajib)
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _ruang == '__lain__' || _ruang.isEmpty || _ruangList.any((r) => teks(r['kode']) == _ruang) ? _ruang : '',
+            decoration: const InputDecoration(labelText: 'Ruang / lokasi (opsional)'),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('Tidak diisi')),
+              for (final r in _ruangList)
+                DropdownMenuItem(value: teks(r['kode']), child: Text('${teks(r['nama'])} · ${teks(r['namaUnit'])}${teks(r['kapasitas']).isEmpty ? '' : ' · ${teks(r['kapasitas'])} org'}', overflow: TextOverflow.ellipsis)),
+              const DropdownMenuItem(value: '__lain__', child: Text('Lainnya (tulis keterangan)')),
+            ],
+            onChanged: (v) => setState(() => _ruang = v ?? ''),
+          ),
+          if (_ruang == '__lain__')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextField(controller: _lokasi, maxLength: 80, decoration: const InputDecoration(labelText: 'Keterangan lokasi', hintText: 'mis. Aula Balai Desa')),
+            ),
+          if (_ruangList.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('Belum ada ruang terdaftar. Tambahkan di Data Induk → Ruang Belajar.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
           langkah('5', 'Periode'),
           if (_ubah) ...[
             Row(children: [

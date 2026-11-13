@@ -1962,19 +1962,57 @@ function jadBacaPm_() {
       dari: absTgl_(absNilai_(t, r, 'TANGGAL MULAI')), sampai: absTgl_(absNilai_(t, r, 'TANGGAL SELESAI')), aktif: absBenar_(absNilai_(t, r, 'AKTIF')),
       slot: sTeks_(absNilai_(t, r, 'SESI')).trim(), paket: sTeks_(absNilai_(t, r, 'PAKET')).trim(),
       unit: sTeks_(absNilai_(t, r, 'UNIT')).trim(),   // v1.62.0: ID unit (koma, terurut); kosong = semua siswa rombel
-      minggu: jadMingguSah_(absNilai_(t, r, 'MINGGU KE'))   // v1.76.0
+      minggu: jadMingguSah_(absNilai_(t, r, 'MINGGU KE')),   // v1.76.0
+      ruang: sTeks_(absNilai_(t, r, 'RUANG')).trim(), lokasi: sTeks_(absNilai_(t, r, 'LOKASI')).trim()   // v1.79.0
     });
   }
   return { t: t, data: out };
 }
 function jadLengkapi_(list) {
-  var rombel = honProgramRombel_(), mapel = honNamaMapel_(), tutor = absPetaTutor_();
+  var rombel = honProgramRombel_(), mapel = honNamaMapel_(), tutor = absPetaTutor_(), ruang = jadRuangPeta_();
   list.forEach(function(x) {
     x.namaRombel = rombel[x.idRombel] ? rombel[x.idRombel].nama : x.idRombel;
     x.namaMapel = mapel[x.kodeMapel] || x.kodeMapel;
     x.namaTutor = tutor[x.idTutor] ? tutor[x.idTutor].nama : x.idTutor;
+    // v1.79.0: lokasi tatap muka = nama ruang (unit) atau keterangan bebas
+    var rg = x.ruang ? ruang[x.ruang] : null;
+    x.namaRuang = rg ? rg.nama : (x.ruang || '');
+    x.teksLokasi = rg ? rg.nama + (rg.namaUnit ? ' (' + rg.namaUnit + ')' : '') : (x.ruang || x.lokasi || '');
   });
   return list;
+}
+// v1.79.0: ruang belajar (Data Induk -> Ruang Belajar): kode -> {kode, nama, unit, namaUnit, kapasitas, aktif}
+function jadRuangPeta_() {
+  var out = {};
+  try {
+    var sh = absSs_().getSheetByName('RUANG BELAJAR');
+    if (!sh || sh.getLastRow() < 2) return out;
+    var t = absBaca_('RUANG BELAJAR', IND.ruang.hdr), nu = {};
+    try { ubUnit_().forEach(function(u) { nu[u.id] = u.nama; }); } catch (e1) {}
+    for (var i = 1; i < t.v.length; i++) {
+      var k = sTeks_(absNilai_(t, t.v[i], 'KODE RUANG')).trim();
+      if (!k) continue;
+      var u = sTeks_(absNilai_(t, t.v[i], 'UNIT')).trim();
+      out[k] = { kode: k, nama: sTeks_(absNilai_(t, t.v[i], 'NAMA RUANG')).trim() || k, unit: u, namaUnit: nu[u] || u,
+        kapasitas: sTeks_(absNilai_(t, t.v[i], 'KAPASITAS')).trim(), aktif: absBenar_(absNilai_(t, t.v[i], 'AKTIF')) };
+    }
+  } catch (e) {}
+  return out;
+}
+function jadRuangDaftar_() {
+  var p = jadRuangPeta_();
+  return Object.keys(p).map(function(k) { return p[k]; }).filter(function(r) { return r.aktif; })
+    .sort(function(a, b) { return (a.namaUnit + '|' + a.nama).localeCompare(b.namaUnit + '|' + b.nama, 'id', { numeric: true }); });
+}
+// Ruang & lokasi sah untuk disimpan: ruang harus terdaftar & aktif; lokasi bebas maks 80 huruf (dipakai bila tanpa ruang).
+function jadLokasiSah_(d) {
+  var ruang = String(d.ruang || '').trim(), lokasi = String(d.lokasi || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+  if (ruang) {
+    var rg = jadRuangPeta_()[ruang];
+    if (!rg || !rg.aktif) throw new Error('Ruang "' + ruang + '" tidak terdaftar atau nonaktif di Data Induk → Ruang Belajar.');
+    return { ruang: ruang, lokasi: '' };
+  }
+  return { ruang: '', lokasi: lokasi };
 }
 // pemetaan hanya berlaku untuk mapel aktif
 var JAD_AKTIF_ = null;
@@ -2009,6 +2047,9 @@ function jadBentrok_(semua, d, kecualiId) {
     // mapel sama pada jam sama = kelas gabungan (beberapa rombel sekaligus), bukan bentrok
       if (x.idTutor && x.idTutor === d.idTutor && x.kodeMapel !== d.kodeMapel) hasil.push('tutor sudah mengajar ' + x.kodeMapel + ' di rombel lain pada ' + x.hari + ' ' + x.mulai + '–' + x.selesai + mg);
     if (x.idRombel === d.idRombel && (typeof ubIris_ !== 'function' || ubIris_(x.unit, d.unit))) hasil.push('rombel sudah ada jadwal ' + x.kodeMapel + ' pada ' + x.hari + ' ' + x.mulai + '–' + x.selesai + mg);
+    // v1.79.0: satu ruang tidak dipakai dua kelas berbeda pada jam yang sama (kelas gabungan: mapel & tutor sama, boleh)
+    if (x.ruang && d.ruang && x.ruang === d.ruang && !(x.kodeMapel === d.kodeMapel && x.idTutor === d.idTutor))
+      hasil.push('ruang ' + x.ruang + ' sudah dipakai ' + x.kodeMapel + ' pada ' + x.hari + ' ' + x.mulai + '–' + x.selesai + mg);
   });
   return hasil;
 }
@@ -2057,6 +2098,7 @@ function waStafPemetaanDaftar(token) {
   if (jp.kelola) {
     try { out.unit = ubUnit_().filter(function(u) { return u.aktif; }).map(function(u) { return { id: u.id, nama: u.nama }; }); } catch (eU) { out.unit = []; }
     out.kelas = absKelas_('');
+    out.ruang = jadRuangDaftar_();   // v1.79.0
     var pt = absPetaTutor_();
     out.tutor = Object.keys(pt).map(function(k) { return pt[k]; }).filter(function(x) { return x.aktif; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); });
   } else if (saya) {
@@ -2092,18 +2134,18 @@ function waStafPemetaanSimpanBanyak(token, d) {
   var hari = d.tunggal ? jadHariDari_(dari) : String(d.hari || '');
   var a = jadAturan_(), slot = a.slot.filter(function(s) { return s.id === d.slot || s.nama === d.slot; })[0];
   if (!slot) throw new Error('Slot sesi tidak dikenal.');
-  var semuaKelas = absKelas_(''), pm = jadBacaPm_().data, galat = [];
+  var semuaKelas = absKelas_(''), pm = jadBacaPm_().data, galat = [], lokB = jadLokasiSah_(d);
   rombel.forEach(function(idR) {
     var k = absKelasCek_(semuaKelas, idR, d.kodeMapel);
     if (!k) { galat.push(idR + ': mapel tidak ada di rombel ini'); return; }
     var b = jadBentrok_(pm, { idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: String(d.idTutor || ''), hari: hari, mulai: slot.mulai, selesai: slot.selesai, dari: dari, sampai: sampai,
-      unit: typeof ubKunciSah_ === 'function' ? ubKunciSah_(d.unit) : '', minggu: d.tunggal ? '' : jadMingguSah_(d.minggu) }, '');
+      unit: typeof ubKunciSah_ === 'function' ? ubKunciSah_(d.unit) : '', minggu: d.tunggal ? '' : jadMingguSah_(d.minggu), ruang: lokB.ruang }, '');
     if (b.length) galat.push(k.namaRombel + ': ' + b.join('; '));
   });
   if (galat.length) throw new Error('Jadwal belum disimpan. ' + galat.join(' | '));
   var hasil = [];
   rombel.forEach(function(idR) {
-    hasil.push(jadSimpanInti_(p, { idRombel: idR, kodeMapel: d.kodeMapel, idTutor: d.idTutor, hari: hari, slot: slot.id, dari: dari, sampai: sampai, unit: d.unit, minggu: d.tunggal ? '' : d.minggu }).id);
+    hasil.push(jadSimpanInti_(p, { idRombel: idR, kodeMapel: d.kodeMapel, idTutor: d.idTutor, hari: hari, slot: slot.id, dari: dari, sampai: sampai, unit: d.unit, minggu: d.tunggal ? '' : d.minggu, ruang: lokB.ruang, lokasi: lokB.lokasi }).id);
   });
   return { sukses: true, jumlah: hasil.length, id: hasil, hari: hari, dari: dari, sampai: sampai };
 }
@@ -2122,7 +2164,9 @@ function jadSimpanInti_(p, d) {
   if (sampai && sampai < dari) throw new Error('Tanggal selesai tidak boleh sebelum tanggal mulai.');
   var unitPm = typeof ubKunciSah_ === 'function' ? ubKunciSah_(d.unit) : '';
   var minggu = jadMingguSah_(d.minggu);   // v1.76.0
-  var baru = { idRombel: kelas.idRombel, kodeMapel: kelas.kodeMapel, idTutor: idTutor, hari: hari, mulai: mulai, selesai: selesai, dari: dari, sampai: sampai, unit: unitPm, minggu: minggu };
+  var lok = jadLokasiSah_(d);   // v1.79.0
+  var baru = { idRombel: kelas.idRombel, kodeMapel: kelas.kodeMapel, idTutor: idTutor, hari: hari, mulai: mulai, selesai: selesai, dari: dari, sampai: sampai, unit: unitPm, minggu: minggu, ruang: lok.ruang };
+  if (lok.ruang || lok.lokasi) { ubPastikanKolom_(JAD.TAB_PM, 'RUANG'); ubPastikanKolom_(JAD.TAB_PM, 'LOKASI'); }
   if (unitPm) ubPastikanKolom_(JAD.TAB_PM, 'UNIT');
   if (minggu) ubPastikanKolom_(JAD.TAB_PM, 'MINGGU KE');
   var kunci = LockService.getScriptLock();
@@ -2134,7 +2178,7 @@ function jadSimpanInti_(p, d) {
     var nilai = {
       'ROMBEL': baru.idRombel, 'MAPEL': baru.kodeMapel, 'TUTOR': idTutor, 'HARI': hari, 'JAM MULAI': mulai, 'JAM SELESAI': selesai,
       'TANGGAL MULAI': dari, 'TANGGAL SELESAI': sampai, 'AKTIF': true, 'SESI': slot ? slot.nama : '', 'PAKET': kelas.program, 'UNIT': unitPm,
-      'MINGGU KE': minggu
+      'MINGGU KE': minggu, 'RUANG': lok.ruang, 'LOKASI': lok.lokasi
     };
     var id = d.id ? String(d.id) : '';
     if (id) {
@@ -4265,6 +4309,10 @@ var IND = {
   enroll: { tab: 'ENROLL MAPEL', kunci: 'ID ENROLL', judul: 'Enroll Mapel', label: 'MAPEL', sub: ['ROMBEL', 'TUTOR'], wajib: ['ROMBEL', 'MAPEL'],
     ref: { ROMBEL: 'rombel', MAPEL: 'mapel', TUTOR: 'tutor' }, pilihan: { STATUS: ['Disetujui', 'Menunggu', 'Ditolak'] }, bool: ['AKTIF'], ro: ['DICATAT PADA', 'DIAJUKAN OLEH', 'TUTOR'],   // v1.73.0: TUTOR diatur di Pemetaan -> Pengampu Online
     bawaan: { AKTIF: true, STATUS: 'Disetujui' }, hapus: { AKTIF: false } },
+  // v1.79.0: ruang belajar tatap muka (terikat satu unit, boleh dipakai siswa unit lain)
+  ruang: { tab: 'RUANG BELAJAR', hdr: ['KODE RUANG', 'NAMA RUANG', 'UNIT', 'KAPASITAS', 'KETERANGAN', 'AKTIF'], kunci: 'KODE RUANG', manual: true,
+    judul: 'Ruang Belajar', label: 'NAMA RUANG', sub: ['KODE RUANG', 'UNIT'], wajib: ['KODE RUANG', 'NAMA RUANG', 'UNIT'], ref: { UNIT: 'unit' },
+    bool: ['AKTIF'], bawaan: { AKTIF: true }, hapus: { AKTIF: false } },
   pengaturan: { tab: 'PENGATURAN', kunci: 'ID', tunggal: true, judul: 'Pengaturan Lembaga', label: 'NAMA LEMBAGA', ro: ['ID', 'LOGO'],
     pilihan: { SEMESTER: ['Ganjil', 'Genap'] }, bool: ['ABSENSI AKTIF'] }
 };
@@ -4302,10 +4350,11 @@ function indRef_() {
     }
     return out.sort(function(a, b) { return a.nama.localeCompare(b.nama); });
   };
-  return { rombel: ambil('ROMBEL', 'ID ROMBEL', 'NAMA ROMBEL', 'AKTIF'), program: ambil('PROGRAM', 'KODE PROGRAM', 'NAMA PROGRAM'), tutor: ambil('TUTOR', 'ID TUTOR', 'NAMA TUTOR', 'AKTIF'), mapel: ambil('MAPEL', 'KODE MAPEL', 'NAMA MAPEL') };
+  return { rombel: ambil('ROMBEL', 'ID ROMBEL', 'NAMA ROMBEL', 'AKTIF'), program: ambil('PROGRAM', 'KODE PROGRAM', 'NAMA PROGRAM'), tutor: ambil('TUTOR', 'ID TUTOR', 'NAMA TUTOR', 'AKTIF'), mapel: ambil('MAPEL', 'KODE MAPEL', 'NAMA MAPEL'),
+    unit: (function() { try { return ubUnit_().map(function(u) { return { id: u.id, nama: u.nama, aktif: !!u.aktif }; }); } catch (e) { return []; } })() };
 }
 function waStafIndukDaftar(token, k) {
-  var p = indWajib_(token, false), s = indSkema_(k), t = absBaca_(s.tab);
+  var p = indWajib_(token, false), s = indSkema_(k), t = absBaca_(s.tab, s.hdr);
   var hdr = t.v[0].map(function(x) { return String(x).trim(); }).filter(function(x) { return x; });
   var kolom = hdr.map(function(h) {
     var j = indJenis_(s, h);
@@ -4330,7 +4379,7 @@ function waStafIndukSimpan(token, k, d) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var t = absBaca_(s.tab), hdr = t.v[0].map(function(x) { return String(x).trim(); }), ref = null, baru = !d._id;
+    var t = absBaca_(s.tab, s.hdr), hdr = t.v[0].map(function(x) { return String(x).trim(); }), ref = null, baru = !d._id;
     var isi = {};
     hdr.forEach(function(h) {
       if (!h || !(h in d) || (s.ro || []).indexOf(h) >= 0) return;
@@ -4389,7 +4438,7 @@ function waStafIndukSimpan(token, k, d) {
 function waStafIndukNonaktif(token, k, id) {
   var p = indWajib_(token, true), s = indSkema_(k);
   if (!s.hapus) throw new Error('Data ' + s.judul + ' tidak bisa dinonaktifkan.');
-  var t = absBaca_(s.tab);
+  var t = absBaca_(s.tab, s.hdr);
   for (var i = 1; i < t.v.length; i++) {
     if (sTeks_(absNilai_(t, t.v[i], s.kunci)).trim() !== String(id)) continue;
     Object.keys(s.hapus).forEach(function(h) { var c = absCol_(t, h); if (c >= 0) t.sh.getRange(i + 1, c + 1).setValue(s.hapus[h]); });

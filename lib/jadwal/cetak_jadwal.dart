@@ -28,6 +28,35 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
   bool _perTutor = true;
   String _tutor = '';         // '' = semua tutor (bagian per tutor)
   bool _perPaket = true;      // v1.78.2: kolom per paket (Paket A/B/C) atau per rombel
+  String _bulan = '';         // v1.79.0: '' = mingguan (tanpa tanggal); 'yyyy-MM' = bulan tertentu, dengan tanggal
+
+  static const _namaBulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  static String _teksBulan(String ym) => '${_namaBulan[int.parse(ym.substring(5, 7)) - 1]} ${ym.substring(0, 4)}';
+
+  /// Tanggal pertemuan sebuah jadwal di bulan [ym]: hari sama, pola minggu cocok (minggu ke-5 ikut 1 & 3),
+  /// dalam rentang tanggal mulai–selesai jadwal.
+  static List<int> _tanggal(Map<String, dynamic> x, String ym) {
+    final y = int.parse(ym.substring(0, 4)), m = int.parse(ym.substring(5, 7));
+    final akhir = DateTime(y, m + 1, 0).day, hari = hariMinggu.indexOf(teks(x['hari'])) + 1;
+    final mg = teks(x['minggu']);
+    final boleh = mg.isEmpty ? {1, 2, 3, 4, 5} : {for (final t in mg.split(',')) int.tryParse(t.trim()) ?? 0};
+    if (boleh.contains(1) || boleh.contains(3)) boleh.add(5);
+    final dari = teks(x['dari']), sampai = teks(x['sampai']), out = <int>[];
+    for (var d = 1; d <= akhir; d++) {
+      final t = DateTime(y, m, d);
+      if (t.weekday != hari || !boleh.contains(((d - 1) ~/ 7) + 1)) continue;
+      final iso = '$ym-${d.toString().padLeft(2, '0')}';
+      if (dari.isNotEmpty && iso.compareTo(dari) < 0) continue;
+      if (sampai.isNotEmpty && iso.compareTo(sampai) > 0) continue;
+      out.add(d);
+    }
+    return out;
+  }
+
+  // Mingguan: tanda Mg 1 & 3 / Mg 2 & 4. Bulanan: tanggal ditulis di kolom Sesi, sel tanpa tanda.
+  String _keteranganWaktu(Map<String, dynamic> x) => _bulan.isEmpty ? _lencana(teks(x['minggu'])) : '';
+  static const _bulanPendek = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  String _tglLabel(String hari, int tg) => '$hari, $tg ${_bulanPendek[int.parse(_bulan.substring(5, 7)) - 1]}';
 
   /// Nama paket sebuah jadwal: dari PAKET (PKT-B) atau nama rombel (B7) -> "Paket B".
   static String _paket(Map<String, dynamic> x) {
@@ -46,6 +75,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
   }
 
   List<Map<String, dynamic>> _jadwal(Map<String, dynamic> d) => daftar(d['pemetaan']).map(peta).where((x) {
+        if (_bulan.isNotEmpty && _tanggal(x, _bulan).isEmpty) return false;   // v1.79.0: tidak ada pertemuan di bulan itu
         if (_unit.isEmpty) return true;
         final u = teks(x['unit']);
         return u.isEmpty || u.split(',').contains(_unit);   // jadwal tanpa unit = semua siswa rombel
@@ -82,12 +112,11 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       b.write('</td><td style="width:22mm"></td></tr></table><div class="garis"></div>');
     }
     final namaUnit = _unit.isEmpty ? 'Semua unit' : teks(daftar(d['unit']).map(peta).where((u) => teks(u['id']) == _unit).firstOrNull?['nama'], _unit);
-    b.write('<h2>JADWAL TATAP MUKA MINGGUAN</h2>');
-    b.write('<p class="sub">Unit: <b>${escHtml(namaUnit)}</b> · dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>');
-    b.write('<p class="leg">Keterangan: tanpa tanda = setiap minggu · ${_lencana('1,3')} = minggu ke-1 &amp; 3 (tgl 1–7, 15–21, dan 29–31) · '
-        '${_lencana('2,4')} = minggu ke-2 &amp; 4 (tgl 8–14 dan 22–28). Minggu ke-n = urutan hari itu dalam bulan.</p>');
+    b.write('<h2>JADWAL TATAP MUKA ${_bulan.isEmpty ? 'MINGGUAN' : 'BULAN ${_teksBulan(_bulan).toUpperCase()}'}</h2>');
+    b.write('<p class="sub">Unit: <b>${escHtml(namaUnit)}</b></p>');
+    final kaki = '<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>';
     if (js.isEmpty) {
-      b.write('<p>Belum ada jadwal tatap muka.</p>');
+      b.write('<p>Belum ada jadwal tatap muka${_bulan.isEmpty ? '' : ' pada ${_teksBulan(_bulan)}'}.</p>$kaki');
       return excel ? b.toString() : dokumenA4(b.toString(), _css, lanskap: true);
     }
     final hariAda = {for (final x in js) teks(x['hari'])}.toList()..sort((a, c) => _urutHari(a).compareTo(_urutHari(c)));
@@ -103,34 +132,41 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
         }
         final kolom = rombel.keys.toList()
           ..sort((a, c) => '${rombel[a]!.$1}|${rombel[a]!.$2}'.compareTo('${rombel[c]!.$1}|${rombel[c]!.$2}'));
-        final jam = {for (final x in jh) '${teks(x['mulai'])}|${teks(x['selesai'])}'}.toList()..sort();
+        // v1.79.0: bulanan -> satu baris per tanggal pertemuan × sesi (tanggal di kolom Sesi)
+        final tglHari = _bulan.isEmpty ? <int>[0] : ({for (final x in jh) ..._tanggal(x, _bulan)}.toList()..sort());
         b.write('<table class="grid hari"><tr><th class="hr" colspan="${kolom.length + 1}">${escHtml(h.toUpperCase())}</th></tr>');
-        b.write('<tr><th style="width:24mm">Sesi</th>');
+        b.write('<tr><th style="width:${_bulan.isEmpty ? 24 : 30}mm">Sesi</th>');
         for (final r in kolom) {
           b.write('<th>${escHtml(rombel[r]!.$2)}</th>');
         }
         b.write('</tr>');
+        for (final tg in tglHari) {
+        final berlaku = tg == 0 ? jh : jh.where((x) => _tanggal(x, _bulan).contains(tg)).toList();
+        final jam = {for (final x in berlaku) '${teks(x['mulai'])}|${teks(x['selesai'])}'}.toList()..sort();
         for (final j in jam) {
-          final isi = jh.where((x) => '${teks(x['mulai'])}|${teks(x['selesai'])}' == j).toList();
+          final isi = berlaku.where((x) => '${teks(x['mulai'])}|${teks(x['selesai'])}' == j).toList();
           final namaSesi = isi.map((x) => teks(x['slot'])).firstWhere((s) => s.isNotEmpty, orElse: () => '');
           final p = j.split('|');
-          b.write('<tr><td class="sesi"><b>${escHtml(namaSesi)}</b><br>${escHtml(p[0])}–${escHtml(p[1])}</td>');
+          b.write('<tr><td class="sesi">${tg == 0 ? '' : '<span class="tg">${escHtml(_tglLabel(h, tg))}</span><br>'}'
+              '<b>${escHtml(namaSesi)}</b><br>${escHtml(p[0])}–${escHtml(p[1])}</td>');
           for (final r in kolom) {
             final sel = _unik(isi.where((x) => _kolomId(x) == r).toList(),
-                (x) => '${teks(x['namaMapel'])}|${teks(x['namaTutor'])}|${teks(x['namaUnit'])}|${teks(x['minggu'])}')
+                (x) => '${teks(x['namaMapel'])}|${teks(x['namaTutor'])}|${teks(x['namaUnit'])}|${teks(x['minggu'])}|${teks(x['teksLokasi'])}|${teks(x['dari'])}|${teks(x['sampai'])}')
               ..sort((a, c) => teks(a['minggu']).compareTo(teks(c['minggu'])));
             b.write('<td>');
             for (var i = 0; i < sel.length; i++) {
               final x = sel[i];
               if (i > 0) b.write('<div class="pisah"></div>');
-              b.write('<div class="mp">${escHtml(teks(x['namaMapel']))} ${_lencana(teks(x['minggu']))}</div>'
+              b.write('<div class="mp">${escHtml(teks(x['namaMapel']))} ${_keteranganWaktu(x)}</div>'
                   '<div class="tt">${escHtml(teks(x['namaTutor']))}</div>'
-                  '${teks(x['namaUnit']).isEmpty ? '' : '<div class="un">${escHtml(teks(x['namaUnit']))}</div>'}');
+                  '${teks(x['namaUnit']).isEmpty ? '' : '<div class="un">${escHtml(teks(x['namaUnit']))}</div>'}'
+                  '${teks(x['teksLokasi']).isEmpty ? '' : '<div class="un">Ruang: ${escHtml(teks(x['teksLokasi']))}</div>'}');
             }
             if (sel.isEmpty) b.write('<span class="kosong">–</span>');
             b.write('</td>');
           }
           b.write('</tr>');
+        }
         }
         b.write('</table>');
       }
@@ -145,20 +181,29 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       b.write('<h3 class="${_perHari && !excel ? 'baru' : ''}">${_perHari ? 'B' : 'A'}. Jadwal per tutor</h3>');
       for (final id in ids) {
         final jt = _unik(js.where((x) => teks(x['idTutor']) == id).toList(),
-            (x) => '${teks(x['hari'])}|${teks(x['mulai'])}|${_kolomId(x)}|${teks(x['namaMapel'])}|${teks(x['namaUnit'])}|${teks(x['minggu'])}')
+            (x) => '${teks(x['hari'])}|${teks(x['mulai'])}|${_kolomId(x)}|${teks(x['namaMapel'])}|${teks(x['namaUnit'])}|${teks(x['minggu'])}|${teks(x['teksLokasi'])}|${teks(x['dari'])}|${teks(x['sampai'])}')
           ..sort((a, c) => _urutHari(teks(a['hari'])).compareTo(_urutHari(teks(c['hari']))) != 0
               ? _urutHari(teks(a['hari'])).compareTo(_urutHari(teks(c['hari'])))
               : '${teks(a['mulai'])}${teks(a['minggu'])}'.compareTo('${teks(c['mulai'])}${teks(c['minggu'])}'));
-        b.write('<table class="grid tutor"><tr><th class="hr" colspan="6">${escHtml(tutor[id]!)} · ${jt.length} jadwal</th></tr>'
-            '<tr><th style="width:20mm">Hari</th><th style="width:30mm">Sesi</th><th>${_perPaket ? 'Paket' : 'Rombel'}</th><th>Mapel</th><th>Unit</th><th style="width:32mm">Minggu</th></tr>');
-        for (final x in jt) {
-          b.write('<tr><td>${escHtml(teks(x['hari']))}</td><td>${escHtml(teks(x['slot']))} ${escHtml(teks(x['mulai']))}–${escHtml(teks(x['selesai']))}</td>'
+        // v1.79.0: bulanan -> satu baris per tanggal pertemuan, tanggal di kolom Sesi
+        final baris = <(Map<String, dynamic>, int)>[
+          if (_bulan.isEmpty) for (final x in jt) (x, 0) else for (final x in jt) for (final tg in _tanggal(x, _bulan)) (x, tg)
+        ];
+        if (_bulan.isNotEmpty) baris.sort((a, c) => a.$2 != c.$2 ? a.$2.compareTo(c.$2) : teks(a.$1['mulai']).compareTo(teks(c.$1['mulai'])));
+        b.write('<table class="grid tutor"><tr><th class="hr" colspan="${_bulan.isEmpty ? 7 : 6}">${escHtml(tutor[id]!)} · ${baris.length} ${_bulan.isEmpty ? 'jadwal' : 'pertemuan'}</th></tr>'
+            '<tr>${_bulan.isEmpty ? '<th style="width:20mm">Hari</th>' : ''}<th style="width:${_bulan.isEmpty ? 30 : 42}mm">Sesi</th><th>${_perPaket ? 'Paket' : 'Rombel'}</th><th>Mapel</th><th>Unit</th><th>Ruang / lokasi</th>'
+            '${_bulan.isEmpty ? '<th style="width:32mm">Minggu</th>' : ''}</tr>');
+        for (final (x, tg) in baris) {
+          final sesi = '${escHtml(teks(x['slot']))} ${escHtml(teks(x['mulai']))}–${escHtml(teks(x['selesai']))}';
+          b.write('<tr>${tg == 0 ? '<td>${escHtml(teks(x['hari']))}</td><td>$sesi</td>' : '<td><span class="tg">${escHtml(_tglLabel(teks(x['hari']), tg))}</span><br>$sesi</td>'}'
               '<td>${escHtml(_kolomNama(x))}</td><td>${escHtml(teks(x['namaMapel']))}</td><td>${escHtml(teks(x['namaUnit'], 'Semua siswa'))}</td>'
-              '<td>${teks(x['minggu']).isEmpty ? 'Setiap minggu' : _lencana(teks(x['minggu']))}</td></tr>');
+              '<td>${escHtml(teks(x['teksLokasi'], '–'))}</td>'
+              '${tg == 0 ? '<td>${teks(x['minggu']).isEmpty ? 'Setiap minggu' : _lencana(teks(x['minggu']))}</td>' : ''}</tr>');
         }
         b.write('</table>');
       }
     }
+    b.write(kaki);   // v1.79.0: keterangan pencetak di bawah
     if (excel) return b.toString();
     return dokumenA4(b.toString(), _css, lanskap: true);
   }
@@ -167,7 +212,8 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       '.yy{font-size:10pt;font-weight:bold;letter-spacing:.5pt}.lb{font-size:15pt;font-weight:bold}.kecil{font-size:8pt;color:#333}'
       '.garis{border-top:2px solid #111;border-bottom:.5px solid #111;height:2px;margin:4px 0 8px}'
       'h2{text-align:center;font-size:13pt;margin:4px 0 2px}h3{font-size:11pt;margin:10px 0 4px}h3.baru{page-break-before:always}'
-      '.sub{text-align:center;font-size:9pt;margin:0 0 4px}.leg{font-size:8.5pt;margin:0 0 8px;color:#333}'
+      '.sub{text-align:center;font-size:9pt;margin:0 0 6px}.kaki{font-size:8pt;color:#555;margin-top:10px;text-align:right}'
+      '.tg{display:inline-block;font-size:8pt;font-weight:bold;color:#1d4ed8}'
       'table.grid{border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid}'
       '.grid th,.grid td{border:1px solid #555;padding:3px 4px;font-size:8.5pt;vertical-align:top}.grid th{background:#ececec}'
       '.grid th.hr{background:#5B21B6;color:#fff;text-align:left;font-size:10pt;letter-spacing:.5pt}'
@@ -179,7 +225,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
   Future<void> _unduh(bool excel) async {
     if (_data == null) return kabar(context, 'Tunggu data selesai dimuat.');
     if (!_perHari && !_perTutor) return kabar(context, 'Pilih minimal satu bagian untuk dicetak.', galat: true);
-    final nm = 'Jadwal_Tatap_Muka_${tanggalBerkas()}';
+    final nm = 'Jadwal_Tatap_Muka_${_bulan.isEmpty ? '' : '${_bulan}_'}${tanggalBerkas()}';
     final html = await _html(excel: excel);
     if (!mounted) return;
     if (excel) {
@@ -225,6 +271,27 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
                 child: Text('Jadwal tanpa unit (untuk semua siswa rombel) selalu ikut tercetak.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ),
             ],
+            const JudulBagian('Periode cetak'),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _bulan,
+              decoration: const InputDecoration(labelText: 'Periode', isDense: true),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('Mingguan (tanpa tanggal)')),
+                for (var i = 0; i < 6; i++)
+                  () {
+                    final n = DateTime.now(), t = DateTime(n.year, n.month + i);
+                    final ym = '${t.year}-${t.month.toString().padLeft(2, '0')}';
+                    return DropdownMenuItem(value: ym, child: Text('Bulan ${_teksBulan(ym)} (dengan tanggal)'));
+                  }(),
+              ],
+              onChanged: (v) => setState(() => _bulan = v ?? ''),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(_bulan.isEmpty ? 'Pola mingguan: jadwal selang-seling diberi tanda Mg 1 & 3 / Mg 2 & 4.' : 'Hanya jadwal yang ada pertemuannya di ${_teksBulan(_bulan)}. Tanggal pertemuan ditulis di kolom Sesi.',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
             const JudulBagian('Tampilan kolom'),
             SegmentedButton<bool>(
               segments: const [

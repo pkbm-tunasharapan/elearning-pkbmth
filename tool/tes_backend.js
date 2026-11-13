@@ -1743,5 +1743,38 @@ tes('profil siswa: token kedaluwarsa -> {sesiHabis: true} tanpa galat; galat lai
   } finally { g.siswaDariSesi_ = simpan; }
 });
 
+// 56. ruang belajar & lokasi jadwal (v1.79.0)
+tes('ruang: bentrok ruang kecuali kelas gabungan, lokasi bebas, ruang nonaktif ditolak, impor RUANG / LOKASI', () => {
+  const sv = ['jadRuangPeta_', 'ubPetaUnit_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.jadRuangPeta_ = () => ({ R1: { kode: 'R1', nama: 'Ruang 1', namaUnit: 'Sampiran', aktif: true }, R9: { kode: 'R9', nama: 'Gudang', aktif: false } });
+    sama(g.jadLokasiSah_({ ruang: 'R1', lokasi: 'abaikan' }), { ruang: 'R1', lokasi: '' });
+    sama(g.jadLokasiSah_({ ruang: '', lokasi: '  Aula   Desa ' }), { ruang: '', lokasi: 'Aula Desa' });
+    let e = '';
+    try { g.jadLokasiSah_({ ruang: 'R9' }); } catch (x) { e = x.message; }
+    sama(/nonaktif/.test(e), true);
+    const ada = [{ id: 'A', aktif: true, idRombel: 'B7', kodeMapel: 'IPA', idTutor: 'T1', hari: 'Senin', mulai: '13:00', selesai: '14:00', dari: '', sampai: '', unit: '', minggu: '', ruang: 'R1' }];
+    const lain = { idRombel: 'C10', kodeMapel: 'MTK', idTutor: 'T2', hari: 'Senin', mulai: '13:30', selesai: '14:30', dari: '', sampai: '', unit: '', minggu: '', ruang: 'R1' };
+    sama(g.jadBentrok_(ada, lain, '').length, 1, 'ruang sama, kelas lain -> bentrok');
+    sama(g.jadBentrok_(ada, Object.assign({}, lain, { kodeMapel: 'IPA', idTutor: 'T1' }), ''), [], 'kelas gabungan boleh satu ruang');
+    sama(g.jadBentrok_(ada, Object.assign({}, lain, { ruang: '' }), ''), [], 'tanpa ruang tidak dicek');
+    g.ubPetaUnit_ = () => ({});
+    const d = {
+      kelas: [{ idRombel: 'B7', kodeMapel: 'IPA', namaRombel: 'B7', namaMapel: 'IPA', program: 'PKT-B', idTutor: 'T1' }],
+      rombel: [{ id: 'B7', nama: 'B7' }], mapel: [{ kode: 'IPA', nama: 'IPA', label: 'IPA - IPA' }], tutor: [{ id: 'T1', nama: 'Budi', label: 'Budi' }],
+      slot: [{ id: 'S1', nama: 'Sesi 1', mulai: '13:00', selesai: '14:00', label: 'Sesi 1 (13:00–14:00)' }], unit: [],
+      ruang: [{ kode: 'R1', nama: 'Ruang 1', label: 'Ruang 1 (Sampiran)' }]
+    };
+    const baris = [['ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'RUANG / LOKASI'],
+      ['B7', 'IPA', 'Budi', 'Senin', 'Sesi 1', 'Ruang 1 (Sampiran)'],
+      ['B7', 'IPA', 'Budi', 'Selasa', 'Sesi 1', 'Aula Desa'],
+      ['B7', 'IPA', 'Budi', 'Rabu', 'Sesi 1', '']];
+    const r = g.jimRencana_(baris, d, [], '2026-11-14');
+    sama(r.item.map((x) => [x.hari, x.ruang, x.lokasi]), [['Senin', 'R1', ''], ['Selasa', '', 'Aula Desa'], ['Rabu', '', '']]);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

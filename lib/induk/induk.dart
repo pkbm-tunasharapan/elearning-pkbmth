@@ -15,6 +15,7 @@ const _tabel = [
   ('rombel', 'Rombel', Icons.groups_2_rounded),
   ('mapel', 'Mata Pelajaran', Icons.menu_book_rounded),
   ('enroll', 'Enroll Mapel (rombel · mapel · tutor)', Icons.link_rounded),
+  ('ruang', 'Ruang Belajar (tatap muka)', Icons.meeting_room_rounded),   // v1.79.0
   ('pengaturan', 'Pengaturan Lembaga', Icons.apartment_rounded),
 ];
 

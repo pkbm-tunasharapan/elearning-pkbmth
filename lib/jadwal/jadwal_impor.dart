@@ -91,7 +91,8 @@ class _PratinjauJadwal extends StatelessWidget {
                   title: Text('${teks(x['mapel'])} · ${teks(x['rombel'])}'),
                   subtitle: Text('${teks(x['hari'])} ${teks(x['sesi'])} · ${teks(x['tutor'])}\n'
                       '${tglIndo(teks(x['dari']))}${teks(x['sampai']).isEmpty ? ' dst.' : ' s.d. ${tglIndo(teks(x['sampai']))}'} · ${teks(x['unit'])}'
-                      '${teks(x['minggu']).isEmpty ? '' : ' · ${teks(x['minggu'])}'}'),
+                      '${teks(x['minggu']).isEmpty ? '' : ' · ${teks(x['minggu'])}'}'
+                      '${teks(x['lokasi']).isEmpty ? '' : ' · 📍 ${teks(x['lokasi'])}'}'),
                 ),
             ]),
           ),
