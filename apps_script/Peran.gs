@@ -969,14 +969,21 @@ function ssoSelaraskan_(email, sim) {
     if (baris < 0) {
       var idBaru = buatIdPengguna_();
       sheet.appendRow([idBaru, sim.nama, sim.peran, buatKodeStaf_(), email, 'Aktif', waktuSekarang_()]);
-      return { id: idBaru, nama: sim.nama, peran: sim.peran };
+      return { id: idBaru, nama: sim.nama, peran: sim.peran, status: 'Aktif' };
     }
     var r = v[baris - 1];
     var id = String(r[0]).trim() || ('BARIS' + baris);
-    sheet.getRange(baris, 3).setValue(sim.peran);
-    sheet.getRange(baris, 5).setValue(email);
-    sheet.getRange(baris, 6).setValue('Aktif');
-    return { id: id, nama: String(r[1]).trim() || sim.nama, peran: sim.peran };
+    // v1.75.1: tab Pengguna = sumber utama. Peran & status yang diatur Admin di aplikasi TIDAK ditimpa data SIM (arsip MENU);
+    // peran SIM hanya mengisi akun yang perannya masih kosong. Pengecualian lama yang dipertahankan: akun Tutor yang
+    // masih aktif di Data Induk diaktifkan kembali (sama dengan sinkron Data Induk).
+    var peranAda = sTeks_(r[2]).trim(), statusAda = sTeks_(r[5]).trim() || 'Aktif';
+    var peran = peranAda || sim.peran, status = statusAda;
+    if (!peranAda) sheet.getRange(baris, 3).setValue(sim.peran);
+    if (String(r[4]).trim().toLowerCase() !== email) sheet.getRange(baris, 5).setValue(email);
+    var dasar = (typeof izPeranKustom_ === 'function' && izPeranKustom_(peran)) ? izPeranKustom_(peran).dasar : normPeran_(peran);
+    if (statusAda !== 'Aktif' && dasar === 'Tutor' && sim.peran === 'Tutor') { sheet.getRange(baris, 6).setValue('Aktif'); status = 'Aktif'; }
+    else if (!sTeks_(r[5]).trim()) sheet.getRange(baris, 6).setValue('Aktif');
+    return { id: id, nama: String(r[1]).trim() || sim.nama, peran: peran, status: status };
   } finally {
     kunci.releaseLock();
   }
@@ -1003,6 +1010,11 @@ function waStafMasukSso(tiket) {
   }
   pastikanSheetPeran_();
   var u = ssoSelaraskan_(email, sim);
+  // v1.75.1: akun yang dinonaktifkan Admin tidak diaktifkan kembali oleh login Google
+  if (u.status && u.status !== 'Aktif') {
+    catat_(u.peran, u.id, u.nama, 'Masuk', 'Google: akun nonaktif', 'GAGAL');
+    return ssoGagal_('Akun Anda nonaktif. Hubungi admin.');
+  }
   if (u.peran !== 'Admin' && mtAktif_()) return { sukses: false, maintenance: true, pesan: mtPesan_() };
   try { ssoSelarasEnroll_(email, u); } catch (errEnroll) { catat_('Staf', u.id, u.nama, 'Sinkron enroll', String(errEnroll && errEnroll.message || errEnroll).slice(0, 150), 'GAGAL'); }
   var token = Utilities.getUuid() + Utilities.getUuid();

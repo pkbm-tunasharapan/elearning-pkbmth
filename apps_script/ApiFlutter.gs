@@ -307,6 +307,11 @@ function waStafMasukGoogle(idToken) {
   }
   pastikanSheetPeran_();
   var u = ssoSelaraskan_(email, sim);
+  // v1.75.1: akun yang dinonaktifkan Admin tidak diaktifkan kembali oleh login Google
+  if (u.status && u.status !== 'Aktif') {
+    catat_(u.peran, u.id, u.nama, 'Masuk', 'Google: akun nonaktif', 'GAGAL');
+    return ssoGagal_('Akun Anda nonaktif. Hubungi admin.');
+  }
   if (u.peran !== 'Admin' && mtAktif_()) return { sukses: false, maintenance: true, pesan: mtPesan_() };
   try { ssoSelarasEnroll_(email, u); } catch (errEnroll) {
     catat_('Staf', u.id, u.nama, 'Sinkron enroll', String(errEnroll && errEnroll.message || errEnroll).slice(0, 150), 'GAGAL');

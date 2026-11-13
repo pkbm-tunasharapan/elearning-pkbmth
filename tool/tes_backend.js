@@ -1529,5 +1529,39 @@ tes('diskusi: siswa unit lain ditandai tidak dinilai, saran AI mengikuti pilihan
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 49. sinkron SIM tidak menimpa peran & status dari aplikasi (v1.75.1)
+tes('sinkron SIM: peran & status di tab Pengguna tidak ditimpa, peran kosong diisi, tutor aktif di Data Induk diaktifkan', () => {
+  const sv = ['getSheet', 'izPeranKustom_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const data = [
+      ['ID', 'NAMA', 'PERAN', 'KODE', 'EMAIL', 'STATUS', 'DIBUAT'],
+      ['U1', 'Eva Farihah', 'Bendahara', 'K1', 'eva@x.id', 'Aktif', ''],
+      ['U2', 'Pak Lama', 'Tutor', 'K2', 'lama@x.id', 'Nonaktif', ''],
+      ['U3', 'Bu Admin Off', 'Admin', 'K3', 'off@x.id', 'Nonaktif', ''],
+      ['U4', 'Tanpa Peran', '', 'K4', '', '', ''],
+      ['U5', 'Wali', 'Wali Kelas', 'K5', 'wali@x.id', 'Aktif', ''],
+    ];
+    const sh = {
+      getDataRange: () => ({ getValues: () => data.map((r) => r.slice()) }),
+      getRange: (r, c) => ({ setValue: (v) => { data[r - 1][c - 1] = v; } }),
+      appendRow: (row) => data.push(row),
+    };
+    g.getSheet = () => sh;
+    g.izPeranKustom_ = (n) => (n === 'Wali Kelas' ? { nama: 'Wali Kelas', dasar: 'Tutor' } : null);
+    const a = g.ssoSelaraskan_('eva@x.id', { nama: 'Eva', peran: 'Admin' });
+    sama([a.peran, a.status, data[1][2]], ['Bendahara', 'Aktif', 'Bendahara'], 'peran Admin dari SIM tidak menimpa Bendahara');
+    const b = g.ssoSelaraskan_('lama@x.id', { nama: 'Pak Lama', peran: 'Tutor' });
+    sama([b.status, data[2][5]], ['Aktif', 'Aktif'], 'tutor aktif di Data Induk diaktifkan kembali');
+    const c = g.ssoSelaraskan_('off@x.id', { nama: 'Bu Admin Off', peran: 'Admin' });
+    sama([c.status, data[3][5]], ['Nonaktif', 'Nonaktif'], 'akun dinonaktifkan Admin tetap nonaktif');
+    const d = g.ssoSelaraskan_('baru@x.id', { nama: 'Tanpa Peran', peran: 'Kepala Sekolah' });
+    sama([d.id, data[4][2], data[4][4], data[4][5]], ['U4', 'Kepala Sekolah', 'baru@x.id', 'Aktif'], 'peran kosong diisi dari SIM');
+    const e = g.ssoSelaraskan_('wali@x.id', { nama: 'Wali', peran: 'Tutor' });
+    sama([e.peran, data[5][2]], ['Wali Kelas', 'Wali Kelas'], 'peran kustom tidak dikembalikan ke Tutor');
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
