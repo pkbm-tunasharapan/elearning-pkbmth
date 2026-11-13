@@ -1629,5 +1629,35 @@ tes('notif kelayakan: Admin & KS semua, Bendahara hanya keuangan, Kurikulum hany
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 52. templat jadwal: rombel menyeluruh "Seluruh Paket A/B/C" (v1.76.2)
+tes('impor jadwal: Seluruh Paket B dipecah ke semua rombel B yang punya mapel itu, kelas gabungan, bentrok per rombel', () => {
+  const simpan = g.ubPetaUnit_;
+  try {
+    g.ubPetaUnit_ = () => ({});
+    const d = {
+      kelas: [{ idRombel: 'R7', kodeMapel: 'INF', namaRombel: 'B7', namaMapel: 'Informatika', program: 'PKT-B', idTutor: '' },
+        { idRombel: 'R8', kodeMapel: 'INF', namaRombel: 'B8', namaMapel: 'Informatika', program: 'PKT-B', idTutor: '' },
+        { idRombel: 'R9', kodeMapel: 'INF', namaRombel: 'B9', namaMapel: 'Informatika', program: 'PKT-B', idTutor: '' },
+        { idRombel: 'R10', kodeMapel: 'INF', namaRombel: 'C10', namaMapel: 'Informatika', program: 'PKT-C', idTutor: '' },
+        { idRombel: 'R4', kodeMapel: 'MTK', namaRombel: 'A4', namaMapel: 'Matematika', program: '', idTutor: 'T9' }],
+      rombel: [{ id: 'R7', nama: 'B7' }, { id: 'R8', nama: 'B8' }, { id: 'R9', nama: 'B9' }, { id: 'R10', nama: 'C10' }, { id: 'R4', nama: 'A4' }],
+      mapel: [{ kode: 'INF', nama: 'Informatika', label: 'INF - Informatika' }, { kode: 'MTK', nama: 'Matematika', label: 'MTK - Matematika' }],
+      tutor: [{ id: 'EKA', nama: 'Eka', label: 'Eka' }, { id: 'T9', nama: 'Sari', label: 'Sari' }],
+      slot: [{ id: 'S1', nama: 'Sesi 1', mulai: '13:00', selesai: '14:30', label: 'Sesi 1 (13:00–14:30)' }],
+      unit: []
+    };
+    sama([g.jimJenjang_(d.kelas[0]), g.jimJenjang_(d.kelas[4]), g.jimJenjang_({ program: '', namaRombel: 'KELAS C12' })], ['B', 'A', 'C']);
+    // B9 sudah ada jadwal rombel di Senin sesi 1 -> hanya B9 yang ditolak
+    const ada = [{ id: 'L1', aktif: true, idRombel: 'R9', kodeMapel: 'IPS', idTutor: 'X', hari: 'Senin', mulai: '13:00', selesai: '14:30', dari: '', sampai: '', unit: '', minggu: '' }];
+    const baris = [['NO', 'ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'TANGGAL MULAI', 'TANGGAL SELESAI', 'UNIT', 'MINGGU KE'],
+      ['1', 'Seluruh Paket B', 'INF - Informatika', 'Eka', 'Senin', 'Sesi 1', '', '', '', '1,3'],
+      ['2', 'Seluruh Paket A', 'INF - Informatika', 'Eka', 'Selasa', 'Sesi 1', '', '', '', ''],     // tidak ada rombel A dengan INF
+      ['3', 'Seluruh Paket A', 'MTK - Matematika', '', 'Rabu', 'Sesi 1', '', '', '', '']];          // tutor bawaan kelas
+    const r = g.jimRencana_(baris, d, ada, '2026-11-13');
+    sama(r.item.map((x) => [x.baris, x.namaRombel, x.idTutor, x.minggu]), [[2, 'B7', 'EKA', '1,3'], [2, 'B8', 'EKA', '1,3'], [4, 'A4', 'T9', '']]);
+    sama(r.galat.map((x) => [x.baris, /^B9: bentrok/.test(x.alasan) || /tidak ada rombel Paket A/.test(x.alasan)]), [[2, true], [3, true]]);
+  } finally { g.ubPetaUnit_ = simpan; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

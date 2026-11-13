@@ -19,6 +19,12 @@ function jimWajib_(token) {
 }
 function jimSlotLabel_(s) { return s.nama + ' (' + s.mulai + '–' + s.selesai + ')'; }
 function jimMapelLabel_(kode, nama) { return kode + ' - ' + nama; }
+// v1.76.2: jenjang (A/B/C) sebuah kelas dari PAKET/program, atau dari nama rombel (A4, B9, C12).
+function jimJenjang_(k) {
+  var m = /([ABC])\s*$/i.exec(String(k.program || '').trim()) || /(?:^|[^A-Z])([ABC])\s*\d/i.exec(String(k.namaRombel || ''));
+  return m ? m[1].toUpperCase() : '';
+}
+function jimLabelPaket_(j) { return 'Seluruh Paket ' + j; }
 
 // Data pilihan (dipakai templat & pratinjau).
 function jimPilihan_() {
@@ -32,6 +38,8 @@ function jimPilihan_() {
   return {
     kelas: kelas,
     rombel: Object.keys(rombel).map(function(id) { return { id: id, nama: rombel[id] }; }).sort(function(a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); }),
+    // v1.76.2: pilihan rombel menyeluruh per jenjang (Seluruh Paket A/B/C)
+    paket: (function() { var j = {}; kelas.forEach(function(k) { var x = jimJenjang_(k); if (x) j[x] = true; }); return Object.keys(j).sort(); })(),
     mapel: Object.keys(mapel).map(function(k) { return { kode: k, nama: mapel[k], label: jimMapelLabel_(k, mapel[k]) }; }).sort(function(a, b) { return a.label.localeCompare(b.label); }),
     // nama tutor ganda diberi ID supaya tidak tertukar
     tutor: tutor.map(function(t) { return { id: t.id, nama: t.nama, label: hitung[t.nama.toLowerCase()] > 1 ? t.nama + ' [' + t.id + ']' : t.nama }; }).sort(function(a, b) { return a.label.localeCompare(b.label); }),
@@ -59,8 +67,8 @@ function waStafPemetaanTemplat(token) {
     isiJudul,
     [{ v: 'Diunduh', s: 2 }, { v: absWaktu_() + ' oleh ' + p.nama }],
     [{ v: 'Sesi (durasi)', s: 2 }, { v: d.slot.map(function(s) { return s.label; }).join(', ') }],
-    [{ v: 'Satu baris = satu jadwal (satu rombel, satu mapel). Pilih isian dari daftar (ketuk sel kuning). Daftar lengkap ada di lembar PILIHAN.', s: 6 }],
-    [{ v: 'TANGGAL ditulis TTTT-BB-HH (mis. 2026-11-16). TANGGAL SELESAI boleh kosong (berlaku terus). UNIT kosong = seluruh siswa rombel; beberapa unit pisahkan koma.', s: 6 }],
+    [{ v: 'Satu baris = satu jadwal (satu rombel, satu mapel). ROMBEL "Seluruh Paket A/B/C" = semua rombel jenjang itu yang punya mapel tersebut (kelas gabungan). Pilih isian dari daftar (ketuk sel kuning).', s: 6 }],
+    [{ v: 'TANGGAL ditulis TTTT-BB-HH (mis. 2026-11-16). TANGGAL MULAI kosong = mulai hari ini (juga untuk jadwal selang-seling). TANGGAL SELESAI kosong = berlaku terus. UNIT kosong = seluruh siswa rombel.', s: 6 }],
     [{ v: 'MINGGU KE: kosong / "Setiap minggu" = tiap pekan; "1,3" = minggu ke-1 & 3 bulan itu; "2,4" = minggu ke-2 & 4. Minggu ke-5 (tgl 29–31) ikut 1,3. Jangan ubah baris 1–8 atau nama lembar.', s: 6 }],
     [],
     JIM.KOLOM.map(function(k) { return { v: k, s: 3 }; })
@@ -68,7 +76,7 @@ function waStafPemetaanTemplat(token) {
   for (var n = 1; n <= JIM.BARIS_KOSONG; n++) {
     b.push([{ v: n, n: true, s: 4 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }]);
   }
-  var kol = [d.rombel.map(function(x) { return x.nama; }), d.mapel.map(function(x) { return x.label; }), d.tutor.map(function(x) { return x.label; }),
+  var kol = [(d.paket || []).map(jimLabelPaket_).concat(d.rombel.map(function(x) { return x.nama; })), d.mapel.map(function(x) { return x.label; }), d.tutor.map(function(x) { return x.label; }),
     JIM_HARI.slice(), d.slot.map(function(x) { return x.label; }), d.unit.map(function(x) { return x.nama; }), JIM.MINGGU.slice()];
   var ref = [['ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'UNIT', 'MINGGU KE'].map(function(k) { return { v: k, s: 3 }; })];
   var maks = Math.max.apply(null, kol.map(function(c) { return c.length; }));
@@ -126,12 +134,22 @@ function jimRencana_(baris, d, ada, hariIni) {
     if (!tR && !tM && !tT && !tH && !tS && !tD && !tE && !tU) { out.kosong++; continue; }
     var galat = function(a) { out.galat.push({ baris: no, isi: [tR, tM, tH, tS].filter(String).join(' · '), alasan: a }); };
     var idR = pRombel[norm(tR)], km = pMapel[norm(tM)] || (/^([A-Za-z0-9]+)\s*-/.exec(tM) ? pMapel[norm(/^([A-Za-z0-9]+)\s*-/.exec(tM)[1])] : null);
-    if (!idR) { galat('rombel "' + tR + '" tidak dikenal'); continue; }
+    var pkt = /^(?:seluruh|semua)\s+paket\s+([abc])$/i.exec(norm(tR));   // v1.76.2: rombel menyeluruh
+    if (!idR && !pkt) { galat('rombel "' + tR + '" tidak dikenal'); continue; }
     if (!km) { galat('mapel "' + tM + '" tidak dikenal'); continue; }
-    var k = absKelasCek_(d.kelas, idR, km);
-    if (!k) { galat('mapel ' + km + ' tidak ada di rombel ' + tR); continue; }
-    var idT = tT ? pTutor[norm(tT)] || (/\[([^\]]+)\]/.exec(tT) ? pTutor[norm(/\[([^\]]+)\]/.exec(tT)[1])] : null) : (k.idTutor || '');
-    if (!idT) { galat(tT ? 'tutor "' + tT + '" tidak dikenal / tidak aktif / nama ganda (pilih dari daftar)' : 'isi tutor'); continue; }
+    var target = [];
+    if (pkt) {
+      var adaR = {};
+      d.kelas.forEach(function(x) { if (x.kodeMapel === km && jimJenjang_(x) === pkt[1].toUpperCase() && !adaR[x.idRombel]) { adaR[x.idRombel] = true; target.push(x); } });
+      target.sort(function(a, b) { return String(a.namaRombel).localeCompare(String(b.namaRombel), 'id', { numeric: true }); });
+      if (!target.length) { galat('tidak ada rombel Paket ' + pkt[1].toUpperCase() + ' yang punya mapel ' + km); continue; }
+    } else {
+      var k0 = absKelasCek_(d.kelas, idR, km);
+      if (!k0) { galat('mapel ' + km + ' tidak ada di rombel ' + tR); continue; }
+      target = [k0];
+    }
+    var idT0 = tT ? pTutor[norm(tT)] || (/\[([^\]]+)\]/.exec(tT) ? pTutor[norm(/\[([^\]]+)\]/.exec(tT)[1])] : null) : '';
+    if (tT && !idT0) { galat('tutor "' + tT + '" tidak dikenal / tidak aktif / nama ganda (pilih dari daftar)'); continue; }
     var hari = pHari[norm(tH)];
     if (!hari) { galat('hari "' + tH + '" tidak dikenal'); continue; }
     var slot = pSlot[norm(tS)] || pSlot[norm(tS.replace(/\s*\(.*$/, ''))];
@@ -152,14 +170,19 @@ function jimRencana_(baris, d, ada, hariIni) {
     var tW2 = tW.replace(/minggu|ke|dan|-/gi, '').replace(/[\s,.;&]/g, '');
     if (tW && !/^\s*setiap/i.test(tW) && !/^[1-4]+$/.test(tW2)) { galat('minggu ke "' + tW + '" tidak sah (pilih Setiap minggu, 1,3, atau 2,4)'); continue; }
     var minggu = jadMingguSah_(tW);
-    var baru = { id: 'baris' + no, aktif: true, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, mulai: slot.mulai, selesai: slot.selesai,
-      dari: dari, sampai: sampai, unit: unit, minggu: minggu };
-    var b = jadBentrok_(rencana, baru, '');
-    if (b.length) { galat('bentrok: ' + b.join('; ')); continue; }
-    rencana.push(baru);
-    var tt = d.tutor.filter(function(x) { return x.id === idT; })[0];
-    out.item.push({ baris: no, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, slot: slot.id, namaSlot: slot.nama, mulai: slot.mulai, selesai: slot.selesai,
-      dari: dari, sampai: sampai, unit: unit, minggu: minggu, program: k.program || '', namaRombel: k.namaRombel, namaMapel: k.namaMapel, namaTutor: tt ? tt.nama : idT });
+    target.forEach(function(k) {
+      var awal = pkt ? k.namaRombel + ': ' : '';
+      var idT = idT0 || k.idTutor || '';
+      if (!idT) { galat(awal + 'isi tutor'); return; }
+      var baru = { id: 'baris' + no + '|' + k.idRombel, aktif: true, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, mulai: slot.mulai, selesai: slot.selesai,
+        dari: dari, sampai: sampai, unit: unit, minggu: minggu };
+      var b = jadBentrok_(rencana, baru, '');
+      if (b.length) { galat(awal + 'bentrok: ' + b.join('; ')); return; }
+      rencana.push(baru);
+      var tt = d.tutor.filter(function(x) { return x.id === idT; })[0];
+      out.item.push({ baris: no, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, slot: slot.id, namaSlot: slot.nama, mulai: slot.mulai, selesai: slot.selesai,
+        dari: dari, sampai: sampai, unit: unit, minggu: minggu, program: k.program || '', namaRombel: k.namaRombel, namaMapel: k.namaMapel, namaTutor: tt ? tt.nama : idT });
+    });
   }
   return out;
 }
