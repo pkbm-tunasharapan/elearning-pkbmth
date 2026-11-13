@@ -23,7 +23,7 @@ var IZN = {
   // fungsi BACA (cukup izin "lihat"); selain ini dianggap UBAH
   BACA: /(Daftar\w*|Baca\w*|Konteks|Info|Lengkap|Rekap|Laporan\w*|Leger|Kelas|Rapor|Cari|Pratinjau|Format|Pdf|Peta|Isi|Tab|Log|Berkas|Hari|Aturan|Data|Naskah|Rinci|Aktif|Saya|Tunggakan\w*|Prompt\w*|BiodataRombel|Jawaban|Terkunci|Qr|Performa|Semua|Bacaan|Soal|Status|SesiDiskusi|CatatanNilai|KinerjaTutor|BelumDinilai|^waStaf(Nilai|Absensi|Siswa|Materi|RombelSiswa|LaporanHadir)$)$/,
   TULIS_PAKSA: { waStafMateriStatus: true, waAdminCekDataJadwal: true, waAdminSusulanAkhiri: true },
-  BACA_PAKSA: { waStafMasaHadir: true, waStafMasaTinjau: true, waStafMasaSanksi: true, waStafPengawasTugas: true, waStafPengawasPantau: true, waStafPengawasBeritaAcara: true, waStafMasaPengawas: true,waStafMasaKesiapan: true, waStafMasaUsulan: true, waStafMasaDraf: true,waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true, waStafUnitRiwayat: true, waStafPantauUnit: true },
+  BACA_PAKSA: { waStafMasaHadir: true, waStafMasaTinjau: true, waStafMasaSanksi: true, waStafPengawasTugas: true, waStafPengawasPantau: true, waStafPengawasBeritaAcara: true, waStafMasaPengawas: true,waStafMasaKesiapan: true, waStafMasaUsulan: true, waStafMasaDraf: true,waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true, waStafUnitRiwayat: true, waStafPantauUnit: true, waStafLaporanPemetaanSiswa: true },
   // [id fitur (= id menu), judul, kelompok, peran bawaan yang punya fitur ini, pola fungsi]
   FITUR: [
     ['pengguna', 'Kelola Pengguna', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode|TugasTambahan)$/],
@@ -67,7 +67,7 @@ var IZN = {
     ['ta', 'Tahun Ajaran', 'Akademik', ['Admin'], /^wa(AdminTa(Baca|Simpan)|StafTahunBaru\w*)$/],
     ['susulan', 'Buka Susulan Massal', 'Akademik', ['Admin'], /^waAdminSusulan\w*$/],
     ['siswaRombel', 'Siswa per Rombel (termasuk reset PIN)', 'Warga Belajar', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'], /^waStaf(RombelSiswa|PinReset)$/],
-    ['pantauanUnit', 'Pantauan Unit Belajar', 'Warga Belajar', ['Koordinator Unit', 'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafPantauUnit$/],
+    ['pantauanUnit', 'Pantauan Unit Belajar', 'Warga Belajar', ['Koordinator Unit', 'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStaf(PantauUnit|LaporanPemetaanSiswa)$/],
     ['unitBelajar', 'Unit Belajar (label unit & layanan siswa)', 'Warga Belajar', ['Admin', 'Superadmin'], /^waStafUnit\w*$/],
     ['dataInduk', 'Data Induk', 'Warga Belajar', ['Admin', 'Superadmin', 'Kepala Sekolah'], /^waStafInduk\w*$/],
     ['imporDapodik', 'Impor Dapodik & data master', 'Warga Belajar', ['Admin'], /^waAdmin(Dapodik\w*|Impor\w*|Siswa(Pratinjau|Terapkan))$/],

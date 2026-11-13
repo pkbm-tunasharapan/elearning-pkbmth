@@ -1423,5 +1423,32 @@ tes('penugasan: impor per unit, kunci unit tutor, tutor online hanya menilai, mo
   } finally { g.tgPeta_ = sT; g.CacheService = sC; }
 });
 
+// 45. laporan pemetaan siswa (v1.74.0)
+tes('laporan pemetaan: rekap unit × rombel × layanan, siswa tanpa label ke unit utama, KU hanya unitnya', () => {
+  const sv = ['stafDariToken_', 'ubUnitSaya_', 'ubPetaSiswa_', 'ubUtama_', 'ubCalonKoord_', 'keuWbSemua_', 'kwKop_', 'catat_', 'absWaktu_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const unit = [{ id: 'U1', nama: 'Sampiran', utama: true, koordinator: [] }, { id: 'U3', nama: 'Losari', utama: false, koordinator: ['K1'] }];
+    let peran = 'Admin';
+    g.stafDariToken_ = () => ({ id: 'K1', nama: 'X', peran });
+    g.ubUnitSaya_ = (p) => (p.peran === 'Admin' ? unit : unit.filter((u) => u.koordinator.includes(p.id)));
+    g.ubPetaSiswa_ = () => ({ W1: { unit: 'U1', layanan: 'Reguler' }, W2: { unit: 'U3', layanan: 'Flexi' }, W4: { unit: 'U3', layanan: '' } });
+    g.ubUtama_ = () => 'U1';
+    g.ubCalonKoord_ = () => [{ id: 'K1', nama: 'Bu Koor' }];
+    g.keuWbSemua_ = () => [{ id: 'W1', nama: 'Ani', idRombel: 'R1', namaRombel: 'XII', aktif: true }, { id: 'W2', nama: 'Budi', idRombel: 'R1', namaRombel: 'XII', aktif: true },
+      { id: 'W3', nama: 'Cici', idRombel: 'R2', namaRombel: 'IX', aktif: true }, { id: 'W4', nama: 'Dodi', idRombel: 'R1', namaRombel: 'XII', aktif: true },
+      { id: 'W5', nama: 'Eka', idRombel: 'R1', namaRombel: 'XII', aktif: false }];
+    g.kwKop_ = () => ({}); g.catat_ = () => {}; g.absWaktu_ = () => 'W';
+    const a = g.waStafLaporanPemetaanSiswa('T');
+    sama(a.unit.map((u) => [u.nama, u.total, u.reguler, u.flexi, u.tanpaLayanan, u.ikutUtama, u.rombel.map((r) => r.nama + ':' + r.total).join(',')]),
+      [['Sampiran', 2, 1, 0, 1, 1, 'IX:1,XII:1'], ['Losari', 2, 0, 1, 1, 0, 'XII:2']]);
+    sama([a.total.total, a.unit[1].koordinator], [4, ['Bu Koor']]);
+    peran = 'Koordinator Unit';
+    const b = g.waStafLaporanPemetaanSiswa('T');
+    sama([b.unit.map((u) => u.nama), b.total.total, b.semua], [['Losari'], 2, false]);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

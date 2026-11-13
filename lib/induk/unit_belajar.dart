@@ -9,6 +9,7 @@ import '../api.dart';
 import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'laporan_pemetaan.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -33,6 +34,12 @@ class _UnitBelajarScreenState extends State<UnitBelajarScreen> {
         appBar: AppBar(
           title: const Text('Unit Belajar'),
           actions: [
+            // v1.74.0: laporan pemetaan siswa
+            IconButton(
+              tooltip: 'Laporan pemetaan siswa',
+              icon: const Icon(Icons.summarize_outlined),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LaporanPemetaanScreen())),
+            ),
             if (!Sesi.instance.hanyaLihat)
               PopupMenuButton<String>(
                 tooltip: 'Impor dari Excel',

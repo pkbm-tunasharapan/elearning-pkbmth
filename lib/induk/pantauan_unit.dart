@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'laporan_pemetaan.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -49,6 +50,12 @@ class _PantauanUnitScreenState extends State<PantauanUnitScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Pantauan Unit'), actions: [
+        // v1.74.0: laporan pemetaan siswa per unit × rombel × layanan
+        IconButton(
+          tooltip: 'Laporan pemetaan siswa',
+          icon: const Icon(Icons.summarize_outlined),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LaporanPemetaanScreen())),
+        ),
         IconButton(tooltip: 'Hitung ulang', icon: const Icon(Icons.refresh_rounded), onPressed: () => _muatUlang(paksa: true)),
       ]),
       body: Muatan<Map<String, dynamic>>(
