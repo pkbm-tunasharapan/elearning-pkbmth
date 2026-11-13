@@ -2102,7 +2102,13 @@ function waStafPemetaanDaftar(token) {
   var out = { pemetaan: data, aturan: jadAturan_(), kelola: jp.kelola, tutorSaya: saya };
   if (jp.kelola) {
     try { out.unit = ubUnit_().filter(function(u) { return u.aktif; }).map(function(u) { return { id: u.id, nama: u.nama }; }); } catch (eU) { out.unit = []; }
-    out.kelas = absKelas_('');
+    // v1.79.2: tiap kelas membawa daftar Tutor Online (tab Pengampu, unit mana pun) agar form jadwal menyaring mapel dengan benar
+    out.kelas = absKelas_('').map(function(k) {
+      var o = {};
+      Object.keys(k).forEach(function(x) { o[x] = k[x]; });
+      try { o.pengampu = pgoSemuaTutor_(k.idRombel + '|' + k.kodeMapel); } catch (eP) { o.pengampu = []; }
+      return o;
+    });
     out.ruang = jadRuangDaftar_();   // v1.79.0
     var pt = absPetaTutor_();
     out.tutor = Object.keys(pt).map(function(k) { return pt[k]; }).filter(function(x) { return x.aktif; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); });

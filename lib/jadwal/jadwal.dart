@@ -345,7 +345,10 @@ class _FormPemetaanState extends State<FormPemetaan> {
   List<Map<String, dynamic>> get _slotList => daftar(peta(widget.data['aturan'])['slot']).map(peta).toList();
 
   /// Kelas (rombel·mapel) yang diampu tutor terpilih; bila "semua mapel", seluruh kelas.
-  List<Map<String, dynamic>> get _kelasTutor => _kelas.where((k) => _semuaMapel || teks(k['idTutor']) == _tutor).toList();
+  /// v1.79.2: juga kelas tempat tutor ini menjadi Tutor Online di tab Pengampu (unit mana pun).
+  List<Map<String, dynamic>> get _kelasTutor => _kelas
+      .where((k) => _semuaMapel || teks(k['idTutor']) == _tutor || daftar(k['pengampu']).map((x) => teks(x)).contains(_tutor))
+      .toList();
 
   List<(String, String)> get _mapelList {
     final m = <String, String>{};
