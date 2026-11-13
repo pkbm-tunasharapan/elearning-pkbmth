@@ -27,6 +27,23 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
   bool _perHari = true;
   bool _perTutor = true;
   String _tutor = '';         // '' = semua tutor (bagian per tutor)
+  bool _perPaket = true;      // v1.78.2: kolom per paket (Paket A/B/C) atau per rombel
+
+  /// Nama paket sebuah jadwal: dari PAKET (PKT-B) atau nama rombel (B7) -> "Paket B".
+  static String _paket(Map<String, dynamic> x) {
+    final m = RegExp(r'([ABC])\s*$', caseSensitive: false).firstMatch(teks(x['paket']).trim()) ??
+        RegExp(r'(?:^|[^A-Za-z])([ABC])\s*\d', caseSensitive: false).firstMatch(teks(x['namaRombel']));
+    return m != null ? 'Paket ${m.group(1)!.toUpperCase()}' : teks(x['paket'], teks(x['namaRombel']));
+  }
+
+  String _kolomId(Map<String, dynamic> x) => _perPaket ? _paket(x) : teks(x['idRombel']);
+  String _kolomNama(Map<String, dynamic> x) => _perPaket ? _paket(x) : teks(x['namaRombel']);
+
+  /// Jadwal yang sama (mapel, tutor, unit, minggu) di beberapa rombel satu paket cukup ditulis sekali.
+  static List<Map<String, dynamic>> _unik(List<Map<String, dynamic>> xs, String Function(Map<String, dynamic>) kunci) {
+    final ada = <String>{};
+    return xs.where((x) => ada.add(kunci(x))).toList();
+  }
 
   List<Map<String, dynamic>> _jadwal(Map<String, dynamic> d) => daftar(d['pemetaan']).map(peta).where((x) {
         if (_unit.isEmpty) return true;
@@ -82,7 +99,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
         // kolom = rombel (urut paket lalu nama), baris = jam sesi
         final rombel = <String, (String, String)>{};
         for (final x in jh) {
-          rombel[teks(x['idRombel'])] = (teks(x['paket']), teks(x['namaRombel']));
+          rombel[_kolomId(x)] = (_perPaket ? _paket(x) : teks(x['paket']), _kolomNama(x));
         }
         final kolom = rombel.keys.toList()
           ..sort((a, c) => '${rombel[a]!.$1}|${rombel[a]!.$2}'.compareTo('${rombel[c]!.$1}|${rombel[c]!.$2}'));
@@ -99,7 +116,8 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
           final p = j.split('|');
           b.write('<tr><td class="sesi"><b>${escHtml(namaSesi)}</b><br>${escHtml(p[0])}–${escHtml(p[1])}</td>');
           for (final r in kolom) {
-            final sel = isi.where((x) => teks(x['idRombel']) == r).toList()
+            final sel = _unik(isi.where((x) => _kolomId(x) == r).toList(),
+                (x) => '${teks(x['namaMapel'])}|${teks(x['namaTutor'])}|${teks(x['namaUnit'])}|${teks(x['minggu'])}')
               ..sort((a, c) => teks(a['minggu']).compareTo(teks(c['minggu'])));
             b.write('<td>');
             for (var i = 0; i < sel.length; i++) {
@@ -126,15 +144,16 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       final ids = tutor.keys.where((k) => _tutor.isEmpty || k == _tutor).toList()..sort((a, c) => tutor[a]!.compareTo(tutor[c]!));
       b.write('<h3 class="${_perHari && !excel ? 'baru' : ''}">${_perHari ? 'B' : 'A'}. Jadwal per tutor</h3>');
       for (final id in ids) {
-        final jt = js.where((x) => teks(x['idTutor']) == id).toList()
+        final jt = _unik(js.where((x) => teks(x['idTutor']) == id).toList(),
+            (x) => '${teks(x['hari'])}|${teks(x['mulai'])}|${_kolomId(x)}|${teks(x['namaMapel'])}|${teks(x['namaUnit'])}|${teks(x['minggu'])}')
           ..sort((a, c) => _urutHari(teks(a['hari'])).compareTo(_urutHari(teks(c['hari']))) != 0
               ? _urutHari(teks(a['hari'])).compareTo(_urutHari(teks(c['hari'])))
               : '${teks(a['mulai'])}${teks(a['minggu'])}'.compareTo('${teks(c['mulai'])}${teks(c['minggu'])}'));
         b.write('<table class="grid tutor"><tr><th class="hr" colspan="6">${escHtml(tutor[id]!)} · ${jt.length} jadwal</th></tr>'
-            '<tr><th style="width:20mm">Hari</th><th style="width:30mm">Sesi</th><th>Rombel</th><th>Mapel</th><th>Unit</th><th style="width:32mm">Minggu</th></tr>');
+            '<tr><th style="width:20mm">Hari</th><th style="width:30mm">Sesi</th><th>${_perPaket ? 'Paket' : 'Rombel'}</th><th>Mapel</th><th>Unit</th><th style="width:32mm">Minggu</th></tr>');
         for (final x in jt) {
           b.write('<tr><td>${escHtml(teks(x['hari']))}</td><td>${escHtml(teks(x['slot']))} ${escHtml(teks(x['mulai']))}–${escHtml(teks(x['selesai']))}</td>'
-              '<td>${escHtml(teks(x['namaRombel']))}</td><td>${escHtml(teks(x['namaMapel']))}</td><td>${escHtml(teks(x['namaUnit'], 'Semua siswa'))}</td>'
+              '<td>${escHtml(_kolomNama(x))}</td><td>${escHtml(teks(x['namaMapel']))}</td><td>${escHtml(teks(x['namaUnit'], 'Semua siswa'))}</td>'
               '<td>${teks(x['minggu']).isEmpty ? 'Setiap minggu' : _lencana(teks(x['minggu']))}</td></tr>');
         }
         b.write('</table>');
@@ -206,12 +225,26 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
                 child: Text('Jadwal tanpa unit (untuk semua siswa rombel) selalu ikut tercetak.', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ),
             ],
+            const JudulBagian('Tampilan kolom'),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: true, label: Text('Per paket'), icon: Icon(Icons.layers_rounded)),
+                ButtonSegment(value: false, label: Text('Per rombel'), icon: Icon(Icons.view_column_rounded)),
+              ],
+              selected: {_perPaket},
+              onSelectionChanged: (v) => setState(() => _perPaket = v.first),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(_perPaket ? 'Kolom: Paket A, Paket B, Paket C. Kelas gabungan (mis. B7, B8, B9) cukup ditulis sekali.' : 'Kolom: setiap rombel (B7, B8, B9, ...).',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
             const JudulBagian('Isi cetakan'),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: _perHari,
               onChanged: (v) => setState(() => _perHari = v == true),
-              title: const Text('Jadwal per hari (tabel sesi × rombel)'),
+              title: Text('Jadwal per hari (tabel sesi × ${_perPaket ? 'paket' : 'rombel'})'),
               subtitle: const Text('Untuk ditempel di papan pengumuman / dibagikan ke siswa.'),
             ),
             CheckboxListTile(
