@@ -185,7 +185,7 @@ function waStafVaCustomBatal(token, id) {
     }
     vcUbah_(c.t, x.baris, { 'STATUS': 'Dibatalkan' });
     catat_(p.peran, '-', p.nama, 'VA custom dibatalkan', x.id + ' ' + x.keterangan, 'OK');
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
   return { sukses: true };
 }
 

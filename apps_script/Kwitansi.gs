@@ -134,7 +134,7 @@ function kwTerbitkanInti_(trx, ttd, catatCetak) {
       }
       return o;
     });
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 
 function kwIsi_(x, o, ttd, kat, wb, akun, lembaga) {

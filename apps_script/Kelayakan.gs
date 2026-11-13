@@ -362,7 +362,7 @@ function waStafKelayakanRekomendasi(token, q) {
     klTeruskanKs_(c.t, x);
     catat_(p.peran, '-', p.nama, 'Rekomendasi kelayakan ' + bagian, x['ID'] + ' ' + x['NAMA'] + ' ' + isi[pre], 'OK');
     return { sukses: true, status: x['STATUS'] };
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 // KS / Admin memutuskan. q: {id, setuju, catatan}
 function waStafKelayakanPutus(token, q) {
@@ -382,7 +382,7 @@ function waStafKelayakanPutus(token, q) {
     npKirim_('kl_putus', { judul: 'Permohonan kelayakan ' + x['UJIAN'] + ' ' + st.toLowerCase(),
       isi: (st === 'Disetujui' ? 'Status Anda menjadi Layak dengan catatan: ' : 'Catatan: ') + catatan.slice(0, 200), aksi: 'kelayakan_saya', siswa: [x['ID WB']], ref: 'putus|' + x['ID'] });
     return { sukses: true, status: st };
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 // Panggilan lewat notifikasi. q: {idWb, pesan}
 function waStafKelayakanPanggil(token, q) {
@@ -474,7 +474,7 @@ function waStafKelayakanOrtu(token, q) {
     if (x) klTeruskanKs_(t, x);
     catat_(p.peran, w.idRombel, p.nama, 'Form orang tua kelayakan ' + bagian, w.nama + ' ' + ujian, 'OK');
     return { sukses: true, status: x ? x['STATUS'] : '' };
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 
 // ---------- siswa ----------
@@ -505,7 +505,7 @@ function waSiswaKelayakanAju(token, q) {
     var b = klAjuBuat_(k.d, k.w, h, ujian, isi);
     try { catat_('Siswa', k.s.idRombel, k.w.nama, 'Ajukan kelayakan ' + ujian, b['ID'] + ' ' + b['JENIS'], 'OK'); } catch (e) {}
     return { sukses: true, id: b['ID'], jenis: b['JENIS'], pesan: 'Permohonan terkirim ke ' + (b['JENIS'] === 'Keduanya' ? 'bagian kurikulum dan keuangan' : (b['JENIS'] === 'Akademik' ? 'bagian kurikulum' : 'bagian keuangan')) + ', lalu diputuskan Kepala Sekolah.' };
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 
 // ---------- gerbang mulai ujian (menggantikan nilGerbangUjian_ & sbGerbang_) ----------

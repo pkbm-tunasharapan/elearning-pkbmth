@@ -1311,5 +1311,24 @@ tes('impor jadwal: pilihan dikenali, mapel harus ada di rombel, bentrok antarbar
   } finally { g.ubPetaUnit_ = simpan; }
 });
 
+// 41. pengaman catat ganda pembayaran gateway (v1.70.6)
+tes('gateway: invoice yang sudah ada di Arus Keuangan tidak dicatat ulang', () => {
+  const simpan = { keuTrxTab_: g.keuTrxTab_, gwCari_: g.gwCari_, gwUbah_: g.gwUbah_, gwCatatTagihan_: g.gwCatatTagihan_, rfWaktu_: g.rfWaktu_ };
+  try {
+    const v = [['ID TRANSAKSI', 'URAIAN', 'STATUS'], ['TRX-1', 'Pembayaran X (DOKU VA, invoice TAG-1)', 'Disetujui'], ['A2', 'Biaya admin (invoice TAG-1)', 'Disetujui'],
+      ['TRX-9', 'Pembayaran Y (invoice TAG-2)', 'Dibatalkan']];
+    g.keuTrxTab_ = () => ({ v, h: { 'ID TRANSAKSI': 0, URAIAN: 1, STATUS: 2 } });
+    sama([g.gwTrxAda_('TAG-1'), g.gwTrxAda_('TAG-2'), g.gwTrxAda_('TAG-3')], ['TRX-1,A2', '', '']);
+    const ubah = [];
+    let dicatat = 0;
+    g.gwCari_ = () => ({ INVOICE: 'TAG-1', STATUS: 'Menunggu', JENIS: 'Tagihan', _baris: 2 });
+    g.gwUbah_ = (b, o) => ubah.push(o);
+    g.gwCatatTagihan_ = () => { dicatat++; return 'BARU'; };
+    g.rfWaktu_ = () => '2026-11-13 10:00';
+    const h = g.gwSelesai_({ INVOICE: 'TAG-1' }, 24000, 'VIRTUAL_ACCOUNT_BRI');
+    sama([h.status, h.idTransaksi, dicatat, ubah[0].STATUS], ['Lunas', 'TRX-1,A2', 0, 'Lunas']);
+  } finally { Object.keys(simpan).forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

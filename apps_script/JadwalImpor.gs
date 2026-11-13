@@ -204,5 +204,5 @@ function waStafPemetaanImporTerapkan(token, kunci) {
     try { absLupakan_(JAD.TAB_PM); } catch (e) {}
     catat_(p.peran, '-', p.nama, 'Impor jadwal Excel', rows.length + ' jadwal disimpan, ' + lewat.length + ' dilewati', 'OK');
     return { sukses: true, disimpan: rows.length, lewat: lewat };
-  } finally { lock.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} lock.releaseLock(); }
 }

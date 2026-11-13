@@ -78,7 +78,7 @@ function aqrTagihan_(buat) {
       }));
       sp.setProperty(AQR.PROP_TAG, baru);
     }
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
   if (baru) {
     try { catat_('Sistem', '-', 'Sistem', 'Tagihan aktivasi QR dibuat', baru + ' ' + AQR.BIAYA, 'OK'); } catch (e1) {}
     try { npTagihanBaru_(baru); } catch (e2) {}
@@ -168,7 +168,7 @@ function waStafAqrAtur(token, d) {
       }
       aqrTulis_(w, { 'QR AKTIF': true, 'CARA': cara, 'ID TRANSAKSI': idTrx, 'DIAKTIFKAN OLEH': p.nama, 'DIAKTIFKAN PADA': absWaktu_() });
     }
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
   catat_(p.peran, w.idRombel, p.nama, aktif ? 'Aktifkan QR siswa' : 'Nonaktifkan QR siswa', w.nama + (jumlah ? ' (tunai ' + jumlah + ', ' + idTrx + ')' : ''), 'OK');
   if (jumlah) { try { npBayarDiterima_(w.id, tag.nama, jumlah, 'tunai, QR diaktifkan'); } catch (e) {} }
   return { sukses: true, aktif: aktif, jumlah: jumlah, idTransaksi: idTrx, nama: w.nama };
@@ -187,7 +187,7 @@ function waStafAqrLapor(token, d) {
   kunci.waitLock(20000);
   try {
     aqrTulis_(w, { 'LAPORAN FO': 'Pembayaran diterima' + (catatan ? ': ' + catatan : ''), 'LAPORAN OLEH': p.nama, 'LAPORAN PADA': waktu });
-  } finally { kunci.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
   catat_(p.peran, w.idRombel, p.nama, 'Lapor bayar aktivasi QR', w.nama + (catatan ? ': ' + catatan : ''), 'OK');
   npKirim_('aqr_lapor', { judul: 'Aktivasi QR menunggu: ' + w.nama, isi: p.nama + ' menerima pembayaran aktivasi QR dari ' + w.nama + ' (' + (w.namaRombel || '-') + ')'
     + (catatan ? '. Catatan: ' + catatan : '') + '. Centang QR Aktif di menu Aktivasi QR Siswa.', aksi: 'aktivasi_qr', ref: 'aqr|' + w.id + '|' + waktu });

@@ -173,6 +173,12 @@ function gwSelesai_(x, bayar, kanal) {
   try {
     x = gwCari_(x['INVOICE']);
     if (x['STATUS'] === 'Lunas') return { status: 'Lunas', idTransaksi: x['ID TRANSAKSI'] };
+    // v1.70.6: pengaman catat ganda - bila transaksi dengan invoice ini sudah ada di Arus Keuangan, cukup tandai Lunas
+    var sudah = gwTrxAda_(x['INVOICE']);
+    if (sudah) {
+      gwUbah_(x._baris, { 'STATUS': 'Lunas', 'DIBAYAR PADA': x['DIBAYAR PADA'] || rfWaktu_(), 'KANAL': kanal || x['KANAL'], 'ID TRANSAKSI': sudah, 'CATATAN': 'Sudah tercatat sebelumnya (tidak dicatat ulang)' });
+      return { status: 'Lunas', idTransaksi: sudah };
+    }
     var g = gwDoku_().g, fee = gwBiaya_(bayar, kanal || x['METODE'], g), ids = '', catatan = '';
     var pokok = Math.round(Number(x['POKOK']) || bayar), adminBayar = Math.max(0, bayar - pokok);   // v1.49.0
     if (x['JENIS'] === 'Pendaftaran') {
@@ -198,7 +204,25 @@ function gwSelesai_(x, bayar, kanal) {
     gwUbah_(x._baris, { 'STATUS': 'Lunas', 'DIBAYAR PADA': rfWaktu_(), 'KANAL': kanal, 'ID TRANSAKSI': ids, 'CATATAN': catatan, 'JUMLAH': bayar });
     try { catat_('Sistem', '', 'Gateway otomatis', 'DOKU lunas', x['INVOICE'] + ' ' + honRp_(bayar) + ' ' + kanal, 'OK'); } catch (e) {}
     return { status: 'Lunas', idTransaksi: ids };
-  } finally { lock.releaseLock(); }
+  } finally {
+    // v1.70.6: tulisan wajib tersimpan sebelum kunci dilepas; tanpa ini panggilan berikutnya (notifikasi DOKU / cek status
+    // dari aplikasi) bisa membaca status lama 'Menunggu' lalu mencatat pembayaran yang sama dua kali.
+    try { SpreadsheetApp.flush(); } catch (eF) {}
+    lock.releaseLock();
+  }
+}
+// ID transaksi Arus Keuangan yang sudah memuat invoice ini ('' = belum ada).
+function gwTrxAda_(invoice) {
+  var inv = String(invoice || '');
+  if (!inv) return '';
+  var t = keuTrxTab_(), cU = absCol_(t, 'URAIAN'), cI = absCol_(t, 'ID TRANSAKSI'), cS = absCol_(t, 'STATUS'), ids = [];
+  if (cU < 0) return '';
+  for (var i = 1; i < t.v.length; i++) {
+    if (String(t.v[i][cU]).indexOf('invoice ' + inv) < 0) continue;
+    if (cS >= 0 && String(t.v[i][cS]).trim() && String(t.v[i][cS]).trim() !== 'Disetujui') continue;
+    ids.push(String(t.v[i][cI]));
+  }
+  return ids.join(',');
 }
 function gwBarisDasar_(tgl, sumber) {
   var sim = {};

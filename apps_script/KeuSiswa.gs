@@ -175,7 +175,7 @@ function waStafTagihanTransferPutus(token, id, terima, catatan, akun) {
     npBayarDiterima_(w.id, tag.nama, x.jumlah, 'transfer diverifikasi');   // v1.50.0: notifikasi
     aqrSetelahBayar_(tag.id, w.id, 'Transfer', idTrx);   // v1.67.0
     return { sukses: true, idTransaksi: idTrx };
-  } finally { lock.releaseLock(); }
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} lock.releaseLock(); }
 }
 function ksJumlahTfMenunggu_() {
   try { return ksTfBaca_().data.filter(function(x) { return x.status === 'Menunggu'; }).length; } catch (e) { return 0; }
