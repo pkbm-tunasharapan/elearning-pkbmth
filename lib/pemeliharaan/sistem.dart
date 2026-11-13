@@ -227,6 +227,16 @@ class _KesehatanDataState extends State<_KesehatanData> {
             Card(
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
+                // v1.70.4: ketuk untuk menelusuri sumber masalah dan menindaknya
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () async {
+                  if (teks(m['kunci']).isEmpty) {
+                    kabar(context, 'Tekan "Periksa sekarang" dulu agar sumber masalah bisa ditelusuri.');
+                    return;
+                  }
+                  final ubah = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => RinciMasalahDataScreen(m: m)));
+                  if (ubah == true && mounted) setState(() => _v++);
+                },
                 title: Text(teks(m['nama'], '-'), style: const TextStyle(fontWeight: FontWeight.w700)),
                 subtitle: Text([
                   teks(m['jenis']),
@@ -240,6 +250,226 @@ class _KesehatanDataState extends State<_KesehatanData> {
           if (ringkas.isNotEmpty && semua.isEmpty) const Kosong(pesan: 'Tidak ada masalah data. Bagus!', ikon: Icons.task_alt_rounded),
         ]);
       },
+    );
+  }
+}
+
+/// v1.70.4: rincian satu masalah data - sumber datanya (akun e-learning / Data Induk), kandidat di Data Induk,
+/// jejak asal dari Log Aktivitas, dan tindakan. Setelah ditindak, masalah hilang dari daftar.
+class RinciMasalahDataScreen extends StatefulWidget {
+  const RinciMasalahDataScreen({super.key, required this.m});
+  final Map<String, dynamic> m;
+
+  @override
+  State<RinciMasalahDataScreen> createState() => _RinciMasalahDataScreenState();
+}
+
+class _RinciMasalahDataScreenState extends State<RinciMasalahDataScreen> {
+  String get _kunci => teks(widget.m['kunci']);
+  String get _jenis => teks(widget.m['jenis']);
+
+  Future<void> _tindak(String aksi, {Map<String, dynamic> d = const {}, String? judul, String? isi, String ya = 'Lanjutkan'}) async {
+    if (judul != null && !await konfirmasi(context, judul, isi ?? '', ya: ya)) return;
+    if (!mounted) return;
+    final r = await jalankan(context, () => Api.instance('waAdminCekDataTindak', [_t, _kunci, aksi, d], const Duration(minutes: 2)), teksProses: 'Memproses...');
+    if (!r.ok || !mounted) return;
+    kabar(context, teks(peta(r.data)['pesan'], 'Selesai.'));
+    Navigator.of(context).pop(true);
+  }
+
+  Future<String?> _pilihRombel(List<Map<String, dynamic>> rombel, String awal, String judul) async {
+    var pilih = rombel.any((r) => teks(r['id']) == awal) ? awal : null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, atur) => AlertDialog(
+          title: Text(judul),
+          content: DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: pilih,
+            decoration: const InputDecoration(labelText: 'Rombel Data Induk'),
+            items: [for (final r in rombel) DropdownMenuItem(value: teks(r['id']), child: Text(teks(r['nama'])))],
+            onChanged: (v) => atur(() => pilih = v),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Simpan'))],
+        ),
+      ),
+    );
+    return ok == true ? pilih : null;
+  }
+
+  Future<void> _ubahInduk(Map<String, dynamic> w, List<Map<String, dynamic>> rombel) async {
+    final nisn = TextEditingController(text: teks(w['nisn']));
+    var rb = rombel.any((r) => teks(r['id']) == teks(w['rombel'])) ? teks(w['rombel']) : null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, atur) => AlertDialog(
+          title: Text('Ubah ${teks(w['nama'])}'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: nisn, keyboardType: TextInputType.number, maxLength: 10, decoration: const InputDecoration(labelText: 'NISN (10 angka, boleh kosong)')),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: rb,
+              decoration: const InputDecoration(labelText: 'Rombel'),
+              items: [for (final r in rombel) DropdownMenuItem(value: teks(r['id']), child: Text(teks(r['nama'])))],
+              onChanged: (v) => atur(() => rb = v),
+            ),
+          ]),
+          actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Simpan'))],
+        ),
+      ),
+    );
+    final v = nisn.text.trim();
+    nisn.dispose();
+    if (ok != true || !mounted) return;
+    await _tindak('ubahInduk', d: {'idWb': teks(w['id']), 'nisn': v, if (rb != null) 'rombel': rb});
+  }
+
+  Widget _baris(String l, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 120, child: Text(l, style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          Expanded(child: Text(v.isEmpty ? '–' : v, style: const TextStyle(fontSize: 13.5))),
+        ]),
+      );
+
+  Widget _kartuWb(Map<String, dynamic> w, List<Widget> aksi) => Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(teks(w['nama']), style: const TextStyle(fontWeight: FontWeight.w700))),
+              Lencana(teks(w['status'], 'Aktif'), warna: teks(w['status'], 'Aktif') == 'Aktif' ? Colors.green : Colors.grey),
+            ]),
+            _baris('ID WB', teks(w['id'])),
+            _baris('NISN', teks(w['nisn'])),
+            _baris('Rombel', teks(w['namaRombel'])),
+            _baris('Tanggal lahir', teks(w['tglLahir'])),
+            if (aksi.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Wrap(spacing: 8, runSpacing: 6, children: aksi)),
+          ]),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(teks(widget.m['nama'], 'Masalah data'))),
+      body: Muatan<Map<String, dynamic>>(
+        muat: () async => peta(await Api.instance('waAdminCekDataRinci', [_t, _kunci], const Duration(minutes: 2))),
+        bangun: (context, d, segarkan) {
+          final cs = Theme.of(context).colorScheme;
+          final rombel = daftar(d['rombelSim']).map(peta).toList();
+          final el = d['el'] == null ? null : peta(d['el']);
+          final induk = daftar(d['induk']).map(peta).toList();
+          final kandidat = daftar(d['kandidat']).map(peta).toList();
+          final asal = daftar(d['asal']).map(peta).toList();
+          final masalah = daftar(d['masalah']).map(peta).toList();
+          return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
+            Card(
+              color: cs.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final x in (masalah.isEmpty ? [widget.m] : masalah))
+                    Text('• ${teks(x['jenis'])}${teks(x['ket']).isEmpty ? '' : ': ${teks(x['ket'])}'}', style: TextStyle(color: cs.onErrorContainer)),
+                ]),
+              ),
+            ),
+            if (d['hilang'] == true) ...[
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Data sumbernya sudah tidak ada atau sudah berubah (kemungkinan sudah diperbaiki).')),
+              FilledButton.icon(onPressed: () => _tindak('buang'), icon: const Icon(Icons.done_rounded), label: const Text('Hapus dari daftar masalah')),
+            ],
+            if (el != null) ...[
+              const JudulBagian('Sumber: akun e-learning (sheet Siswa)'),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    _baris('Nama', teks(el['nama'])),
+                    _baris('Rombel e-learning', teks(el['rombel'])),
+                    _baris('Tanggal lahir', teks(el['tglLahir'])),
+                    _baris('NISN', teks(el['nisn'])),
+                    _baris('Kontak', teks(el['kontak'])),
+                    _baris('Terdaftar pada', teks(el['terdaftar'])),
+                    _baris('Kode akses', el['punyaKode'] == true ? 'Sudah dibuat (akun pernah dipakai / didaftarkan)' : 'Belum ada'),
+                    _baris('Baris sheet', '${angka(el['baris'])}'),
+                  ]),
+                ),
+              ),
+              const JudulBagian('Tindakan untuk akun ini'),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                if (_jenis == 'Tidak ditemukan di Data Induk')
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final rb = await _pilihRombel(rombel, teks(d['tebakRombel']), 'Tambahkan ke Data Induk');
+                      if (rb == null) return;
+                      await _tindak('tambahInduk', d: {'rombel': rb});
+                    },
+                    icon: const Icon(Icons.person_add_alt_1_rounded),
+                    label: const Text('Tambahkan ke Data Induk'),
+                  ),
+                if (_jenis == 'Rombel berbeda' || _jenis == 'NISN kosong di e-learning')
+                  FilledButton.icon(
+                    onPressed: () => _tindak('samakanEl', judul: 'Samakan dengan Data Induk?', isi: 'Nama & rombel akun e-learning disamakan dengan Data Induk. Jejak belajar ikut dipindah.'),
+                    icon: const Icon(Icons.sync_rounded),
+                    label: const Text('Samakan dengan Data Induk'),
+                  ),
+                if (_jenis == 'NISN kosong di e-learning' && teks(widget.m['nisn']).isNotEmpty)
+                  OutlinedButton.icon(
+                    onPressed: () => _tindak('isiNisnEl', d: {'nisn': teks(widget.m['nisn'])}),
+                    icon: const Icon(Icons.badge_outlined),
+                    label: Text('Isi NISN ${teks(widget.m['nisn'])}'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: () => _tindak('nonaktifEl', judul: 'Nonaktifkan akun e-learning?', ya: 'Nonaktifkan',
+                      isi: '${teks(el['nama'])} tidak bisa masuk lagi. Barisnya dipindah ke tab "Siswa Nonaktif" (jawaban & nilai tetap tersimpan).'),
+                  icon: const Icon(Icons.person_off_outlined),
+                  label: const Text('Nonaktifkan akun'),
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: cs.error),
+                  onPressed: () => _tindak('hapusEl', judul: 'Hapus akun e-learning?', ya: 'Hapus',
+                      isi: 'Baris ${teks(el['nama'])} dihapus dari sheet Siswa. Salinannya disimpan di tab "Cadangan_Hapus_Siswa".'),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Hapus akun'),
+                ),
+              ]),
+              JudulBagian('Kandidat di Data Induk', sub: kandidat.isEmpty ? 'Tidak ada nama / NISN yang cocok, termasuk yang nonaktif.' : 'Nama / NISN / tanggal lahir mirip'),
+              for (final w in kandidat)
+                _kartuWb(w, [
+                  if (teks(w['status'], 'Aktif') != 'Aktif')
+                    OutlinedButton(
+                      onPressed: () => _tindak('aktifkanInduk', d: {'idWb': teks(w['id'])}, judul: 'Aktifkan kembali?', isi: '${teks(w['nama'])} berstatus ${teks(w['status'])} di Data Induk.'),
+                      child: const Text('Aktifkan kembali'),
+                    ),
+                ]),
+            ],
+            if (induk.isNotEmpty) ...[
+              JudulBagian('Sumber: Data Induk (WARGA BELAJAR)', sub: induk.length > 1 ? '${induk.length} baris memakai NISN yang sama' : ''),
+              for (final w in induk)
+                _kartuWb(w, [
+                  OutlinedButton.icon(onPressed: () => _ubahInduk(w, rombel), icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('Ubah NISN / rombel')),
+                  if (teks(w['status'], 'Aktif') == 'Aktif')
+                    TextButton(
+                      style: TextButton.styleFrom(foregroundColor: cs.error),
+                      onPressed: () => _tindak('nonaktifInduk', d: {'idWb': teks(w['id'])}, judul: 'Nonaktifkan di Data Induk?', ya: 'Nonaktifkan', isi: '${teks(w['nama'])} · ${teks(w['namaRombel'])}'),
+                      child: const Text('Nonaktifkan'),
+                    ),
+                ]),
+            ],
+            JudulBagian('Jejak asal data', sub: asal.isEmpty ? 'Tidak ada catatan di Log Aktivitas yang menyebut nama ini.' : 'Log Aktivitas yang menyebut nama ini (terbaru dulu)'),
+            for (final a in asal)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.history_rounded, size: 20),
+                title: Text('${teks(a['aksi'])} · ${teks(a['oleh'])}${teks(a['peran']).isEmpty ? '' : ' (${teks(a['peran'])})'}'),
+                subtitle: Text('${teks(a['waktu'])}${teks(a['detail']).isEmpty ? '' : '\n${teks(a['detail'])}'}'),
+              ),
+          ]);
+        },
+      ),
     );
   }
 }

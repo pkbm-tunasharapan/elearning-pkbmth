@@ -1252,5 +1252,30 @@ tes('batalkan jadwal: berlaku sampai sehari sebelum tanggal, yang belum berjalan
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 39. pemeliharaan: kunci sumber masalah & buang dari daftar (v1.70.4)
+tes('pemeliharaan: kunci sumber masalah diurai, masalah yang ditindak dibuang dari daftar audit', () => {
+  sama(g.pmlUraiKunci_('el|ROM-C11|Ryan Habibi'), { jenis: 'el', idR: 'ROM-C11', nama: 'Ryan Habibi' });
+  sama(g.pmlUraiKunci_('wb|WB-9'), { jenis: 'wb', id: 'WB-9' });
+  let galat = '';
+  try { g.pmlUraiKunci_(''); } catch (e) { galat = e.message; }
+  sama(/Periksa sekarang/.test(galat), true, 'audit lama tanpa kunci');
+  const simpan = g.pmlSheet_;
+  try {
+    const isi = [g.PML.HDR_AUDIT.slice(), ['w', 'Tidak ditemukan di Data Induk', 'Ryan', '', '', 'C11', '', '', 'el|R|Ryan'],
+      ['w', 'Rombel berbeda', 'Ani', '', 'W1', 'C10', 'C11', '', 'el|R|Ani'], ['w', 'Tidak ditemukan di Data Induk', 'Kusna', '', '', 'C11', '', '', 'el|R|Kusna']];
+    g.pmlSheet_ = () => ({
+      getLastRow: () => isi.length,
+      getRange: (r, c, n, w) => ({
+        getValues: () => isi.slice(r - 1, r - 1 + n).map((x) => x.slice(c - 1, c - 1 + w)),
+        clearContent: () => { for (let i = r - 1; i < r - 1 + n; i++) isi[i] = isi[i].map(() => ''); },
+        setValues: (vals) => { vals.forEach((v, i) => { isi[r - 1 + i] = v.slice(); }); },
+      }),
+    });
+    sama(g.pmlBuangMasalah_('el|R|Ryan'), 1);
+    sama([isi[1][2], isi[2][2], isi[3][2]], ['Ani', 'Kusna', ''], 'sisa digeser naik');
+  } finally { g.pmlSheet_ = simpan; }
+  sama([g.izFitur_('waAdminCekDataRinci'), g.izFitur_('waAdminCekDataTindak')], ['pemeliharaan', 'pemeliharaan']);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
