@@ -1659,5 +1659,31 @@ tes('impor jadwal: Seluruh Paket B dipecah ke semua rombel B yang punya mapel it
   } finally { g.ubPetaUnit_ = simpan; }
 });
 
+// 53. kelas hanya dari Data Induk, lepas dari e-learning (v1.77.0)
+tes('kelas: hanya ENROLL MAPEL; enrollment & status e-learning diabaikan; kelas tutor dari Pengampu / tutor bawaan / jadwal', () => {
+  const sv = ['absKelasSim_', 'pgoSemuaTutor_', 'absPetaTutor_', 'jadBacaPm_', 'bacaEnrollment_', 'nilPetaBm_', 'absKelasBmAktif_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    ['*', 'TW', 'TB', 'TZ'].forEach((k) => g.CacheService.getScriptCache().remove('abs_kelas3_' + k));
+    const kls = (r, m, t) => ({ idRombel: r, namaRombel: r, program: '', kodeMapel: m, namaMapel: m, idTutor: t || '', namaTutor: '' });
+    g.absKelasSim_ = () => [kls('B7', 'IPA'), kls('B7', 'BIND', 'TW'), kls('C12', 'MTK')];
+    g.pgoSemuaTutor_ = (key) => (key === 'B7|IPA' ? ['TB'] : []);
+    g.absPetaTutor_ = () => ({ TW: { nama: 'Winda' }, TB: { nama: 'Budi' }, TZ: { nama: 'Zaki' } });
+    g.jadBacaPm_ = () => ({ data: [{ aktif: true, idTutor: 'TZ', idRombel: 'C12', kodeMapel: 'MTK' }] });
+    // jebakan: e-learning punya enrollment & mapel aktif lain -> tidak boleh ikut
+    g.bacaEnrollment_ = () => [{ idPengguna: 'U9', idMapel: 'MP-X' }];
+    g.nilPetaBm_ = () => ({ kelas: { 'B7|IPA': [{ idMapel: 'MP-IPA', aktif: false }] }, aktif: {}, rombel: {} });
+    g.absKelasBmAktif_ = () => [kls('B7', 'INF')];
+    sama(g.absKelas_('').map((k) => k.idRombel + '|' + k.kodeMapel), ['B7|BIND', 'B7|IPA', 'C12|MTK'], 'IPA tetap ada walau nonaktif di e-learning; INF e-learning tidak ikut');
+    sama(g.absKelas_('TW').map((k) => k.kodeMapel), ['BIND'], 'tutor bawaan ENROLL MAPEL');
+    sama(g.absKelas_('TB').map((k) => [k.kodeMapel, k.namaTutor]), [['IPA', 'Budi']], 'Tutor Online dari Pengampu');
+    sama(g.absKelas_('TZ').map((k) => [k.kodeMapel, k.tatapMuka === true]), [['MTK', true]], 'tutor tatap muka dari jadwal');
+  } finally {
+    sv.forEach((k) => { g[k] = simpan[k]; });
+    ['*', 'TW', 'TB', 'TZ'].forEach((k) => g.CacheService.getScriptCache().remove('abs_kelas3_' + k));
+  }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

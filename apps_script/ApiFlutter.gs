@@ -1315,28 +1315,33 @@ function absKelasBm_(idTutorSaja) {
   return out;
 }
 function absKelas_(idTutorSaja) {
-  var ck = 'abs_kelas2_' + (idTutorSaja || '*'), c = CacheService.getScriptCache();
+  // v1.77.0: kelas HANYA dari Data Induk (ENROLL MAPEL aktif & disetujui). Tidak lagi dari enrollment / status e-learning.
+  var ck = 'abs_kelas3_' + (idTutorSaja || '*'), c = CacheService.getScriptCache();
   try { var lama = c.get(ck); if (lama) return JSON.parse(lama); } catch (e0) {}
-  var a = absKelasSim_(idTutorSaja), ada = {};
+  var semua = absKelasSim_(''), a = [], ada = {};
+  if (!idTutorSaja) a = semua;
+  else {
+    // kelas tutor = Tutor Online di tab Pengampu (unit mana pun) atau tutor bawaan di ENROLL MAPEL
+    var ptS = absPetaTutor_();
+    semua.forEach(function(k) {
+      var on = false;
+      try { on = typeof pgoSemuaTutor_ === 'function' && pgoSemuaTutor_(k.idRombel + '|' + k.kodeMapel).indexOf(idTutorSaja) >= 0; } catch (eP) {}
+      if (k.idTutor !== idTutorSaja && !on) return;
+      var s = JSON.parse(JSON.stringify(k));
+      s.idTutor = idTutorSaja; s.namaTutor = ptS[idTutorSaja] ? ptS[idTutorSaja].nama : s.namaTutor;
+      a.push(s);
+    });
+  }
   a.forEach(function(k) { ada[k.idRombel + '|' + k.kodeMapel] = k; });
-  var b = [];
-  try { b = absKelasBm_(idTutorSaja); } catch (e) {}
-  b.forEach(function(k) {
-    var x = ada[k.idRombel + '|' + k.kodeMapel];
-    if (!x) { ada[k.idRombel + '|' + k.kodeMapel] = k; a.push(k); }
-    else if (!x.idTutor && k.idTutor) { x.idTutor = k.idTutor; x.namaTutor = k.namaTutor; }
-    // v1.38.5: tutor dari Enrollment e-learning yang belum punya ID di Data Induk (tab TUTOR) tetap tampil namanya
-    else if (!x.namaTutor && k.namaTutor) { x.namaTutor = k.namaTutor; }
-  });
   // v1.62.0: tutor yang dipetakan di jadwal (mis. tutor unit) mengampu kelas itu walau tidak tercatat di enrollment
   if (idTutorSaja) {
     try {
-      var semuaK = absKelas_(''), ptT = absPetaTutor_();
+      var ptT = absPetaTutor_();
       jadBacaPm_().data.forEach(function(x) {
         if (!x.aktif || x.idTutor !== idTutorSaja) return;
         var kk = x.idRombel + '|' + x.kodeMapel;
         if (ada[kk]) return;
-        var asal = absKelasCek_(semuaK, x.idRombel, x.kodeMapel);
+        var asal = absKelasCek_(semua, x.idRombel, x.kodeMapel);
         if (!asal) return;
         var salin = JSON.parse(JSON.stringify(asal));
         salin.idTutor = idTutorSaja; salin.namaTutor = ptT[idTutorSaja] ? ptT[idTutorSaja].nama : '';
@@ -1345,9 +1350,7 @@ function absKelas_(idTutorSaja) {
       });
     } catch (e3) {}
   }
-  // hanya mapel berstatus Aktif di e-Learning (mapel SIM yang tak terhubung tetap dipakai)
-  try { a = nilSaringAktif_(a, nilPetaBm_()); } catch (e2) {}
-  a.sort(function(p, q) { return (p.namaRombel + '|' + p.namaMapel).localeCompare(q.namaRombel + '|' + q.namaMapel); });
+  a = a.slice().sort(function(p, q) { return (p.namaRombel + '|' + p.namaMapel).localeCompare(q.namaRombel + '|' + q.namaMapel); });
   try { c.put(ck, JSON.stringify(a), 300); } catch (e1) {}
   return a;
 }
@@ -2380,10 +2383,8 @@ function nilPeran_(p) {
 function nilKelasBoleh_(p) {
   var r = nilPeran_(p);
   if (r.lihatSemua || r.q.fo) {
-    // v1.37: termasuk mapel e-learning Aktif yang belum punya tutor (sama dengan leger rapor)
-    var a = absKelas_(''), ada = {};
-    a.forEach(function(x) { ada[x.idRombel + '|' + x.kodeMapel] = true; });
-    try { absKelasBmAktif_('').forEach(function(x) { var k = x.idRombel + '|' + x.kodeMapel; if (!ada[k]) { ada[k] = true; a.push(x); } }); } catch (e) {}
+    // v1.77.0: hanya kelas Data Induk (ENROLL MAPEL); tidak lagi ditambah mapel aktif e-learning
+    var a = absKelas_('').slice();
     a.sort(function(x, y) { return (x.namaRombel + '|' + x.namaMapel).localeCompare(y.namaRombel + '|' + y.namaMapel); });
     return a;
   }
@@ -2766,7 +2767,7 @@ function waStafWaliSimpan(token, idRombel, idTutor) {
 function waStafNilaiKelas(token) {
   var p = stafDariToken_(token), r = nilPeran_(p);
   nilWajibNilai_(r);
-  var kelas = nilSaringAktif_(nilKelasBoleh_(p), nilPetaBm_());
+  var kelas = nilKelasBoleh_(p);   // v1.77.0: tanpa saringan status e-learning
   var wali = nilWaliPeta_(), saya = r.tutor ? absTutorSaya_(p) : null, ada = {}, rombelRapor = [];
   (r.tutor ? absKelas_('') : kelas).forEach(function(k) {
     if (ada[k.idRombel]) return;
@@ -2963,10 +2964,7 @@ function nilKelasRapor_(idRombel) {
   idRombel = String(idRombel || '');
   var kelas = absKelas_('').filter(function(x) { return x.idRombel === idRombel; });
   var ada = {};
-  kelas.forEach(function(x) { ada[x.kodeMapel] = true; });
-  try {
-    absKelasBmAktif_(idRombel).forEach(function(x) { if (!ada[x.kodeMapel]) { ada[x.kodeMapel] = true; kelas.push(x); } });
-  } catch (e) {}
+  kelas.forEach(function(x) { ada[x.kodeMapel] = true; });   // v1.77.0: hanya mapel ENROLL MAPEL (tanpa mapel aktif e-learning)
   var urut = {};
   try {
     var mp = absBaca_('MAPEL');
@@ -2995,8 +2993,7 @@ function nilLegerKini_(idRombel, q) {
   var kelas = nilKelasRapor_(idRombel);
   if (!kelas.length) throw new Error('Rombel tidak ditemukan atau belum punya mapel.');
   var per = nilPeriode_(q), k = nilKtx_(per), baris = {};
-  kelas = nilSaringAktif_(kelas, k.peta);
-  if (!kelas.length) throw new Error('Rombel ini belum punya mapel aktif.');
+  if (!kelas.length) throw new Error('Rombel ini belum punya mapel aktif.');   // v1.77.0: tanpa saringan status e-learning
   nilWbRombelK_(k, kelas[0].idRombel).forEach(function(w) { baris[w.id] = { idWb: w.id, nisn: w.nisn, nama: w.nama, nilai: {}, predikat: {}, jumlah: 0, n: 0, belumTuntas: 0, kehadiran: k.rekapHadir[w.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 } }; });
   kelas.forEach(function(kl) {
     nilRekapKelas_(k, kl).forEach(function(x) {
@@ -4397,6 +4394,6 @@ function waStafIndukNonaktif(token, k, id) {
   throw new Error('Data tidak ditemukan.');
 }
 function indSegarkan_() {
-  try { CacheService.getScriptCache().removeAll(['abs_kelas2_*', 'abs_kelas_*']); } catch (e) {}
+  try { CacheService.getScriptCache().removeAll(['abs_kelas3_*', 'abs_kelas2_*', 'abs_kelas_*']); } catch (e) {}
 }
 

@@ -84,8 +84,7 @@ function nilRombelPeriode_(rk, idWb, idRombelKini, per, kini) {
 // Kelas (mapel) sebuah rombel untuk rapor; mapel e-learning nonaktif disaring, tetapi bila hasilnya kosong
 // (rombel lama) dipakai daftar lengkap.
 function nilKelasRombel_(idRombel, k) {
-  var kelas = nilKelasRapor_(idRombel), aktif = nilSaringAktif_(kelas, k.peta);
-  return aktif.length ? aktif : kelas;
+  return nilKelasRapor_(idRombel);   // v1.77.0: kelas Data Induk saja, tanpa saringan status e-learning
 }
 
 // Hitung leger semester lampau untuk WB rombel sekarang. Dipakai leger/rapor dan nilai otomatis.

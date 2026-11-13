@@ -17,7 +17,7 @@ function itAcak_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 8); }
 function itLupakan_(idPengguna, idTutor) {
   absLupakan_('TUTOR'); absLupakan_('ENROLL MAPEL');
   var c = CacheService.getScriptCache();
-  try { c.removeAll(['abs_kelas2_*', 'abs_tt_' + idPengguna, idTutor ? 'abs_kelas2_' + idTutor : 'abs_kelas2_-']); } catch (e) {}
+  try { c.removeAll(['abs_kelas3_*', 'abs_tt_' + idPengguna, idTutor ? 'abs_kelas3_' + idTutor : 'abs_kelas3_-']); } catch (e) {}
 }
 
 // Pastikan tutor (akun e-learning) ada di tab TUTOR. Mengembalikan ID TUTOR, atau '' bila bukan tutor aktif.
@@ -99,7 +99,8 @@ function indukSelarasTutor_(idPengguna) {
     var u = bacaPengguna_().filter(function(p) { return p.id === String(idPengguna); })[0];
     if (!u || u.peran !== 'Tutor') return null;
     var idT = itPastikanTutor_(u);
-    var h = itSelarasEnroll_(u, idT);
+    // v1.77.0: ENROLL MAPEL tidak lagi dibuat/diubah dari enrollment e-learning (Data Induk = sumber utama)
+    var h = { tambah: 0, isi: 0, lepas: 0, bentrok: [] };
     itLupakan_(u.id, idT);
     if (h.tambah || h.isi || h.lepas || h.bentrok.length) {
       try { catat_('Sistem', '', 'Data Induk', 'Selaraskan penugasan tutor', u.nama + ': +' + h.tambah + ' baru, ' + h.isi + ' diisi, ' + h.lepas + ' dilepas' + (h.bentrok.length ? '; bentrok: ' + h.bentrok.join(', ') : ''), h.bentrok.length ? 'PERLU DICEK' : 'OK'); } catch (e) {}
