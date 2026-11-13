@@ -5,6 +5,7 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'jadwal_impor.dart';
 
 String? get _t => Sesi.instance.token;
 /// Satu entri per rombel·mapel (data kelas bisa ganda dari SIM & e-Learning).
@@ -163,6 +164,28 @@ class _JadwalScreenState extends State<JadwalScreen> {
                   final kelola = d['kelola'] == true;
                   return Stack(children: [
                     ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
+                      // v1.70.5: buat jadwal massal lewat Excel
+                      if (kelola && !_pilihMode)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Text('Buat banyak jadwal sekaligus', style: TextStyle(fontWeight: FontWeight.w700)),
+                              const Text('Unduh templat Excel, isi satu baris per jadwal (pilih dari daftar), lalu unggah.', style: TextStyle(fontSize: 12.5)),
+                              const SizedBox(height: 6),
+                              Wrap(spacing: 8, runSpacing: 6, children: [
+                                OutlinedButton.icon(onPressed: () => unduhTemplatJadwal(context), icon: const Icon(Icons.download_rounded, size: 18), label: const Text('Unduh templat')),
+                                FilledButton.icon(
+                                  onPressed: () async {
+                                    if (await unggahJadwal(context) && mounted) setState(() => _v++);
+                                  },
+                                  icon: const Icon(Icons.upload_file_rounded, size: 18),
+                                  label: const Text('Unggah jadwal'),
+                                ),
+                              ]),
+                            ]),
+                          ),
+                        ),
                       if (kelola && pm.isNotEmpty)
                         Align(
                           alignment: Alignment.centerRight,
@@ -175,7 +198,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
                             label: Text(_pilihMode ? 'Selesai memilih' : 'Pilih beberapa untuk dibatalkan'),
                           ),
                         ),
-                      if (pm.isEmpty) Kosong(pesan: kelola ? 'Belum ada pemetaan jadwal. Ketuk "Tambah jadwal".' : 'Belum ada jadwal tatap muka untuk Anda.', ikon: Icons.event_note_rounded),
+                      if (pm.isEmpty) Kosong(pesan: kelola ? 'Belum ada pemetaan jadwal. Ketuk "Tambah jadwal" atau unggah templat Excel.' : 'Belum ada jadwal tatap muka untuk Anda.', ikon: Icons.event_note_rounded),
                       for (final h in hariMinggu)
                         if (pm.any((x) => x['hari'] == h)) ...[
                           JudulBagian(h, sub: '${pm.where((x) => x['hari'] == h).length} jadwal'),

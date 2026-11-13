@@ -1277,5 +1277,39 @@ tes('pemeliharaan: kunci sumber masalah diurai, masalah yang ditindak dibuang da
   sama([g.izFitur_('waAdminCekDataRinci'), g.izFitur_('waAdminCekDataTindak')], ['pemeliharaan', 'pemeliharaan']);
 });
 
+// 40. impor jadwal dari Excel (v1.70.5)
+tes('impor jadwal: pilihan dikenali, mapel harus ada di rombel, bentrok antarbaris & dengan jadwal lama ditolak, tanggal dibaca', () => {
+  const simpan = g.ubPetaUnit_;
+  try {
+    g.ubPetaUnit_ = () => ({ U1: { id: 'U1', nama: 'Unit Barat', aktif: true } });
+    const d = {
+      kelas: [{ idRombel: 'R1', kodeMapel: 'MTK', namaRombel: 'C11', namaMapel: 'Matematika', program: 'PKT-C', idTutor: '' },
+        { idRombel: 'R1', kodeMapel: 'BIND', namaRombel: 'C11', namaMapel: 'Bahasa Indonesia', program: 'PKT-C', idTutor: 'T2' },
+        { idRombel: 'R2', kodeMapel: 'MTK', namaRombel: 'C12', namaMapel: 'Matematika', program: 'PKT-C', idTutor: '' }],
+      rombel: [{ id: 'R1', nama: 'C11' }, { id: 'R2', nama: 'C12' }],
+      mapel: [{ kode: 'MTK', nama: 'Matematika', label: 'MTK - Matematika' }, { kode: 'BIND', nama: 'Bahasa Indonesia', label: 'BIND - Bahasa Indonesia' }],
+      tutor: [{ id: 'T1', nama: 'Budi', label: 'Budi' }, { id: 'T2', nama: 'Sari', label: 'Sari' }],
+      slot: [{ id: 'S1', nama: 'Sesi 1', mulai: '15:00', selesai: '16:00', label: 'Sesi 1 (15:00–16:00)' }, { id: 'S2', nama: 'Sesi 2', mulai: '16:00', selesai: '17:00', label: 'Sesi 2 (16:00–17:00)' }],
+      unit: [{ id: 'U1', nama: 'Unit Barat' }]
+    };
+    const ada = [{ id: 'L1', aktif: true, idRombel: 'R2', kodeMapel: 'MTK', idTutor: 'T9', hari: 'Senin', mulai: '16:00', selesai: '17:00', dari: '2026-11-01', sampai: '', unit: '' }];
+    const baris = [['TEMPLAT'], [], ['NO', 'ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'TANGGAL MULAI', 'TANGGAL SELESAI', 'UNIT'],
+      ['1', 'C11', 'MTK - Matematika', 'Budi', 'Senin', 'Sesi 1 (15:00–16:00)', '2026-11-16', '31/12/2026', 'Unit Barat'],
+      ['2', 'C12', 'MTK - Matematika', 'Budi', 'Senin', 'Sesi 1 (15:00–16:00)', '2026-11-16', '', ''],          // tutor sama jam sama mapel sama = kelas gabungan (boleh)
+      ['3', 'C11', 'BIND - Bahasa Indonesia', '', 'Senin', 'Sesi 1', '', '', ''],                                   // rombel C11 sudah ada jadwal jam itu
+      ['4', 'C11', 'IPA', 'Budi', 'Selasa', 'Sesi 1', '', '', ''],                                                 // mapel tak dikenal
+      ['5', 'C12', 'MTK - Matematika', 'Sari', 'Senin', 'Sesi 2 (16:00–17:00)', '', '', ''],                      // bentrok jadwal lama rombel C12
+      ['6', 'C11', 'BIND - Bahasa Indonesia', '', 'jumat', 'Sesi 2', '2026-11-20', '', ''],                         // tutor bawaan kelas (Sari)
+      ['', '', '', '', '', '', '', '', '']];
+    const r = g.jimRencana_(baris, d, ada, '2026-11-13');
+    sama([r.item.length, r.galat.length, r.kosong], [3, 3, 1]);
+    sama([r.item[0].sampai, r.item[0].unit, r.item[0].idTutor, r.item[1].dari, r.item[2].hari, r.item[2].idTutor], ['2026-12-31', 'U1', 'T1', '2026-11-16', 'Jumat', 'T2']);
+    sama(r.galat.map((x) => x.baris), [6, 7, 8]);
+    sama(/rombel sudah ada jadwal/.test(r.galat[0].alasan) && /tidak dikenal/.test(r.galat[1].alasan) && /bentrok/.test(r.galat[2].alasan), true);
+    sama(g.jimTgl_('45976'), '2025-11-15', 'nomor seri Excel');
+    sama([g.izFitur_('waStafPemetaanTemplat'), g.izFitur_('waStafPemetaanImporTerapkan')], ['jadwal', 'jadwal']);
+  } finally { g.ubPetaUnit_ = simpan; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
