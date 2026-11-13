@@ -1605,5 +1605,29 @@ tes('jadwal minggu ke: berlaku per minggu dalam bulan, minggu ke-5 ikut 1 & 3, 1
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 51. notifikasi kelayakan ujian sesuai konteks + peran perangkat mengikuti akun sekarang (v1.76.1)
+tes('notif kelayakan: Admin & KS semua, Bendahara hanya keuangan, Kurikulum hanya akademik; peran perangkat = peran akun sekarang', () => {
+  const sv = ['npAturan_', 'npIzinFitur_', 'penggunaCache_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    // aturan diubah admin: Bendahara ikut dicentang di akademik (harus tetap ditolak)
+    g.npAturan_ = () => ({ kl_aju_akademik: ['Koordinator Kurikulum', 'Bendahara'], kl_aju_keuangan: ['Bendahara'], kl_ks: ['Kepala Sekolah'], kl_janji: ['Bendahara'] });
+    g.npIzinFitur_ = () => ({ boleh: true, tambahan: false });
+    const at = g.npAturan_(), ctx = {};
+    const ev = (jenis) => ({ jenis, siswa: [], tutor: [], staf: [] });
+    const terima = (peran) => ['kl_aju_akademik', 'kl_aju_keuangan', 'kl_ks', 'kl_janji'].filter((j) => g.npCocok_(ev(j), { jenis: 'staf', id: 'X', peran }, at, ctx));
+    sama(terima('Admin'), ['kl_aju_akademik', 'kl_aju_keuangan', 'kl_ks', 'kl_janji']);
+    sama(terima('Kepala Sekolah'), ['kl_aju_akademik', 'kl_aju_keuangan', 'kl_ks', 'kl_janji']);
+    sama(terima('Bendahara'), ['kl_aju_keuangan', 'kl_janji']);
+    sama(terima('Koordinator Kurikulum'), ['kl_aju_akademik']);
+    sama(terima('Front Office'), []);
+    g.penggunaCache_ = () => [{ id: 'U1', nama: 'Eva', peran: 'Bendahara', peranKustom: '', status: 'Aktif' }, { id: 'U2', nama: 'Off', peran: 'Admin', status: 'Nonaktif' }];
+    sama(g.bcPeranKini_({ jenis: 'staf', id: 'U1', nama: 'Eva', peran: 'Admin' }).peran, 'Bendahara', 'perangkat didaftarkan saat Admin');
+    sama(g.bcPeranKini_({ jenis: 'staf', id: 'U2', nama: 'Off', peran: 'Admin' }), null, 'akun nonaktif tidak menerima');
+    sama(g.bcPeranKini_({ jenis: 'siswa', id: '', nama: 'Ani', rombel: 'R1', peran: '' }).nama, 'Ani');
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

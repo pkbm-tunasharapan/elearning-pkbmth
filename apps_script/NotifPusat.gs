@@ -54,11 +54,16 @@ var NP = {
     { kode: 'aqr_lapor', nama: 'Pembayaran aktivasi QR diterima FO (perlu diaktifkan)', grup: 'Warga Belajar', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'], fitur: 'aktivasiQr' },
     // v1.68.0: VA custom dibayar online
     { kode: 'va_custom_lunas', nama: 'VA custom dibayar', grup: 'Keuangan', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], fitur: 'vaCustom' },
-    // v1.70.0: kelayakan ujian
-    { kode: 'kl_aju_akademik', nama: 'Permohonan kelayakan ujian (akademik)', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Admin'], fitur: 'kelayakanUjian' },
-    { kode: 'kl_aju_keuangan', nama: 'Permohonan kelayakan ujian (keuangan)', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Admin'], fitur: 'kelayakanUjian' },
-    { kode: 'kl_ks', nama: 'Permohonan kelayakan ujian menunggu keputusan', grup: 'Ujian', sasaran: 'peran', peran: ['Kepala Sekolah'], fitur: 'kelayakanUjian' },
-    { kode: 'kl_janji', nama: 'Janji bayar kelayakan ujian tidak ditepati', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Kepala Sekolah'], fitur: 'kelayakanUjian' },
+    // v1.70.0: kelayakan ujian. v1.76.1: Admin & KS selalu menerima semua (wajib); peran lain hanya sesuai konteksnya
+    // (batas: akademik -> Koordinator Kurikulum, keuangan -> Bendahara), walau Pengaturan Notifikasi diubah.
+    { kode: 'kl_aju_akademik', nama: 'Permohonan kelayakan ujian (akademik)', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Admin', 'Kepala Sekolah'], fitur: 'kelayakanUjian',
+      wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum'] },
+    { kode: 'kl_aju_keuangan', nama: 'Permohonan kelayakan ujian (keuangan)', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Admin', 'Kepala Sekolah'], fitur: 'kelayakanUjian',
+      wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah', 'Bendahara'] },
+    { kode: 'kl_ks', nama: 'Permohonan kelayakan ujian menunggu keputusan', grup: 'Ujian', sasaran: 'peran', peran: ['Kepala Sekolah', 'Admin'], fitur: 'kelayakanUjian',
+      wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah'] },
+    { kode: 'kl_janji', nama: 'Janji bayar kelayakan ujian tidak ditepati', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Kepala Sekolah', 'Admin'], fitur: 'kelayakanUjian',
+      wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah', 'Bendahara'] },
     { kode: 'kl_putus', nama: 'Keputusan / perubahan kelayakan ujian', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     { kode: 'kl_panggil', nama: 'Panggilan dari bagian kurikulum / keuangan', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
@@ -169,10 +174,12 @@ function npCocok_(e, a, at, ctx) {
   if (j.sasaran === 'tutor') return !!ctx.tutor() && e.tutor.indexOf(ctx.tutor()) >= 0;
   if (j.hanyaStaf) return e.staf.indexOf(String(a.id)) >= 0;
   if (e.staf.length && e.staf.indexOf(String(a.id)) >= 0) return true;
+  if (j.batas && j.batas.indexOf(a.peran) < 0) return false;   // v1.76.1: di luar konteksnya tidak pernah menerima
   if (j.fitur) {
     // notifikasi yang terikat fitur: penerima wajib punya izin fitur itu (peran bawaan atau izin tambahan dari admin)
     var izin = npIzinFitur_(a, j.fitur);
     if (!izin.boleh) return false;
+    if (j.wajib && j.wajib.indexOf(a.peran) >= 0) return true;   // v1.76.1: Admin & KS selalu menerima
     return boleh.indexOf(a.peran) >= 0 || izin.tambahan;
   }
   return boleh.indexOf(a.peran) >= 0;

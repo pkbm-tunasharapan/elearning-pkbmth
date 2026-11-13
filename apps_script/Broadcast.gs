@@ -79,6 +79,24 @@ function bcAudiens_(kunci) {
     a = { jenis: sTeks_(r[1]), id: sTeks_(r[2]), nama: sTeks_(r[3]), rombel: sTeks_(r[4]), peran: sTeks_(r[5]) };
   }
   try { c.put(ck, a ? JSON.stringify(a) : '-', 21600); } catch (e2) {}
+  return bcPeranKini_(a);
+}
+// v1.76.1: peran staf diambil dari akun SEKARANG (bukan peran saat perangkat didaftarkan), supaya pergantian peran
+// (mis. Admin -> Bendahara) langsung berlaku untuk notifikasi tanpa harus keluar-masuk. Akun nonaktif: tanpa notifikasi.
+function bcPeranKini_(a) {
+  if (!a || a.jenis !== 'staf' || !a.id) return a;
+  try {
+    var daftar = typeof penggunaCache_ === 'function' ? penggunaCache_() : bacaPengguna_();
+    for (var i = 0; i < daftar.length; i++) {
+      var u = daftar[i];
+      if (String(u.id) !== String(a.id)) continue;
+      if (u.status !== 'Aktif' || !u.peran) return null;
+      var b = {};
+      Object.keys(a).forEach(function(k) { b[k] = a[k]; });
+      b.peran = u.peran; b.peranKustom = u.peranKustom || '';
+      return b;
+    }
+  } catch (e) {}
   return a;
 }
 
