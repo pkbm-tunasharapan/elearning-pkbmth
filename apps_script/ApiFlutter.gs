@@ -2021,14 +2021,19 @@ function jadKelasAktif_() {
   return JAD_AKTIF_;
 }
 function jadBerlaku_(x, tanggal) {
+  if (!jadBerlakuDasar_(x, tanggal)) return false;
+  // v1.64.0: agenda lembaga yang disahkan (libur / kegiatan pengganti) meniadakan jadwal tatap muka ini
+  if (typeof agLiburPm_ === 'function' && agLiburPm_(x, tanggal)) return false;
+  return true;
+}
+// v1.79.1: berlaku menurut jadwal saja (tanpa memperhitungkan agenda lembaga)
+function jadBerlakuDasar_(x, tanggal) {
   if (!x.aktif) return false;
   if (!jadKelasAktif_()[x.idRombel + '|' + x.kodeMapel]) return false;
   if (x.dari && tanggal < x.dari) return false;
   if (x.sampai && tanggal > x.sampai) return false;
   if (x.hari !== jadHariDari_(tanggal)) return false;
   if (!jadMingguCocok_(x.minggu, tanggal)) return false;   // v1.76.0
-  // v1.64.0: agenda lembaga yang disahkan (libur / kegiatan pengganti) meniadakan jadwal tatap muka ini
-  if (typeof agLiburPm_ === 'function' && agLiburPm_(x, tanggal)) return false;
   return true;
 }
 // Pemetaan tutor yang berlaku pada tanggal tertentu.
@@ -3978,21 +3983,46 @@ function brdKartuJadwalHariIni_(token) {
   return { judul: 'Jadwal hari ini (' + d.hari + ')', ikon: 'jadwal', menu: 'jadwal', ringkas: d.jadwal.filter(function(x) { return x.hadir; }).length + '/' + d.jadwal.length,
     item: item, kosong: 'Tidak ada jadwal tatap muka hari ini.' };
 }
+// v1.79.1: jadwal mengajar MINGGU INI (hari ini + 6 hari) dengan ruang/lokasi; jadwal yang ditiadakan agenda lembaga
+// tetap tampil dengan nama agendanya. Hari ini menampilkan status absen.
 function brdKartuJadwalTutor_(token, s) {
-  var d = waStafJadwalHari(token), judul = 'Jadwal mengajar hari ini';
-  var item = d.jadwal.map(function(x) { var o = brdJadwalItem_(x, x.hadir ? 'Sudah diabsen' : 'Belum diabsen'); o.s = x.namaRombel; o.w = x.hadir ? 'hijau' : 'kuning'; return o; });
-  if (!item.length && s) {
-    var pmS = jadBacaPm_().data.filter(function(x) { return x.idTutor === s.id; });
-    for (var n = 1; n <= 7 && !item.length; n++) {
-      var tg = brdTgl_(n), j = pmS.filter(function(x) { return jadBerlaku_(x, tg); });
-      if (!j.length) continue;
-      jadLengkapi_(j);
-      j.sort(function(a, b) { return a.mulai.localeCompare(b.mulai); });
-      judul = 'Jadwal mengajar berikutnya';
-      item = j.map(function(x) { var o = brdJadwalItem_(x, brdTglPendek_(tg)); o.s = x.namaRombel + ' · ' + jadHariDari_(tg); o.w = 'biru'; return o; });
-    }
+  if (!s) {
+    var d0 = waStafJadwalHari(token);
+    return { judul: 'Jadwal mengajar hari ini', ikon: 'jadwal', menu: 'jadwal',
+      item: d0.jadwal.map(function(x) { var o = brdJadwalItem_(x, x.hadir ? 'Sudah diabsen' : 'Belum diabsen'); o.s = x.namaRombel; o.w = x.hadir ? 'hijau' : 'kuning'; return o; }),
+      kosong: 'Tidak ada jadwal tatap muka hari ini.' };
   }
-  return { judul: judul, ikon: 'jadwal', menu: 'jadwal', item: item, kosong: 'Belum ada jadwal mengajar dalam 7 hari ke depan.' };
+  var hadir = {};
+  try { waStafJadwalHari(token).jadwal.forEach(function(x) { hadir[x.id] = x; }); } catch (e) {}
+  var pmS = jadBacaPm_().data.filter(function(x) { return x.idTutor === s.id; });
+  jadLengkapi_(pmS);
+  var hariIni = absHariIni_(), item = [], jumlah = 0, ditiadakan = 0;
+  for (var n = 0; n <= 6; n++) {
+    var tg = brdTgl_(n);
+    pmS.filter(function(x) { return jadBerlakuDasar_(x, tg); }).sort(function(a, b) { return a.mulai.localeCompare(b.mulai); }).forEach(function(x) {
+      var ag = typeof agLiburPm_ === 'function' ? agLiburPm_(x, tg) : null;
+      var lok = x.teksLokasi ? ' · ' + x.teksLokasi : '';
+      var o = { t: brdTglPendek_(tg) + (tg === hariIni || tg === brdTgl_(1) ? '' : ' (' + jadHariDari_(tg) + ')') + ' · ' + x.mulai + '–' + x.selesai + ' · ' + x.namaMapel,
+        s: x.namaRombel + lok, n: '', w: '' };
+      if (ag) {
+        o.s = 'Ditiadakan: ' + ag.nama + ' · ' + x.namaRombel;
+        o.n = 'Ditiadakan';
+        ditiadakan++;
+      } else if (tg === hariIni) {
+        var h = hadir[x.id];
+        o.n = h && h.hadir ? 'Sudah diabsen' : 'Belum diabsen';
+        o.w = h && h.hadir ? 'hijau' : 'kuning';
+        jumlah++;
+      } else {
+        o.n = jadHariDari_(tg);
+        o.w = 'biru';
+        jumlah++;
+      }
+      item.push(o);
+    });
+  }
+  return { judul: 'Jadwal mengajar minggu ini', ikon: 'jadwal', menu: 'jadwal', ringkas: jumlah + ' pertemuan' + (ditiadakan ? ' · ' + ditiadakan + ' ditiadakan' : ''),
+    item: item.slice(0, 25), kosong: 'Tidak ada jadwal tatap muka dalam 7 hari ke depan.' };
 }
 function brdKas_() {
   var saldo = 0, menunggu = [], semua = keuSemua_();

@@ -1776,5 +1776,30 @@ tes('ruang: bentrok ruang kecuali kelas gabungan, lokasi bebas, ruang nonaktif d
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 57. beranda tutor: jadwal minggu ini + ruang + agenda yang meniadakan (v1.79.1)
+tes('beranda tutor: 7 hari, status absen hari ini, ruang tampil, jadwal ditiadakan agenda diberi keterangan', () => {
+  const sv = ['waStafJadwalHari', 'jadBacaPm_', 'jadLengkapi_', 'agLiburPm_', 'brdTgl_', 'absHariIni_', 'jadKelasAktif_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    // Senin 16 Nov 2026 = hari ini
+    const tgl = ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22'];
+    g.brdTgl_ = (n) => tgl[n]; g.absHariIni_ = () => tgl[0];
+    g.jadKelasAktif_ = () => ({ 'B7|INF': true, 'C10|SBD': true });
+    const pm = [
+      { id: 'J1', aktif: true, idTutor: 'TW', idRombel: 'B7', kodeMapel: 'INF', hari: 'Senin', mulai: '13:00', selesai: '14:00', dari: '', sampai: '', minggu: '', unit: '' },
+      { id: 'J2', aktif: true, idTutor: 'TW', idRombel: 'C10', kodeMapel: 'SBD', hari: 'Kamis', mulai: '15:00', selesai: '16:00', dari: '', sampai: '', minggu: '', unit: '' },
+      { id: 'J3', aktif: true, idTutor: 'LAIN', idRombel: 'B7', kodeMapel: 'INF', hari: 'Selasa', mulai: '13:00', selesai: '14:00', dari: '', sampai: '', minggu: '', unit: '' }];
+    g.jadBacaPm_ = () => ({ data: pm.map((x) => Object.assign({}, x)) });
+    g.jadLengkapi_ = (l) => { l.forEach((x) => { x.namaRombel = x.idRombel; x.namaMapel = x.kodeMapel; x.teksLokasi = x.id === 'J1' ? 'Ruang 1 (Sampiran)' : ''; }); return l; };
+    g.agLiburPm_ = (x, t) => (x.id === 'J2' && t === '2026-11-19' ? { nama: 'Hari Guru' } : null);
+    g.waStafJadwalHari = () => ({ jadwal: [{ id: 'J1', hadir: true }] });
+    const k = g.brdKartuJadwalTutor_('T', { id: 'TW' });
+    sama(k.judul, 'Jadwal mengajar minggu ini');
+    sama(k.item.map((o) => [o.n, o.w]), [['Sudah diabsen', 'hijau'], ['Ditiadakan', '']]);
+    sama([k.item[0].s, /Ditiadakan: Hari Guru/.test(k.item[1].s), k.ringkas], ['B7 · Ruang 1 (Sampiran)', true, '1 pertemuan · 1 ditiadakan']);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
