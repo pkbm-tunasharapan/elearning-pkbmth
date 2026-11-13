@@ -1143,5 +1143,84 @@ tes('kwitansi: terbilang, nama penandatangan wajib nama orang, nomor tetap per t
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 37. kelayakan ujian (v1.70.0)
+tes('kelayakan ujian: rumus absen A, ketuntasan per cakupan UTS/UAS, UPK kelas akhir keuangan saja, permohonan -> rekomendasi -> KS, janji gugur', () => {
+  sama(g.klPersenAbsen_({ hadir: 18, total: 25 }, { hadir: 4, total: 4 }).persen, 82, '72% + 10% x 100%');
+  sama(g.klPersenAbsen_({ hadir: 10, total: 10 }, { hadir: 2, total: 4 }).persen, 100, 'maks 100');
+  sama(g.klPersenAbsen_({ hadir: 0, total: 0 }, { hadir: 3, total: 4 }).persen, 75, 'tanpa online = tatap muka saja');
+  const nama = ['absBaca_', 'stafDariToken_', 'catat_', 'npKirim_', 'hdrOnline_', 'nilHadirKelas_', 'keuTagSemua_', 'keuBayarPeta_', 'keuWbSemua_', 'siswaDariSesi_', 'ksWb_', 'absHariIni_', 'absWaktu_'];
+  const simpan = {};
+  nama.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const aju = [g.KL.HDR.slice()];
+    const tab = (isi) => {
+      const h = {};
+      isi[0].forEach((x, j) => { h[String(x).toUpperCase()] = j; });
+      return { v: isi.map((b) => b.slice()), h, sh: { appendRow: (r) => isi.push(r.slice()), getRange: (r, c) => ({ setValue: (x) => { isi[r - 1][c - 1] = x; } }) } };
+    };
+    g.absBaca_ = (n) => (n === g.KL.TAB ? tab(aju) : (() => { throw new Error('tab ' + n); })());
+    let hari = '2026-11-13';
+    g.absHariIni_ = () => hari; g.absWaktu_ = () => hari + ' 10:00';
+    g.catat_ = () => {};
+    const notif = [];
+    g.npKirim_ = (j) => notif.push(j);
+    // sesi 1-3 lewat; UTS di sesi 4 -> batas UTS = sesi 3; item sesi 5 hanya untuk UAS
+    const item = { M1: [{ id: 'A', jenis: 'Materi', n: 1, lewat: true }, { id: 'B', jenis: 'Diskusi', n: 2, lewat: true }, { id: 'C', jenis: 'Diskusi', n: 3, lewat: true },
+      { id: 'D', jenis: 'Materi', n: 3, lewat: true }, { id: 'E', jenis: 'Diskusi', n: 5, lewat: true }] };
+    const baca = { 'BM1|A|ani': true, 'BM1|D|ani': true }, jawab = { 'BM1|B|ani': true, 'BM1|C|ani': true };
+    g.hdrOnline_ = () => ({ aktif: true, wajibLewat: { '1|1': 1, '1|2': 1, '1|3': 1, '1|5': 1 }, hadir: { 'M1|ani': { '1|1': 1, '1|2': 1, '1|3': 1, '1|5': 1 } } });
+    g.nilHadirKelas_ = () => ({ gabung: () => ({ tatapMuka: { hadir: 0, total: 0 } }) });
+    let sisa = 150000;
+    g.keuTagSemua_ = () => ({ data: [{ id: 'T1', nama: 'SPP', aktif: true, jumlah: 150000, sasaran: 'Semua', jatuhTempo: '' }] });
+    g.keuBayarPeta_ = () => ({ bayar: { 'T1|W1': 150000 - sisa }, ker: {} });
+    const w = { id: 'W1', nama: 'Ani', idRombel: 'R12', namaRombel: 'C12', aktif: true };
+    g.keuWbSemua_ = () => [w];
+    const mkData = () => ({ per: { tahun: '2026/2027', semester: 'Ganjil', smt: 1 }, at: { blokir: true }, cfg: { uts: 4, sesiPerSemester: 18 }, syarat: 80, hari,
+      peta: { kelas: { 'R12|MTK': [{ idMapel: 'M1', idRombel: 'BM1', aktif: true }] }, aktif: { 'R12|MTK': true } }, siswaBm: { BM1: [{ idRombel: 'BM1', nama: 'Ani', nisn: '' }] },
+      item, baca, jawab, hk: {}, nmMapel: { MTK: 'Matematika' }, rb: { R12: { nama: 'C12' } }, sesiSt: {} });
+    g.KL_MEMO_ = mkData();
+    const c = { idRombel: 'BM1', nama: 'Ani' };
+    let h = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: true });
+    sama([h.ujian.UTS.mapel[0].tuntas.persen, h.ujian.UAS.mapel[0].tuntas.persen], [100, 80], 'UTS sesi 1-3 tuntas, UAS 4/5');
+    sama([h.ujian.UTS.status, h.ujian.UAS.status, h.ujian.UPK.status, h.ujian.UPK.mapel.length], ['Belum layak', 'Belum layak', 'Belum layak', 0], 'keuangan belum lunas; UPK tanpa akademik');
+    sama(h.ujian.UTS.alasan, ['keuangan']);
+    sama(Object.keys(g.klWb_(g.KL_MEMO_, Object.assign({}, w, { idRombel: 'R11' }), c, ['R12|MTK'], { keu: true }).ujian), ['UTS', 'UAS'], 'bukan kelas akhir tanpa UPK');
+    const ht = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: false });
+    sama([Object.keys(ht.ujian), ht.ujian.UTS.status, ht.keu], [['UTS', 'UAS'], 'Layak', null], 'tutor: akademik saja');
+    g.siswaDariSesi_ = () => ({ nama: 'Ani', idRombel: 'BM1' });
+    g.ksWb_ = () => w;
+    let galat = '';
+    try { g.waSiswaKelayakanAju('tok', { ujian: 'UTS', alasan: 'Menunggu gajian orang tua' }); } catch (e) { galat = e.message; }
+    sama(/janji bayar/.test(galat), true, 'keuangan wajib janji bayar');
+    const a = g.waSiswaKelayakanAju('tok', { ujian: 'UTS', alasan: 'Menunggu gajian orang tua', janjiTanggal: '2026-11-20', janjiNominal: 100000 });
+    sama([a.jenis, notif.slice(-1)[0]], ['Keuangan', 'kl_aju_keuangan']);
+    galat = '';
+    try { g.waSiswaKelayakanAju('tok', { ujian: 'UTS', alasan: 'Menunggu gajian orang tua', janjiTanggal: '2026-11-20', janjiNominal: 100000 }); } catch (e) { galat = e.message; }
+    sama(/sedang diproses/.test(galat), true, 'tidak dobel');
+    const orang = { TK: { nama: 'Kurnia', peran: 'Koordinator Kurikulum' }, TB: { nama: 'Bena', peran: 'Bendahara' }, TS: { nama: 'Kasih', peran: 'Kepala Sekolah' }, TT: { nama: 'Tono', peran: 'Tutor', id: 'U9' } };
+    g.stafDariToken_ = (t) => orang[t];
+    galat = '';
+    try { g.waStafKelayakanRekomendasi('TK', { id: a.id, bagian: 'akademik', setuju: true, catatan: 'oke saja' }); } catch (e) { galat = e.message; }
+    sama(/tidak memerlukan/.test(galat), true, 'permohonan keuangan tidak perlu rekomendasi akademik');
+    sama(g.waStafKelayakanRekomendasi('TB', { id: a.id, bagian: 'keuangan', setuju: true, catatan: 'janji wajar' }).status, 'Menunggu KS');
+    galat = '';
+    try { g.waStafKelayakanPutus('TB', { id: a.id, setuju: true, catatan: 'setuju' }); } catch (e) { galat = e.message; }
+    sama(/Kepala Sekolah/.test(galat), true, 'bendahara tidak memutus');
+    sama(g.waStafKelayakanPutus('TS', { id: a.id, setuju: true, catatan: 'Boleh ikut UTS' }).status, 'Disetujui');
+    g.KL_MEMO_ = mkData();
+    h = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: true });
+    sama([h.ujian.UTS.status, h.ujian.UAS.status], ['Layak dengan catatan', 'Belum layak'], 'izin hanya untuk UTS');
+    hari = '2026-11-21'; sisa = 100000;
+    g.KL_MEMO_ = mkData();
+    h = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: true });
+    sama([h.ujian.UTS.status, notif.includes('kl_janji')], ['Belum layak', true], 'janji gugur');
+    sama(g.izFitur_('waStafKelayakanDaftar'), 'kelayakanUjian');
+    galat = '';
+    try { g.waStafKelayakanPanggil('TT', { idWb: 'W1', pesan: 'Datang ke ruang guru' }); } catch (e) { galat = e.message; }
+    sama(/Pemanggilan/.test(galat), true, 'tutor tidak bisa memanggil');
+    sama(g.waStafKelayakanPanggil('TK', { idWb: 'W1', pesan: 'Datang ke ruang kurikulum Senin pukul 09.00' }).sukses, true);
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.KL_MEMO_ = null; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

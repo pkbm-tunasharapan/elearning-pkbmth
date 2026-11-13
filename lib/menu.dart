@@ -15,6 +15,7 @@ import 'jadwal/jadwal.dart';
 import 'referral/referral.dart';
 import 'referral/referral_admin.dart';
 import 'ujian/masa_ujian.dart';
+import 'ujian/kelayakan.dart';
 import 'ujian/pengawas.dart';
 import 'keuangan/keuangan.dart';
 import 'keuangan/kwitansi.dart';
@@ -98,6 +99,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'referralAdmin', judul: 'Kelola Referral & Pendaftaran', ikon: Icons.how_to_reg_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Front Office', 'Bendahara'}, native: () => const ReferralAdminScreen()),
   MenuApp(id: 'broadcast', judul: 'Broadcast Pemberitahuan', ikon: Icons.notifications_active_outlined, peran: _admin, native: () => const BroadcastScreen()),
   MenuApp(id: 'promosi', judul: 'Popup Promosi', ikon: Icons.campaign_rounded, peran: {'Admin'}, native: () => const PromosiAdminScreen()),
+  MenuApp(id: 'kelayakanUjian', judul: 'Analisa Kelayakan Ujian', ikon: Icons.fact_check_outlined, peran: {'Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Bendahara', 'Tutor', 'Koordinator Unit'}, native: () => const KelayakanScreen()),
   MenuApp(id: 'dispensasi', judul: 'Dispensasi Ujian', ikon: Icons.verified_user_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'}, native: () => const DispensasiScreen()),
   MenuApp(id: 'otoNilai', judul: 'Penilaian Otomatis', ikon: Icons.auto_fix_high_rounded, peran: {'Admin', 'Superadmin'}, native: () => const OtoNilaiScreen()),
   MenuApp(id: 'kinerja', judul: 'Kinerja Tutor', ikon: Icons.leaderboard_outlined, peran: {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'}, native: () => const KinerjaTutorScreen()),
@@ -161,7 +163,7 @@ const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kale
 
 const _grupMenu = <String, String>{
   'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
-  'progres': 'Pembelajaran', 'susulan': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'masaUjian': 'Pembelajaran', 'pengawasUjian': 'Pembelajaran', 'dispensasi': 'Pembelajaran',
+  'progres': 'Pembelajaran', 'susulan': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'masaUjian': 'Pembelajaran', 'pengawasUjian': 'Pembelajaran', 'dispensasi': 'Pembelajaran', 'kelayakanUjian': 'Pembelajaran',
   'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
@@ -198,6 +200,7 @@ const _kataKunci = <String, String>{
   'pantauanUnit': 'pantau unit koordinator kehadiran tunggakan siswa flexi reguler',
   'agendaLembaga': 'agenda kegiatan tka libur khusus acara lembaga sasaran pengesahan',
   'unitBelajar': 'unit titik lokasi tempat belajar koordinator flexi reguler setara layanan klasifikasi siswa',
+  'kelayakanUjian': 'kelayakan layak ujian uts uas upk syarat ketuntasan absensi tagihan permohonan dispensasi',
   'masaUjian': 'uts uas tryout ujian serentak masa jadwal online peserta bank soal',
   'ujianTerpusat': 'uts uas ujian jadwal tatap muka kertas naskah cetak pts pas asesmen',
   'pemeliharaan': 'versi update apk rilis galat',

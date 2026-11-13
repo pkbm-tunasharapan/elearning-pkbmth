@@ -8,6 +8,7 @@ import '../kalender.dart';
 import '../profil.dart';
 import '../referral/referral.dart';
 import '../ruang.dart';
+import '../ujian/kelayakan.dart';
 import '../theme.dart';
 import '../ulang_tahun.dart';
 import '../widgets.dart';
@@ -163,6 +164,16 @@ class _BerandaIsi extends StatelessWidget {
                 judul: 'Tagihan Saya',
                 sub: 'Lihat & bayar tagihan (online / transfer)',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TagihanSiswaScreen())),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _Pintasan(
+                ikon: Icons.fact_check_rounded,
+                warna: const Color(0xFF2E7D32),
+                judul: 'Kelayakan Ujian',
+                sub: 'Status UTS, UAS & UPK serta permohonan',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KelayakanSiswaScreen())),
               ),
             ),
             Padding(

@@ -52,6 +52,8 @@ var IZN = {
     ['ujianTerpusat', 'Ujian Kertas Tatap Muka', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'], /^waStafUjt\w*$/],
     ['masaUjian', 'Masa Ujian Serentak', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafMasa\w*$/],
     ['pengawasUjian', 'Pengawas Ujian', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara'], /^waStafPengawas\w*$/],
+    // v1.70.0: analisa kelayakan ujian (tutor & koordinator unit: lihat akademik saja; tindakan diperiksa di fungsinya)
+    ['kelayakanUjian', 'Analisa Kelayakan Ujian', 'Nilai & Ujian', ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Bendahara', 'Tutor', 'Koordinator Unit'], /^waStafKelayakan\w*$/],
     ['kotakUjian', 'Kotak Ujian (pengajuan ujian)', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waAdminUjian(BukaAkses|Disposisi|Tolak)$/],
     ['dispensasi', 'Dispensasi Ujian', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafDispensasi\w*$/],
     ['nilai', 'Belum Dinilai', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'], /^wa(StafBelumDinilai|AdminTugasNilaiOtomatis)$/],

@@ -445,20 +445,20 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUji
   var j = ujJadwalDariUjian_(idUjian);
   var g = { pesan: '' };
   if (j) {
-    var nilSy = '';
-    try {
-      var sxNil = cariBarisSesiUjian_(j.idUjian, idRombel, nama);
-      if (!(sxNil && String(sxNil.row[sxNil.cols.status - 1]) === 'Berlangsung')) nilSy = nilGerbangUjian_(j, idRombel, nama);
-    } catch (eNil) {}
-    if (nilSy) {
-      try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - syarat kehadiran', 'GAGAL'); } catch (e) {}
-      return { sukses: false, pesan: nilSy };
+    // v1.70.0: gerbang Kelayakan Ujian (ketuntasan sesi + absensi + keuangan) menggantikan syarat kehadiran & syarat bayar lama.
+    // Bila analisa gagal dijalankan, kembali ke gerbang lama.
+    var klSy = '', sxNil = null, berlangsung = false;
+    try { sxNil = cariBarisSesiUjian_(j.idUjian, idRombel, nama); berlangsung = !!(sxNil && String(sxNil.row[sxNil.cols.status - 1]) === 'Berlangsung'); } catch (eSx) {}
+    if (!berlangsung) {
+      try { klSy = klGerbang_(j, idRombel, nama); }
+      catch (eKl) {
+        try { klSy = nilGerbangUjian_(j, idRombel, nama); } catch (eNil) {}
+        if (!klSy) { try { klSy = sbGerbang_(j, idRombel, nama); } catch (eBy) {} }
+      }
     }
-    var bySy = '';   // v1.57.0: syarat pembayaran biaya ujian
-    try { if (!(sxNil && String(sxNil.row[sxNil.cols.status - 1]) === 'Berlangsung')) bySy = sbGerbang_(j, idRombel, nama); } catch (eBy) {}
-    if (bySy) {
-      try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - syarat pembayaran', 'GAGAL'); } catch (e) {}
-      return { sukses: false, pesan: bySy };
+    if (klSy) {
+      try { catat_('Siswa', idRombel, nama, 'Mulai ujian', 'ujian ' + idUjian + ' - kelayakan ujian', 'GAGAL'); } catch (e) {}
+      return { sukses: false, pesan: klSy };
     }
   }
   if (j) g = ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian);

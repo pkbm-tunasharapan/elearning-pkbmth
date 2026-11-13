@@ -54,6 +54,13 @@ var NP = {
     { kode: 'aqr_lapor', nama: 'Pembayaran aktivasi QR diterima FO (perlu diaktifkan)', grup: 'Warga Belajar', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'], fitur: 'aktivasiQr' },
     // v1.68.0: VA custom dibayar online
     { kode: 'va_custom_lunas', nama: 'VA custom dibayar', grup: 'Keuangan', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], fitur: 'vaCustom' },
+    // v1.70.0: kelayakan ujian
+    { kode: 'kl_aju_akademik', nama: 'Permohonan kelayakan ujian (akademik)', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Admin'], fitur: 'kelayakanUjian' },
+    { kode: 'kl_aju_keuangan', nama: 'Permohonan kelayakan ujian (keuangan)', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Admin'], fitur: 'kelayakanUjian' },
+    { kode: 'kl_ks', nama: 'Permohonan kelayakan ujian menunggu keputusan', grup: 'Ujian', sasaran: 'peran', peran: ['Kepala Sekolah'], fitur: 'kelayakanUjian' },
+    { kode: 'kl_janji', nama: 'Janji bayar kelayakan ujian tidak ditepati', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Kepala Sekolah'], fitur: 'kelayakanUjian' },
+    { kode: 'kl_putus', nama: 'Keputusan / perubahan kelayakan ujian', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
+    { kode: 'kl_panggil', nama: 'Panggilan dari bagian kurikulum / keuangan', grup: 'Siswa', sasaran: 'siswa', peran: ['Siswa'] },
     { kode: 'tutor_mapel_baru', nama: 'Tutor baru mengajukan mapel', grup: 'Pengguna', sasaran: 'peran', peran: ['Admin'], fitur: 'pengajuanTutor' }
   ]
 };

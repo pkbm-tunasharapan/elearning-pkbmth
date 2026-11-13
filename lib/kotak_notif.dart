@@ -12,6 +12,7 @@ import 'screens/admin_lain.dart' show PengajuanTutorScreen;
 import 'screens/ujian.dart' show KotakUjianScreen;
 import 'siswa/aktivasi_qr.dart';
 import 'siswa/pencapaian_siswa.dart';
+import 'ujian/kelayakan.dart';
 import 'ujian/masa_ujian.dart' show MasaUjianScreen;
 import 'ujian/pengawas.dart' show PengawasScreen;
 import 'ujian/tinjauan.dart' show TinjauanPelanggaranScreen;
@@ -60,6 +61,10 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
   final siswa = SesiSiswa.instance.masuk;
   Widget? layar;
   switch (aksi) {
+    case 'kelayakan':
+      if (!siswa) layar = _bungkus('Analisa Kelayakan Ujian', const KelayakanScreen());
+    case 'kelayakan_saya':
+      if (siswa) layar = const KelayakanSiswaScreen();
     case 'tagihan_saya':
       if (siswa) layar = const TagihanSiswaScreen();
     case 'keuangan':
