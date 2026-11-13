@@ -4366,7 +4366,7 @@ function waStafIndukSimpan(token, k, d) {
       if (absCol_(t, 'DIAJUKAN OLEH') >= 0) isi['DIAJUKAN OLEH'] = p.nama;
       t.sh.appendRow(absBaris_(t, isi));
       catat_(p.peran, '-', p.nama, 'Data induk baru', s.judul + ' ' + id + ' ' + (isi[s.label] || ''), 'OK');
-      indSegarkan_();
+      indSegarkan_(s.tab);
       return { sukses: true, id: id };
     }
     var i2 = cari(d._id);
@@ -4376,7 +4376,7 @@ function waStafIndukSimpan(token, k, d) {
     Object.keys(isi).forEach(function(h) { var c = absCol_(t, h); if (c >= 0) row[c] = isi[h]; });
     t.sh.getRange(i2 + 1, 1, 1, row.length).setValues([row]);
     catat_(p.peran, '-', p.nama, 'Ubah data induk', s.judul + ' ' + d._id, 'OK');
-    indSegarkan_();
+    indSegarkan_(s.tab);
     return { sukses: true, id: String(d._id) };
   } finally { lock.releaseLock(); }
 }
@@ -4388,12 +4388,14 @@ function waStafIndukNonaktif(token, k, id) {
     if (sTeks_(absNilai_(t, t.v[i], s.kunci)).trim() !== String(id)) continue;
     Object.keys(s.hapus).forEach(function(h) { var c = absCol_(t, h); if (c >= 0) t.sh.getRange(i + 1, c + 1).setValue(s.hapus[h]); });
     catat_(p.peran, '-', p.nama, 'Nonaktifkan data induk', s.judul + ' ' + id, 'OK');
-    indSegarkan_();
+    indSegarkan_(s.tab);
     return { sukses: true };
   }
   throw new Error('Data tidak ditemukan.');
 }
-function indSegarkan_() {
+function indSegarkan_(tab) {
   try { CacheService.getScriptCache().removeAll(['abs_kelas3_*', 'abs_kelas2_*', 'abs_kelas_*']); } catch (e) {}
+  // v1.78.0: Enroll Mapel / Rombel berubah -> e-learning langsung mengikuti
+  if (tab === 'ENROLL MAPEL' || tab === 'ROMBEL') { try { ditSelaraskan_(); } catch (e2) {} }
 }
 

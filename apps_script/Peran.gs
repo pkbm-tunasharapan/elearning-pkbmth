@@ -619,6 +619,8 @@ function segarkanKolomTutorMapel_(daftarIdMapel) {
 // Mengganti seluruh daftar mapel yang diampu satu tutor.
 // Mapel otomatis Aktif selama ada tutor yang di-enroll; kembali Nonaktif kalau tidak ada pengampu lagi.
 function aktifkanMapelSesuaiEnrollment_(ids) {
+  // v1.78.0: status mapel e-learning mengikuti ENROLL MAPEL (DataIndukTunggal.gs), bukan enrollment tutor
+  if (typeof ditSelaraskan_ === 'function') return;
   if (!ids || !ids.length) return;
   var enr = getSheet(PERAN.SHEET_ENROLLMENT).getDataRange().getValues();
   var punya = {}, i;
@@ -640,6 +642,8 @@ function aktifkanMapelSesuaiEnrollment_(ids) {
 
 function waAdminSetEnrollment(token, idPengguna, daftarIdMapel) {
   var adm = wajibAdmin_(token);
+  // v1.78.0: akses tutor hanya lewat tab Pengampu (Data Induk = sumber tunggal)
+  throw new Error('Mapel yang diampu tutor kini diatur di Jadwal → Pengampu (Tutor Online). Akses e-learning mengikuti otomatis.');
   var namaTutorLog = '', jumlahLog = 0;
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
@@ -802,6 +806,8 @@ function segarkanNamaMapelEnrollment_(idMapel, namaBaru) {
 // data: { idMapel (kosong = mapel baru), idRombel (wajib untuk mapel baru), nama, status }
 function waAdminSimpanMapel(token, data) {
   var adm = wajibAdmin_(token);
+  // v1.78.0: mapel aktif/nonaktif diatur di Data Induk -> Enroll Mapel; e-learning mengikuti otomatis
+  throw new Error('Mata pelajaran kini diatur di Data Induk → Enroll Mapel (aktif/nonaktif per rombel). Mapel e-learning mengikuti otomatis.');
   var nama = String(data.nama || '').trim().replace(/\s+/g, ' ');
   if (!nama) throw new Error('Nama mata pelajaran wajib diisi.');
   if (nama.length > 80) throw new Error('Nama mata pelajaran terlalu panjang (maksimal 80 huruf).');
@@ -1027,6 +1033,8 @@ function waStafMasukSso(tiket) {
 // Sumber: ENROLL MAPEL (TUTOR = ID TUTOR, AKTIF, STATUS Disetujui). Kelas dan mapel dicocokkan lewat nama
 // (mengabaikan awalan 'Kelas' dan tanda kurung), sehingga kelas/mapel lama tetap dipakai.
 function ssoSelarasEnroll_(email, u) {
+  // v1.78.0: akses e-learning tutor hanya dari tab Pengampu (sinkronTutorSemua_ / pgoSelaraskanEnroll_)
+  if (typeof ditSelaraskan_ === 'function') return 0;
   var ss = simSs_();
   var st = simTab_('TUTOR'), se = simTab_('ENROLL MAPEL'), sr = simTab_('ROMBEL'), sm = simTab_('MAPEL');
   if (!st || !se || !sr || !sm || st.getLastRow() < 2 || se.getLastRow() < 2) return 0;
@@ -1140,6 +1148,13 @@ function jalankanSinkron_(manual) {
       shS.getRange(awalS, 1, barisS.length, 6).setValues(barisS);
       ringkas.push(barisS.length + ' siswa baru');
     }
+    // v1.78.0: rombel & mapel e-learning mengikuti Data Induk (status aktif, mapel baru)
+    try {
+      var dt = ditSelaraskan_();
+      if (dt.rombel) ringkas.push(dt.rombel + ' status rombel e-learning disamakan');
+      if (dt.aktif || dt.nonaktif) ringkas.push('mapel e-learning: ' + dt.aktif + ' diaktifkan, ' + dt.nonaktif + ' dinonaktifkan');
+      if (dt.baru) ringkas.push(dt.baru + ' mapel e-learning baru dari Enroll Mapel');
+    } catch (eD) { ringkas.push('Selaraskan e-learning gagal: ' + String(eD && eD.message || eD).slice(0, 120)); }
     // sinkron dua arah: saling melengkapi kolom kosong (SinkronSiswa.gs)
     try { sinkronSiswaDuaArah_().forEach(function(s) { ringkas.push(s); }); } catch (eS) { ringkas.push('Sinkron dua arah siswa gagal: ' + String(eS && eS.message || eS).slice(0, 120)); }
     var e = sinkronTutorSemua_();

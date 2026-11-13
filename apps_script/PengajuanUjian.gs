@@ -1854,8 +1854,14 @@ function waAdminTutorBuka(token, buka) {
   return { terbuka: buka === true };
 }
 
-// Menambah enrollment tanpa menghapus yang sudah ada.
-function dtTambahEnrollment_(tutor, daftarIdMapel, peta) {
+// v1.78.0: pengajuan disetujui -> Tutor Online di tab Pengampu (Data Induk); akses e-learning mengikuti Pengampu.
+function dtTambahEnrollment_(tutor, daftarIdMapel, peta, oleh) {
+  var h = ditSetujuiPengajuanTutor_(tutor, daftarIdMapel, oleh);
+  if (h.dilewati.length) { try { catat_('Sistem', '', 'Data Induk', 'Pengajuan mapel tutor', tutor.nama + ': ' + h.dilewati.join('; ').slice(0, 300), 'PERLU DICEK'); } catch (e) {} }
+  return h.ditugaskan;
+}
+// (lama, tidak dipakai lagi sejak v1.78.0) menambah enrollment e-learning langsung
+function dtTambahEnrollmentLama_(tutor, daftarIdMapel, peta) {
   var sheet = getSheet(PERAN.SHEET_ENROLLMENT);
   var v = sheet.getDataRange().getValues();
   var ada = {};
@@ -1921,7 +1927,7 @@ function waAdminTutorKeputusan(token, daftar, catatan) {
       sh.getRange(i + 1, 9, 1, 3).setValues([[waktu, adm.nama, ket]]);
       if (status === 'Disetujui') hasil.disetujui++; else hasil.ditolak++;
     }
-    Object.keys(tambah).forEach(function(idP) { dtTambahEnrollment_(tambah[idP].tutor, tambah[idP].ids, peta); });
+    Object.keys(tambah).forEach(function(idP) { dtTambahEnrollment_(tambah[idP].tutor, tambah[idP].ids, peta, adm.nama); });
   } finally {
     kunci.releaseLock();
   }

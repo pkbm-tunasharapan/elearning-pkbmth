@@ -274,6 +274,34 @@ function waAdminKirimKeMenu(token, kunciBaris) {
     var r = x.bm.rows.filter(function (b) { return b.kunci === kunciBaris; })[0];
     if (!r) throw new Error('Data siswa sudah berubah. Muat ulang daftar lalu coba lagi.');
     if (r.wb) throw new Error(r.nama + ' sudah ada di Data Induk.');
+    sswTulisInduk_(x, r, adm.nama || 'Admin');
+    catat_('Admin', adm.id, adm.nama, 'Kirim siswa ke Data Induk', r.nama + ' (' + r.namaRombel + ')', 'OK');
+    return { ok: true, nama: r.nama };
+  } finally {
+    kunci.releaseLock();
+  }
+}
+
+// v1.78.0: siswa baru yang lolos verifikasi pendaftaran langsung tercatat di Data Induk (WARGA BELAJAR).
+// barisSiswa = nomor baris tab Siswa. Tidak pernah menggagalkan pendaftaran.
+function sswDaftarKeInduk_(barisSiswa) {
+  try {
+    var x = sswRencana_();
+    var r = x.bm.rows.filter(function (b) { return Number(b.baris) === Number(barisSiswa); })[0];
+    if (!r || r.wb) return false;
+    sswTulisInduk_(x, r, 'Pendaftaran online');
+    try { catat_('Sistem', '', 'Data Induk', 'Siswa baru ke Data Induk', r.nama + ' (' + r.namaRombel + ', pendaftaran online)', 'OK'); } catch (e1) {}
+    try { absLupakan_('WARGA BELAJAR'); if (typeof indSegarkan_ === 'function') indSegarkan_(); } catch (e2) {}
+    return true;
+  } catch (e) {
+    try { pmlCatatGalat_('server', 'sswDaftarKeInduk_', String(e && e.message || e), String(e && e.stack || ''), '', 'Pendaftaran'); } catch (e3) {}
+    return false;
+  }
+}
+
+// Tulis satu siswa (baris tab Siswa) ke WARGA BELAJAR Data Induk.
+function sswTulisInduk_(x, r, oleh) {
+  {
     var menu = x.menu, head = menu.head;
     var idRombel = '';
     Object.keys(menu.rombel).forEach(function (id) { if (sswKunciKelas_(menu.rombel[id]) === sswKunciKelas_(r.namaRombel)) idRombel = id; });
@@ -298,11 +326,7 @@ function waAdminKirimKeMenu(token, kunciBaris) {
     var b = menu.sh.getLastRow() + 1;
     [menu.K.id, menu.K.nisn, menu.K.hp].forEach(function (k) { if (k >= 0) menu.sh.getRange(b, k + 1).setNumberFormat('@'); });
     menu.sh.getRange(b, 1, 1, baris.length).setValues([baris]);
-    sswRiwayat_([[waktuSekarang_(), 'BM → Data Induk (siswa baru)', r.nama, 'Semua', '', r.namaRombel + ' · ' + r.tgl, adm.nama || 'Admin']]);
-    catat_('Admin', adm.id, adm.nama, 'Kirim siswa ke Data Induk', r.nama + ' (' + r.namaRombel + ')', 'OK');
-    return { ok: true, nama: r.nama };
-  } finally {
-    kunci.releaseLock();
+    sswRiwayat_([[waktuSekarang_(), 'BM → Data Induk (siswa baru)', r.nama, 'Semua', '', r.namaRombel + ' · ' + r.tgl, oleh]]);
   }
 }
 

@@ -401,7 +401,7 @@ function waDaftarVerifikasi(sesi, kodeOtp) {
   }
   var kunci = LockService.getScriptLock();
   kunci.waitLock(15000);
-  var kodeAkses = '';
+  var kodeAkses = '', barisBaru = 0;
   try {
     var adaV = cariSiswa_(o.d.nama, o.d.tgl); if (adaV && adaV.email) {
       cache.remove('otpdaftar_' + sesi);
@@ -411,12 +411,15 @@ function waDaftarVerifikasi(sesi, kodeOtp) {
     var sheet = getSheet(CONFIG.SHEETS.SISWA);
     var b = adaV ? adaV.baris : sheet.getLastRow() + 1;
     if (!adaV) sheet.getRange(b, 1, 1, 7).setNumberFormat('@');
+    if (!adaV) barisBaru = b;
     if (adaV) { sheet.getRange(b, 4, 1, 3).setNumberFormat('@'); sheet.getRange(b, 4, 1, 3).setValues([[kodeAkses, o.d.email, waktuSekarang_()]]); o.d.nama = adaV.nama; o.d.idRombel = adaV.idRombel; } else { sheet.getRange(b, 1, 1, 7).setValues([[o.d.idRombel, o.d.nama, o.d.tgl, kodeAkses, o.d.email, waktuSekarang_(), o.d.nisn || '']]); }
     if (adaV && o.d.nisn && !String(sheet.getRange(b, 7).getValue()).trim()) sheet.getRange(b, 7).setNumberFormat('@').setValue(o.d.nisn);
   } finally {
     kunci.releaseLock();
   }
   cache.remove('otpdaftar_' + sesi);
+  // v1.78.0: siswa baru langsung tercatat di Data Induk (WARGA BELAJAR); tidak perlu "Kirim ke MENU"
+  if (barisBaru && typeof sswDaftarKeInduk_ === 'function') { try { SpreadsheetApp.flush(); } catch (eF) {} sswDaftarKeInduk_(barisBaru); }
   catat_('Siswa', o.d.idRombel, o.d.nama, 'Daftar - berhasil', 'email ' + maskEmail_(o.d.email), 'OK');
   // v1.74.1: pendaftaran berhasil -> catatan "Calon siswa" orang ini menjadi "Siswa"
   try { var nsD = {}; nsD[normNama_(o.d.nama)] = true; aktCalonJadiSiswa_(nsD); } catch (eA) {}

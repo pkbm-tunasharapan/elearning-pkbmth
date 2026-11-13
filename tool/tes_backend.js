@@ -1685,5 +1685,49 @@ tes('kelas: hanya ENROLL MAPEL; enrollment & status e-learning diabaikan; kelas 
   }
 });
 
+// 54. Data Induk sumber tunggal: e-learning mengikuti satu arah (v1.78.0)
+tes('data induk tunggal: status mapel & rombel e-learning ikut Data Induk, mapel baru dibuat, jalur ubah e-learning ditutup', () => {
+  const rombelSim = [{ id: 'S7', nama: 'B7', aktif: true }, { id: 'S9', nama: 'B9', aktif: false }];
+  const rombelLms = [['ROM-KELASB7', 'Kelas B7', '', 'Aktif'], ['ROM-KELASB9', 'Kelas B9', '', 'Aktif'], ['ROM-X', 'Lain', '', 'Aktif']];
+  const kelas = { 'S7|IPA': { idRombel: 'S7', kodeMapel: 'IPA', namaMapel: 'Ilmu Pengetahuan Alam' }, 'S7|INF': { idRombel: 'S7', kodeMapel: 'INF', namaMapel: 'Informatika' } };
+  const peta = { kelas: { 'S7|IPA': [{ idMapel: 'MP-B09-KELASB7' }], 'S7|PAK': [{ idMapel: 'MP-PAK-KELASB7' }] } };
+  const mapelLms = [['MP-B09-KELASB7', 'ROM-KELASB7', 'IPA', '', 'Nonaktif'], ['MP-PAK-KELASB7', 'ROM-KELASB7', 'Agama Kristen', '', 'Aktif'],
+    ['MP-INF-KELASB7', 'ROM-KELASB7', 'Lama', '', 'Nonaktif'], ['MP-LAIN', 'ROM-X', 'Tidak dikenal', '', 'Aktif']];
+  const r = g.ditRencana_(rombelSim, rombelLms, kelas, peta, mapelLms);
+  sama(r.rombel, [{ baris: 1, status: 'Nonaktif' }], 'B9 nonaktif di Data Induk -> nonaktif di e-learning; rombel tak dikenal dibiarkan');
+  sama(r.mapel.map((x) => [x.idMapel, x.status]), [['MP-B09-KELASB7', 'Aktif'], ['MP-PAK-KELASB7', 'Nonaktif']], 'mapel tak terhubung (MP-LAIN) dibiarkan');
+  sama(r.baru, [['MP-INF-KELASB7-2', 'ROM-KELASB7', 'Informatika', '', 'Aktif']], 'kelas Data Induk tanpa mapel e-learning dibuat, ID tidak bentrok');
+  // jalur ubah langsung di e-learning ditutup
+  const sv = ['wajibAdmin_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.wajibAdmin_ = () => ({ id: 'A', nama: 'Admin', peran: 'Admin' });
+    let e1 = '', e2 = '';
+    try { g.waAdminSimpanMapel('T', { nama: 'IPA', idRombel: 'R', status: 'Aktif' }); } catch (e) { e1 = e.message; }
+    try { g.waAdminSetEnrollment('T', 'U1', ['MP-1']); } catch (e) { e2 = e.message; }
+    sama([/Enroll Mapel/.test(e1), /Pengampu/.test(e2), g.ssoSelarasEnroll_('a@b.c', { id: 'U1' })], [true, true, 0]);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
+tes('pengajuan mapel tutor disetujui -> Tutor Online semua unit di Pengampu (bukan enrollment langsung)', () => {
+  const sv = ['itPastikanTutor_', 'nilPetaBm_', 'absKelasSim_', 'pgoPeta_', 'pgoTulis_', 'pgoLupakan_', 'pgoTulisInduk_', 'pgoSelaraskanEnroll_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    let ditulis = null, selaras = null;
+    g.itPastikanTutor_ = () => 'TT-EKA';
+    g.nilPetaBm_ = () => ({ kelas: { 'S7|INF': [{ idMapel: 'MP-INF' }], 'S7|BING': [{ idMapel: 'MP-BING' }], 'S7|IPA': [{ idMapel: 'MP-IPA' }] } });
+    g.absKelasSim_ = () => [{ idRombel: 'S7', kodeMapel: 'INF' }, { idRombel: 'S7', kodeMapel: 'BING' }];
+    g.pgoPeta_ = () => ({ 'S7|BING': { semua: 'TT-LAIN', unit: {}, ada: true } });
+    g.pgoTulis_ = (d) => { ditulis = d; return d.length; };
+    g.pgoLupakan_ = () => {}; g.pgoTulisInduk_ = () => {};
+    g.pgoSelaraskanEnroll_ = (k) => { selaras = k; };
+    const h = g.ditSetujuiPengajuanTutor_({ id: 'U1', nama: 'Eka' }, ['MP-INF', 'MP-BING', 'MP-IPA'], 'Admin');
+    sama([h.ditugaskan, ditulis, selaras], [1, [{ idRombel: 'S7', kodeMapel: 'INF', unit: '', idTutor: 'TT-EKA' }], ['S7|INF']]);
+    sama(h.dilewati.length, 2, 'BING sudah ada tutor bawaan, IPA belum aktif di Enroll Mapel');
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
