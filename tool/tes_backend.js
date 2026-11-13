@@ -1801,5 +1801,20 @@ tes('beranda tutor: 7 hari, status absen hari ini, ruang tampil, jadwal ditiadak
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 58. tutor bawaan jadwal mengacu tab Pengampu (v1.79.3)
+tes('jadwal: tutor bawaan dari Pengampu (unit jadwal -> semua unit -> tutor online mana pun -> Enroll Mapel)', () => {
+  const sv = ['pgoTutorUnit_', 'pgoSemuaTutor_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const peta = { 'B7|INF': { semua: '', unit: { USMP: 'EKA', ULSR: 'PATIMAH' } }, 'C12|MTK': { semua: 'IKMAN', unit: {} } };
+    g.pgoTutorUnit_ = (key, u) => { const o = peta[key]; return o ? ((u && o.unit[u]) || o.semua || '') : ''; };
+    g.pgoSemuaTutor_ = (key) => { const o = peta[key]; return o ? [o.semua, ...Object.values(o.unit)].filter(Boolean) : []; };
+    const k = (r, m, t) => ({ idRombel: r, kodeMapel: m, idTutor: t || '' });
+    sama([g.jadTutorBawaan_(k('B7', 'INF', 'PATIMAH'), 'USMP'), g.jadTutorBawaan_(k('B7', 'INF', 'PATIMAH'), ''), g.jadTutorBawaan_(k('C12', 'MTK'), 'USMP'),
+      g.jadTutorBawaan_(k('A1', 'PAI', 'LAMA'), '')], ['EKA', 'EKA', 'IKMAN', 'LAMA']);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

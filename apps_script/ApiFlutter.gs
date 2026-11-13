@@ -2160,10 +2160,22 @@ function waStafPemetaanSimpanBanyak(token, d) {
   });
   return { sukses: true, jumlah: hasil.length, id: hasil, hari: hari, dari: dari, sampai: sampai };
 }
+// v1.79.3: tutor bawaan sebuah kelas mengacu tab Pengampu: Tutor Online unit jadwal (unit pertama), lalu "Semua unit",
+// lalu Tutor Online mana pun di kelas itu; terakhir kolom TUTOR Enroll Mapel.
+function jadTutorBawaan_(kelas, unitKunci) {
+  var key = kelas.idRombel + '|' + kelas.kodeMapel, u = String(unitKunci || '').split(',')[0].trim();
+  try {
+    var t = pgoTutorUnit_(key, u);
+    if (t) return t;
+    var semua = pgoSemuaTutor_(key);
+    if (semua.length) return semua[0];
+  } catch (e) {}
+  return kelas.idTutor || '';
+}
 function jadSimpanInti_(p, d) {
   var kelas = absKelasCek_(absKelas_(''), d.idRombel, d.kodeMapel);
   if (!kelas) throw new Error('Rombel/mapel tidak ditemukan atau tidak aktif.');
-  var idTutor = String(d.idTutor || kelas.idTutor || '').trim();
+  var idTutor = String(d.idTutor || jadTutorBawaan_(kelas, typeof ubKunciSah_ === 'function' ? ubKunciSah_(d.unit) : '') || '').trim();
   if (!idTutor || !absPetaTutor_()[idTutor]) throw new Error('Pilih tutor pengajar.');
   var hari = String(d.hari || '').trim();
   if (JAD.HARI.indexOf(hari) < 0) throw new Error('Hari tidak dikenal.');

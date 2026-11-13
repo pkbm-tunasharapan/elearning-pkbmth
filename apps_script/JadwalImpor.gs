@@ -179,7 +179,7 @@ function jimRencana_(baris, d, ada, hariIni) {
     var ruang = tL ? (pRuang[norm(tL)] || '') : '', lokasi = tL && !ruang ? tL.replace(/\s+/g, ' ').slice(0, 80) : '';
     target.forEach(function(k) {
       var awal = pkt ? k.namaRombel + ': ' : '';
-      var idT = idT0 || k.idTutor || '';
+      var idT = idT0 || jadTutorBawaan_(k, unit) || '';   // v1.79.3: tutor bawaan dari tab Pengampu
       if (!idT) { galat(awal + 'isi tutor'); return; }
       var baru = { id: 'baris' + no + '|' + k.idRombel, aktif: true, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, mulai: slot.mulai, selesai: slot.selesai,
         dari: dari, sampai: sampai, unit: unit, minggu: minggu, ruang: ruang };
