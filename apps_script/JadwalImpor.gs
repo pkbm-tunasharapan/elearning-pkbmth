@@ -8,7 +8,8 @@
 //   di berkas yang sama). Baris bermasalah tidak disimpan dan ditampilkan alasannya.
 // ============================================================================
 var JIM = { LEMBAR: 'JADWAL', LEMBAR_REF: 'PILIHAN', WARNA: 'FF5B21B6', BARIS_KOSONG: 300, CACHE_DETIK: 1200,
-  KOLOM: ['NO', 'ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'TANGGAL MULAI', 'TANGGAL SELESAI', 'UNIT'] };
+  KOLOM: ['NO', 'ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'TANGGAL MULAI', 'TANGGAL SELESAI', 'UNIT', 'MINGGU KE'],
+  MINGGU: ['Setiap minggu', '1,3', '2,4', '1', '2', '3', '4'] };   // v1.76.0
 var JIM_HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
 function jimWajib_(token) {
@@ -41,7 +42,7 @@ function jimPilihan_() {
 
 // Daftar pilihan (dropdown) untuk kolom B..I dari lembar PILIHAN.
 function jimValidasi_(n) {
-  var akhir = 8 + JIM.BARIS_KOSONG, kol = { B: 'A', C: 'B', D: 'C', E: 'D', F: 'E', I: 'F' }, x = [];
+  var akhir = 8 + JIM.BARIS_KOSONG, kol = { B: 'A', C: 'B', D: 'C', E: 'D', F: 'E', I: 'F', J: 'G' }, x = [];
   Object.keys(kol).forEach(function(c) {
     var ref = kol[c];
     x.push('<dataValidation type="list" allowBlank="1" showErrorMessage="' + (c === 'I' ? '0' : '1') + '" sqref="' + c + '9:' + c + akhir + '">' +
@@ -60,23 +61,23 @@ function waStafPemetaanTemplat(token) {
     [{ v: 'Sesi (durasi)', s: 2 }, { v: d.slot.map(function(s) { return s.label; }).join(', ') }],
     [{ v: 'Satu baris = satu jadwal (satu rombel, satu mapel). Pilih isian dari daftar (ketuk sel kuning). Daftar lengkap ada di lembar PILIHAN.', s: 6 }],
     [{ v: 'TANGGAL ditulis TTTT-BB-HH (mis. 2026-11-16). TANGGAL SELESAI boleh kosong (berlaku terus). UNIT kosong = seluruh siswa rombel; beberapa unit pisahkan koma.', s: 6 }],
-    [{ v: 'Baris yang bentrok atau tidak sah tidak disimpan; alasannya muncul saat pratinjau. Jangan ubah baris 1–8 atau nama lembar.', s: 6 }],
+    [{ v: 'MINGGU KE: kosong / "Setiap minggu" = tiap pekan; "1,3" = minggu ke-1 & 3 bulan itu; "2,4" = minggu ke-2 & 4. Minggu ke-5 (tgl 29–31) ikut 1,3. Jangan ubah baris 1–8 atau nama lembar.', s: 6 }],
     [],
     JIM.KOLOM.map(function(k) { return { v: k, s: 3 }; })
   ];
   for (var n = 1; n <= JIM.BARIS_KOSONG; n++) {
-    b.push([{ v: n, n: true, s: 4 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }]);
+    b.push([{ v: n, n: true, s: 4 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }, { v: '', s: 5 }]);
   }
   var kol = [d.rombel.map(function(x) { return x.nama; }), d.mapel.map(function(x) { return x.label; }), d.tutor.map(function(x) { return x.label; }),
-    JIM_HARI.slice(), d.slot.map(function(x) { return x.label; }), d.unit.map(function(x) { return x.nama; })];
-  var ref = [['ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'UNIT'].map(function(k) { return { v: k, s: 3 }; })];
+    JIM_HARI.slice(), d.slot.map(function(x) { return x.label; }), d.unit.map(function(x) { return x.nama; }), JIM.MINGGU.slice()];
+  var ref = [['ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'UNIT', 'MINGGU KE'].map(function(k) { return { v: k, s: 3 }; })];
   var maks = Math.max.apply(null, kol.map(function(c) { return c.length; }));
   for (var j = 0; j < maks; j++) ref.push(kol.map(function(c) { return { v: c[j] || '', s: 4 }; }));
-  var jml = { A: kol[0].length, B: kol[1].length, C: kol[2].length, D: kol[3].length, E: kol[4].length, F: kol[5].length };
-  var xmlJadwal = nxlSheetXml_(b, [5, 14, 30, 26, 10, 22, 15, 15, 24], ['A1:I1']).replace('</worksheet>', jimValidasi_(jml) + '</worksheet>');
+  var jml = { A: kol[0].length, B: kol[1].length, C: kol[2].length, D: kol[3].length, E: kol[4].length, F: kol[5].length, G: kol[6].length };
+  var xmlJadwal = nxlSheetXml_(b, [5, 14, 30, 26, 10, 22, 15, 15, 24, 15], ['A1:J1']).replace('</worksheet>', jimValidasi_(jml) + '</worksheet>');
   var lembar = [
     { nama: JIM.LEMBAR, xml: xmlJadwal },
-    { nama: JIM.LEMBAR_REF, xml: nxlSheetXml_(ref, [16, 34, 30, 12, 24, 24], []) }
+    { nama: JIM.LEMBAR_REF, xml: nxlSheetXml_(ref, [16, 34, 30, 12, 24, 24, 15], []) }
   ];
   var nama = 'Templat_Jadwal_' + absHariIni_() + '.xlsx';
   var blob = oflZip_(lembar, nxlStylesXml_(JIM.WARNA), nama);
@@ -121,7 +122,7 @@ function jimRencana_(baris, d, ada, hariIni) {
   for (var n = h + 1; n < baris.length; n++) {
     var r2 = baris[n] || [], no = n + 1;
     var tR = sel(r2, 'ROMBEL'), tM = sel(r2, 'MAPEL'), tT = sel(r2, 'TUTOR'), tH = sel(r2, 'HARI'), tS = sel(r2, 'SESI');
-    var tD = sel(r2, 'TANGGAL MULAI'), tE = sel(r2, 'TANGGAL SELESAI'), tU = sel(r2, 'UNIT');
+    var tD = sel(r2, 'TANGGAL MULAI'), tE = sel(r2, 'TANGGAL SELESAI'), tU = sel(r2, 'UNIT'), tW = sel(r2, 'MINGGU KE');
     if (!tR && !tM && !tT && !tH && !tS && !tD && !tE && !tU) { out.kosong++; continue; }
     var galat = function(a) { out.galat.push({ baris: no, isi: [tR, tM, tH, tS].filter(String).join(' · '), alasan: a }); };
     var idR = pRombel[norm(tR)], km = pMapel[norm(tM)] || (/^([A-Za-z0-9]+)\s*-/.exec(tM) ? pMapel[norm(/^([A-Za-z0-9]+)\s*-/.exec(tM)[1])] : null);
@@ -147,14 +148,18 @@ function jimRencana_(baris, d, ada, hariIni) {
       if (salah) { galat('unit "' + salah.trim() + '" tidak dikenal / nonaktif'); continue; }
       unit = ubKunci_(ids);
     }
+    // v1.76.0: Excel bisa mengubah "1,3" menjadi angka 13 / 1.3: digit diambil satu per satu
+    var tW2 = tW.replace(/minggu|ke|dan|-/gi, '').replace(/[\s,.;&]/g, '');
+    if (tW && !/^\s*setiap/i.test(tW) && !/^[1-4]+$/.test(tW2)) { galat('minggu ke "' + tW + '" tidak sah (pilih Setiap minggu, 1,3, atau 2,4)'); continue; }
+    var minggu = jadMingguSah_(tW);
     var baru = { id: 'baris' + no, aktif: true, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, mulai: slot.mulai, selesai: slot.selesai,
-      dari: dari, sampai: sampai, unit: unit };
+      dari: dari, sampai: sampai, unit: unit, minggu: minggu };
     var b = jadBentrok_(rencana, baru, '');
     if (b.length) { galat('bentrok: ' + b.join('; ')); continue; }
     rencana.push(baru);
     var tt = d.tutor.filter(function(x) { return x.id === idT; })[0];
     out.item.push({ baris: no, idRombel: k.idRombel, kodeMapel: k.kodeMapel, idTutor: idT, hari: hari, slot: slot.id, namaSlot: slot.nama, mulai: slot.mulai, selesai: slot.selesai,
-      dari: dari, sampai: sampai, unit: unit, program: k.program || '', namaRombel: k.namaRombel, namaMapel: k.namaMapel, namaTutor: tt ? tt.nama : idT });
+      dari: dari, sampai: sampai, unit: unit, minggu: minggu, program: k.program || '', namaRombel: k.namaRombel, namaMapel: k.namaMapel, namaTutor: tt ? tt.nama : idT });
   }
   return out;
 }
@@ -173,7 +178,7 @@ function waStafPemetaanImporPratinjau(token, d) {
     kunci: kunci, jumlah: { siap: r.item.length, galat: r.galat.length, kosong: r.kosong },
     item: r.item.slice(0, 400).map(function(x) {
       return { baris: x.baris, rombel: x.namaRombel, mapel: x.namaMapel, tutor: x.namaTutor, hari: x.hari, sesi: x.namaSlot + ' ' + x.mulai + '–' + x.selesai,
-        dari: x.dari, sampai: x.sampai, unit: x.unit ? ubNamaKunci_(x.unit) : 'Semua siswa' };
+        dari: x.dari, sampai: x.sampai, unit: x.unit ? ubNamaKunci_(x.unit) : 'Semua siswa', minggu: jadMingguTeks_(x.minggu || '') };
     }),
     galat: r.galat.slice(0, 300)
   };
@@ -187,17 +192,18 @@ function waStafPemetaanImporTerapkan(token, kunci) {
   if (d.oleh !== p.id) throw new Error('Pratinjau ini milik pengguna lain.');
   if (!d.item.length) throw new Error('Tidak ada jadwal yang siap disimpan.');
   if (d.item.some(function(x) { return x.unit; })) ubPastikanKolom_(JAD.TAB_PM, 'UNIT');
+  if (d.item.some(function(x) { return x.minggu; })) ubPastikanKolom_(JAD.TAB_PM, 'MINGGU KE');
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     var pm = jadBacaPm_(), rencana = pm.data.slice(), rows = [], lewat = [];
     d.item.forEach(function(x) {
-      var baru = { id: '', aktif: true, idRombel: x.idRombel, kodeMapel: x.kodeMapel, idTutor: x.idTutor, hari: x.hari, mulai: x.mulai, selesai: x.selesai, dari: x.dari, sampai: x.sampai, unit: x.unit };
+      var baru = { id: '', aktif: true, idRombel: x.idRombel, kodeMapel: x.kodeMapel, idTutor: x.idTutor, hari: x.hari, mulai: x.mulai, selesai: x.selesai, dari: x.dari, sampai: x.sampai, unit: x.unit, minggu: x.minggu || '' };
       var b = jadBentrok_(rencana, baru, '');
       if (b.length) { lewat.push({ baris: x.baris, alasan: b.join('; ') }); return; }
       rencana.push(baru);
       rows.push(absBaris_(pm.t, { 'ID PEMETAAN': absId_(), 'ROMBEL': x.idRombel, 'MAPEL': x.kodeMapel, 'TUTOR': x.idTutor, 'HARI': x.hari, 'JAM MULAI': x.mulai,
-        'JAM SELESAI': x.selesai, 'TANGGAL MULAI': x.dari, 'TANGGAL SELESAI': x.sampai, 'AKTIF': true, 'SESI': x.namaSlot, 'PAKET': x.program, 'UNIT': x.unit }));
+        'JAM SELESAI': x.selesai, 'TANGGAL MULAI': x.dari, 'TANGGAL SELESAI': x.sampai, 'AKTIF': true, 'SESI': x.namaSlot, 'PAKET': x.program, 'UNIT': x.unit, 'MINGGU KE': x.minggu || '' }));
     });
     if (rows.length) pm.t.sh.getRange(pm.t.sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
     c.remove(String(kunci));

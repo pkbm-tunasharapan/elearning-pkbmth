@@ -1563,5 +1563,47 @@ tes('sinkron SIM: peran & status di tab Pengguna tidak ditimpa, peran kosong dii
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 50. jadwal selang-seling minggu ke-1 & 3 / 2 & 4 (v1.76.0)
+tes('jadwal minggu ke: berlaku per minggu dalam bulan, minggu ke-5 ikut 1 & 3, 1,3 vs 2,4 tidak bentrok, impor Excel', () => {
+  const sv = ['jadKelasAktif_', 'agLiburPm_', 'ubPetaUnit_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    sama([g.jadMingguSah_('1,3'), g.jadMingguSah_('2 & 4'), g.jadMingguSah_(13), g.jadMingguSah_('Setiap minggu'), g.jadMingguSah_('1,2,3,4'), g.jadMingguSah_('3,1')],
+      ['1,3', '2,4', '1,3', '', '', '1,3']);
+    g.jadKelasAktif_ = () => ({ 'R1|INF': true, 'R2|BING': true });
+    g.agLiburPm_ = () => false;
+    const a = { aktif: true, idRombel: 'R1', kodeMapel: 'INF', hari: 'Senin', minggu: '1,3', dari: '', sampai: '' };
+    const b = { aktif: true, idRombel: 'R2', kodeMapel: 'BING', hari: 'Senin', minggu: '2,4', dari: '', sampai: '' };
+    // Senin di Juni 2026: 1, 8, 15, 22, 29
+    const tgl = ['2026-06-01', '2026-06-08', '2026-06-15', '2026-06-22', '2026-06-29'];
+    sama(tgl.map((t) => [g.jadBerlaku_(a, t), g.jadBerlaku_(b, t)]), [[true, false], [false, true], [true, false], [false, true], [true, false]]);
+    sama(g.jadBerlaku_(Object.assign({}, a, { minggu: '' }), '2026-06-08'), true, 'kosong = setiap minggu');
+    const ada = [{ id: 'X', aktif: true, idRombel: 'R1', kodeMapel: 'INF', idTutor: 'EKA', hari: 'Senin', mulai: '13:00', selesai: '14:30', dari: '', sampai: '', unit: '', minggu: '1,3' }];
+    const baru = { idRombel: 'R2', kodeMapel: 'BING', idTutor: 'EKA', hari: 'Senin', mulai: '13:00', selesai: '14:30', dari: '', sampai: '', unit: '', minggu: '2,4' };
+    sama(g.jadBentrok_(ada, baru, ''), [], 'Bu Eka minggu 1,3 & 2,4 di sesi yang sama tidak bentrok');
+    sama(g.jadBentrok_(ada, Object.assign({}, baru, { minggu: '' })).length, 1, 'setiap minggu vs 1,3 bentrok');
+    sama(g.jadBentrok_(ada, Object.assign({}, baru, { minggu: '3' })).length, 1, '1,3 vs 3 bentrok');
+    g.ubPetaUnit_ = () => ({});
+    const d = {
+      kelas: [{ idRombel: 'R1', kodeMapel: 'INF', namaRombel: 'B9', namaMapel: 'Informatika', program: 'PKT-B', idTutor: 'EKA' },
+        { idRombel: 'R1', kodeMapel: 'BING', namaRombel: 'B9', namaMapel: 'Bahasa Inggris', program: 'PKT-B', idTutor: 'EKA' }],
+      rombel: [{ id: 'R1', nama: 'B9' }],
+      mapel: [{ kode: 'INF', nama: 'Informatika', label: 'INF - Informatika' }, { kode: 'BING', nama: 'Bahasa Inggris', label: 'BING - Bahasa Inggris' }],
+      tutor: [{ id: 'EKA', nama: 'Eka', label: 'Eka' }],
+      slot: [{ id: 'S1', nama: 'Sesi 1', mulai: '13:00', selesai: '14:30', label: 'Sesi 1 (13:00–14:30)' }],
+      unit: []
+    };
+    const baris = [['NO', 'ROMBEL', 'MAPEL', 'TUTOR', 'HARI', 'SESI', 'TANGGAL MULAI', 'TANGGAL SELESAI', 'UNIT', 'MINGGU KE'],
+      ['1', 'B9', 'INF - Informatika', 'Eka', 'Senin', 'Sesi 1', '', '', '', '1,3'],
+      ['2', 'B9', 'BING - Bahasa Inggris', 'Eka', 'Senin', 'Sesi 1', '', '', '', '2,4'],
+      ['3', 'B9', 'BING - Bahasa Inggris', 'Eka', 'Senin', 'Sesi 1', '', '', '', 'Setiap minggu'],   // bentrok dengan keduanya
+      ['4', 'B9', 'INF - Informatika', 'Eka', 'Selasa', 'Sesi 1', '', '', '', '5']];                 // minggu tidak sah
+    const r = g.jimRencana_(baris, d, [], '2026-11-13');
+    sama([r.item.map((x) => x.minggu), r.galat.map((x) => x.baris)], [['1,3', '2,4'], [4, 5]]);
+    sama([/bentrok/.test(r.galat[0].alasan), /tidak sah/.test(r.galat[1].alasan)], [true, true]);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

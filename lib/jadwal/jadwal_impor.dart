@@ -90,7 +90,8 @@ class _PratinjauJadwal extends StatelessWidget {
                   leading: const Icon(Icons.event_available_rounded, color: Colors.green),
                   title: Text('${teks(x['mapel'])} · ${teks(x['rombel'])}'),
                   subtitle: Text('${teks(x['hari'])} ${teks(x['sesi'])} · ${teks(x['tutor'])}\n'
-                      '${tglIndo(teks(x['dari']))}${teks(x['sampai']).isEmpty ? ' dst.' : ' s.d. ${tglIndo(teks(x['sampai']))}'} · ${teks(x['unit'])}'),
+                      '${tglIndo(teks(x['dari']))}${teks(x['sampai']).isEmpty ? ' dst.' : ' s.d. ${tglIndo(teks(x['sampai']))}'} · ${teks(x['unit'])}'
+                      '${teks(x['minggu']).isEmpty ? '' : ' · ${teks(x['minggu'])}'}'),
                 ),
             ]),
           ),

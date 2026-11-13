@@ -221,7 +221,7 @@ function agKirimNotif_(a) {
     jadBacaPm_().data.forEach(function(x) {
       if (!x.aktif || !x.idTutor) return;
       for (var t = a.dari, i = 0; t <= a.sampai && i <= AG.MAKS_HARI; t = ujtTambahHari_(t, 1), i++) {
-        if (x.hari !== jadHariDari_(t) || (x.dari && t < x.dari) || (x.sampai && t > x.sampai)) continue;
+        if (x.hari !== jadHariDari_(t) || (x.dari && t < x.dari) || (x.sampai && t > x.sampai) || !jadMingguCocok_(x.minggu, t)) continue;
         if (agJadwalLibur_([a], t, x.idRombel, (honProgramRombel_()[x.idRombel] || {}).program, x.unit)) tutor[x.idTutor] = true;
       }
     });

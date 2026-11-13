@@ -5,6 +5,7 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'cetak_jadwal.dart';
 import 'jadwal_impor.dart';
 import 'pengampu_online.dart';
 
@@ -20,6 +21,10 @@ List<Map<String, dynamic>> unikKelas(Iterable<Map<String, dynamic>> l) {
 }
 
 const hariMinggu = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+/// v1.76.0: pola minggu dalam bulan ('' = setiap minggu, '1,3', '2,4'). Minggu ke-5 (tgl 29–31) ikut minggu 1 & 3.
+const pilihanMinggu = [('', 'Setiap minggu'), ('1,3', 'Minggu ke-1 & 3'), ('2,4', 'Minggu ke-2 & 4')];
+String teksMinggu(String m) => m.isEmpty ? '' : 'minggu ke-${m.replaceAll(',', ' & ')}';
 
 /// Jadwal tatap muka: hari ini (dengan status absen tutor) dan pemetaan mingguan.
 class JadwalScreen extends StatefulWidget {
@@ -105,7 +110,8 @@ class _JadwalScreenState extends State<JadwalScreen> {
         ]),
       ),
       title: Text('${teks(x['namaMapel'])} · ${teks(x['namaRombel'])}', maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text([teks(x['namaTutor']), if (teks(x['namaUnit']).isNotEmpty) teks(x['namaUnit']), if (teks(x['slot']).isNotEmpty) teks(x['slot']), if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
+      subtitle: Text([teks(x['namaTutor']), if (teks(x['namaUnit']).isNotEmpty) teks(x['namaUnit']), if (teks(x['slot']).isNotEmpty) teks(x['slot']),
+        if (!status && teks(x['minggu']).isNotEmpty) teksMinggu(teks(x['minggu'])), if (!status && teks(x['sampai']).isNotEmpty) 's.d. ${tglIndo(teks(x['sampai']))}'].join(' · ')),
       trailing: pilih
           ? Checkbox(value: _pilih.contains(id), onChanged: (v) => setState(() => v == true ? _pilih.add(id) : _pilih.remove(id)))
           : status
@@ -196,6 +202,16 @@ class _JadwalScreenState extends State<JadwalScreen> {
                             ]),
                           ),
                         ),
+                      // v1.76.0: cetak jadwal mingguan (semua peran yang bisa melihat jadwal)
+                      if (pm.isNotEmpty && !_pilihMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CetakJadwalScreen())),
+                            icon: const Icon(Icons.print_rounded, size: 18),
+                            label: const Text('Cetak jadwal (PDF / Excel)'),
+                          ),
+                        ),
                       if (kelola && pm.isNotEmpty)
                         Align(
                           alignment: Alignment.centerRight,
@@ -268,6 +284,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
   final Set<String> _rombel = {};
   String _hari = 'Sabtu';
   String? _slot;
+  String _minggu = '';   // v1.76.0
   bool _berulang = true;
   String _periode = 'ini'; // ini | depan | custom
   int _tahun = DateTime.now().year;
@@ -320,6 +337,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
       _slot = _slotList.where((s) => teks(s['nama']) == teks(x['slot'])).map((s) => teks(s['id'])).firstOrNull;
       _dari = teks(x['dari'], _dari);
       _sampai = teks(x['sampai']);
+      _minggu = teks(x['minggu']);
       _unitPilih.addAll(teks(x['unit']).split(',').where((u) => u.isNotEmpty));
       if (!_kelasTutor.any((k) => teks(k['kodeMapel']) == _mapel && teks(k['idRombel']) == teks(x['idRombel']))) _semuaMapel = true;
     }
@@ -349,7 +367,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
     if (_ubah) {
       final r = await jalankan(context, () => Api.instance('waStafPemetaanSimpan', [
             _t,
-            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai, 'unit': _unitPilih.toList()}
+            {'id': teks(widget.x!['id']), 'idRombel': rombel.first, 'kodeMapel': _mapel, 'idTutor': _tutor, 'hari': _hari, 'slot': _slot, 'dari': _dari, 'sampai': _sampai, 'unit': _unitPilih.toList(), 'minggu': _minggu}
           ]), teksProses: 'Menyimpan & memeriksa bentrok...');
       if (r.ok && mounted) {
         kabar(context, 'Jadwal tersimpan.');
@@ -369,6 +387,7 @@ class _FormPemetaanState extends State<FormPemetaan> {
             'slot': _slot,
             'unit': _unitPilih.toList(),
             'tunggal': !_berulang,
+            'minggu': _berulang ? _minggu : '',
             'dari': _berulang ? rg.$1 : _tanggal,
             'sampai': _berulang ? rg.$2 : _tanggal,
           }
@@ -537,6 +556,24 @@ class _FormPemetaanState extends State<FormPemetaan> {
             items: [for (final s in _slotList) DropdownMenuItem(value: teks(s['id']), child: Text('${teks(s['nama'])} (${teks(s['mulai'])}–${teks(s['selesai'])})'))],
             onChanged: (v) => setState(() => _slot = v),
           ),
+          if (_berulang || _ubah) ...[
+            const SizedBox(height: 12),
+            const Text('Minggu ke', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Wrap(spacing: 8, runSpacing: 6, children: [
+              for (final m in pilihanMinggu)
+                ChoiceChip(label: Text(m.$2), selected: _minggu == m.$1, onSelected: (_) => setState(() => _minggu = m.$1)),
+            ]),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                  _minggu.isEmpty
+                      ? 'Berlaku setiap $_hari.'
+                      : 'Berlaku $_hari ${teksMinggu(_minggu)} tiap bulan (tanggal ${_minggu == '1,3' ? '1–7, 15–21, dan 29–31' : '8–14 dan 22–28'}). '
+                          'Jadwal "1 & 3" dan "2 & 4" boleh di jam yang sama untuk tutor yang sama.',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
+          ],
           langkah('5', 'Periode'),
           if (_ubah) ...[
             Row(children: [
@@ -550,8 +587,8 @@ class _FormPemetaanState extends State<FormPemetaan> {
               contentPadding: EdgeInsets.zero,
               value: _berulang,
               onChanged: (v) => setState(() => _berulang = v ?? true),
-              title: const Text('Lakukan berulang (setiap minggu)'),
-              subtitle: Text(_berulang ? 'Setiap $_hari pada periode yang dipilih' : 'Hanya satu tanggal (mis. pertemuan pengganti)'),
+              title: const Text('Lakukan berulang'),
+              subtitle: Text(_berulang ? 'Setiap $_hari${_minggu.isEmpty ? '' : ' ${teksMinggu(_minggu)}'} pada periode yang dipilih' : 'Hanya satu tanggal (mis. pertemuan pengganti)'),
             ),
             if (_berulang) ...[
               Wrap(spacing: 8, runSpacing: 6, children: [
