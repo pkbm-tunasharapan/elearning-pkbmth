@@ -85,6 +85,7 @@ var IZN = {
     ['kwitansi', 'Kwitansi', 'Keuangan', ['Admin', 'Bendahara', 'Kepala Sekolah', 'Front Office'], /^waStafKwitansi(Daftar)?$/],
     ['rekapHonor', 'Rekap Honor', 'Keuangan', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Bendahara'], /^waStafHonor(Rekap|Hitung|Setujui|BatalSetuju|Bayar|BayarBatal|Bukti|Tunggakan|Aturan)$/],
     ['honorSaya', 'Saldo Honor (tutor)', 'Keuangan', ['Tutor'], /^waStafHonorSaya$/],
+    ['slipHonor', 'Slip Honor', 'Keuangan', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Bendahara', 'Tutor'], /^waStafHonorSlip$/],   // v1.72.0
     ['aturHonor', 'Aturan Honor', 'Keuangan', ['Admin'], /^waAdminHonorAturanSimpan$/],
     ['broadcast', 'Broadcast Pemberitahuan', 'Pengguna & Komunikasi', ['Admin'], /^waAdminBroadcast\w*$/],
     ['promosi', 'Popup Promosi', 'Pengguna & Komunikasi', ['Admin'], /^wa(AdminPromosiSimpan|StafPromosiAtur)$/],

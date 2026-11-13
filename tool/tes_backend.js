@@ -1346,5 +1346,36 @@ tes('kwitansi: kop dibaca dari PENGATURAN, kota dari alamat', () => {
   } finally { g.simTab_ = simpan; }
 });
 
+// 43. slip honor (v1.72.0)
+tes('slip honor: rincian beku dibaca dari rekap, Bendahara dipilih, keperluan & status bayar wajib', () => {
+  const r = g.shRincian_({ tarif: 'Bulanan Rp250.000, potong Rp31.250 x 2', catatan: 'Wajib 8 pertemuan, tidak hadir 2 (2026-10-03, 2026-10-10). Jadwal bayar 2026-11-05', jumlah: 6 });
+  sama(r, [{ label: 'Honor bulanan', nilai: 250000 }, { label: 'Pertemuan wajib / hadir', teks: '8 / 6 pertemuan' },
+    { label: 'Potongan tidak hadir (2 × Rp31.250): 2026-10-03, 2026-10-10', nilai: -62500 }]);
+  sama(g.shRincian_({ tarif: '62500', catatan: 'Satuan per sesi', jumlah: 4 }), [{ label: 'Kehadiran', teks: '4 × Rp62.500' }]);
+  const nama = ['bacaPengguna_', 'stafDariToken_', 'absBaca_', 'absPetaTutor_', 'absTutorSaya_'];
+  const simpan = {};
+  nama.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.bacaPengguna_ = () => [{ nama: 'Bendahara', peran: 'Bendahara', status: 'Aktif' }, { nama: 'Dewi Lestari', peran: 'Bendahara', status: 'Aktif' },
+      { nama: 'Rina Sari', peran: 'Bendahara', status: 'Aktif' }, { nama: 'Budi', peran: 'Bendahara', status: 'Nonaktif' }];
+    sama([g.shBendahara_(['rina sari']), g.shBendahara_(['admin'])], ['Rina Sari', 'Dewi Lestari']);
+    g.stafDariToken_ = () => ({ nama: 'Andi Tutor', peran: 'Tutor' });
+    g.absTutorSaya_ = () => ({ id: 'T1' });
+    g.absPetaTutor_ = () => ({ T1: { nama: 'Andi Tutor' }, T2: { nama: 'Lain' } });
+    const hdr = ['ID REKAP', 'BULAN', 'TUTOR', 'JUMLAH HADIR', 'HONOR PER HADIR', 'TOTAL HONOR', 'STATUS', 'CATATAN'];
+    const v = [hdr, ['R1', '2026-10', 'T1', 6, '', 187500, 'Disetujui', ''], ['R2', '2026-10', 'T2', 6, '', 187500, 'Dibayar', '']];
+    g.absBaca_ = () => ({ v, h: Object.fromEntries(hdr.map((x, i) => [x, i])) });
+    let galat = '';
+    try { g.waStafHonorSlip('T', ['R1'], 'ok'); } catch (e) { galat = e.message; }
+    sama(/keperluan/i.test(galat), true);
+    galat = '';
+    try { g.waStafHonorSlip('T', ['R2'], 'Pengajuan pinjaman'); } catch (e) { galat = e.message; }
+    sama(galat, 'Slip ini tidak tersedia untuk Anda.');
+    galat = '';
+    try { g.waStafHonorSlip('T', ['R1'], 'Pengajuan pinjaman'); } catch (e) { galat = e.message; }
+    sama(/belum dibayar/.test(galat), true);
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

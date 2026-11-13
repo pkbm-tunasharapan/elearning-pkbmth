@@ -6,6 +6,7 @@ import '../keuangan/keuangan.dart' show pilihAkunKas;
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
+import 'slip_honor.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -14,6 +15,9 @@ String rp(dynamic n) {
   final s = v.abs().toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.');
   return '${v < 0 ? '-' : ''}Rp$s';
 }
+
+/// v1.72.0: slip honor hanya tersedia untuk honor yang sudah dibayar.
+bool _sudahBayar(Map<String, dynamic> r) => (teks(r['status']) == 'Dibayar' || teks(r['status']) == 'Dibayar Sebagian') && angka(r['dibayar']) > 0;
 
 const _namaBulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 String bulanIndo(String ym) {
@@ -247,6 +251,15 @@ class HonorSayaScreen extends StatelessWidget {
                 children: [
                   if (teks(r['catatan']).isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Text(teks(r['catatan']), style: const TextStyle(fontSize: 12.5))),
                   _DaftarBayar(bayar: daftar(r['pembayaran']).map(peta).toList()),
+                  if (_sudahBayar(r))
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                            onPressed: () => cetakSlipHonor(context, [teks(r['id'])]), icon: const Icon(Icons.receipt_long_rounded, size: 18), label: const Text('Unduh slip honor')),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -362,6 +375,14 @@ class _RekapHonorScreenState extends State<RekapHonorScreen> {
                     Text('${_infoAturan(aturan)}${teks(aturan['mode'], 'bulanan') == 'kehadiran' && peta(aturan['tarifProgram']).isNotEmpty ? ' (ada tarif khusus per program)' : ''} '
                         'Honor ditahan bila ada tunggakan e-learning.',
                         style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                    if (rekap.any(_sudahBayar)) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => cetakSlipHonor(context, rekap.where(_sudahBayar).map((r) => teks(r['id'])).toList()),
+                        icon: const Icon(Icons.receipt_long_rounded),
+                        label: Text('Unduh semua slip honor (${rekap.where(_sudahBayar).length})'),
+                      ),
+                    ],
                     if (peran['kelola'] == true) ...[
                       const SizedBox(height: 8),
                       FilledButton.icon(onPressed: _hitung, icon: const Icon(Icons.calculate_rounded), label: Text(rekap.isEmpty ? 'Hitung honor bulan ini' : 'Hitung ulang')),
@@ -414,6 +435,9 @@ class _RekapHonorScreenState extends State<RekapHonorScreen> {
                           FilledButton.icon(onPressed: () => _setujui(r), icon: const Icon(Icons.verified_rounded, size: 18), label: const Text('Setujui')),
                         if (peran['setuju'] == true && teks(r['status']) == 'Disetujui' && angka(r['dibayar']) == 0)
                           TextButton(onPressed: () => _batal(r), child: const Text('Batalkan persetujuan')),
+                        if (_sudahBayar(r))
+                          OutlinedButton.icon(
+                              onPressed: () => cetakSlipHonor(context, [teks(r['id'])]), icon: const Icon(Icons.receipt_long_rounded, size: 18), label: const Text('Slip honor')),
                         if (peran['bayar'] == true && (teks(r['status']) == 'Disetujui' || teks(r['status']) == 'Dibayar Sebagian'))
                           FilledButton.tonalIcon(onPressed: () => _bayar(r), icon: const Icon(Icons.payments_rounded, size: 18), label: Text('Bayar ${rp(r['sisa'])}')),
                       ]),

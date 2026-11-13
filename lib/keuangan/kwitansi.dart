@@ -29,7 +29,7 @@ Future<void> cetakKwitansi(BuildContext context, List<String> ids, {bool siswa =
   await bukaPdfBytes(context, r.data!, ids.length == 1 ? 'Kwitansi_${ids.first}.pdf' : 'Kwitansi_${tanggalBerkas()}.pdf');
 }
 
-Future<Uint8List> _pngQr(String data) async {
+Future<Uint8List> pngQr(String data) async {
   const sisi = 300.0;
   final rec = ui.PictureRecorder();
   final c = Canvas(rec);
@@ -38,6 +38,54 @@ Future<Uint8List> _pngQr(String data) async {
   final img = await rec.endRecording().toImage(sisi.round(), sisi.round());
   final b = await img.toByteData(format: ui.ImageByteFormat.png);
   return b!.buffer.asUint8List();
+}
+
+/// v1.72.0: kop surat bersama (kwitansi, slip honor): logo kiri, yayasan + lembaga + baris keterangan di tengah, garis ganda.
+class KopPdf {
+  KopPdf._(this.logo, this.yayasan, this.nama, this.baris, this.kota);
+  final PdfBitmap? logo;
+  final String yayasan, nama, kota;
+  final List<String> baris;
+
+  static Future<KopPdf> siapkan(Map<String, dynamic> kop) async {
+    Uint8List? b;
+    try {
+      b = teks(kop['logo']).isNotEmpty ? base64Decode(teks(kop['logo'])) : (await rootBundle.load('assets/logo_kop.png')).buffer.asUint8List();
+    } catch (_) {
+      b = null;
+    }
+    return KopPdf._(b == null ? null : PdfBitmap(b), teks(kop['yayasan']), teks(kop['nama']),
+        daftar(kop['baris']).map((e) => teks(e)).where((e) => e.isNotEmpty).toList(), teks(kop['kota']));
+  }
+
+  /// Gambar kop di (x, y) selebar w; mengembalikan posisi y garis bawah kop (garis ganda sudah digambar).
+  double gambar(PdfGraphics g, double x, double y, double w, {String namaCadangan = 'PKBM'}) {
+    PdfFont f(double s, {bool b = false}) => PdfStandardFont(PdfFontFamily.helvetica, s, multiStyle: [b ? PdfFontStyle.bold : PdfFontStyle.regular]);
+    final hitam = PdfSolidBrush(PdfColor(20, 20, 20));
+    final fmt = PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.top, wordWrap: PdfWordWrapType.word);
+    const sisi = 52.0;
+    final xT = x + sisi + 6, wT = w - 2 * (sisi + 6);
+    var yk = y;
+    if (yayasan.isNotEmpty) {
+      g.drawString(yayasan.toUpperCase(), f(9, b: true), brush: hitam, bounds: Rect.fromLTWH(xT, yk, wT, 11), format: fmt);
+      yk += 11;
+    }
+    g.drawString((nama.isEmpty ? namaCadangan : nama).toUpperCase(), f(14, b: true), brush: hitam, bounds: Rect.fromLTWH(xT, yk, wT, 17), format: fmt);
+    yk += 17;
+    final fK = f(6.3);
+    for (final t in baris) {
+      final h = fK.measureString(t, layoutArea: Size(wT, 0), format: fmt).height + 0.6;
+      g.drawString(t, fK, brush: hitam, bounds: Rect.fromLTWH(xT, yk, wT, h), format: fmt);
+      yk += h;
+    }
+    final lg = logo;
+    final tl = lg == null ? 0.0 : sisi * lg.height / lg.width;
+    if (lg != null) g.drawImage(lg, Rect.fromLTWH(x, y + (((yk - y) - tl) > 0 ? ((yk - y) - tl) / 2 : 0), sisi, tl));
+    final yG = (yk > y + tl ? yk : y + tl) + 4;
+    g.drawLine(PdfPen(PdfColor(20, 20, 20), width: 1.6), Offset(x, yG), Offset(x + w, yG));
+    g.drawLine(PdfPen(PdfColor(20, 20, 20), width: 0.5), Offset(x, yG + 2.6), Offset(x + w, yG + 2.6));
+    return yG;
+  }
 }
 
 /// PDF F4 portrait (21,5 × 33 cm), 3 kwitansi per halaman dengan garis potong.
@@ -58,20 +106,8 @@ Future<List<int>> pdfKwitansi(List<Map<String, dynamic>> kw, [Map<String, dynami
   final garisPotong = PdfPen(PdfColor(150, 150, 150), width: 0.6)..dashStyle = PdfDashStyle.dash;
   const tinggiSlot = 935.43 / 3, lebar = 609.45, tepi = 26.0;
   const w = lebar - 2 * tepi;
-  // kop: sama untuk semua kwitansi
-  Uint8List? logo;
-  try {
-    logo = teks(kop['logo']).isNotEmpty ? base64Decode(teks(kop['logo'])) : (await rootBundle.load('assets/logo_kop.png')).buffer.asUint8List();
-  } catch (_) {
-    logo = null;
-  }
-  final bmpLogo = logo == null ? null : PdfBitmap(logo);
-  const sisiLogo = 52.0;
-  const xTeks = tepi + sisiLogo + 6, wTeks = w - 2 * (sisiLogo + 6);
-  final yayasan = teks(kop['yayasan']);
-  final barisKop = daftar(kop['baris']).map((e) => teks(e)).where((e) => e.isNotEmpty).toList();
-  final fKet = f(s: 6.3);
-  final kota = teks(kop['kota']);
+  final kp = await KopPdf.siapkan(kop);
+  final kota = kp.kota;
   late PdfGraphics g;
   for (var n = 0; n < kw.length; n++) {
     if (n % 3 == 0) g = doc.pages.add().graphics;
@@ -83,32 +119,12 @@ Future<List<int>> pdfKwitansi(List<Map<String, dynamic>> kw, [Map<String, dynami
     final y0 = top + 17;
     if (n % 3 != 2) g.drawLine(garisPotong, Offset(8, top + tinggiSlot), Offset(lebar - 8, top + tinggiSlot));
     g.drawRectangle(pen: garisTipis, bounds: Rect.fromLTWH(tepi - 10, top + 10, w + 20, tinggiSlot - 20));
-    // ── kop surat ──
-    var yk = y0;
-    if (yayasan.isNotEmpty) {
-      g.drawString(yayasan.toUpperCase(), f(s: 9, b: true), brush: hitam, bounds: Rect.fromLTWH(xTeks, yk, wTeks, 11), format: tengahAtas);
-      yk += 11;
-    }
-    g.drawString(teks(kop['nama'], teks(l['nama'], 'PKBM')).toUpperCase(), f(s: 14, b: true), brush: hitam, bounds: Rect.fromLTWH(xTeks, yk, wTeks, 17), format: tengahAtas);
-    yk += 17;
-    for (final b in barisKop) {
-      final t = fKet.measureString(b, layoutArea: const Size(wTeks, 0), format: tengahAtas).height + 0.6;
-      g.drawString(b, fKet, brush: hitam, bounds: Rect.fromLTWH(xTeks, yk, wTeks, t), format: tengahAtas);
-      yk += t;
-    }
-    final tinggiLogo = bmpLogo == null ? 0.0 : sisiLogo * bmpLogo.height / bmpLogo.width;
-    if (bmpLogo != null) {
-      final yl = y0 + ((yk - y0) - tinggiLogo).clamp(0, 999) / 2;
-      g.drawImage(bmpLogo, Rect.fromLTWH(tepi, yl, sisiLogo, tinggiLogo));
-    }
-    final yGaris = (yk > y0 + tinggiLogo ? yk : y0 + tinggiLogo) + 4;
-    g.drawLine(PdfPen(PdfColor(20, 20, 20), width: 1.6), Offset(tepi, yGaris), Offset(tepi + w, yGaris));
-    g.drawLine(PdfPen(PdfColor(20, 20, 20), width: 0.5), Offset(tepi, yGaris + 2.6), Offset(tepi + w, yGaris + 2.6));
+    final yGaris = kp.gambar(g, tepi, y0, w, namaCadangan: teks(l['nama'], 'PKBM'));
     // ── judul + nomor (kiri/tengah), QR (kanan) ──
     const qr = 58.0;
     const wIsi = w - qr - 12;
     final yJ = yGaris + 9;
-    g.drawImage(PdfBitmap(await _pngQr(teks(k['url']))), Rect.fromLTWH(tepi + w - qr, yJ - 2, qr, qr));
+    g.drawImage(PdfBitmap(await pngQr(teks(k['url']))), Rect.fromLTWH(tepi + w - qr, yJ - 2, qr, qr));
     g.drawString('Pindai untuk verifikasi', f(s: 5.5), brush: abu, bounds: Rect.fromLTWH(tepi + w - qr - 6, yJ + qr - 1, qr + 12, 8), format: tengahAtas);
     g.drawString(keluar ? 'KWITANSI PENGELUARAN' : 'KWITANSI', f(s: 14, b: true), brush: hitam, bounds: Rect.fromLTWH(tepi, yJ, 220, 18), format: kiri);
     g.drawString('No. ${teks(k['nomor'])}', f(s: 9, b: true), brush: hitam, bounds: Rect.fromLTWH(tepi + wIsi - 180, yJ, 180, 12), format: kanan);

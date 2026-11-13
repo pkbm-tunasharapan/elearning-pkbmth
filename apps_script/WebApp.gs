@@ -24,6 +24,7 @@
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.kw) return kwHalaman_(String(e.parameter.kw));   // v1.69.0: verifikasi kwitansi (QR), tetap jalan saat pemeliharaan
+  if (e && e.parameter && e.parameter.sh) return shHalaman_(String(e.parameter.sh));   // v1.72.0: verifikasi slip honor (QR)
   if (mtAktif_() && !(e && e.parameter && e.parameter.halaman === 'staf')) return mtHalaman_();
   pastikanSemuaSheetAda();
   if (e && e.parameter && e.parameter.halaman === 'staf') {
