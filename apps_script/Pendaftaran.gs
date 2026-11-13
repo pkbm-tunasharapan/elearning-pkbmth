@@ -418,6 +418,8 @@ function waDaftarVerifikasi(sesi, kodeOtp) {
   }
   cache.remove('otpdaftar_' + sesi);
   catat_('Siswa', o.d.idRombel, o.d.nama, 'Daftar - berhasil', 'email ' + maskEmail_(o.d.email), 'OK');
+  // v1.74.1: pendaftaran berhasil -> catatan "Calon siswa" orang ini menjadi "Siswa"
+  try { var nsD = {}; nsD[normNama_(o.d.nama)] = true; aktCalonJadiSiswa_(nsD); } catch (eA) {}
   return { sukses: true, nama: o.d.nama, namaRombel: getNamaRombel_(o.d.idRombel), kodeAkses: kodeAkses, kataSandi: kataSandiDariTanggal_(o.d.tgl) };
 }
 

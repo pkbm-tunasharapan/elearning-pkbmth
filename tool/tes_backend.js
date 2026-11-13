@@ -1450,5 +1450,37 @@ tes('laporan pemetaan: rekap unit × rombel × layanan, siswa tanpa label ke uni
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 46. log aktivitas per nama + calon siswa -> siswa (v1.74.1)
+tes('log aktivitas: daftar orang per nama, kunci lama dikenali, calon siswa aktif jadi siswa', () => {
+  const sv = ['wajibAdmin_', 'pastikanSheetAktivitas_', 'aktRapikanCalonSekali_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const data = [
+      ['2026-11-01 08:00:00', 'Calon siswa', '', 'ISMAWATI', 'Daftar', '', 'OK'],
+      ['2026-11-01 08:05:00', 'Siswa', 'R1', 'Ismawati ', 'Masuk', '', 'OK'],
+      ['2026-11-01 08:06:00', 'Siswa', 'R1', 'ISMAWATI', 'Absensi', '', 'OK'],
+      ['2026-11-01 09:00:00', 'Staf', '', 'Administrator', 'Masuk', 'kode salah', 'GAGAL'],
+      ['2026-11-01 09:01:00', 'Admin', '', 'Administrator', 'Masuk', '', 'OK'],
+      ['2026-11-01 10:00:00', 'Calon siswa', '', 'Budi', 'Daftar - OTP salah', '', 'GAGAL'],
+    ];
+    const ditulis = [];
+    const sh = {
+      getLastRow: () => data.length + 1,
+      getRange: (r, c, nr, nc) => ({
+        getValues: () => data.slice(r - 2, r - 2 + nr).map((x) => x.slice(c - 1, c - 1 + nc)),
+        setValue: (val) => { ditulis.push([r, c, val]); data[r - 2][c - 1] = val; },
+      }),
+    };
+    g.wajibAdmin_ = () => ({}); g.pastikanSheetAktivitas_ = () => sh; g.aktRapikanCalonSekali_ = () => 0;
+    const a = g.waAdminLog('T', '');
+    sama(a.orang.map((o) => [o.nama, o.peran, o.jumlah]), [['Administrator', 'Admin · Staf', 2], ['Budi', 'Calon siswa', 1], ['ISMAWATI', 'Siswa · Calon siswa', 3]]);
+    sama(g.waAdminLog('T', 'N|ismawati').riwayat.length, 3);
+    sama(g.waAdminLog('T', 'Siswa|ismawati').riwayat.length, 3, 'kunci lama (APK lama) tetap jalan');
+    const n = g.aktCalonJadiSiswa_({ ismawati: true });
+    sama([n, ditulis, data[5][1]], [1, [[2, 2, 'Siswa']], 'Calon siswa']);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

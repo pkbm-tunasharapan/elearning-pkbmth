@@ -57,26 +57,72 @@ function kunciOrang_(peran, nama) {
 
 // Mengembalikan daftar orang (dari log) dan riwayat satu orang (kunci = "Peran|nama").
 // kunci kosong -> riwayat terbaru dari semua orang.
+// v1.74.1: daftar orang dikelompokkan per NAMA (bukan peran + nama). Satu orang yang tercatat dengan beberapa
+// peran (mis. Front Office, Siswa, Staf saat login gagal, Sistem untuk proses otomatis) tampil sekali, dengan semua
+// perannya. Kunci = 'N|<nama dinormalkan>'; kunci lama 'Peran|nama' tetap dikenali (dicocokkan lewat namanya).
 function waAdminLog(token, kunci) {
   wajibAdmin_(token);
+  try { aktRapikanCalonSekali_(); } catch (eR) {}
   var sh = pastikanSheetAktivitas_();
   var akhir = sh.getLastRow();
   if (akhir < 2) return { orang: [], riwayat: [], dibatasi: false };
   var mulai = Math.max(2, akhir - AKTIVITAS.BATAS_BACA + 1);
   var data = sh.getRange(mulai, 1, akhir - mulai + 1, 7).getValues();
+  var pilih = aktNamaKunci_(kunci);
   var orang = {}, riwayat = [];
   for (var i = data.length - 1; i >= 0; i--) {
     var r = data[i];
     var nama = sTeks_(r[3]).trim();
     if (!nama) continue;
-    var k = kunciOrang_(sTeks_(r[1]), nama);
-    if (!orang[k]) orang[k] = { kunci: k, peran: sTeks_(r[1]), nama: nama, jumlah: 0, terakhir: sTeks_(r[0]) };
-    orang[k].jumlah++;
-    if ((!kunci || k === kunci) && riwayat.length < AKTIVITAS.BATAS_TAMPIL) {
-      riwayat.push({ waktu: sTeks_(r[0]), peran: sTeks_(r[1]), kelas: sTeks_(r[2]), nama: nama, aksi: sTeks_(r[4]), detail: sTeks_(r[5]), hasil: sTeks_(r[6]) });
+    var nn = normNama_(nama), k = 'N|' + nn, peran = sTeks_(r[1]).trim();
+    var o = orang[k] || (orang[k] = { kunci: k, peranHit: {}, nama: nama, jumlah: 0, terakhir: sTeks_(r[0]) });
+    o.jumlah++;
+    if (peran) o.peranHit[peran] = (o.peranHit[peran] || 0) + 1;
+    if ((!pilih || nn === pilih) && riwayat.length < AKTIVITAS.BATAS_TAMPIL) {
+      riwayat.push({ waktu: sTeks_(r[0]), peran: peran, kelas: sTeks_(r[2]), nama: nama, aksi: sTeks_(r[4]), detail: sTeks_(r[5]), hasil: sTeks_(r[6]) });
     }
   }
-  var daftar = Object.keys(orang).map(function(k) { return orang[k]; });
+  var daftar = Object.keys(orang).map(function(k) {
+    var o = orang[k], ph = o.peranHit;
+    o.peran = Object.keys(ph).sort(function(a, b) { return ph[b] - ph[a]; }).join(' · ');
+    delete o.peranHit;
+    return o;
+  });
   daftar.sort(function(a, b) { return a.nama.localeCompare(b.nama); });
   return { orang: daftar, riwayat: riwayat, dibatasi: mulai > 2 };
+}
+// Nama (dinormalkan) dari kunci pilihan: 'N|nama' (baru) atau 'Peran|nama' (lama). '' = semua orang.
+function aktNamaKunci_(kunci) {
+  var s = String(kunci || '');
+  if (!s) return '';
+  var i = s.indexOf('|');
+  return normNama_(i >= 0 ? s.slice(i + 1) : s);
+}
+
+// v1.74.1: catatan pendaftaran berlabel "Calon siswa" milik siswa yang sudah aktif -> "Siswa".
+// namaSet: {namaDinormalkan: true}. Hanya kolom Peran yang diubah. Mengembalikan jumlah baris yang diubah.
+function aktCalonJadiSiswa_(namaSet) {
+  if (!namaSet || !Object.keys(namaSet).length) return 0;
+  var sh = pastikanSheetAktivitas_(), akhir = sh.getLastRow();
+  if (akhir < 2) return 0;
+  var rg = sh.getRange(2, 2, akhir - 1, 3), v = rg.getValues(), ubah = 0;
+  for (var i = 0; i < v.length; i++) {
+    if (sTeks_(v[i][0]).trim() !== 'Calon siswa' || !namaSet[normNama_(v[i][2])]) continue;
+    sh.getRange(i + 2, 2).setValue('Siswa');
+    ubah++;
+  }
+  return ubah;
+}
+// Sekali jalan untuk catatan lama: siswa yang sudah punya akun (kode akses terisi di tab Siswa).
+function aktRapikanCalonSekali_() {
+  var sp = PropertiesService.getScriptProperties();
+  if (sp.getProperty('AKT_CALON_RAPI') === '1') return 0;
+  var aktif = {};
+  getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
+    if (i > 0 && sTeks_(r[1]).trim() && sTeks_(r[3]).trim()) aktif[normNama_(r[1])] = true;
+  });
+  var n = aktCalonJadiSiswa_(aktif);
+  sp.setProperty('AKT_CALON_RAPI', '1');
+  catat_('Sistem', '', 'Sistem', 'Rapikan log aktivitas', n + ' catatan "Calon siswa" milik siswa aktif diubah menjadi "Siswa"', 'OK');
+  return n;
 }
