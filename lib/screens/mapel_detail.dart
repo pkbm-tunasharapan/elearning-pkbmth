@@ -651,6 +651,7 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
   final Map<String, TextEditingController> _skor = {};
   final Map<String, TextEditingController> _kom = {};
   final Map<String, Map<String, dynamic>> _ai = {};
+  final Set<String> _pilih = {};   // v1.75.0: tanggapan yang dinilai AI (pilih semua / per siswa)
   Map<String, dynamic> _catatan = {};
   bool _setuju = false;
   bool _aiJalan = false;
@@ -684,19 +685,25 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
     }
   }
 
+  /// v1.75.0: tanggapan yang boleh dinilai tutor ini (siswa unit lain dinilai Tutor Online unitnya).
+  List<String> get _bisaDinilai => daftar(_d?['jawaban']).map(peta).where((j) => j['bolehNilai'] != false).map((j) => teks(j['siswa'])).toList();
+
   Future<void> _nilaiAi() async {
+    // Ada pilihan: AI menilai yang dipilih saja dan skornya menimpa isian. Tanpa pilihan: semua, hanya mengisi yang kosong.
+    final pilihan = _pilih.where(_bisaDinilai.contains).toList();
+    final timpa = pilihan.isNotEmpty;
     setState(() {
       _aiJalan = true;
-      _aiPesan = 'AI sedang membaca tanggapan...';
+      _aiPesan = timpa ? 'AI sedang membaca ${pilihan.length} tanggapan terpilih...' : 'AI sedang membaca tanggapan...';
     });
     var mulai = 0;
     try {
       while (mulai >= 0 && mounted) {
-        final r = peta(await Api.instance('waStafDiskusiNilaiAi', [_t, widget.idMapel, _idMateri, mulai], const Duration(seconds: 300)));
+        final r = peta(await Api.instance('waStafDiskusiNilaiAi', [_t, widget.idMapel, _idMateri, mulai, pilihan], const Duration(seconds: 300)));
         for (final h in daftar(r['hasil']).map(peta)) {
           final s = teks(h['siswa']);
           _ai[s] = h;
-          if (h['skor'] != null && (_skor[s]?.text.trim().isEmpty ?? false)) _skor[s]!.text = teks(h['skor']);
+          if (h['skor'] != null && _skor[s] != null && (timpa || _skor[s]!.text.trim().isEmpty)) _skor[s]!.text = teks(h['skor']);
         }
         mulai = angka(r['berikut'], -1);
         if (mounted) setState(() => _aiPesan = mulai < 0 ? 'Selesai. Periksa saran AI, lalu simpan.' : 'Dinilai $mulai dari ${angka(r['total'])}...');
@@ -710,8 +717,9 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
 
   Future<void> _simpan() async {
     final daftarNilai = <Map<String, dynamic>>[];
+    final boleh = _bisaDinilai.toSet();
     _skor.forEach((s, c) {
-      if (c.text.trim().isEmpty) return;
+      if (c.text.trim().isEmpty || !boleh.contains(s)) return;
       daftarNilai.add({
         'siswa': s,
         'skor': num.tryParse(c.text.trim().replaceAll(',', '.')),
@@ -756,7 +764,7 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
                       child: OutlinedButton.icon(
                         onPressed: _aiJalan ? null : _nilaiAi,
                         icon: _aiJalan ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded),
-                        label: const Text('Saran AI'),
+                        label: Text(_pilih.isEmpty ? 'Saran AI' : 'Saran AI (${_pilih.length})'),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -800,6 +808,26 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
                           ]),
                         ),
                       JudulBagian('Tanggapan', sub: '${daftar(d['jawaban']).length} siswa'),
+                      if (widget.bolehNilai && _bisaDinilai.isNotEmpty)
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          tristate: true,
+                          value: _pilih.isEmpty ? false : (_pilih.length >= _bisaDinilai.length ? true : null),
+                          onChanged: (_) => setState(() {
+                            if (_pilih.length >= _bisaDinilai.length) {
+                              _pilih.clear();
+                            } else {
+                              _pilih
+                                ..clear()
+                                ..addAll(_bisaDinilai);
+                            }
+                          }),
+                          title: Text('Pilih semua untuk dinilai AI (${_pilih.length}/${_bisaDinilai.length})', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: const Text('Saran AI menilai tanggapan yang dicentang dan mengisi skornya. Tanpa centang: hanya mengisi skor yang masih kosong.',
+                              style: TextStyle(fontSize: 12)),
+                        ),
                       if (daftar(d['jawaban']).isEmpty) const Kosong(pesan: 'Belum ada tanggapan.', ikon: Icons.forum_outlined),
                       for (final j in daftar(d['jawaban']).map(peta))
                         _KartuJawaban(
@@ -807,7 +835,12 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
                           skor: _skor[teks(j['siswa'])]!,
                           komentar: _kom[teks(j['siswa'])]!,
                           ai: _ai[teks(j['siswa'])],
-                          bolehNilai: widget.bolehNilai,
+                          bolehNilai: widget.bolehNilai && j['bolehNilai'] != false,
+                          unitLain: widget.bolehNilai && j['bolehNilai'] == false,
+                          dipilih: _pilih.contains(teks(j['siswa'])),
+                          onPilih: widget.bolehNilai && j['bolehNilai'] != false
+                              ? (v) => setState(() => v ? _pilih.add(teks(j['siswa'])) : _pilih.remove(teks(j['siswa'])))
+                              : null,
                           catatan: _catatan[_kunciNama(teks(j['siswa']))] == null ? null : peta(_catatan[_kunciNama(teks(j['siswa']))]),
                         ),
                       if (daftar(d['belum']).isNotEmpty) ...[
@@ -824,8 +857,12 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
 String _kunciNama(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 class _KartuJawaban extends StatelessWidget {
-  const _KartuJawaban({required this.j, required this.skor, required this.komentar, required this.ai, required this.bolehNilai, this.catatan});
+  const _KartuJawaban({required this.j, required this.skor, required this.komentar, required this.ai, required this.bolehNilai, this.catatan,
+      this.unitLain = false, this.dipilih = false, this.onPilih});
   final Map<String, dynamic>? catatan;
+  final bool unitLain;
+  final bool dipilih;
+  final ValueChanged<bool>? onPilih;
   final Map<String, dynamic> j;
   final TextEditingController skor;
   final TextEditingController komentar;
@@ -841,6 +878,11 @@ class _KartuJawaban extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
+            if (onPilih != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: SizedBox(width: 24, height: 24, child: Checkbox(value: dipilih, onChanged: (v) => onPilih!(v == true))),
+              ),
             CircleAvatar(
               radius: 17,
               backgroundColor: Gaya.warnaMenu(nama).withValues(alpha: 0.15),
@@ -898,6 +940,9 @@ class _KartuJawaban extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(child: TextField(controller: komentar, decoration: const InputDecoration(labelText: 'Komentar (opsional)', isDense: true))),
             ]),
+          ] else if (unitLain) ...[
+            const SizedBox(height: 8),
+            Text('Siswa unit lain: dinilai oleh Tutor Online unitnya.', style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: cs.onSurfaceVariant)),
           ] else if (teks(j['komentar']).isNotEmpty) ...[
             const SizedBox(height: 8),
             Text('Komentar: ${teks(j['komentar'])}', style: TextStyle(fontStyle: FontStyle.italic, color: cs.onSurfaceVariant)),

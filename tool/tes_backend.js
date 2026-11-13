@@ -1501,5 +1501,33 @@ tes('izin: Tutor dengan Mata Pelajaran "tidak" tetap bisa menilai diskusi; izin 
   } finally { g.izData_ = simpan; }
 });
 
+// 48. saran AI diskusi: siswa unit lain ditandai, AI hanya untuk tanggapan terpilih (v1.75.0)
+tes('diskusi: siswa unit lain ditandai tidak dinilai, saran AI mengikuti pilihan tutor', () => {
+  const sv = ['wajibMapel_', 'wajibPengampu_', 'ndPastikanDiskusi_', 'ndDaftarJawaban_', 'bacaRoster_', 'ndBolehNilai_', 'pgoSaringSiswaBm_',
+    'aiWajibSiap_', 'hitung_', 'aiPanggil_', 'aiParseJson_', 'aiTeksDariRespons_', 'ndBangunPrompt_', 'kmCatat_', 'aiRingkasPakai_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const r = { p: { id: 'U1', nama: 'Pak Tutor', peran: 'Tutor' }, m: { idMapel: 'M1', idRombel: 'R1', namaMapel: 'PAI' } };
+    g.wajibMapel_ = () => r; g.wajibPengampu_ = () => r; g.ndBolehNilai_ = () => true;
+    g.ndPastikanDiskusi_ = () => ({ judul: 'Diskusi', pertanyaan: 'Apa itu ilmu kalam?' });
+    g.ndDaftarJawaban_ = () => ({ baris: [{ siswa: 'DIAN', jawaban: 'a' }, { siswa: 'Ismawati', jawaban: 'b' }, { siswa: 'Patna', jawaban: 'c' }, { siswa: 'Tono', jawaban: 'd' }] });
+    g.bacaRoster_ = () => [{ nama: 'DIAN', k: 'dian' }, { nama: 'Ismawati', k: 'ismawati' }, { nama: 'Patna', k: 'patna' }, { nama: 'Tono', k: 'tono' }];
+    g.pgoSaringSiswaBm_ = () => (n) => n !== 'Ismawati' && n !== 'Patna';   // Ismawati & Patna: unit lain
+    const s = g.waStafSesiDiskusi('T', 'M1', 'X1');
+    sama(s.jawaban.map((j) => [j.siswa, j.bolehNilai]), [['DIAN', true], ['Ismawati', false], ['Patna', false], ['Tono', true]]);
+    let dikirim = 0;
+    g.aiWajibSiap_ = () => {}; g.hitung_ = () => 1; g.ndBangunPrompt_ = (m, q, butir) => { dikirim = butir.length; return ''; };
+    g.aiPanggil_ = () => ({ json: {} }); g.aiTeksDariRespons_ = () => ''; g.kmCatat_ = () => {}; g.aiRingkasPakai_ = () => '';
+    g.aiParseJson_ = () => ({ hasil: [{ no: 1, skor: 88, alasan: 'ok' }, { no: 2, skor: 77, alasan: 'ok' }] });
+    const semua = g.ndNilaiAiInti_('T', 'M1', 'X1', 0);
+    sama([semua.hasil.map((h) => h.siswa), semua.total, dikirim], [['DIAN', 'Tono'], 2, 2], 'tanpa pilihan: semua siswa unitnya');
+    const pilih = g.ndNilaiAiInti_('T', 'M1', 'X1', 0, ['tono ', 'Patna']);
+    sama([pilih.hasil.map((h) => [h.siswa, h.skor]), pilih.total], [[['Tono', 88]], 1], 'pilihan dibatasi unit; unit lain tetap tidak dinilai');
+    g.pgoSaringSiswaBm_ = () => null;
+    sama(g.waStafSesiDiskusi('T', 'M1', 'X1').jawaban.every((j) => j.bolehNilai), true, 'tanpa batas unit: semua boleh');
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

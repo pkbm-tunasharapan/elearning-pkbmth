@@ -144,11 +144,12 @@ function ndBangunPrompt_(mapel, pertanyaan, butir) {
 }
 
 // Dipanggil berulang oleh klien (ND.PER_PANGGILAN tanggapan per panggilan) supaya tiap panggilan jauh di bawah batas waktu.
-function waStafDiskusiNilaiAi(token, idMapel, idMateri, mulai) {
-  return aiLindungi_(token, function() { return ndNilaiAiInti_(token, idMapel, idMateri, mulai); });
+// pilih (opsional, v1.75.0): daftar nama siswa yang dipilih tutor; kosong/tidak dikirim = semua tanggapan.
+function waStafDiskusiNilaiAi(token, idMapel, idMateri, mulai, pilih) {
+  return aiLindungi_(token, function() { return ndNilaiAiInti_(token, idMapel, idMateri, mulai, pilih); });
 }
 
-function ndNilaiAiInti_(token, idMapel, idMateri, mulai) {
+function ndNilaiAiInti_(token, idMapel, idMateri, mulai, pilih) {
   var r = wajibPengampu_(token, idMapel);
   aiWajibSiap_();
   var d = ndPastikanDiskusi_(idMapel, idMateri);
@@ -156,6 +157,11 @@ function ndNilaiAiInti_(token, idMapel, idMateri, mulai) {
   var data = ndDaftarJawaban_(idMapel, idMateri).baris;
   var srA = typeof pgoSaringSiswaBm_ === 'function' ? pgoSaringSiswaBm_(r.p, r.m) : null;   // v1.73.0
   if (srA) data = data.filter(function(b) { return srA(b.siswa); });
+  if (pilih && pilih.length) {
+    var dipilih = {};
+    pilih.forEach(function(n) { dipilih[normNama_(n)] = true; });
+    data = data.filter(function(b) { return dipilih[normNama_(b.siswa)] === true; });
+  }
   var awal = Math.max(0, parseInt(mulai, 10) || 0);
   var potong = data.slice(awal, awal + ND.PER_PANGGILAN);
   if (!potong.length) return { hasil: [], berikut: -1, total: data.length };
@@ -590,10 +596,14 @@ function waStafSesiDiskusi(token, idMapel, idMateri) {
   var d = ndPastikanDiskusi_(idMapel, idMateri);
   var data = ndDaftarJawaban_(idMapel, idMateri);
   var roster = bacaRoster_(r.m.idRombel), sudahSet = {};
+  // v1.75.0: Tutor Online hanya menilai siswa unit penugasannya; siswa unit lain ditandai (tetap terlihat, tanpa kolom nilai)
+  var sr = null;
+  try { if (typeof pgoSaringSiswaBm_ === 'function' && ndBolehNilai_(r.p, idMapel)) sr = pgoSaringSiswaBm_(r.p, r.m); } catch (e) {}
   var jawaban = data.baris.map(function(b) {
     sudahSet[normNama_(b.siswa)] = 1;
     var p = ndPeriksa_(b.jawaban);
-    return { siswa: String(b.siswa), jawaban: String(b.jawaban || ''), nilai: riwayatPrim_(b.nilai), waktu: riwayatPrim_(b.waktu), kata: p.kata, tautan: p.tautan.length, komentar: riwayatPrim_(b.komentar) };
+    return { siswa: String(b.siswa), jawaban: String(b.jawaban || ''), nilai: riwayatPrim_(b.nilai), waktu: riwayatPrim_(b.waktu), kata: p.kata, tautan: p.tautan.length, komentar: riwayatPrim_(b.komentar),
+      bolehNilai: !sr || sr(b.siswa) };
   });
   var belum = roster.filter(function(s) { return !sudahSet[s.k]; }).map(function(s) { return s.nama; });
   return { judul: String(d.judul || ''), pertanyaan: String(d.pertanyaan || ''), total: roster.length, jawaban: jawaban, belum: belum };
