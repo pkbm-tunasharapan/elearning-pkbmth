@@ -184,7 +184,7 @@ function pgoTulis_(d, p) {
       n++;
     }
   });
-  if (baru.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, baru.length, baru[0].length).setValues(baru);
+  if (baru.length) pgoTulisTeks_(t.sh, baru);
   absLupakan_(PGO.TAB);
   return n;
 }
@@ -217,7 +217,7 @@ function pgoTulisInduk_(keys) {
     baru.push(absBaris_(t, { 'ID ENROLL': itAcak_(), 'ROMBEL': q[0], 'MAPEL': q[1], 'TUTOR': ingin[key], 'AKTIF': true, 'DICATAT PADA': kini,
       'STATUS': 'Disetujui', 'DIAJUKAN OLEH': 'Pemetaan · Penugasan Online' }));
   });
-  if (baru.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, baru.length, baru[0].length).setValues(baru);
+  if (baru.length) pgoTulisTeks_(t.sh, baru);
   out.baru = baru.length;
   absLupakan_('ENROLL MAPEL');
   return out;
@@ -301,6 +301,12 @@ function pgoInginEnroll_() {
   return out;
 }
 
+// Tambah baris dengan format teks (ID acak seperti '965e2800' tidak berubah menjadi angka 9.65E+28).
+function pgoTulisTeks_(sh, baris) {
+  var rg = sh.getRange(sh.getLastRow() + 1, 1, baris.length, baris[0].length);
+  rg.setNumberFormat('@');
+  rg.setValues(baris.map(function(r) { return r.map(function(v) { return typeof v === 'boolean' ? v : (v === null || v === undefined ? '' : String(v)); }); }));
+}
 function pgoLupakan_() {
   PGO_MEMO_ = {}; PGO_TM_MEMO_ = {};
   try { absLupakan_('ENROLL MAPEL'); absLupakan_(PGO.TAB); } catch (e) {}
