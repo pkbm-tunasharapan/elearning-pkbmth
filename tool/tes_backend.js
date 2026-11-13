@@ -1482,5 +1482,24 @@ tes('log aktivitas: daftar orang per nama, kunci lama dikenali, calon siswa akti
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 47. penilaian diskusi mengikuti izin penilaian, bukan izin Mata Pelajaran (v1.74.2)
+tes('izin: Tutor dengan Mata Pelajaran "tidak" tetap bisa menilai diskusi; izin penilaian "tidak" memblokir', () => {
+  const simpan = g.izData_;
+  try {
+    const coba = (fn, orang) => { g.__API_FN = fn; g.__IZN_OK = ''; g.__IZN_PROKSI = null; try { g.izPeriksa_(orang); return 'boleh'; } catch (e) { return 'tolak'; } };
+    const t = { id: 'U1', nama: 'Pak Tutor', peran: 'Tutor' };
+    const fnNilai = ['waStafSesiDiskusi', 'waStafDiskusiJawaban', 'waStafDiskusiNilaiAi', 'waStafDiskusiSimpanNilai', 'waStafCatatanNilai', 'waStafBelumDinilai'];
+    sama(fnNilai.map((f) => g.izFitur_(f)), fnNilai.map(() => 'nilai'));
+    g.izData_ = () => ({ peran: {}, izin: { Tutor: { mapelSaya: 'tidak' } } });
+    sama(fnNilai.map((f) => coba(f, t)), fnNilai.map(() => 'boleh'), 'konten dibatasi, penilaian tetap jalan');
+    sama(coba('waStafMateriLengkap', t), 'tolak', 'konten tetap dibatasi');
+    g.izData_ = () => ({ peran: {}, izin: { Tutor: { nilai: 'lihat' } } });
+    sama([coba('waStafSesiDiskusi', t), coba('waStafDiskusiSimpanNilai', t)], ['boleh', 'tolak'], 'izin penilaian lihat = hanya melihat');
+    g.izData_ = () => ({ peran: {}, izin: {} });
+    sama(coba('waStafDiskusiSimpanNilai', { id: 'K1', nama: 'Bu KS', peran: 'Kepala Sekolah' }), 'boleh');
+    g.__API_FN = '';
+  } finally { g.izData_ = simpan; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

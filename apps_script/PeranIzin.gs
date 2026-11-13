@@ -30,7 +30,7 @@ var IZN = {
     ['peranIzin', 'Peran & Izin', 'Sistem', ['Admin'], /^waAdminPeran\w*$/],
     ['aturNotif', 'Pengaturan Notifikasi', 'Sistem', ['Admin'], /^waAdminNotif\w*$/],
     ['mapelSaya', 'Mata Pelajaran (konten, kurikulum, ujian, media ajar)', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'],
-      /^waStaf(Materi|MateriLengkap|MateriSimpan|MateriStatus|MateriHapus|MateriHapusMassal|SesiBaca|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai|Nilai|Absensi|Siswa|KodeAkses(Daftar|Generate)|BukaKunci|BukaSesi|BukaSesiCabut|BukaSesiDaftar|Ujian(Terkunci|Info|Simpan|Pratinjau|PerubahanAjukan)|Soal(Daftar|Simpan|Hapus)|MediaAjar\w*|Ai\w*|Kurikulum\w*|AjuTutorProses)$/],
+      /^waStaf(Materi|MateriLengkap|MateriSimpan|MateriStatus|MateriHapus|MateriHapusMassal|SesiBaca|Nilai|Absensi|Siswa|KodeAkses(Daftar|Generate)|BukaKunci|BukaSesi|BukaSesiCabut|BukaSesiDaftar|Ujian(Terkunci|Info|Simpan|Pratinjau|PerubahanAjukan)|Soal(Daftar|Simpan|Hapus)|MediaAjar\w*|Ai\w*|Kurikulum\w*|AjuTutorProses)$/],
     ['absensi', 'Absensi Warga Belajar', 'Absensi', ['Admin', 'Tutor', 'Kepala Sekolah'], /^waStafAbsen(Harian\w*|Konteks|WbCatat|WbDaftar)$/],
     // v1.66.1: izin absensi warga belajar khusus Front Office (terpisah dari izin Absensi milik Tutor/Admin/KS)
     ['absensiFo', 'Absensi Warga Belajar (Front Office)', 'Absensi', ['Front Office'], null],
@@ -56,7 +56,10 @@ var IZN = {
     ['kelayakanUjian', 'Analisa Kelayakan Ujian', 'Nilai & Ujian', ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Bendahara', 'Tutor', 'Koordinator Unit'], /^waStafKelayakan\w*$/],
     ['kotakUjian', 'Kotak Ujian (pengajuan ujian)', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waAdminUjian(BukaAkses|Disposisi|Tolak)$/],
     ['dispensasi', 'Dispensasi Ujian', 'Nilai & Ujian', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStafDispensasi\w*$/],
-    ['nilai', 'Belum Dinilai', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'], /^wa(StafBelumDinilai|AdminTugasNilaiOtomatis)$/],
+    // v1.74.2: penilaian diskusi (lihat tanggapan, nilai AI, simpan nilai, catatan) mengikuti izin penilaian ini, bukan izin
+    // "Mata Pelajaran" (menyusun konten), supaya membatasi konten tidak ikut memblokir Tutor Online menilai.
+    ['nilai', 'Belum Dinilai & Penilaian Diskusi', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'],
+      /^wa(Staf(BelumDinilai|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai)|AdminTugasNilaiOtomatis)$/],
     ['otoNilai', 'Penilaian Otomatis', 'Nilai & Ujian', ['Admin', 'Superadmin'], /^waAdminOtoNilai\w*$/],
     ['aturNilai', 'Aturan Nilai', 'Nilai & Ujian', ['Admin'], /^waAdminNilaiAturanSimpan$/],
     ['rpp', 'Dokumen RPP', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'], /^waStafRpp\w*$/],
