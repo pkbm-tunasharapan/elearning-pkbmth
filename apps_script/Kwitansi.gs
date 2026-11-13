@@ -10,7 +10,7 @@
 // ============================================================================
 var KW = {
   TAB: 'KWITANSI',
-  HDR: ['NOMOR', 'ID TRANSAKSI', 'KODE', 'JENIS', 'JUMLAH', 'DIBUAT PADA', 'CETAK TERAKHIR OLEH', 'JABATAN', 'CETAK TERAKHIR PADA', 'JUMLAH CETAK'],
+  HDR: ['NOMOR', 'ID TRANSAKSI', 'KODE', 'JENIS', 'JUMLAH', 'DIBUAT PADA', 'CETAK TERAKHIR OLEH', 'JABATAN', 'CETAK TERAKHIR PADA', 'JUMLAH CETAK', 'PENERBIT', 'JABATAN PENERBIT'],
   PERAN: ['Admin', 'Bendahara', 'Kepala Sekolah', 'Front Office'],
   JABATAN: { 'Admin': 'Administrasi', 'Bendahara': 'Bendahara', 'Kepala Sekolah': 'Kepala Sekolah', 'Front Office': 'Front Office', 'Superadmin': 'Ketua Yayasan' },
   GENERIK: /^(admin|administrator|superadmin|super admin|staf|staff|user|pengguna|operator|test|tes|bendahara|front office|fo|kepala sekolah|ks|tu|sistem|system)$/i,
@@ -62,6 +62,8 @@ function kwTtdPencatat_(x) {
 
 // ---------- tab nomor ----------
 function kwBaca_() {
+  // v1.70.3: kolom penerbit (penandatangan tetap = yang pertama menerbitkan)
+  ['PENERBIT', 'JABATAN PENERBIT'].forEach(function(k) { try { ubPastikanKolom_(KW.TAB, k); } catch (e) {} });
   var t = absBaca_(KW.TAB, KW.HDR), peta = {}, kode = {};
   for (var i = 1; i < t.v.length; i++) {
     var g = function(n) { return absNilai_(t, t.v[i], n); };
@@ -69,7 +71,9 @@ function kwBaca_() {
     if (!id) continue;
     var o = { baris: i + 1, nomor: sTeks_(g('NOMOR')).trim(), id: id, kode: sTeks_(g('KODE')).trim(), jenis: sTeks_(g('JENIS')).trim(), jumlah: keuAngka_(g('JUMLAH')),
       dibuat: sTeks_(g('DIBUAT PADA')), oleh: sTeks_(g('CETAK TERAKHIR OLEH')), jabatan: sTeks_(g('JABATAN')), pada: sTeks_(g('CETAK TERAKHIR PADA')),
-      kali: keuAngka_(g('JUMLAH CETAK')) };
+      kali: keuAngka_(g('JUMLAH CETAK')), penerbit: sTeks_(g('PENERBIT')).trim(), jabatanPenerbit: sTeks_(g('JABATAN PENERBIT')).trim() };
+    // kwitansi lama (sebelum v1.70.3): penerbit = pencetak yang tercatat
+    if (!o.penerbit && o.oleh) { o.penerbit = o.oleh; o.jabatanPenerbit = o.jabatan; o.penerbitLama = true; }
     peta[id] = o; kode[o.kode] = o;
   }
   return { t: t, peta: peta, kode: kode };
@@ -82,7 +86,19 @@ function kwUrl_(kode) {
 function kwBolehCetak_(x) { return !!x && keuSah_(x) && (x.jenis === 'Pemasukan' || x.jenis === 'Pengeluaran') && x.jumlah > 0; }
 
 // Terbitkan / perbarui nomor kwitansi untuk transaksi-transaksi ini, lalu kembalikan isi kwitansinya.
+// v1.70.3: penandatangan TETAP = penerbit pertama (petugas yang pertama mencetak; bila pertama diunduh siswa = petugas
+// pencatat transaksi). Cetak ulang oleh orang lain hanya mencatat "cetak terakhir", tidak mengganti penandatangan.
+// ttd: petugas yang mencetak sekarang (null = unduhan siswa). Hasil o.ttd = penandatangan tetap ({nama, jabatan} / otomatis).
 function kwTerbitkan_(trx, ttd, catatCetak) {
+  var hasil = kwTerbitkanInti_(trx, ttd, catatCetak);
+  return hasil;
+}
+function kwPenerbitBaru_(x, ttd) {
+  if (ttd) return { nama: ttd.nama, jabatan: ttd.jabatan };
+  var pc = kwTtdPencatat_(x);
+  return pc.otomatis ? null : { nama: pc.nama, jabatan: pc.jabatan };
+}
+function kwTerbitkanInti_(trx, ttd, catatCetak) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
@@ -96,12 +112,24 @@ function kwTerbitkan_(trx, ttd, catatCetak) {
       if (!o) {
         var awal = (x.jenis === 'Pengeluaran' ? 'KW-K' : 'KW-M') + '/' + thn, no = (urut[awal] || 0) + 1;
         urut[awal] = no;
-        o = { nomor: awal + '/' + ('000' + no).slice(-4), id: x.id, kode: Utilities.getUuid().replace(/-/g, '').slice(0, 14).toUpperCase(), jenis: x.jenis, jumlah: x.jumlah, kali: 0 };
-        k.t.sh.appendRow(absBaris_(k.t, { 'NOMOR': o.nomor, 'ID TRANSAKSI': x.id, 'KODE': o.kode, 'JENIS': x.jenis, 'JUMLAH': x.jumlah, 'DIBUAT PADA': kini }));
+        var pb = kwPenerbitBaru_(x, ttd);
+        o = { nomor: awal + '/' + ('000' + no).slice(-4), id: x.id, kode: Utilities.getUuid().replace(/-/g, '').slice(0, 14).toUpperCase(), jenis: x.jenis, jumlah: x.jumlah, kali: 0,
+          penerbit: pb ? pb.nama : '', jabatanPenerbit: pb ? pb.jabatan : '' };
+        k.t.sh.appendRow(absBaris_(k.t, { 'NOMOR': o.nomor, 'ID TRANSAKSI': x.id, 'KODE': o.kode, 'JENIS': x.jenis, 'JUMLAH': x.jumlah, 'DIBUAT PADA': kini,
+          'PENERBIT': o.penerbit, 'JABATAN PENERBIT': o.jabatanPenerbit }));
         o.baris = k.t.sh.getLastRow ? k.t.sh.getLastRow() : 0;
+      } else if ((!o.penerbit || o.penerbitLama) && o.baris) {
+        // kwitansi lama / diunduh siswa tanpa penerbit: tetapkan sekarang (sekali saja)
+        var pl = o.penerbit ? { nama: o.penerbit, jabatan: o.jabatanPenerbit } : kwPenerbitBaru_(x, ttd);
+        if (pl) {
+          o.penerbit = pl.nama; o.jabatanPenerbit = pl.jabatan; o.penerbitLama = false;
+          var isiP = { 'PENERBIT': pl.nama, 'JABATAN PENERBIT': pl.jabatan };
+          Object.keys(isiP).forEach(function(h) { var c = absCol_(k.t, h); if (c >= 0) k.t.sh.getRange(o.baris, c + 1).setValue(isiP[h]); });
+        }
       }
+      o.ttd = o.penerbit ? { nama: o.penerbit, jabatan: o.jabatanPenerbit || 'Petugas' } : { nama: '', jabatan: '', otomatis: true };
       if (catatCetak && o.baris) {
-        var isi = { 'CETAK TERAKHIR OLEH': ttd.nama, 'JABATAN': ttd.jabatan, 'CETAK TERAKHIR PADA': kini, 'JUMLAH CETAK': (o.kali || 0) + 1 };
+        var isi = { 'CETAK TERAKHIR OLEH': catatCetak.nama, 'JABATAN': catatCetak.jabatan, 'CETAK TERAKHIR PADA': kini, 'JUMLAH CETAK': (o.kali || 0) + 1 };
         Object.keys(isi).forEach(function(h) { var c = absCol_(k.t, h); if (c >= 0) k.t.sh.getRange(o.baris, c + 1).setValue(isi[h]); });
       }
       return o;
@@ -142,7 +170,7 @@ function waStafKwitansiDaftar(token, q) {
   }).sort(function(a, b) { return b.tanggal.localeCompare(a.tanggal) || b.baris - a.baris; }).slice(0, 500).map(function(x) {
     var o = k[x.id];
     return { id: x.id, tanggal: x.tanggal, jenis: x.jenis, jumlah: x.jumlah, pihak: String(x.pihak || '').trim() || (c.wb[x.idWb] ? c.wb[x.idWb].nama : ''),
-      uraian: x.uraian, kategori: x.kategori, nomor: o ? o.nomor : '', dicetak: o ? o.kali : 0 };
+      uraian: x.uraian, kategori: x.kategori, nomor: o ? o.nomor : '', dicetak: o ? o.kali : 0, penerbit: o && o.penerbit ? o.penerbit + (o.jabatanPenerbit ? ' (' + o.jabatanPenerbit + ')' : '') : '' };
   });
   var ttd = null, galat = '';
   try { ttd = kwTtd_(p); } catch (e) { galat = e.message; }
@@ -152,7 +180,8 @@ function waStafKwitansiDaftar(token, q) {
 function waStafKwitansi(token, ids) {
   var p = stafDariToken_(token);
   kwWajibPeran_(p);
-  var ttd = kwTtd_(p);
+  var ttd = null, galatTtd = '';
+  try { ttd = kwTtd_(p); } catch (eT) { galatTtd = eT.message; }
   ids = (Array.isArray(ids) ? ids : [ids]).map(String).filter(String);
   if (!ids.length) throw new Error('Pilih transaksi.');
   if (ids.length > KW.MAKS) throw new Error('Maksimal ' + KW.MAKS + ' kwitansi sekali cetak.');
@@ -163,9 +192,14 @@ function waStafKwitansi(token, ids) {
     if (!kwBolehCetak_(x)) throw new Error('Transaksi ' + id + ' tidak dapat dibuatkan kwitansi (belum disetujui, mutasi, atau tidak ada).');
     return x;
   });
-  var no = kwTerbitkan_(trx, ttd, true), c = kwKonteks_();
+  // v1.70.3: nama akun pencetak hanya wajib sah bila ada kwitansi yang baru diterbitkan (penandatangan = penerbit pertama)
+  if (!ttd) {
+    var ada = kwBaca_().peta;
+    if (trx.some(function(x) { return !ada[x.id] || !ada[x.id].penerbit; })) throw new Error(galatTtd);
+  }
+  var no = kwTerbitkan_(trx, ttd, { nama: p.nama, jabatan: (ttd && ttd.jabatan) || p.peran }), c = kwKonteks_();
   catat_(p.peran, '-', p.nama, 'Cetak kwitansi', no.map(function(o) { return o.nomor; }).join(', ').slice(0, 400), 'OK');
-  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], ttd, c.kat, c.wb, c.akun, c.lembaga); }) };
+  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], no[i].ttd, c.kat, c.wb, c.akun, c.lembaga); }) };
 }
 
 // ---------- siswa: kwitansi pembayaran sendiri ----------
@@ -180,9 +214,9 @@ function waSiswaKwitansi(token, ids) {
     return x;
   });
   if (!trx.length) throw new Error('Pilih pembayaran.');
-  var no = kwTerbitkan_(trx, null, false), c = kwKonteks_();
+  var no = kwTerbitkan_(trx, null, null), c = kwKonteks_();
   try { catat_('Siswa', s.idRombel, w.nama, 'Unduh kwitansi', no.map(function(o) { return o.nomor; }).join(', ').slice(0, 300), 'OK'); } catch (e) {}
-  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], kwTtdPencatat_(x), c.kat, c.wb, c.akun, c.lembaga); }) };
+  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], no[i].ttd, c.kat, c.wb, c.akun, c.lembaga); }) };
 }
 
 // ---------- halaman verifikasi publik (doGet ?kw=KODE) ----------
@@ -201,6 +235,7 @@ function kwHalaman_(kode) {
     : '<table>' + baris('Nomor', o.nomor) + baris('Jenis', o.jenis) + baris('Tanggal', x ? x.tanggal : '-')
       + baris(o.jenis === 'Pengeluaran' ? 'Dibayarkan kepada' : 'Diterima dari', x ? (String(x.pihak || '').trim() || '-') : '-')
       + baris('Jumlah', rp(o.jumlah)) + baris('Keterangan', x ? String(x.uraian || '').replace(/\s*\((DOKU|invoice)[^)]*\)\s*$/i, '') : '-')
+      + (o.penerbit ? baris('Diterbitkan oleh', o.penerbit + (o.jabatanPenerbit ? ' (' + o.jabatanPenerbit + ')' : '')) : '')
       + (o.oleh ? baris('Dicetak terakhir', o.oleh + ' (' + o.jabatan + '), ' + o.pada) : '') + '</table>'
       + (sah ? '' : '<p>Data kwitansi tidak lagi sesuai dengan Arus Keuangan (transaksi dibatalkan, ditolak, atau diubah).</p>');
   var html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verifikasi Kwitansi</title>'

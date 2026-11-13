@@ -14,7 +14,7 @@ import '../siswa/sesi_siswa.dart';
 import '../widgets.dart';
 
 /// v1.69.0: kwitansi pemasukan & pengeluaran. 1 lembar F4 portrait = 3 kwitansi; QR untuk verifikasi keaslian.
-/// Penandatangan = nama akun yang mencetak + jabatannya; stempel lembaga dibubuhkan basah setelah dicetak.
+/// Penandatangan TETAP = penerbit pertama (nama + jabatan); cetak ulang oleh orang lain tidak mengganti nama. Stempel basah setelah dicetak.
 
 /// Ambil isi kwitansi dari server (nomor diterbitkan bila belum ada) lalu buka PDF-nya.
 Future<void> cetakKwitansi(BuildContext context, List<String> ids, {bool siswa = false}) async {
@@ -167,6 +167,8 @@ class _KwitansiScreenState extends State<KwitansiScreen> {
         final data = daftar(d['data']).map(peta).where((x) => (_jenis.isEmpty || teks(x['jenis']) == _jenis) &&
             (q.isEmpty || '${teks(x['pihak'])} ${teks(x['uraian'])} ${teks(x['nomor'])} ${teks(x['id'])}'.toLowerCase().contains(q))).toList();
         final lembar = (_pilih.length / 3).ceil();
+        // v1.70.3: tanpa nama akun yang sah hanya boleh mencetak ulang kwitansi yang sudah punya penerbit
+        final perluBaru = data.any((x) => _pilih.contains(teks(x['id'])) && teks(x['penerbit']).isEmpty);
         return Column(children: [
           Expanded(
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 16), children: [
@@ -175,8 +177,9 @@ class _KwitansiScreenState extends State<KwitansiScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Text(ttd.isEmpty
-                      ? teks(d['galatTtd'], 'Nama akun belum bisa dipakai sebagai penandatangan.')
-                      : 'Penandatangan: ${teks(ttd['nama'])} (${teks(ttd['jabatan'])}).\n1 lembar F4 = 3 kwitansi. Bubuhkan stempel lembaga di atas nama setelah dicetak.'),
+                      ? '${teks(d['galatTtd'], 'Nama akun belum bisa dipakai sebagai penandatangan.')}\nAnda tetap dapat mencetak ulang kwitansi yang sudah pernah diterbitkan.'
+                      : 'Kwitansi baru diterbitkan atas nama ${teks(ttd['nama'])} (${teks(ttd['jabatan'])}). Kwitansi yang sudah pernah diterbitkan '
+                          'tetap atas nama penerbit pertamanya.\n1 lembar F4 = 3 kwitansi. Bubuhkan stempel lembaga di atas nama setelah dicetak.'),
                 ),
               ),
               Row(children: [
@@ -220,7 +223,9 @@ class _KwitansiScreenState extends State<KwitansiScreen> {
                     subtitle: Text([
                       tglIndo(teks(x['tanggal'])),
                       if (teks(x['pihak']).isNotEmpty) teks(x['pihak']),
-                      teks(x['nomor']).isEmpty ? 'Belum pernah dicetak' : '${teks(x['nomor'])} · dicetak ${angka(x['dicetak'])}×',
+                      teks(x['nomor']).isEmpty
+                          ? 'Belum pernah dicetak'
+                          : '${teks(x['nomor'])} · dicetak ${angka(x['dicetak'])}×${teks(x['penerbit']).isEmpty ? '' : ' · penerbit ${teks(x['penerbit'])}'}',
                     ].join(' · ')),
                     secondary: Text(rp(x['jumlah']),
                         style: TextStyle(fontWeight: FontWeight.w800, color: teks(x['jenis']) == 'Pengeluaran' ? cs.error : Colors.green)),
@@ -234,7 +239,7 @@ class _KwitansiScreenState extends State<KwitansiScreen> {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                onPressed: ttd.isEmpty || _pilih.isEmpty ? null : () => _cetak(maks),
+                onPressed: (ttd.isEmpty && perluBaru) || _pilih.isEmpty ? null : () => _cetak(maks),
                 icon: const Icon(Icons.print_rounded),
                 label: Text(_pilih.isEmpty ? 'Pilih transaksi' : 'Cetak ${_pilih.length} kwitansi · $lembar lembar F4'),
               ),

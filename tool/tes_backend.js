@@ -1127,6 +1127,13 @@ tes('kwitansi: terbilang, nama penandatangan wajib nama orang, nomor tetap per t
     const b = g.waStafKwitansi('TF', ['T4', 'T1']).kwitansi;
     sama([b[0].nomor, b[1].nomor, b[1].kode], ['KW-M/' + thn + '/0002', 'KW-M/' + thn + '/0001', a[0].kode], 'nomor & kode tetap saat cetak ulang');
     sama(kwt.length - 1, 3, 'tidak ada nomor ganda');
+    // v1.70.3: dicetak ulang oleh KS -> penandatangan tetap penerbit pertama (Fia)
+    orang.TK = { nama: 'Kasih Sayang', peran: 'Kepala Sekolah' };
+    const ks = g.waStafKwitansi('TK', ['T1']).kwitansi[0];
+    sama([ks.nomor, ks.ttd], ['KW-M/' + thn + '/0001', { nama: 'Fia Rahma', jabatan: 'Front Office' }], 'penandatangan tetap');
+    galat = '';
+    try { sama(g.waStafKwitansi('TA', ['T1']).kwitansi[0].ttd.nama, 'Fia Rahma'); } catch (e) { galat = e.message; }
+    sama(galat, '', 'nama generik boleh mencetak ulang kwitansi yang sudah terbit');
     const H = g.HtmlService;
     let html = '';
     g.HtmlService = { createHtmlOutput: (x) => { html = x; const o = { setTitle: () => o, addMetaTag: () => o }; return o; } };
