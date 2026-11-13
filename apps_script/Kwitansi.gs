@@ -147,6 +147,33 @@ function kwIsi_(x, o, ttd, kat, wb, akun, lembaga) {
     ttd: ttd, lembaga: lembaga
   };
 }
+// v1.71.0: kop kwitansi diatur dari tab PENGATURAN (tanpa perlu APK baru):
+//   NAMA YAYASAN  : baris pertama kop (mis. YAYASAN SEKAR ARUM)
+//   KOP KWITANSI  : baris keterangan kop (izin, akta, sekretariat, email), dipisah baris baru atau tanda |
+//   LOGO KOP      : (opsional) ID atau tautan berkas gambar di Google Drive; kosong = logo bawaan aplikasi
+//   KOTA TTD      : (opsional) kota di atas tanda tangan; kosong = diambil dari alamat (Kab./Kota ...)
+function kwKop_() {
+  var out = { yayasan: '', nama: '', baris: [], logo: '', kota: '' };
+  var sh = simTab_('PENGATURAN');
+  if (!sh || sh.getLastRow() < 2) return out;
+  var d = sh.getRange(1, 1, 2, sh.getLastColumn()).getDisplayValues(), h = {};
+  d[0].forEach(function(x, i) { h[String(x).trim().toUpperCase()] = i; });
+  var g = function(n) { return h[n] === undefined ? '' : String(d[1][h[n]] || '').trim(); };
+  out.yayasan = g('NAMA YAYASAN');
+  out.nama = g('NAMA LEMBAGA') || 'PKBM';
+  out.baris = g('KOP KWITANSI').split(/\r?\n|\|/).map(function(x) { return x.trim(); }).filter(String);
+  if (!out.baris.length) out.baris = [g('ALAMAT'), g('NPSN') ? 'NPSN ' + g('NPSN') : ''].filter(String);
+  var m = /(?:Kab(?:upaten)?\.?|Kota)\s+([A-Za-z ]+?)(?:\s+\d|,|$)/i.exec(g('ALAMAT'));
+  out.kota = g('KOTA TTD') || (m ? m[1].trim() : '');
+  var lg = g('LOGO KOP');
+  if (lg) {
+    try {
+      var id = (/[-\w]{25,}/.exec(lg) || [lg])[0];
+      out.logo = Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes());
+    } catch (e) { out.logo = ''; }
+  }
+  return out;
+}
 function kwKonteks_() {
   var kat = keuKatPeta_(), wb = {}, akun = {};
   keuWbSemua_().forEach(function(w) { wb[w.id] = w; });
@@ -199,7 +226,7 @@ function waStafKwitansi(token, ids) {
   }
   var no = kwTerbitkan_(trx, ttd, { nama: p.nama, jabatan: (ttd && ttd.jabatan) || p.peran }), c = kwKonteks_();
   catat_(p.peran, '-', p.nama, 'Cetak kwitansi', no.map(function(o) { return o.nomor; }).join(', ').slice(0, 400), 'OK');
-  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], no[i].ttd, c.kat, c.wb, c.akun, c.lembaga); }) };
+  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], no[i].ttd, c.kat, c.wb, c.akun, c.lembaga); }), kop: kwKop_() };
 }
 
 // ---------- siswa: kwitansi pembayaran sendiri ----------
@@ -216,7 +243,7 @@ function waSiswaKwitansi(token, ids) {
   if (!trx.length) throw new Error('Pilih pembayaran.');
   var no = kwTerbitkan_(trx, null, null), c = kwKonteks_();
   try { catat_('Siswa', s.idRombel, w.nama, 'Unduh kwitansi', no.map(function(o) { return o.nomor; }).join(', ').slice(0, 300), 'OK'); } catch (e) {}
-  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], no[i].ttd, c.kat, c.wb, c.akun, c.lembaga); }) };
+  return { kwitansi: trx.map(function(x, i) { return kwIsi_(x, no[i], no[i].ttd, c.kat, c.wb, c.akun, c.lembaga); }), kop: kwKop_() };
 }
 
 // ---------- halaman verifikasi publik (doGet ?kw=KODE) ----------

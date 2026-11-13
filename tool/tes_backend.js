@@ -1087,7 +1087,7 @@ tes('kwitansi: terbilang, nama penandatangan wajib nama orang, nomor tetap per t
   sama(g.kwTerbilang_(111), 'Seratus sebelas rupiah');
   sama(g.kwTerbilang_(1000), 'Seribu rupiah');
   sama(g.kwTerbilang_(19), 'Sembilan belas rupiah');
-  const nama = ['absBaca_', 'keuSemua_', 'stafDariToken_', 'catat_', 'keuKatPeta_', 'keuWbSemua_', 'kalAkun_', 'nilLembaga_', 'kwUrl_'];
+  const nama = ['absBaca_', 'keuSemua_', 'stafDariToken_', 'catat_', 'keuKatPeta_', 'keuWbSemua_', 'kalAkun_', 'nilLembaga_', 'kwUrl_', 'kwKop_'];
   const simpan = {};
   nama.forEach((k) => { simpan[k] = g[k]; });
   try {
@@ -1109,6 +1109,7 @@ tes('kwitansi: terbilang, nama penandatangan wajib nama orang, nomor tetap per t
     g.keuWbSemua_ = () => [];
     g.kalAkun_ = () => [{ kode: 'TUNAI', nama: 'Kas Tunai' }];
     g.nilLembaga_ = () => ({ nama: 'PKBM Uji', alamat: 'Jl. A', npsn: '1' });
+    g.kwKop_ = () => ({ nama: 'PKBM Uji', baris: [], logo: '' });
     g.kwUrl_ = (k) => 'U?kw=' + k;
     const orang = { TA: { nama: 'Administrator', peran: 'Admin' }, TF: { nama: 'Fia Rahma', peran: 'Front Office' }, TT: { nama: 'Tono', peran: 'Tutor' } };
     g.stafDariToken_ = (t) => orang[t];
@@ -1328,6 +1329,21 @@ tes('gateway: invoice yang sudah ada di Arus Keuangan tidak dicatat ulang', () =
     const h = g.gwSelesai_({ INVOICE: 'TAG-1' }, 24000, 'VIRTUAL_ACCOUNT_BRI');
     sama([h.status, h.idTransaksi, dicatat, ubah[0].STATUS], ['Lunas', 'TRX-1,A2', 0, 'Lunas']);
   } finally { Object.keys(simpan).forEach((k) => { g[k] = simpan[k]; }); }
+});
+
+// 42. kop kwitansi dari PENGATURAN (v1.71.0)
+tes('kwitansi: kop dibaca dari PENGATURAN, kota dari alamat', () => {
+  const simpan = g.simTab_;
+  try {
+    const buat = (h, r) => ({ getLastRow: () => 2, getLastColumn: () => h.length, getRange: () => ({ getDisplayValues: () => [h, r] }) });
+    g.simTab_ = () => buat(['NAMA LEMBAGA', 'ALAMAT', 'NPSN', 'NAMA YAYASAN', 'KOP KWITANSI'],
+      ['PKBM Tunas Harapan', 'Jl. Living Raya No 63, Talun, Kab. Cirebon 45171', 'P1', 'YAYASAN SEKAR ARUM', 'Ijin Ops. 1\nAkta 2 | eMail : a@b.c']);
+    const k = g.kwKop_();
+    sama([k.yayasan, k.nama, k.baris, k.kota, k.logo], ['YAYASAN SEKAR ARUM', 'PKBM Tunas Harapan', ['Ijin Ops. 1', 'Akta 2', 'eMail : a@b.c'], 'Cirebon', '']);
+    g.simTab_ = () => buat(['NAMA LEMBAGA', 'ALAMAT', 'NPSN'], ['PKBM X', 'Jl. A, Kota Bandung', 'P2']);
+    const k2 = g.kwKop_();
+    sama([k2.yayasan, k2.baris, k2.kota], ['', ['Jl. A, Kota Bandung', 'NPSN P2'], 'Bandung']);
+  } finally { g.simTab_ = simpan; }
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
