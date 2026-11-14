@@ -10,6 +10,7 @@ import '../api.dart';
 import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'cetak_masa.dart';
 import 'laporan_kesiapan.dart';
 import 'pengawas.dart';
 import 'tinjauan.dart';
@@ -52,6 +53,8 @@ String _pesertaTeks(Map<String, dynamic> m) {
       return '${daftar(ps['rombel']).length} rombel';
     case 'siswa':
       return '${daftar(ps['siswa']).length} siswa tertentu';
+    case 'unit':
+      return '${daftar(ps['unit']).length} unit';
     default:
       return 'Semua siswa & rombel';
   }
@@ -222,6 +225,7 @@ class _FormMasaState extends State<_FormMasa> {
   String _dari = '', _sampai = '';
   final Set<String> _rombel = {};
   final Set<String> _siswa = {};
+  final Set<String> _unit = {};   // v1.83.0
 
   @override
   void initState() {
@@ -244,6 +248,7 @@ class _FormMasaState extends State<_FormMasa> {
       _mode = teks(ps['mode'], 'semua');
       _rombel.addAll(daftar(ps['rombel']).map((e) => '$e'));
       _siswa.addAll(daftar(ps['siswa']).map((e) => '$e'));
+      _unit.addAll(daftar(ps['unit']).map((e) => '$e'));
     }
   }
 
@@ -277,7 +282,7 @@ class _FormMasaState extends State<_FormMasa> {
             'catatan': _catatan.text.trim(),
             'mode': _cara,
             'pisahUnit': _pisahUnit,
-            'peserta': {'mode': _mode, 'rombel': _rombel.toList(), 'siswa': _siswa.toList()},
+            'peserta': {'mode': _mode, 'rombel': _rombel.toList(), 'siswa': _siswa.toList(), 'unit': _unit.toList()},
           }
         ])), teksProses: 'Menyimpan masa ujian...');
     if (!r.ok || !mounted) return;
@@ -383,8 +388,9 @@ class _FormMasaState extends State<_FormMasa> {
         SegmentedButton<String>(
           segments: const [
             ButtonSegment(value: 'semua', label: Text('Semua')),
-            ButtonSegment(value: 'rombel', label: Text('Rombel tertentu')),
-            ButtonSegment(value: 'siswa', label: Text('Siswa tertentu')),
+            ButtonSegment(value: 'rombel', label: Text('Rombel')),
+            ButtonSegment(value: 'siswa', label: Text('Siswa')),
+            ButtonSegment(value: 'unit', label: Text('Unit')),
           ],
           selected: {_mode},
           onSelectionChanged: (v) => setState(() => _mode = v.first),
@@ -400,6 +406,19 @@ class _FormMasaState extends State<_FormMasa> {
                 onSelected: (v) => setState(() => v ? _rombel.add(teks(r['id'])) : _rombel.remove(teks(r['id']))),
               ),
           ]),
+        if (_mode == 'unit') ...[
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final u in daftar(d['unit']).map(peta))
+              FilterChip(
+                label: Text(teks(u['nama'])),
+                selected: _unit.contains(teks(u['id'])),
+                onSelected: (v) => setState(() => v ? _unit.add(teks(u['id'])) : _unit.remove(teks(u['id']))),
+              ),
+          ]),
+          const SizedBox(height: 4),
+          const Text('Hanya siswa unit terpilih yang bisa mulai ujian di masa ini. Unit lain bisa dibuatkan masa sendiri dengan tanggal, jam, '
+              'mode, dan pengawas berbeda; mapel yang sama memakai ujian yang sama (nilai & rapor tetap satu).', style: TextStyle(fontSize: 12.5)),
+        ],
         if (_mode == 'siswa')
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -765,6 +784,11 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
             if (draft) OutlinedButton.icon(onPressed: _unduhTemplat, icon: const Icon(Icons.download_rounded), label: const Text('Unduh templat slot & pengawas')),
             if (draft) OutlinedButton.icon(onPressed: _unggahTemplat, icon: const Icon(Icons.upload_file_rounded), label: const Text('Unggah templat slot & pengawas')),
             OutlinedButton.icon(onPressed: _kesiapan, icon: const Icon(Icons.fact_check_outlined), label: const Text('Cek kesiapan bank soal')),
+            // v1.83.0: cetak jadwal ujian & jadwal pengawasan
+            OutlinedButton.icon(onPressed: () async { if (_berubah && !await _simpanSlot()) return; if (context.mounted) await cetakJadwalUjian(context, widget.id); },
+                icon: const Icon(Icons.print_outlined), label: const Text('Cetak jadwal ujian')),
+            OutlinedButton.icon(onPressed: () async { if (_berubah && !await _simpanSlot()) return; if (context.mounted) await cetakJadwalPengawas(context, widget.id); },
+                icon: const Icon(Icons.assignment_ind_outlined), label: const Text('Cetak jadwal pengawas')),
             OutlinedButton.icon(
               onPressed: () async {
                 if (_berubah && !await _simpanSlot()) return;

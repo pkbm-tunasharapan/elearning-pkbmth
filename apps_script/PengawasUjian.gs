@@ -208,25 +208,22 @@ function pwKonteks_(p, idSlot, idRombelSim) {
   var kelas = muKelas_(m).filter(function(k) { return k.kode === s.kode && k.idRombelSim === kr.rombel; });
   var idx = {};
   kelas.forEach(function(k) { idx[k.idMapel] = k; });
-  var jad = ujJadwalSemua_().filter(function(j) { return j.slot === s.id && idx[String(j.idMapel)]; });
+  var jad = muJadwalMasa_(m.id).filter(function(j) { return j.slot === s.id && idx[String(j.idMapel)]; });   // v1.83.0: termasuk jadwal unit
   var rb = honProgramRombel_();
   return { p: p, s: s, m: m, ef: ef, milik: milik, kelas: kelas, jadwal: jad, namaRombel: pwNamaRuang_(String(idRombelSim), rb), idRombelSim: kr.rombel,
     kunciRuang: String(idRombelSim), unit: kr.unit };
 }
 // Peserta: siswa e-Learning tiap rombel jadwal; mode "siswa tertentu" disaring dengan nama WB terpilih.
 function pwPeserta_(cx) {
-  var bm = nilSiswaBm_(), pilih = null;
-  if (cx.m.peserta.mode === 'siswa') {
-    pilih = {};
-    var ids = {};
-    cx.m.peserta.siswa.forEach(function(x) { ids[x] = true; });
-    keuWbSemua_().forEach(function(w) { if (ids[w.id]) pilih[normNama_(w.nama)] = true; });
-  }
-  var out = [];
+  var bm = nilSiswaBm_(), pilih = muPilihNama_(cx.m);   // v1.83.0: siswa tertentu / unit
+  var out = [], winU = {};
+  munSemua_().forEach(function(w) { winU[w.idUjian] = (winU[w.idUjian] || []).concat(w.unit); });   // v1.83.0
   cx.jadwal.forEach(function(j) {
     var k = cx.kelas.filter(function(x) { return x.idMapel === String(j.idMapel); })[0];
+    var lainU = !j.jadwalUnit ? winU[String(j.idUjian)] : null;
     (bm[k.idRombel] || []).forEach(function(sw) {
       if (pilih && !pilih[normNama_(sw.nama)]) return;
+      if (lainU && lainU.indexOf(munUnitSiswa_(k.idRombel, sw.nama)) >= 0) return;   // ikut jadwal khusus unitnya (masa lain)
       if (cx.unit && !pwSiswaUnitCocok_(k.idRombel, sw.nama, cx.unit)) return;   // v1.63.0
       out.push({ nama: sw.nama, nisn: sw.nisn, idRombel: k.idRombel, idUjian: String(j.idUjian), j: j });
     });
@@ -651,7 +648,7 @@ function pwRuangRombel_(m, idRombelSim) {
   var ck = m.id + '|' + idRombelSim;
   if (PW_RUANG_MEMO_[ck]) return PW_RUANG_MEMO_[ck];
   var lab = ubPetaSiswa_(), unit = {}, pilih = null;
-  if (m.peserta.mode === 'siswa') { pilih = {}; m.peserta.siswa.forEach(function(x) { pilih[x] = true; }); }
+  if (m.peserta.mode === 'siswa' || m.peserta.mode === 'unit') pilih = muPilihWb_(m);   // v1.83.0
   (absWbRombel_(idRombelSim) || []).forEach(function(w) {
     if (pilih && !pilih[w.id]) return;
     unit[ubUnitEf_(w.id, lab) || '-'] = true;   // v1.64.2: belum berlabel -> unit utama (bila ada)

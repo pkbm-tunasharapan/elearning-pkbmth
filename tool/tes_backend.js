@@ -1870,5 +1870,43 @@ tes('templat slot masa ujian: tanggal/jam Excel, rombel paket A/B/C, mode, penga
   sama([r.kosong, r.adaPengawas], [1, true]);
 });
 
+// 61. masa ujian per unit (v1.83.0)
+tes('masa per unit: jadwal khusus unit per siswa, gerbang unit, rencana batal (hapus / pindah / sudah mulai)', () => {
+  const sv = ['munSemua_', 'munUnitSiswa_', 'muCari_', 'ksWb_', 'ubUnitEf_', 'ubPetaSiswa_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const W = [{ id: 'JU1', idUjian: 'U1', masa: 'MB', slot: 'SB1', unit: ['LSR', 'KJ'], tanggal: '2026-12-15', jam: '08:00', durasi: 60, mode: 'Kertas', baris: 2 }];
+    const unit = { Ana: 'SMP', Budi: 'LSR', Cici: 'KJ' };
+    g.munSemua_ = () => W;
+    g.munUnitSiswa_ = (r, n) => unit[n] || '';
+    const j = { idUjian: 'U1', idMapel: 'M1', tanggal: '2026-12-10', jam: '07:30', durasi: 90, mode: 'APK', masa: 'MA', slot: 'SA1', mulaiMs: 1 };
+    const a = g.ujJadwalSiswa_(j, 'R', 'Ana'), b = g.ujJadwalSiswa_(j, 'R', 'Budi');
+    sama([a.tanggal, a.masa, a.slot, a.mode], ['2026-12-10', 'MA', 'SA1', 'APK']);
+    sama([b.tanggal, b.jam, b.durasi, b.masa, b.slot, b.mode, b.jadwalUnit], ['2026-12-15', '08:00', 60, 'MB', 'SB1', 'Kertas', 'JU1']);
+    sama(b.akhirMs - b.mulaiMs, 60 * 60000);
+    sama(j.tanggal, '2026-12-10');   // jadwal dasar tidak berubah
+    // gerbang peserta unit
+    const masa = { MA: { id: 'MA', nama: 'UAS Sampiran', peserta: { mode: 'unit', unit: ['SMP'], siswa: [] } }, MB: { id: 'MB', nama: 'UAS Losari', peserta: { mode: 'unit', unit: ['LSR', 'KJ'], siswa: [] } } };
+    g.muCari_ = (id) => masa[id];
+    g.ksWb_ = (s) => ({ id: s.nama });
+    g.ubPetaSiswa_ = () => ({});
+    g.ubUnitEf_ = (id) => unit[id];
+    sama([g.muGerbang_(a, 'R', 'Ana'), g.muGerbang_(b, 'R', 'Budi'), g.muGerbang_(b, 'R', 'Cici')], ['', '', '']);
+    sama(/tidak terdaftar sebagai peserta UAS Sampiran/.test(g.muGerbang_(j, 'R', 'Budi')), true);
+    // rencana batal masa A (dasar): dipindah ke jadwal unit B; Budi (unit B) sudah mulai -> tetap boleh batal
+    const jadA = [{ idUjian: 'U1', baris: 5 }, { idUjian: 'U2', baris: 6 }];
+    let rc = g.munRencanaBatal_(masa.MA, jadA, W, [{ idUjian: 'U1', idRombel: 'R', nama: 'Budi' }], g.munUnitSiswa_);
+    sama([rc.mulai, rc.pindah.map((x) => [x.j.idUjian, x.w.id]), rc.hapusJadwal.map((x) => x.idUjian), rc.hapusWin.length], [false, [['U1', 'JU1']], ['U2'], 0]);
+    rc = g.munRencanaBatal_(masa.MA, jadA, W, [{ idUjian: 'U1', idRombel: 'R', nama: 'Ana' }], g.munUnitSiswa_);
+    sama(rc.mulai, true);
+    // batal masa B (jadwal unit saja)
+    rc = g.munRencanaBatal_(masa.MB, [], W, [{ idUjian: 'U1', idRombel: 'R', nama: 'Ana' }], g.munUnitSiswa_);
+    sama([rc.mulai, rc.hapusWin.map((w) => w.id), rc.pindah.length], [false, ['JU1'], 0]);
+    rc = g.munRencanaBatal_(masa.MB, [], W, [{ idUjian: 'U1', idRombel: 'R', nama: 'Cici' }], g.munUnitSiswa_);
+    sama(rc.mulai, true);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

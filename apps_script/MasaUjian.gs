@@ -49,7 +49,7 @@ function muObj_(r) {
   var ps = {};
   try { ps = JSON.parse(r['PESERTA'] || '{}') || {}; } catch (e) {}
   return { id: r['ID'], nama: r['NAMA'], jenis: r['JENIS'], smt: parseInt(r['SEMESTER'], 10) || 1, dari: ujTgl_(r['DARI']), sampai: ujTgl_(r['SAMPAI']),
-    peserta: { mode: ps.mode || 'semua', rombel: ps.rombel || [], siswa: ps.siswa || [] }, cakupan: r['CAKUPAN'] || '', kkm: parseFloat(r['KKM']) || 0,
+    peserta: { mode: ps.mode || 'semua', rombel: ps.rombel || [], siswa: ps.siswa || [], unit: ps.unit || [] }, cakupan: r['CAKUPAN'] || '', kkm: parseFloat(r['KKM']) || 0,
     status: r['STATUS'] || 'Draft', dibuatOleh: r['DIBUAT OLEH'], dibuatPada: r['DIBUAT PADA'], ditetapkanOleh: r['DITETAPKAN OLEH'], ditetapkanPada: r['DITETAPKAN PADA'],
     catatan: r['CATATAN'], syaratBayar: parseFloat(r['SYARAT BAYAR']) || 0, kategoriBayar: r['KATEGORI BAYAR'] || '', idTagihan: r['ID TAGIHAN'] || '',
     mode: r['MODE'] === 'Offline' ? 'Offline' : 'Online', pisahUnit: r['PISAH UNIT'] === 'Ya', baris: r._baris };
@@ -79,10 +79,9 @@ function muKelas_(m, peta) {
   peta = peta || nilPetaBm_();
   var rombel = null;
   if (m.peserta.mode === 'rombel') { rombel = {}; m.peserta.rombel.forEach(function(r) { rombel[String(r)] = true; }); }
-  if (m.peserta.mode === 'siswa') {
+  if (m.peserta.mode === 'siswa' || m.peserta.mode === 'unit') {   // v1.83.0: unit -> rombel yang punya siswa unit itu
     rombel = {};
-    var ids = {};
-    m.peserta.siswa.forEach(function(s) { ids[String(s)] = true; });
+    var ids = muPilihWb_(m);
     keuWbSemua_().forEach(function(w) { if (ids[w.id]) rombel[w.idRombel] = true; });
   }
   var out = [];
@@ -110,6 +109,7 @@ function waStafMasaDaftar(token) {
   var slot = {}, jad = {};
   muBaca_(MU.TAB_SLOT, MU.HDR_SLOT).forEach(function(s) { slot[s['MASA']] = (slot[s['MASA']] || 0) + 1; });
   ujJadwalSemua_().forEach(function(j) { if (j.masa) jad[j.masa] = (jad[j.masa] || 0) + 1; });
+  munSemua_().forEach(function(w) { if (w.masa) jad[w.masa] = (jad[w.masa] || 0) + 1; });   // v1.83.0
   var rb = honProgramRombel_(), rombel = Object.keys(rb).map(function(k) { return { id: k, nama: rb[k].nama, program: rb[k].program }; })
     .sort(function(a, b) { return String(a.nama).localeCompare(String(b.nama)); });
   var cfg = taBaca_(), kkm = 70;
@@ -118,6 +118,7 @@ function waStafMasaDaftar(token) {
     masa: muSemua_().reverse().map(function(m) { m.jumlahSlot = slot[m.id] || 0; m.jumlahJadwal = jad[m.id] || 0; return m; }),
     rombel: rombel, wb: keuWbSemua_().filter(function(w) { return w.aktif; }).map(function(w) { return { id: w.id, nama: w.nama, rombel: w.namaRombel }; }),
     jenis: MU.JENIS.map(function(j) { return { kode: j, nama: MU.NAMA_JENIS[j] }; }), jumlahSemester: Math.min(2, cfg.jumlahSemester),
+    unit: (function() { try { return ubUnit_().filter(function(u) { return u.aktif; }).map(function(u) { return { id: u.id, nama: u.nama }; }); } catch (eU) { return []; } })(),
     bawaan: { kkm: kkm, durasi: 90, jumlah: UJ.JUMLAH_BAWAAN, maksSoal: KM.MAKS_SOAL_PER_UJIAN, durasiMin: UJ.DURASI_MIN, durasiMaks: UJ.DURASI_MAKS }
   };
 }
@@ -134,8 +135,10 @@ function waStafMasaSimpan(token, d) {
   var dari = ujTgl_(d.dari), sampai = ujTgl_(d.sampai);
   if (!dari || !sampai || dari > sampai) throw new Error('Isi rentang tanggal yang benar.');
   if (ujtTambahHari_(dari, MU.MAKS_HARI) < sampai) throw new Error('Rentang masa ujian maksimal ' + MU.MAKS_HARI + ' hari.');
-  var ps = d.peserta || {}, mode = ['semua', 'rombel', 'siswa'].indexOf(ps.mode) >= 0 ? ps.mode : 'semua';
+  var ps = d.peserta || {}, mode = ['semua', 'rombel', 'siswa', 'unit'].indexOf(ps.mode) >= 0 ? ps.mode : 'semua';
   var peserta = { mode: mode, rombel: mode === 'rombel' ? (ps.rombel || []).map(String) : [], siswa: mode === 'siswa' ? (ps.siswa || []).map(String) : [] };
+  if (mode === 'unit') peserta.unit = (ps.unit || []).map(String).filter(function(x, i, a) { return x && a.indexOf(x) === i; });   // v1.83.0
+  if (mode === 'unit' && !peserta.unit.length) throw new Error('Pilih minimal satu unit.');
   if (mode === 'rombel' && !peserta.rombel.length) throw new Error('Pilih minimal satu rombel.');
   if (mode === 'siswa' && !peserta.siswa.length) throw new Error('Pilih minimal satu siswa.');
   var kkm = parseFloat(d.kkm);
@@ -174,7 +177,7 @@ function waStafMasaRinci(token, id) {
     var ids = Object.keys(perKode[k]).sort(function(a, b) { return String(rb[a] ? rb[a].nama : a).localeCompare(String(rb[b] ? rb[b].nama : b)); });
     return { kode: k, nama: nm[k] || k, rombel: ids.map(function(r) { return rb[r] ? rb[r].nama : r; }), rombelId: ids.map(function(r) { return { id: r, nama: rb[r] ? rb[r].nama : r }; }) };
   }).sort(function(a, b) { return a.nama.localeCompare(b.nama); });
-  var semuaJ = ujJadwalSemua_().filter(function(j) { return j.masa === m.id; }), pm = ujtPetaMapel_();
+  var semuaJ = muJadwalMasa_(m.id), pm = ujtPetaMapel_();   // v1.83.0: termasuk jadwal khusus unit
   // v1.63.0: jadwal offline (ujian tulis) untuk cetak naskah & kunci
   var kertas = semuaJ.filter(function(j) { return j.mode === 'Kertas'; }).map(function(j) {
     var x = pm[String(j.idMapel)] || {};
@@ -250,14 +253,13 @@ function waStafMasaKesiapan(token, id) {
   var p = stafDariToken_(token);
   muWajib_(p);
   var m = muCari_(id), slot = muSlot_(m.id), kelas = muKelas_(m), rb = honProgramRombel_(), jp = muJenisPool_(m.jenis, m.cakupan);
-  var siswaIds = {};
-  m.peserta.siswa.forEach(function(s) { siswaIds[s] = true; });
+  var siswaIds = muPilihWb_(m) || {};
   var out = [], cache = {};
   slot.forEach(function(s) {
     kelas.filter(function(k) { return k.kode === s.kode && muSlotKena_(s, k.idRombelSim); }).forEach(function(k) {
       var pool = cache[k.idMapel] || (cache[k.idMapel] = ujPool_(k.idMapel, m.smt, jp));
       var wb = absWbRombel_(k.idRombelSim) || [];
-      var n = m.peserta.mode === 'siswa' ? wb.filter(function(w) { return siswaIds[w.id]; }).length : wb.length;
+      var n = m.peserta.mode === 'siswa' || m.peserta.mode === 'unit' ? wb.filter(function(w) { return siswaIds[w.id]; }).length : wb.length;
       out.push({ slot: s.id, tanggal: s.tanggal, jam: s.jam, mapel: s.namaMapel, rombel: rb[k.idRombelSim] ? rb[k.idRombelSim].nama : k.idRombelSim,
         idMapel: k.idMapel, peserta: n, bank: pool.total, perlu: s.jumlah, tanpaBank: pool.tanpaBank,
         status: pool.total === 0 ? 'Kosong' : (pool.total < s.jumlah ? 'Kurang' : (pool.tanpaBank.length ? 'Sebagian' : 'Siap')) });
@@ -280,8 +282,8 @@ function waStafMasaTetapkan(token, id) {
   var kunci = kmKunciUnik_();
   kunci.waitLock(30000);
   try {
-    var adaKunci = {};
-    ujJadwalSemua_().forEach(function(x) { adaKunci[x.kunci] = true; });
+    var adaKunci = {}, jKunci = {};
+    ujJadwalSemua_().forEach(function(x) { adaKunci[x.kunci] = true; jKunci[x.kunci] = x; });
     slot.forEach(function(s) {
       var mulaiMs = ujMs_(s.tanggal, s.jam);
       var modeJ = muModeSlot_(m, s) === 'Offline' ? 'Kertas' : 'APK';
@@ -291,7 +293,13 @@ function waStafMasaTetapkan(token, id) {
           if (!em) throw new Error('mapel tidak aktif');
           if (isNaN(mulaiMs) || mulaiMs < now) throw new Error('waktu mulai sudah lewat');
           var kj = m.jenis === 'UTS' || m.jenis === 'UAS' ? ujKunciJadwal_(k.idMapel, m.smt, m.jenis) : ujKunciJadwal_(k.idMapel, m.smt, m.jenis) + '|' + m.id;
-          if (adaKunci[kj]) throw new Error('sudah terjadwal ' + (MU.NAMA_JENIS[m.jenis] || m.jenis) + ' Semester ' + m.smt);
+          if (adaKunci[kj]) {
+            // v1.83.0: masa per unit -> jadwal khusus unit pada ujian yang sama (tanpa jadwal/item ujian baru)
+            if (m.peserta.mode !== 'unit' || !jKunci[kj]) throw new Error('sudah terjadwal ' + (MU.NAMA_JENIS[m.jenis] || m.jenis) + ' Semester ' + m.smt + (m.peserta.mode !== 'unit' ? ' (pakai peserta Unit untuk jadwal berbeda per unit)' : ''));
+            munTambah_(p, m, s, jKunci[kj], modeJ);
+            hasil.push({ nama: nm, teks: ujTeksWaktu_(mulaiMs) + ' · jadwal khusus unit' });
+            return;
+          }
           var ses = ujtSesiDariTanggal_(cfg, s.tanggal);
           if (!ses) throw new Error('tanggal di luar kalender akademik');
           var judul = m.jenis === 'UTS' || m.jenis === 'UAS' ? ujJudul_(m.jenis, m.smt) : (m.jenis === 'TRYOUT' ? 'Tryout ' : '') + m.nama;
@@ -328,32 +336,40 @@ function waStafMasaBatal(token, id, alasan) {
   alasan = String(alasan || '').trim();
   if (alasan.length < 5) throw new Error('Tulis alasan pembatalan (minimal 5 huruf).');
   var m = muCari_(id);
-  var jad = ujJadwalSemua_().filter(function(j) { return j.masa === m.id; }), ids = {};
+  // v1.83.0: jadwal khusus unit -> rencana batal (hapus / pindahkan jadwal dasar ke masa unit lain)
+  var jad = ujJadwalSemua_().filter(function(j) { return j.masa === m.id; }), ids = {}, win = munSemua_();
   jad.forEach(function(j) { ids[String(j.idUjian)] = true; });
-  if (jad.length) {
-    var mulai = false;
-    try {
-      var v = getSheetData(CONFIG.SHEETS.PERCOBAAN_UJIAN), c = sesiCols_();
-      for (var i = 1; i < v.length && !mulai; i++) if (ids[String(v[i][c.idUjian - 1])]) mulai = true;
-    } catch (e) {}
-    ujBaca_('HASIL').forEach(function(h) { if (ids[String(h['ID Ujian'])]) mulai = true; });
-    if (mulai) throw new Error('Sudah ada siswa yang mengerjakan ujian di masa ini, sehingga penetapan tidak bisa dibatalkan.');
+  win.forEach(function(w) { if (w.masa === m.id) ids[w.idUjian] = true; });
+  var rc = munRencanaBatal_(m, jad, win, Object.keys(ids).length ? munAktivitas_(ids) : [], munUnitSiswa_);
+  if (rc.mulai) throw new Error('Sudah ada siswa yang mengerjakan ujian di masa ini, sehingga penetapan tidak bisa dibatalkan.');
+  if (jad.length || rc.hapusWin.length) {
     var kunci = kmKunciUnik_();
     kunci.waitLock(30000);
     try {
       var shJ = ujTabel_('JADWAL');
-      jad.map(function(j) { return j.baris; }).sort(function(a, b) { return b - a; }).forEach(function(b) { shJ.deleteRow(b); });
-      var mm = kmMateri_(), vm = mm.sheet.getDataRange().getValues();
-      for (var r = 1; r < vm.length; r++) {
-        if (ids[sTeks_(vm[r][mm.c.id - 1]).trim()]) mm.sheet.getRange(r + 1, mm.c.status).setValue('Nonaktif');
+      rc.pindah.forEach(function(x) {
+        ujUbah_('JADWAL', x.j.baris, { 'Tanggal': x.w.tanggal, 'Jam Mulai': x.w.jam, 'Durasi Menit': x.w.durasi, 'Mode': x.w.mode, 'Masa': x.w.masa, 'Slot': x.w.slot,
+          'Catatan': 'Masa ujian (slot ' + x.w.slot + '), dipindah dari ' + m.id });
+      });
+      rc.hapusJadwal.map(function(j) { return j.baris; }).sort(function(a, b) { return b - a; }).forEach(function(b) { shJ.deleteRow(b); });
+      var hapusId = {};
+      rc.hapusJadwal.forEach(function(j) { hapusId[String(j.idUjian)] = true; });
+      if (Object.keys(hapusId).length) {
+        var mm = kmMateri_(), vm = mm.sheet.getDataRange().getValues();
+        for (var r = 1; r < vm.length; r++) {
+          if (hapusId[sTeks_(vm[r][mm.c.id - 1]).trim()]) mm.sheet.getRange(r + 1, mm.c.status).setValue('Nonaktif');
+        }
       }
+      var bWin = rc.hapusWin.concat(rc.pindah.map(function(x) { return x.w; })).map(function(w) { return w.baris; }).sort(function(a, b) { return b - a; });
+      if (bWin.length) { var shW = muTab_(MUN.TAB, MUN.HDR); bWin.forEach(function(b) { shW.deleteRow(b); }); }
+      munReset_();
     } finally { kunci.releaseLock(); }
   }
   var sh = muTab_(MU.TAB, MU.HDR);
   sh.getRange(m.baris, MU.HDR.indexOf('STATUS') + 1).setValue('Draft');
   sh.getRange(m.baris, MU.HDR.indexOf('CATATAN') + 1).setValue(('Dibatalkan ' + p.nama + ' ' + ujNow_() + ': ' + alasan).slice(0, 300));
-  catat_(p.peran, '', p.nama, 'Batal masa ujian', m.id + ' ' + m.nama + ' (' + jad.length + ' jadwal): ' + alasan, 'OK');
-  return { sukses: true, dihapus: jad.length };
+  catat_(p.peran, '', p.nama, 'Batal masa ujian', m.id + ' ' + m.nama + ' (' + rc.hapusJadwal.length + ' jadwal, ' + rc.hapusWin.length + ' jadwal unit, ' + rc.pindah.length + ' dipindah): ' + alasan, 'OK');
+  return { sukses: true, dihapus: rc.hapusJadwal.length + rc.hapusWin.length };
 }
 
 // ---------- gerbang siswa: peserta "siswa tertentu" ----------
@@ -361,10 +377,11 @@ function muGerbang_(j, idRombel, nama) {
   if (!j || !j.masa) return '';
   var m = null;
   try { m = muCari_(j.masa); } catch (e) { return ''; }
-  if (m.peserta.mode !== 'siswa') return '';
+  if (m.peserta.mode !== 'siswa' && m.peserta.mode !== 'unit') return '';
   var w = null;
   try { w = ksWb_({ nama: nama, idRombel: idRombel }); } catch (e2) {}
-  if (w && m.peserta.siswa.indexOf(w.id) >= 0) return '';
+  if (w && m.peserta.mode === 'siswa' && m.peserta.siswa.indexOf(w.id) >= 0) return '';
+  if (w && m.peserta.mode === 'unit' && (m.peserta.unit || []).indexOf(ubUnitEf_(w.id, ubPetaSiswa_())) >= 0) return '';   // v1.83.0
   return 'Anda tidak terdaftar sebagai peserta ' + m.nama + '.';
 }
 
@@ -385,8 +402,7 @@ function muKurangHadir_(m) {
     var a = kode[s.kode] || (kode[s.kode] = {});
     s.rombel.forEach(function(r) { a[r] = true; });
   });
-  var pilih = null;
-  if (m.peserta.mode === 'siswa') { pilih = {}; m.peserta.siswa.forEach(function(x) { pilih[x] = true; }); }
+  var pilih = muPilihWb_(m);   // v1.83.0: siswa tertentu / unit
   var sudah = {};
   muKelas_(m).forEach(function(k) {
     if (!kode[k.kode] || (kode[k.kode] !== true && !kode[k.kode][k.idRombelSim]) || sudah[k.key]) return;

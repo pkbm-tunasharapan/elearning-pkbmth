@@ -25,6 +25,7 @@ function sbMasaBayar_(m) {
 // Peserta WB masa: mode semua -> null (semua WB aktif); rombel/siswa -> daftar ID WB.
 function sbPesertaWb_(m) {
   if (m.peserta.mode === 'siswa') return m.peserta.siswa.map(String);
+  if (m.peserta.mode === 'unit') return Object.keys(muPilihWb_(m));   // v1.83.0
   if (m.peserta.mode === 'rombel') {
     var r = {};
     m.peserta.rombel.forEach(function(x) { r[String(x)] = true; });

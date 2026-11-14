@@ -10,6 +10,7 @@ import '../berkas.dart';
 import '../config.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'panduan_pengawas.dart';
 
 String? get _t => Sesi.instance.token;
 
@@ -59,7 +60,11 @@ class _PengawasScreenState extends State<PengawasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Pengawas Ujian')),
+      appBar: AppBar(title: const Text('Pengawas Ujian'), actions: [
+        // v1.83.0: panduan pengawasan
+        IconButton(tooltip: 'Panduan pengawas', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PanduanPengawasScreen())),
+            icon: const Icon(Icons.help_outline_rounded)),
+      ]),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey('pw$_v'),
         muat: () async => peta(await Api.instance('waStafPengawasTugas', [_t], const Duration(seconds: 90))),
@@ -77,6 +82,14 @@ class _PengawasScreenState extends State<PengawasScreen> {
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
               const Text('Buka ruang yang Anda awasi untuk melihat token ujian, memantau siswa secara langsung, membuka kunci, menambah waktu, '
                   'serta membuat daftar hadir dan berita acara.', style: TextStyle(fontSize: 12.5)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PanduanPengawasScreen())),
+                  icon: const Icon(Icons.menu_book_rounded, size: 18),
+                  label: const Text('Baca panduan pengawas'),
+                ),
+              ),
               if (kelola)
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,

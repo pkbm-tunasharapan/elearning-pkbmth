@@ -416,7 +416,7 @@ function ujStatus_(j, idRombel, nama) {
 // ---------------- pembungkus endpoint siswa ----------------
 function waStatusUjian(idUjian, idRombel, idMapel, nama) {
   var r = waStatusUjianAsli_(idUjian, idRombel, idMapel, nama);
-  var j = ujJadwalDariUjian_(idUjian);
+  var j = ujJadwalSiswa_(ujJadwalDariUjian_(idUjian), idRombel, nama);   // v1.83.0: jadwal khusus unit
   if (!j || !r || !r.sukses || String(j.idMapel) !== String(idMapel)) return r;
   var st = ujStatus_(j, idRombel, nama);
   r.uj = st;
@@ -442,7 +442,7 @@ function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUji
       }
     }
   } catch (ePin) {}
-  var j = ujJadwalDariUjian_(idUjian);
+  var j = ujJadwalSiswa_(ujJadwalDariUjian_(idUjian), idRombel, nama);   // v1.83.0: jadwal khusus unit
   var g = { pesan: '' };
   if (j) {
     // v1.70.0: gerbang Kelayakan Ujian (ketuntasan sesi + absensi + keuangan) menggantikan syarat kehadiran & syarat bayar lama.
@@ -537,7 +537,7 @@ function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian) {
 }
 
 function waSubmitUjian(payload) {
-  var j = payload ? ujJadwalDariUjian_(payload.idUjian) : null;
+  var j = payload ? ujJadwalSiswa_(ujJadwalDariUjian_(payload.idUjian), payload.idRombel, payload.nama) : null;   // v1.83.0
   if (!j) return waSubmitUjianLama_(payload);
   var otomatisBerat = false;
   try { otomatisBerat = pwLepasUntukKirim_(payload); } catch (eB) {}   // v1.55.0: kirim otomatis sesudah pelanggaran berat

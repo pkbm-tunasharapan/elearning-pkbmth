@@ -68,7 +68,7 @@ function waStafMasaLaporan(token, idMasa) {
   muWajib_(p);
   var m = muCari_(idMasa);
   try { kuPindah_(kuJam_()); } catch (e0) {}   // sertakan jam berjalan
-  var jad = ujJadwalSemua_().filter(function(j) { return j.masa === m.id; });
+  var jad = muJadwalMasa_(m.id);   // v1.83.0: termasuk jadwal khusus unit
   if (!jad.length) throw new Error('Masa ujian ini belum ditetapkan, jadi belum ada data pelaksanaan.');
   var ids = {}, mapel = ujtPetaMapel_(), bm = nilSiswaBm_(), sekarang = Date.now();
   jad.forEach(function(j) { ids[String(j.idUjian)] = j; });
@@ -83,13 +83,7 @@ function waStafMasaLaporan(token, idMasa) {
   }
   var hasil = {};
   ujBaca_('HASIL').forEach(function(h) { if (ids[String(h['ID Ujian'])]) (hasil[String(h['ID Ujian'])] = hasil[String(h['ID Ujian'])] || []).push(h); });
-  var pilih = null;
-  if (m.peserta.mode === 'siswa') {
-    pilih = {};
-    var sid = {};
-    m.peserta.siswa.forEach(function(x) { sid[x] = true; });
-    keuWbSemua_().forEach(function(w) { if (sid[w.id]) pilih[normNama_(w.nama)] = true; });
-  }
+  var pilih = muPilihNama_(m);   // v1.83.0: siswa tertentu / unit
   var tot = { terdaftar: 0, mulai: 0, selesai: 0, kirim: 0, waktuHabis: 0, berlangsung: 0, terkunci: 0, tidakHadir: 0 };
   var perJadwal = jad.map(function(j) {
     var mm = mapel[String(j.idMapel)] || {};

@@ -3919,9 +3919,10 @@ function brdMapelBm_() {
   return m;
 }
 // Agenda ujian (online dari Jadwal Ujian + tatap muka dari ASESMEN) dalam hari hari ke depan.
-function brdAgenda_(bolehBm, bolehSim, hari) {
+function brdAgenda_(bolehBm, bolehSim, hari, siswa) {
   var h0 = absHariIni_(), h1 = brdTgl_(hari || 21), mp = brdMapelBm_(), out = [];
   ujJadwalSemua_().forEach(function(j) {
+    if (siswa) j = ujJadwalSiswa_(j, siswa.idRombel, siswa.nama);   // v1.83.0: tanggal sesuai jadwal khusus unit siswa
     if (!j.tanggal || j.tanggal < h0 || j.tanggal > h1) return;
     var m = mp[j.idMapel];
     if (!m || (bolehBm && !bolehBm(j.idMapel, m))) return;
@@ -4188,7 +4189,7 @@ function waSiswaBeranda(token, paksa) {
   }
   // 1. agenda: ujian + batas waktu tugas/diskusi yang belum dikerjakan
   brdKartu_(k, function() {
-    var item = brdAgenda_(function(id) { return !!mapelKu[id]; }, function(r) { return r === simR; }, 21), h1 = brdTgl_(14), h3 = brdTgl_(3);
+    var item = brdAgenda_(function(id) { return !!mapelKu[id]; }, function(r) { return r === simR; }, 21, s), h1 = brdTgl_(14), h3 = brdTgl_(3);
     var sudah = {}, v = getSheetData(CONFIG.SHEETS.JAWABAN);
     if (v.length) {
       var hd = v[0].map(function(x) { return String(x).trim(); }), iR = hd.indexOf('ID Rombel'), iMt = hd.indexOf('ID Materi'), iS = hd.indexOf('Nama Siswa');
