@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../absensi/umum.dart';
@@ -538,6 +543,63 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
     if (sisa.isNotEmpty) kabar(context, '${sisa.length} mapel belum dapat hari: ${sisa.join(', ')}. Tambah jam per hari atau perpanjang masa.', galat: true);
   }
 
+  // v1.82.0: templat Excel slot (berisi slot yang ada + pilihan mapel/rombel/mode)
+  Future<void> _unduhTemplat() async {
+    if (_berubah && !await _simpanSlot()) return;
+    if (!mounted) return;
+    final r = await jalankan(context, () async => peta(await Api.instance('waStafMasaSlotTemplat', [_t, widget.id], const Duration(minutes: 3))), teksProses: 'Menyiapkan templat...');
+    if (!r.ok || r.data == null || !mounted) return;
+    await bagikanXlsx(context, base64Decode(teks(r.data!['b64'])), teks(r.data!['nama'], 'Templat_Slot.xlsx'));
+  }
+
+  Future<void> _unggahTemplat() async {
+    final f = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['xlsx'], withData: true);
+    if (f == null || f.files.isEmpty || !mounted) return;
+    final x = f.files.first;
+    if (x.size > 4 * 1048576) return kabar(context, 'File terlalu besar (maksimal 4 MB).', galat: true);
+    final Uint8List b = x.bytes ?? (x.path != null ? await File(x.path!).readAsBytes() : Uint8List(0));
+    if (!mounted) return;
+    final h = await jalankan(context, () async => peta(await Api.instance('waStafMasaSlotImporPratinjau', [_t, widget.id, {'b64': base64Encode(b)}], const Duration(minutes: 3))),
+        teksProses: 'Memeriksa slot...');
+    if (!h.ok || h.data == null || !mounted) return;
+    final slot = daftar(h.data!['slot']).map(peta).toList();
+    final galat = daftar(h.data!['galat']).map(peta).toList();
+    final pakai = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('${slot.length} slot siap${galat.isEmpty ? '' : ' · ${galat.length} baris bermasalah'}'),
+        content: SizedBox(
+          width: 480,
+          child: ListView(shrinkWrap: true, children: [
+            if (slot.isNotEmpty)
+              Text('Slot dari berkas akan MENGGANTIKAN ${_slot.length} slot yang ada di layar. Periksa daftarnya, lalu tekan "Simpan slot".',
+                  style: const TextStyle(fontSize: 13)),
+            if (galat.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(slot.isEmpty ? 'Tidak ada slot yang bisa dipakai. Perbaiki baris berikut lalu unggah ulang:' : 'Baris berikut tidak dipakai (perbaiki lalu unggah ulang bila perlu):',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              for (final g in galat) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Baris ${teks(g['baris'])}: ${teks(g['pesan'])}', style: const TextStyle(fontSize: 12.5))),
+            ],
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(slot.isEmpty ? 'Tutup' : 'Batal')),
+          if (slot.isNotEmpty) FilledButton(onPressed: () => Navigator.pop(c, true), child: Text('Pakai ${slot.length} slot')),
+        ],
+      ),
+    );
+    if (pakai != true || !mounted) return;
+    setState(() {
+      _slot = slot.map((s) {
+        final k = peta(s['komposisi']);
+        return {...s, 'mudah': k['mudah'], 'sedang': k['sedang'], 'sulit': k['sulit']};
+      }).toList();
+      _urut();
+      _berubah = true;
+    });
+    kabar(context, '${slot.length} slot dimuat dari templat. Tekan "Simpan slot" untuk menyimpan.');
+  }
+
   Future<bool> _simpanSlot() async {
     final r = await jalankan(context, () => Api.instance('waStafMasaSlotSimpan', [
           _t,
@@ -694,6 +756,8 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (draft) OutlinedButton.icon(onPressed: _usulan, icon: const Icon(Icons.auto_awesome_outlined), label: const Text('Usulkan jadwal')),
             if (draft) OutlinedButton.icon(onPressed: () => _ubahSlot(), icon: const Icon(Icons.add_rounded), label: const Text('Tambah slot')),
+            if (draft) OutlinedButton.icon(onPressed: _unduhTemplat, icon: const Icon(Icons.download_rounded), label: const Text('Unduh templat slot')),
+            if (draft) OutlinedButton.icon(onPressed: _unggahTemplat, icon: const Icon(Icons.upload_file_rounded), label: const Text('Unggah templat slot')),
             OutlinedButton.icon(onPressed: _kesiapan, icon: const Icon(Icons.fact_check_outlined), label: const Text('Cek kesiapan bank soal')),
             OutlinedButton.icon(
               onPressed: () async {

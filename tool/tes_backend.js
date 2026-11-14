@@ -1843,5 +1843,29 @@ tes('lihat sebagai: hanya fungsi baca; token lihat ditolak tanpa kunci mode liha
   g.__INTIP = false;
 });
 
+// 60. templat slot masa ujian (v1.82.0)
+tes('templat slot masa ujian: baca tanggal/jam Excel, rombel & mode, galat per baris, mapel ganda per rombel', () => {
+  const m = { dari: '2026-12-01', sampai: '2026-12-10' };
+  const mapel = [
+    { kode: 'MTK', nama: 'Matematika', rombelId: [{ id: 'R10', nama: 'C10' }, { id: 'R11', nama: 'C11' }] },
+    { kode: 'BIN', nama: 'Bahasa Indonesia', rombelId: [{ id: 'R10', nama: 'C10' }] }];
+  const B = [['TEMPLAT'], [], ['NO', 'TANGGAL', 'JAM MULAI', 'DURASI (MENIT)', 'MAPEL', 'ROMBEL', 'JUMLAH SOAL', 'MODE'],
+    ['1', '2026-12-01', '07:30', '90', 'MTK - Matematika', 'C10', '40', 'Offline'],
+    ['2', '46358', '0.3958333333', '', 'Bahasa Indonesia', 'Semua rombel', '', ''],
+    ['3', '2026-12-02', '7.30', '60', 'MTK', 'C11', '', 'Ikut masa'],
+    ['4', '2026-12-03', '08:00', '60', 'MTK', '', '', ''],
+    ['5', '2026-12-20', '', '5', 'IPA', 'C99', '2', 'Daring'],
+    ['6', '', '', '', '', '', '', '']];
+  const r = g.msiRencana_(B, m, mapel);
+  sama(r.slot.map((s) => [s.baris, s.tanggal, s.jam, s.durasi, s.kode, s.rombel, s.jumlah, s.mode]), [
+    [4, '2026-12-01', '07:30', 90, 'MTK', ['R10'], 40, 'Offline'],
+    [5, '2026-12-02', '09:30', 90, 'BIN', [], g.UJ.JUMLAH_BAWAAN, ''],
+    [6, '2026-12-02', '07:30', 60, 'MTK', ['R11'], g.UJ.JUMLAH_BAWAAN, '']]);
+  sama(r.galat.map((x) => x.baris), [7, 8]);
+  sama(/sudah dijadwalkan di baris 4, 6/.test(r.galat[0].pesan), true);
+  sama(['di luar masa', 'jam mulai', 'durasi', 'jumlah soal', 'mapel "IPA"', 'mode "Daring"'].every((k) => r.galat[1].pesan.indexOf(k) >= 0), true);
+  sama(r.kosong, 1);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
