@@ -209,6 +209,11 @@ function waStafMasaSlotSimpan(token, id, slot) {
   muWajib_(p);
   var m = muCari_(id);
   if (m.status !== 'Draft') throw new Error('Slot masa ujian yang sudah ditetapkan tidak bisa diubah. Batalkan penetapannya dulu.');
+  var h = muSlotTulis_(p, m, slot);
+  return { sukses: true, jumlah: h.jumlah };
+}
+// v1.82.1: inti simpan slot (dipakai form & impor templat). Hasil: {jumlah, ids: [ID slot sesuai urutan masukan]}
+function muSlotTulis_(p, m, slot) {
   slot = Array.isArray(slot) ? slot : [];
   if (slot.length > MU.MAKS_SLOT) throw new Error('Maksimal ' + MU.MAKS_SLOT + ' slot.');
   var nm = muNamaMapel_(), baris = [], tabrak = {};
@@ -238,7 +243,7 @@ function waStafMasaSlotSimpan(token, id, slot) {
     sh.getRange(r0, 1, baris.length, MU.HDR_SLOT.length).setNumberFormat('@').setValues(baris);
   }
   catat_(p.peran, '', p.nama, 'Slot masa ujian', m.id + ': ' + baris.length + ' slot', 'OK');
-  return { sukses: true, jumlah: baris.length };
+  return { jumlah: baris.length, ids: baris.map(function(b) { return b[0]; }) };
 }
 // Cek kesiapan bank soal: tiap slot x rombel-mapel peserta.
 function waStafMasaKesiapan(token, id) {

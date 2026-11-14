@@ -571,9 +571,19 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
         content: SizedBox(
           width: 480,
           child: ListView(shrinkWrap: true, children: [
-            if (slot.isNotEmpty)
-              Text('Slot dari berkas akan MENGGANTIKAN ${_slot.length} slot yang ada di layar. Periksa daftarnya, lalu tekan "Simpan slot".',
+            if (slot.isNotEmpty) ...[
+              Text('Disimpan langsung: ${slot.length} slot menggantikan seluruh slot masa ini${h.data!['adaPengawas'] == true ? ', dan penugasan pengawas diganti sesuai berkas' : ' (kolom pengawas kosong: penugasan pengawas tidak diubah)'}.',
                   style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 6),
+              for (final x in slot)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                      '${teks(x['tanggal'])} ${teks(x['jam'])} · ${teks(x['namaMapel'])} · ${teks(x['teksRombel'], 'Semua rombel')}'
+                      '${teks(x['namaPengawas']).isEmpty ? '' : ' · ${teks(x['namaPengawas'])}'}${teks(x['ruang']).isEmpty ? '' : ' · ${teks(x['ruang'])}'}',
+                      style: const TextStyle(fontSize: 12.5)),
+                ),
+            ],
             if (galat.isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(slot.isEmpty ? 'Tidak ada slot yang bisa dipakai. Perbaiki baris berikut lalu unggah ulang:' : 'Baris berikut tidak dipakai (perbaiki lalu unggah ulang bila perlu):',
@@ -584,20 +594,16 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(slot.isEmpty ? 'Tutup' : 'Batal')),
-          if (slot.isNotEmpty) FilledButton(onPressed: () => Navigator.pop(c, true), child: Text('Pakai ${slot.length} slot')),
+          if (slot.isNotEmpty) FilledButton(onPressed: () => Navigator.pop(c, true), child: Text('Simpan ${slot.length} slot')),
         ],
       ),
     );
     if (pakai != true || !mounted) return;
-    setState(() {
-      _slot = slot.map((s) {
-        final k = peta(s['komposisi']);
-        return {...s, 'mudah': k['mudah'], 'sedang': k['sedang'], 'sulit': k['sulit']};
-      }).toList();
-      _urut();
-      _berubah = true;
-    });
-    kabar(context, '${slot.length} slot dimuat dari templat. Tekan "Simpan slot" untuk menyimpan.');
+    final t = await jalankan(context, () async => peta(await Api.instance('waStafMasaSlotImporTerapkan', [_t, widget.id, teks(h.data!['kunci'])], const Duration(minutes: 3))),
+        teksProses: 'Menyimpan slot & pengawas...');
+    if (!t.ok || t.data == null || !mounted) return;
+    kabar(context, '${angka(t.data!['slot'])} slot disimpan${t.data!['pengawas'] == null ? '' : ' · ${angka(t.data!['pengawas'])} penugasan pengawas'}.');
+    await _muat();
   }
 
   Future<bool> _simpanSlot() async {
@@ -756,8 +762,8 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
           Wrap(spacing: 8, runSpacing: 8, children: [
             if (draft) OutlinedButton.icon(onPressed: _usulan, icon: const Icon(Icons.auto_awesome_outlined), label: const Text('Usulkan jadwal')),
             if (draft) OutlinedButton.icon(onPressed: () => _ubahSlot(), icon: const Icon(Icons.add_rounded), label: const Text('Tambah slot')),
-            if (draft) OutlinedButton.icon(onPressed: _unduhTemplat, icon: const Icon(Icons.download_rounded), label: const Text('Unduh templat slot')),
-            if (draft) OutlinedButton.icon(onPressed: _unggahTemplat, icon: const Icon(Icons.upload_file_rounded), label: const Text('Unggah templat slot')),
+            if (draft) OutlinedButton.icon(onPressed: _unduhTemplat, icon: const Icon(Icons.download_rounded), label: const Text('Unduh templat slot & pengawas')),
+            if (draft) OutlinedButton.icon(onPressed: _unggahTemplat, icon: const Icon(Icons.upload_file_rounded), label: const Text('Unggah templat slot & pengawas')),
             OutlinedButton.icon(onPressed: _kesiapan, icon: const Icon(Icons.fact_check_outlined), label: const Text('Cek kesiapan bank soal')),
             OutlinedButton.icon(
               onPressed: () async {

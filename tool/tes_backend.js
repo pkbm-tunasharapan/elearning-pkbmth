@@ -1843,28 +1843,31 @@ tes('lihat sebagai: hanya fungsi baca; token lihat ditolak tanpa kunci mode liha
   g.__INTIP = false;
 });
 
-// 60. templat slot masa ujian (v1.82.0)
-tes('templat slot masa ujian: baca tanggal/jam Excel, rombel & mode, galat per baris, mapel ganda per rombel', () => {
+// 60. templat slot masa ujian + pengawas (v1.82.0, v1.82.1)
+tes('templat slot masa ujian: tanggal/jam Excel, rombel paket A/B/C, mode, pengawas & ruang, galat per baris', () => {
   const m = { dari: '2026-12-01', sampai: '2026-12-10' };
   const mapel = [
-    { kode: 'MTK', nama: 'Matematika', rombelId: [{ id: 'R10', nama: 'C10' }, { id: 'R11', nama: 'C11' }] },
-    { kode: 'BIN', nama: 'Bahasa Indonesia', rombelId: [{ id: 'R10', nama: 'C10' }] }];
-  const B = [['TEMPLAT'], [], ['NO', 'TANGGAL', 'JAM MULAI', 'DURASI (MENIT)', 'MAPEL', 'ROMBEL', 'JUMLAH SOAL', 'MODE'],
-    ['1', '2026-12-01', '07:30', '90', 'MTK - Matematika', 'C10', '40', 'Offline'],
-    ['2', '46358', '0.3958333333', '', 'Bahasa Indonesia', 'Semua rombel', '', ''],
-    ['3', '2026-12-02', '7.30', '60', 'MTK', 'C11', '', 'Ikut masa'],
-    ['4', '2026-12-03', '08:00', '60', 'MTK', '', '', ''],
-    ['5', '2026-12-20', '', '5', 'IPA', 'C99', '2', 'Daring'],
-    ['6', '', '', '', '', '', '', '']];
-  const r = g.msiRencana_(B, m, mapel);
-  sama(r.slot.map((s) => [s.baris, s.tanggal, s.jam, s.durasi, s.kode, s.rombel, s.jumlah, s.mode]), [
-    [4, '2026-12-01', '07:30', 90, 'MTK', ['R10'], 40, 'Offline'],
-    [5, '2026-12-02', '09:30', 90, 'BIN', [], g.UJ.JUMLAH_BAWAAN, ''],
-    [6, '2026-12-02', '07:30', 60, 'MTK', ['R11'], g.UJ.JUMLAH_BAWAAN, '']]);
-  sama(r.galat.map((x) => x.baris), [7, 8]);
-  sama(/sudah dijadwalkan di baris 4, 6/.test(r.galat[0].pesan), true);
-  sama(['di luar masa', 'jam mulai', 'durasi', 'jumlah soal', 'mapel "IPA"', 'mode "Daring"'].every((k) => r.galat[1].pesan.indexOf(k) >= 0), true);
-  sama(r.kosong, 1);
+    { kode: 'MTK', nama: 'Matematika', rombelId: [{ id: 'R10', nama: 'C10', paket: 'C' }, { id: 'R11', nama: 'C11', paket: 'C' }, { id: 'R7', nama: 'B7', paket: 'B' }] },
+    { kode: 'BIN', nama: 'Bahasa Indonesia', rombelId: [{ id: 'R10', nama: 'C10', paket: 'C' }] }];
+  const staf = [{ id: 'U1', nama: 'Eka', label: 'Eka' }, { id: 'U2', nama: 'Rudi', label: 'Rudi [U2]' }, { id: 'U3', nama: 'Rudi', label: 'Rudi [U3]' }];
+  const B = [['TEMPLAT'], [], ['NO', 'TANGGAL', 'JAM MULAI', 'DURASI (MENIT)', 'MAPEL', 'ROMBEL', 'JUMLAH SOAL', 'MODE', 'PENGAWAS', 'RUANG'],
+    ['1', '2026-12-01', '07:30', '90', 'MTK - Matematika', 'Semua rombel paket C', '40', 'Offline', 'Eka', 'Ruang 1'],
+    ['2', '46358', '0.3958333333', '', 'Bahasa Indonesia', 'Semua rombel', '', '', 'Rudi [U3]', ''],
+    ['3', '2026-12-02', '7.30', '60', 'MTK', 'Semua rombel paket B', '', 'Ikut masa', '', ''],
+    ['4', '2026-12-03', '08:00', '60', 'MTK', 'C11', '', '', '', ''],
+    ['5', '2026-12-20', '', '5', 'IPA', 'C99', '2', 'Daring', 'Budi', ''],
+    ['6', '2026-12-04', '08:00', '60', 'BIN', 'Semua rombel paket A', '', '', 'Rudi', ''],
+    ['7', '', '', '', '', '', '', '', '', '']];
+  const r = g.msiRencana_(B, m, mapel, staf);
+  sama(r.slot.map((s) => [s.baris, s.tanggal, s.jam, s.durasi, s.kode, s.rombel, s.teksRombel, s.jumlah, s.mode, s.idPengawas, s.ruang]), [
+    [4, '2026-12-01', '07:30', 90, 'MTK', ['R10', 'R11'], 'Semua rombel paket C', 40, 'Offline', 'U1', 'Ruang 1'],
+    [5, '2026-12-02', '09:30', 90, 'BIN', [], 'Semua rombel', g.UJ.JUMLAH_BAWAAN, '', 'U3', ''],
+    [6, '2026-12-02', '07:30', 60, 'MTK', ['R7'], 'Semua rombel paket B', g.UJ.JUMLAH_BAWAAN, '', '', '']]);
+  sama(r.galat.map((x) => x.baris), [7, 8, 9]);
+  sama(/sudah dijadwalkan di baris 4/.test(r.galat[0].pesan), true);
+  sama(['di luar masa', 'jam mulai', 'durasi', 'jumlah soal', 'mapel "IPA"', 'mode "Daring"', 'pengawas "Budi"'].every((k) => r.galat[1].pesan.indexOf(k) >= 0), true);
+  sama(['paket A', 'ganda'].every((k) => r.galat[2].pesan.indexOf(k) >= 0), true);
+  sama([r.kosong, r.adaPengawas], [1, true]);
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

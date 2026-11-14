@@ -144,7 +144,11 @@ function waStafMasaPengawas(token, idMasa) {
 function waStafMasaPengawasSimpan(token, idMasa, tugas) {
   var p = stafDariToken_(token);
   muWajib_(p);
-  var m = muCari_(idMasa), staf = {}, baris = [], unik = {};
+  return { sukses: true, jumlah: pwTugasTulis_(p, muCari_(idMasa), tugas) };
+}
+// v1.82.1: inti simpan penugasan pengawas (dipakai layar pengawas & impor templat slot). Hasil: jumlah baris.
+function pwTugasTulis_(p, m, tugas) {
+  var staf = {}, baris = [], unik = {};
   pwStaf_().forEach(function(u) { staf[u.id] = u; });
   (Array.isArray(tugas) ? tugas : []).forEach(function(t) {
     var slot = String(t.slot || '*'), rombel = String(t.rombel || '').trim(), idP = String(t.idPengawas || '').trim(), ruang = String(t.ruang || '').replace(/\s+/g, ' ').trim().slice(0, 40);
@@ -163,7 +167,7 @@ function waStafMasaPengawasSimpan(token, idMasa, tugas) {
     if (baris.length) sh.getRange(sh.getLastRow() + 1, 1, baris.length, PW.HDR.length).setNumberFormat('@').setValues(baris);
   } finally { kunci.releaseLock(); }
   catat_(p.peran, '', p.nama, 'Atur pengawas ujian', m.id + ' ' + m.nama + ': ' + baris.length + ' penugasan', 'OK');
-  return { sukses: true, jumlah: baris.length };
+  return baris.length;
 }
 
 // Daftar tugas pengawas: pengguna ini (atau semua bila pengelola) untuk masa yang ditetapkan dan belum lewat 2 hari.
