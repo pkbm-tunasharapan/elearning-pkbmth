@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -345,9 +346,14 @@ Future<void> bagikanExcel(BuildContext context, String html, String nama) async 
 }
 
 /// Membuat PDF dari HTML lewat server (waStafHtmlPdf atau fungsi lain) lalu membukanya.
-Future<void> htmlKePdf(BuildContext context, {required String nama, String fn = 'waStafHtmlPdf', required List<dynamic> args}) async {
+/// v1.79.7: semua cetakan HTML otomatis diberi watermark logo samar ([watermark] = false untuk cover rapor).
+Future<void> htmlKePdf(BuildContext context, {required String nama, String fn = 'waStafHtmlPdf', required List<dynamic> args, bool watermark = true}) async {
   if (_tolakDinas(context)) return;
-  final r = await jalankan(context, () => Api.instance(fn, args, const Duration(minutes: 3)), teksProses: 'Membuat PDF...');
+  var a = args;
+  if (watermark && fn == 'waStafHtmlPdf' && args.length >= 2 && args[1] is String) {
+    a = [args[0], await sisipWatermark(args[1] as String), ...args.skip(2)];
+  }
+  final r = await jalankan(context, () => Api.instance(fn, a, const Duration(minutes: 3)), teksProses: 'Membuat PDF...');
   if (!r.ok || !context.mounted) return;
   await bukaPdfB64(context, teks(peta(r.data)['b64']), nama);
 }
@@ -363,6 +369,41 @@ String tanggalIni() {
 String tanggalBerkas() {
   final t = DateTime.now();
   return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+}
+
+String? _wmLogo;   // data URI logo kop (asset), disimpan sekali
+Future<String> _logoKopDataUri() async {
+  if (_wmLogo != null) return _wmLogo!;
+  try {
+    final b = (await rootBundle.load('assets/logo_kop.png')).buffer.asUint8List();
+    _wmLogo = 'data:image/png;base64,${base64Encode(b)}';
+  } catch (_) {
+    _wmLogo = '';
+  }
+  return _wmLogo!;
+}
+
+/// v1.79.7: sisipkan watermark ke dokumen HTML. Dokumen berhalaman (div class="hal") -> satu watermark per halaman;
+/// selainnya -> satu watermark tetap (position:fixed). Dokumen yang sudah punya watermark tidak diubah.
+Future<String> sisipWatermark(String html) async {
+  if (html.contains('data-wm=') || !html.contains('<body>')) return html;
+  final logo = await _logoKopDataUri();
+  if (logo.isEmpty) return html;
+  final lanskap = html.contains('330mm 215mm');
+  if (html.contains('<div class="hal">')) {
+    final wm = await watermarkHtml(logo, lanskap: lanskap, tetap: false);
+    if (wm.isEmpty) return html;
+    return html.replaceAll('<div class="hal">', '<div class="hal" style="position:relative">$wm');
+  }
+  final wm = await watermarkHtml(logo, lanskap: lanskap);
+  return wm.isEmpty ? html : html.replaceFirst('<body>', '<body>$wm');
+}
+
+/// Logo samar siap pakai untuk PDF yang digambar langsung (kartu QR, dsb.).
+Future<Uint8List?> logoSamarBytes() async {
+  final logo = await _logoKopDataUri();
+  if (logo.isEmpty) return null;
+  return pngSamar(base64Decode(logo.substring(logo.indexOf(',') + 1)));
 }
 
 /// v1.79.5: baris keterangan kop disusun piramida terbalik (terpanjang di atas, makin ke bawah makin pendek).
@@ -400,7 +441,7 @@ Future<String> watermarkHtml(String dataUri, {bool lanskap = false, double ukura
   if (b == null) return '';
   final isiW = lanskap ? 310.0 : 195.0, isiH = lanskap ? 195.0 : 310.0;
   final kiri = (isiW - ukuranMm) / 2, atas = (isiH - ukuranMm) / 2;
-  return '<div style="position:${tetap ? 'fixed' : 'absolute'};left:${kiri.toStringAsFixed(1)}mm;top:${atas.toStringAsFixed(1)}mm;width:${ukuranMm}mm;z-index:-1">'
+  return '<div data-wm="1" style="position:${tetap ? 'fixed' : 'absolute'};left:${kiri.toStringAsFixed(1)}mm;top:${atas.toStringAsFixed(1)}mm;width:${ukuranMm}mm;z-index:-1">'
       '<img src="data:image/png;base64,${base64Encode(b)}" style="width:${ukuranMm}mm"></div>';
 }
 

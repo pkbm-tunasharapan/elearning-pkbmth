@@ -130,7 +130,8 @@ Future<void> cetakCoverBiodata(BuildContext context, {required String idRombel, 
   if (r.data!.kurang > 0) {
     kabar(context, '${r.data!.kurang} siswa belum punya biodata lengkap (agama, alamat, orang tua). Jalankan Impor Dapodik untuk melengkapinya; kolom kosong dicetak bergaris titik.');
   }
-  await htmlKePdf(context, nama: 'Cover_Biodata_${prog.replaceAll('PKT-', 'Paket_')}_${(namaWb ?? namaRombel).replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf', args: [_t, html]);
+  // v1.79.7: cover rapor tetap dengan logonya sendiri, tanpa watermark
+  await htmlKePdf(context, watermark: false, nama: 'Cover_Biodata_${prog.replaceAll('PKT-', 'Paket_')}_${(namaWb ?? namaRombel).replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf', args: [_t, html]);
 }
 
 /// v1.39.3: pilihan jenjang cover rapor. Mengembalikan 'PKT-A' | 'PKT-B' | 'PKT-C', atau null bila batal.

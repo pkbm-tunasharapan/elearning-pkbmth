@@ -227,6 +227,8 @@ class _KartuQrMassalScreenState extends State<KartuQrMassalScreen> {
       final fontNama = PdfStandardFont(PdfFontFamily.helvetica, kolom >= 4 ? 8.0 : (kolom == 3 ? 9.5 : 12.0), style: PdfFontStyle.bold);
       final garis = PdfPen(PdfColor(190, 190, 190), width: 0.5)..dashStyle = PdfDashStyle.dash;
       final format = PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.top, wordWrap: PdfWordWrapType.word);
+      final samarB = await logoSamarBytes();   // v1.79.7: watermark logo samar per halaman
+      final samar = samarB == null ? null : PdfBitmap(samarB);
       late PdfPage hal;
       late Size area;
       late double selW, selH, tinggiNama;
@@ -235,6 +237,10 @@ class _KartuQrMassalScreenState extends State<KartuQrMassalScreen> {
         if (i == 0 || i % perHal == 0) {
           hal = doc.pages.add();
           area = hal.getClientSize();
+          if (samar != null) {
+            final s = area.width * 0.62, t = s * samar.height / samar.width;
+            hal.graphics.drawImage(samar, Rect.fromLTWH((area.width - s) / 2, (area.height - t) / 2, s, t));
+          }
           selW = area.width / kolom;
           tinggiNama = kolom >= 4 ? 24.0 : (kolom == 3 ? 28.0 : 36.0);
           selH = selW + tinggiNama - 4;
