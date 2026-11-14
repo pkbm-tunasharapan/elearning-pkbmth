@@ -136,3 +136,46 @@ Future<void> cetakJadwalPengawas(BuildContext context, String idMasa) async {
   b.write('<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>');
   await htmlKePdf(context, nama: _namaBerkas('Jadwal_Pengawas', m), args: [_t, dokumenA4(b.toString(), _css, lanskap: true)]);
 }
+
+/// v1.83.5: cetak hasil Cek kesiapan bank soal, dikelompokkan per rombel, untuk ditindaklanjuti tutor pengampu.
+Future<void> cetakKesiapanBank(BuildContext context, String idMasa, Map<String, dynamic> data) async {
+  final d = await _data(context, idMasa);   // kop + identitas masa
+  if (d == null || !context.mounted) return;
+  final m = peta(d['masa']);
+  final isi = daftar(data['kesiapan']).map(peta).toList();
+  final rk = peta(data['ringkas']);
+  const warna = {'Siap': '#15803d', 'Sebagian': '#1d4ed8', 'Kurang': '#c2410c', 'Kosong': '#b91c1c'};
+  final b = StringBuffer(_kop(peta(d['kop'])));
+  b.write('<h2>LAPORAN KESIAPAN BANK SOAL</h2>');
+  b.write('<p class="sub">${escHtml(teks(m['nama']))} · ${escHtml(_tglPanjang(teks(m['dari'])))} s.d. ${escHtml(_tglPanjang(teks(m['sampai'])))} · Peserta: ${escHtml(teks(m['peserta']))}</p>');
+  b.write('<table class="g"><tr>');
+  for (final s in ['Siap', 'Sebagian', 'Kurang', 'Kosong']) {
+    b.write('<td style="text-align:center"><b style="color:${warna[s]}">$s</b><br><span style="font-size:13pt;font-weight:bold">${rk[s] ?? 0}</span></td>');
+  }
+  b.write('<td style="text-align:center"><b>Jumlah jadwal</b><br><span style="font-size:13pt;font-weight:bold">${isi.length}</span></td></tr></table>');
+  b.write('<p class="kecil2">Siap = bank soal cukup. Sebagian = ada sesi tanpa bank soal (soal diambil dari sesi lain). Kurang = soal di bank lebih sedikit dari jumlah soal ujian. '
+      'Kosong = belum ada soal, siswa tidak bisa mulai ujian. Bank soal disusun di Mata Pelajaran → (mapel di rombel itu) → tab Kurikulum.</p>');
+  final perRombel = <String, List<Map<String, dynamic>>>{};
+  for (final x in isi) {
+    perRombel.putIfAbsent(teks(x['rombel']), () => []).add(x);
+  }
+  final urutRombel = perRombel.keys.toList()..sort();
+  for (final r in urutRombel) {
+    final l = perRombel[r]!..sort((a, c) => teks(a['mapel']).compareTo(teks(c['mapel'])));
+    final belum = l.where((x) => teks(x['status']) != 'Siap').length;
+    b.write('<h3>Rombel ${escHtml(r)} <span class="kecil2">(${l.length} jadwal${belum == 0 ? ', semua siap' : ', $belum belum siap'})</span></h3>');
+    b.write('<table class="g"><tr><th>Mata pelajaran</th><th style="width:130px">Jadwal</th><th style="width:55px">Peserta</th><th style="width:85px">Bank / perlu</th>'
+        '<th style="width:70px">Status</th><th>Sesi tanpa bank soal</th><th class="paraf">Paraf tutor</th></tr>');
+    for (final x in l) {
+      final st = teks(x['status']);
+      final bg = st == 'Kosong' ? '#fde8e8' : (st == 'Kurang' ? '#fff1e0' : '');
+      b.write('<tr${bg.isEmpty ? '' : ' style="background:$bg"'}><td class="mp">${escHtml(teks(x['mapel']))}</td>'
+          '<td class="jam">${escHtml(_tglPanjang(teks(x['tanggal'])))}<br>${escHtml(teks(x['jam']))}</td><td style="text-align:center">${x['peserta'] ?? ''}</td>'
+          '<td style="text-align:center">${x['bank'] ?? 0} / ${x['perlu'] ?? 0}</td><td><b style="color:${warna[st] ?? '#111'}">${escHtml(st)}</b></td>'
+          '<td>${escHtml(daftar(x['tanpaBank']).join(', '))}</td><td></td></tr>');
+    }
+    b.write('</table>');
+  }
+  b.write('<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>');
+  await htmlKePdf(context, nama: _namaBerkas('Kesiapan_Bank_Soal', m), args: [_t, dokumenA4(b.toString(), _css)]);
+}

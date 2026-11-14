@@ -651,7 +651,7 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
     if (!mounted) return;
     final r = await jalankan(context, () async => peta(await Api.instance('waStafMasaKesiapan', [_t, widget.id], const Duration(minutes: 3))), teksProses: 'Memeriksa bank soal...');
     if (!r.ok || !mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => _KesiapanScreen(data: r.data!)));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => _KesiapanScreen(data: r.data!, idMasa: widget.id)));
   }
 
   Future<void> _tetapkan() async {
@@ -1105,8 +1105,9 @@ class _DialogUsulanState extends State<_DialogUsulan> {
 }
 
 class _KesiapanScreen extends StatelessWidget {
-  const _KesiapanScreen({required this.data});
+  const _KesiapanScreen({required this.data, required this.idMasa});
   final Map<String, dynamic> data;
+  final String idMasa;
 
   Color _warna(String s) => switch (s) {
         'Siap' => Colors.green.shade700,
@@ -1120,7 +1121,10 @@ class _KesiapanScreen extends StatelessWidget {
     final isi = daftar(data['kesiapan']).map(peta).toList();
     final rk = peta(data['ringkas']);
     return Scaffold(
-      appBar: AppBar(title: const Text('Kesiapan bank soal')),
+      appBar: AppBar(title: const Text('Kesiapan bank soal'), actions: [
+        // v1.83.5: cetak hasil pengecekan bank soal
+        IconButton(tooltip: 'Cetak PDF', onPressed: isi.isEmpty ? null : () => cetakKesiapanBank(context, idMasa, data), icon: const Icon(Icons.print_rounded)),
+      ]),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final s in ['Siap', 'Sebagian', 'Kurang', 'Kosong']) Lencana('$s: ${rk[s] ?? 0}', warna: _warna(s)),
