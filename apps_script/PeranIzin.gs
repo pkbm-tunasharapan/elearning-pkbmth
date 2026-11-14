@@ -26,7 +26,7 @@ var IZN = {
   BACA_PAKSA: { waStafMasaHadir: true, waStafMasaTinjau: true, waStafMasaSanksi: true, waStafPengawasTugas: true, waStafPengawasPantau: true, waStafPengawasBeritaAcara: true, waStafMasaPengawas: true,waStafMasaKesiapan: true, waStafMasaUsulan: true, waStafMasaDraf: true,waStafAsesmenPeserta: true, waStafKartuPeserta: true, waStafRefAdmin: true, waStafTranskrip: true, waStafUnitRiwayat: true, waStafPantauUnit: true, waStafLaporanPemetaanSiswa: true, waStafJadwalCetak: true },
   // [id fitur (= id menu), judul, kelompok, peran bawaan yang punya fitur ini, pola fungsi]
   FITUR: [
-    ['pengguna', 'Kelola Pengguna', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode|TugasTambahan)$/],
+    ['pengguna', 'Kelola Pengguna', 'Pengguna & Komunikasi', ['Admin'], /^waAdmin(Daftar|SimpanPengguna|SetEnrollment|ResetKode|TugasTambahan|Intip(Daftar|Mulai|Akhiri))$/],
     ['peranIzin', 'Peran & Izin', 'Sistem', ['Admin'], /^waAdminPeran\w*$/],
     ['aturNotif', 'Pengaturan Notifikasi', 'Sistem', ['Admin'], /^waAdminNotif\w*$/],
     ['mapelSaya', 'Mata Pelajaran (konten, kurikulum, ujian, media ajar)', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'],

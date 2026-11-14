@@ -201,13 +201,14 @@ function waStafMaintenanceAtur(token, aktif, pesan) {
 
 function stafDariToken_(token) {
   if (!token) throw new Error('SESI_HABIS');
+  if (typeof intipTolakTanpaKunci_ === 'function') intipTolakTanpaKunci_(INTIP.STAF, token);   // v1.81.0
   var id = CacheService.getScriptCache().get('staf_' + token);
   if (!id) throw new Error('SESI_HABIS');
   var daftar = typeof penggunaCache_ === 'function' ? penggunaCache_() : bacaPengguna_();
   for (var i = 0; i < daftar.length; i++) {
     if (daftar[i].id === id && daftar[i].status === 'Aktif' && daftar[i].peran) {
       // Sesi diperpanjang tiap ada aktivitas (6 jam sejak aktivitas terakhir, bukan sejak masuk).
-      try { CacheService.getScriptCache().put('staf_' + token, id, PERAN.DURASI_SESI_DETIK); } catch (e) {}
+      if (!globalThis.__INTIP) { try { CacheService.getScriptCache().put('staf_' + token, id, PERAN.DURASI_SESI_DETIK); } catch (e) {} }   // sesi lihat tidak diperpanjang
       if (daftar[i].peran !== 'Admin' && mtAktif_()) throw new Error('MAINTENANCE');
       var hasilU = (daftar[i].peran === 'Dinas Pendidikan' && typeof dinasSaring_ === 'function') ? dinasSaring_(daftar[i]) : daftar[i];
       if (typeof tgTerapkanMode_ === 'function') hasilU = tgTerapkanMode_(hasilU, token);   // v1.73.0: mode Tutor (tugas tambahan)

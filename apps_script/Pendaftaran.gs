@@ -533,6 +533,7 @@ function ssBuat_(res) {
 function waPulihSesiSiswa(token, kunciPerangkat) {
   var gagal = { sukses: false };
   var c = CacheService.getScriptCache(), d = null, mentah = null;
+  if (token && typeof INTIP !== 'undefined' && c.get(INTIP.SISWA + String(token))) return gagal;   // v1.81.0: sesi lihat tidak dipulihkan/diperpanjang
   if (token && String(token).length >= 40) mentah = c.get(SS.AWAL + String(token));
   if (mentah) {
     try { d = JSON.parse(mentah); } catch (e) { d = null; }

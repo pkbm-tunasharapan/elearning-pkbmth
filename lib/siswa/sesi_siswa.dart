@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api.dart';
+import '../pengguna/lihat_sebagai.dart';
 
 /// Sesi siswa (login nama + kata sandi TH-ddmmyyyy). Terpisah dari sesi staf.
 class SesiSiswa extends ChangeNotifier {
@@ -62,7 +63,7 @@ class SesiSiswa extends ChangeNotifier {
   /// (maks. sekali per 10 menit kecuali [paksa]). Bila token sesi 6 jam sudah habis, kunci perangkat jangka panjang
   /// (bc_kunci, dari pendaftaran notifikasi) dipakai untuk menerbitkan token baru tanpa login ulang.
   Future<void> segarkan({bool paksa = false}) async {
-    if (!masuk) return;
+    if (!masuk || ModeLihat.instance.aktif) return;   // v1.81.0: sesi mode lihat tidak diperbarui/disimpan
     final kini = DateTime.now();
     if (!paksa && _terakhirSegar != null && kini.difference(_terakhirSegar!) < const Duration(minutes: 10)) return;
     _terakhirSegar = kini;
@@ -102,7 +103,17 @@ class SesiSiswa extends ChangeNotifier {
     await sp.setString('siswaKode', kodeAkses);
   }
 
+  /// v1.81.0: ganti sesi siswa di memori saja (mode Lihat sebagai), tanpa menyimpan ke HP.
+  void gantiSementara(Map<String, dynamic> d) {
+    data = d;
+    notifyListeners();
+  }
+
   Future<void> keluar() async {
+    if (ModeLihat.instance.aktif) {   // v1.81.0: "Keluar" saat mode lihat = kembali ke akun Admin
+      await ModeLihat.instance.akhiri();
+      return;
+    }
     final t = token;
     Api.instance.bersihkanCache();   // v1.65.0
     data = {};

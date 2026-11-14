@@ -1816,5 +1816,32 @@ tes('jadwal: tutor bawaan dari Pengampu (unit jadwal -> semua unit -> tutor onli
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+const galat = (f, re) => { let m = ''; try { f(); } catch (e) { m = String(e.message); } if (!re.test(m)) throw new Error('galat diharapkan ' + re + ', didapat "' + m + '"'); };
+// 59. Lihat sebagai (v1.81.0): hanya fungsi baca, token lihat tidak sah tanpa kunci
+tes('lihat sebagai: hanya fungsi baca; token lihat ditolak tanpa kunci mode lihat; catat_ diam', () => {
+  const b = (j, f) => g.intipBoleh_(j, f);
+  sama(['waStafProfil', 'waStafBeranda', 'waStafNilaiKelas', 'waStafJadwalHari', 'waStafSesiDiskusi', 'waStafKartu'].map((f) => b('tutor', f)), [true, true, true, true, true, true]);
+  sama(['waStafDiskusiSimpanNilai', 'waStafAbsenSimpan', 'waStafPemetaanSimpan', 'waStafMediaAjarTerbitSemua', 'waAdminKerangkaSetujuiSemua', 'waAdminResetData',
+    'waNotifDaftar', 'waStafKeluar', 'waStafHtmlPdf', 'waSubmitJawaban', 'waAdminIntipMulai'].map((f) => b('tutor', f)), Array(11).fill(false));
+  sama(['waSiswaBeranda', 'waGetMateri', 'waProfilSiswa', 'waStatusUjian'].map((f) => b('siswa', f)), [true, true, true, true]);
+  sama(['waSubmitJawaban', 'waMulaiUjian', 'waTandaiBaca', 'waAbsenIsi', 'waRuangKirim', 'waProfilSiswaSimpan', 'waSiswaKelayakanAju', 'waNotifDaftar', 'waSiswaPinBuat',
+    'waPulihSesiSiswa', 'waStafProfil', 'waSiswaKwitansi'].map((f) => b('siswa', f)), Array(12).fill(false));
+  const c = g.CacheService.getScriptCache();
+  c.put('intip_K1', JSON.stringify({ jenis: 'tutor', nama: 'Eka', sesi: 'S1' }));
+  galat(() => g.intipJaga_('waStafProfil', 'TIDAKADA'), /MODE_LIHAT_HABIS/);
+  galat(() => g.intipJaga_('waStafDiskusiSimpanNilai', 'K1'), /hanya baca/);
+  g.__INTIP = false;
+  sama(g.intipJaga_('waStafProfil', 'K1').nama, 'Eka');
+  sama(g.intipAktif_(), true);
+  sama(g.catat_('Admin', '', 'x', 'y', '', 'OK'), undefined);   // tidak menyentuh SpreadsheetApp
+  g.__INTIP = false;
+  c.put('intipstaf_S1', '1');
+  galat(() => g.intipTolakTanpaKunci_('intipstaf_', 'S1'), /SESI_HABIS/);
+  g.intipTolakTanpaKunci_('intipstaf_', 'TOKEN_BIASA');
+  g.__INTIP = { jenis: 'tutor' };
+  g.intipTolakTanpaKunci_('intipstaf_', 'S1');
+  g.__INTIP = false;
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

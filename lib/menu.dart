@@ -44,6 +44,7 @@ import 'screens/tahun_ajaran.dart';
 import 'screens/ujian.dart';
 import 'screens/web_menu.dart';
 import 'arsip/arsip.dart';
+import 'pengguna/lihat_sebagai.dart';
 import 'pengguna/notif_aturan.dart';
 import 'pengguna/peran_izin.dart';
 import 'pemeliharaan/sistem.dart';
@@ -80,6 +81,7 @@ const _lapHadir = {'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikul
 
 final List<MenuApp> semuaMenu = [
   MenuApp(id: 'pengguna', judul: 'Kelola Pengguna', ikon: Icons.groups_outlined, peran: _admin, native: () => const PenggunaScreen(), utama: true),
+  MenuApp(id: 'lihatSebagai', judul: 'Lihat Sebagai', ikon: Icons.visibility_outlined, peran: _admin, native: () => const LihatSebagaiScreen()),
   MenuApp(id: 'mapelSaya', judul: 'Mata Pelajaran', ikon: Icons.menu_book_outlined, peran: {..._semua, 'Superadmin', 'Dinas Pendidikan'}, native: () => const MapelScreen(), utama: true),
   MenuApp(id: 'absensi', judul: 'Absensi Warga Belajar', ikon: Icons.how_to_reg_outlined, peran: _absWb, native: () => const AbsensiMenuScreen(), utama: true),
   MenuApp(id: 'absenTutor', judul: 'Absen Tutor', ikon: Icons.badge_outlined, peran: {'Admin', 'Kepala Sekolah', 'Front Office'}, native: () => const AbsenTutorScreen(), utama: true),
@@ -170,7 +172,7 @@ const _grupMenu = <String, String>{
   'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'agendaLembaga': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
   'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'pantauanUnit': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'aktivasiQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
   'keuangan': 'Keuangan & Honor', 'vaCustom': 'Keuangan & Honor', 'kwitansi': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
-  'pengguna': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
+  'pengguna': 'Pengguna & Komunikasi', 'lihatSebagai': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
   'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'peranIzin': 'Sistem', 'maintenance': 'Sistem',
 };
 
@@ -189,6 +191,7 @@ const _kataKunci = <String, String>{
   'vaCustom': 'va virtual account tagihan custom bayar pendaftaran qr umum orang tua',
   'rekapHonor': 'gaji bayar tutor',
   'pengguna': 'akun tutor enroll staf',
+  'lihatSebagai': 'login sebagai tutor siswa intip tampilan hanya baca',
   'ruangStaf': 'chat obrolan pesan',
   'jadwal': 'jam pelajaran roster',
   'nilai': 'diskusi tugas koreksi',

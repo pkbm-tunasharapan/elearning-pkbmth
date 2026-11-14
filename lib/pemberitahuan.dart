@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'config.dart';
+import 'pengguna/lihat_sebagai.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
 
@@ -74,7 +75,7 @@ class Pemberitahuan {
 
   /// Daftarkan perangkat ini (sekali per akun) dan nyalakan pemeriksaan latar belakang.
   Future<void> mulai() async {
-    if (_daftarJalan) return;
+    if (_daftarJalan || ModeLihat.instance.aktif) return;   // v1.81.0: mode lihat tidak mendaftarkan perangkat ke akun yang dilihat
     _daftarJalan = true;
     try {
       final id = _identitas;

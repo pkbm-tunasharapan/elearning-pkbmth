@@ -42,11 +42,12 @@ function doPost(e) {
       var boleh = (API_FLUTTER.POLA.test(fn) || API_FLUTTER.TAMBAHAN[fn] === true) && typeof globalThis[fn] === 'function';
       if (!boleh) throw new Error('Fungsi tidak diizinkan: ' + fn);
       API_FN_SAAT_INI_ = fn;
-      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__API_V = String(body.v || ""); globalThis.__DINAS = false;
+      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__API_V = String(body.v || ""); globalThis.__DINAS = false; globalThis.__INTIP = false;
+      if (body.intip && typeof intipJaga_ === 'function') intipJaga_(fn, String(body.intip));   // v1.81.0: Lihat sebagai (hanya baca)
       var hasilFn = globalThis[fn].apply(null, args);
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
       if (typeof updLama_ === 'function') hasilFn = updLama_(fn, args, hasilFn, body);
-      if (typeof rlsCatatPakai_ === 'function') rlsCatatPakai_(fn, args, body);   // pemakaian rilis uji oleh penguji
+      if (typeof rlsCatatPakai_ === 'function' && !globalThis.__INTIP) rlsCatatPakai_(fn, args, body);   // pemakaian rilis uji oleh penguji
       if (typeof rfSisipNotif_ === 'function') hasilFn = rfSisipNotif_(fn, args, hasilFn);
       out = { ok: true, data: hasilFn };
     }
@@ -54,7 +55,7 @@ function doPost(e) {
     var pesanGalat = String((err && err.message) || err);
     out = { ok: false, error: pesanGalat };
     // v1.17: catat galat server (kecuali sesi habis / maintenance) ke tab Log Galat.
-    if (!/SESI_HABIS|MAINTENANCE/.test(pesanGalat) && typeof pmlCatatGalat_ === 'function') pmlCatatGalat_('server', fn, pesanGalat, err && err.stack, '', '');
+    if (!/SESI_HABIS|MAINTENANCE|MODE_LIHAT|Mode lihat/.test(pesanGalat) && typeof pmlCatatGalat_ === 'function') pmlCatatGalat_('server', fn, pesanGalat, err && err.stack, '', '');
   }
   if (typeof perfSetelah_ === 'function') perfSetelah_(fn, Date.now() - t0, !!(out && out.ok));
   var json;
@@ -116,6 +117,7 @@ function profilTulis_(kunci, jenis, nama, d) {
 }
 
 function siswaDariSesi_(token) {
+  if (typeof intipTolakTanpaKunci_ === 'function') intipTolakTanpaKunci_(INTIP.SISWA, token);
   var mentah = token ? CacheService.getScriptCache().get(SS.AWAL + String(token)) : null;
   if (!mentah) throw new Error('SESI_HABIS');
   var d = JSON.parse(mentah);

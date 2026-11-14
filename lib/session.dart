@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'pengguna/lihat_sebagai.dart';
 import 'siswa/sesi_siswa.dart';
 
 /// Menyimpan token sesi staf dan profil (nama, peran, daftar mapel).
@@ -57,6 +58,11 @@ class Sesi extends ChangeNotifier {
 
   Future<void> muat() async {
     Api.instance.onSesiHabis = () {
+      // v1.81.0: sesi mode lihat habis -> kembali ke akun Admin (bukan keluar)
+      if (ModeLihat.instance.aktif) {
+        ModeLihat.instance.akhiri(pesan: 'Mode lihat sudah berakhir.');
+        return;
+      }
       // v1.38.7: siswa -> perbarui sesi diam-diam (kunci perangkat); staf -> masuk kembali seperti biasa
       if (SesiSiswa.instance.masuk && token == null) {
         SesiSiswa.instance.segarkan(paksa: true);
@@ -127,6 +133,13 @@ class Sesi extends ChangeNotifier {
     return null;
   }
 
+  /// v1.81.0: ganti sesi di memori saja (mode Lihat sebagai), tanpa menyimpan ke HP.
+  void gantiSementara(String? tokenBaru, Map<String, dynamic> profilBaru) {
+    token = tokenBaru;
+    profil = profilBaru;
+    notifyListeners();
+  }
+
   Future<void> segarkanProfil() async {
     if (token == null) return;
     profil = peta(await Api.instance('waStafProfil', [token]));
@@ -134,6 +147,10 @@ class Sesi extends ChangeNotifier {
   }
 
   Future<void> keluar({bool lokal = false, String? pesan}) async {
+    if (ModeLihat.instance.aktif) {   // v1.81.0: "Keluar" saat mode lihat = kembali ke akun Admin
+      await ModeLihat.instance.akhiri();
+      return;
+    }
     final t = token;
     Api.instance.bersihkanCache();   // v1.65.0
     token = null;

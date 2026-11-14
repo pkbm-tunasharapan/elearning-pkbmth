@@ -124,6 +124,11 @@ class Api {
   /// Dipanggil setiap kali backend menyatakan sesi habis.
   void Function()? onSesiHabis;
 
+  /// v1.81.0: kunci mode "Lihat sebagai" (Admin, hanya baca). Bila terisi, dikirim di setiap permintaan;
+  /// server hanya mengizinkan fungsi baca.
+  String? intip;
+  void Function()? onModeLihatHabis;
+
   /// Dipanggil untuk galat yang perlu dicatat ke log admin (dipasang di pemeliharaan/sistem.dart).
   void Function(ApiException e)? onGalat;
 
@@ -230,7 +235,7 @@ class Api {
   }
 
   Future<dynamic> call(String fn, [List<dynamic> args = const [], Duration batas = const Duration(seconds: 120)]) async {
-    final body = jsonEncode({'fn': fn, 'args': args, 'v': kVersi, 'pf': kIsWeb ? 'web' : 'android'});
+    final body = jsonEncode({'fn': fn, 'args': args, 'v': kVersi, 'pf': kIsWeb ? 'web' : 'android', if (intip != null) 'intip': intip});
     final kunciCache = bolehCache(fn) ? '$fn|${jsonEncode(args)}' : null;
     if (kunciCache != null && Zone.current[zonaMode] == 'cache') {
       final c = _cache[kunciCache];
@@ -301,7 +306,11 @@ class Api {
     final asli = data is Map ? '${data['error'] ?? 'Terjadi kesalahan.'}' : 'Terjadi kesalahan.';
     final err = ApiException(asli, fn: fn, detail: asli);
     if (err.perluDilapor) onGalat?.call(err);
-    if (err.sesiHabis && onSesiHabis != null) onSesiHabis!();
+    if (asli.contains('MODE_LIHAT_HABIS') && onModeLihatHabis != null) {
+      onModeLihatHabis!();
+    } else if (err.sesiHabis && onSesiHabis != null) {
+      onSesiHabis!();
+    }
     throw err;
   }
 }

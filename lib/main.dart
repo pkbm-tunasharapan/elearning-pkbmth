@@ -8,6 +8,7 @@ import 'absensi/antrean_pindai.dart';
 import 'api.dart';
 import 'config.dart';
 import 'notif.dart';
+import 'pengguna/lihat_sebagai.dart';
 import 'pemberitahuan.dart';
 import 'pemeliharaan/sistem.dart';
 import 'profil.dart';
@@ -140,14 +141,15 @@ class _AplikasiStafState extends State<AplikasiStaf> {
       debugShowCheckedModeBanner: false,
       theme: Gaya.tema(Brightness.light),
       darkTheme: Gaya.tema(Brightness.dark),
+      builder: (context, child) => PitaModeLihat(child: child ?? const SizedBox.shrink()),   // v1.81.0
       home: ListenableBuilder(
-        listenable: Listenable.merge([Sesi.instance, SesiSiswa.instance]),
+        listenable: Listenable.merge([Sesi.instance, SesiSiswa.instance, ModeLihat.instance]),
         builder: (context, _) {
           final s = Sesi.instance;
           final ss = SesiSiswa.instance;
           if (!s.siap || !ss.siap) return const _Pembuka();
           // v1.39.0: masa tenggang PIN habis / PIN di-reset -> wajib buat PIN dulu
-          if (ss.masuk) return ss.wajibPin ? const BuatPinScreen(wajib: true) : const BerandaSiswa();
+          if (ss.masuk) return ss.wajibPin && !ModeLihat.instance.aktif ? const BuatPinScreen(wajib: true) : const BerandaSiswa();
           return s.masuk ? const HomeScreen() : const LoginScreen();
         },
       ),

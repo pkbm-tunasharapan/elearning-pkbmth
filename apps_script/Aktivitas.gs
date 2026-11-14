@@ -37,6 +37,7 @@ function potongTeks_(t, maks) {
 
 // peran: 'Siswa' | 'Tutor' | 'Admin' | 'Staf' ; hasil: 'OK' | 'GAGAL'
 function catat_(peran, idKelas, nama, aksi, detail, hasil) {
+  if (globalThis.__INTIP) return;   // v1.81.0: mode Lihat sebagai tidak meninggalkan jejak
   try {
     var sh = pastikanSheetAktivitas_();
     var waktu = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
