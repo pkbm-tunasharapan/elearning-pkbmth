@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -362,6 +363,44 @@ String tanggalIni() {
 String tanggalBerkas() {
   final t = DateTime.now();
   return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+}
+
+/// v1.79.5: baris keterangan kop disusun piramida terbalik (terpanjang di atas, makin ke bawah makin pendek).
+List<String> barisPiramida(Iterable<String> l) {
+  final x = l.where((e) => e.trim().isNotEmpty).toList();
+  final urut = List<int>.generate(x.length, (i) => i)..sort((a, b) => x[b].length != x[a].length ? x[b].length.compareTo(x[a].length) : a.compareTo(b));
+  return [for (final i in urut) x[i]];
+}
+
+/// v1.79.5: logo dipudarkan (latar transparan) untuk watermark di tengah cetakan. null bila gagal.
+Future<Uint8List?> pngSamar(Uint8List src, {double opasitas = 0.08, int sisi = 900}) async {
+  try {
+    final codec = await ui.instantiateImageCodec(src);
+    final img = (await codec.getNextFrame()).image;
+    final skala = sisi / math.max(img.width, img.height);
+    final w = (img.width * skala).round(), h = (img.height * skala).round();
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    c.drawImageRect(img, Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()), Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+        Paint()..color = Colors.white.withValues(alpha: opasitas)..filterQuality = FilterQuality.high);
+    final hasil = await rec.endRecording().toImage(w, h);
+    final b = await hasil.toByteData(format: ui.ImageByteFormat.png);
+    return b?.buffer.asUint8List();
+  } catch (_) {
+    return null;
+  }
+}
+
+/// v1.79.5: watermark logo samar di tengah halaman cetakan HTML (F4; [lanskap] = 33 × 21,5 cm, margin 10 mm).
+/// [dataUri] = 'data:image/png;base64,...' dari logo; kosong = tanpa watermark.
+Future<String> watermarkHtml(String dataUri, {bool lanskap = false, double ukuranMm = 120}) async {
+  if (!dataUri.startsWith('data:image')) return '';
+  final b = await pngSamar(base64Decode(dataUri.substring(dataUri.indexOf(',') + 1)));
+  if (b == null) return '';
+  final isiW = lanskap ? 310.0 : 195.0, isiH = lanskap ? 195.0 : 310.0;
+  final kiri = (isiW - ukuranMm) / 2, atas = (isiH - ukuranMm) / 2;
+  return '<div style="position:fixed;left:${kiri.toStringAsFixed(1)}mm;top:${atas.toStringAsFixed(1)}mm;width:${ukuranMm}mm;z-index:-1">'
+      '<img src="data:image/png;base64,${base64Encode(b)}" style="width:${ukuranMm}mm"></div>';
 }
 
 /// Dokumen HTML untuk dijadikan PDF. Ukuran kertas bawaan semua cetakan: F4 (21,5 × 33 cm); [lanskap] = 33 × 21,5 cm.

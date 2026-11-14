@@ -92,6 +92,7 @@ Future<List<int>> pdfSlipHonor(List<Map<String, dynamic>> data, Map<String, dyna
     final top = (n % 2) * tinggiSlot;
     if (n % 2 == 0) g.drawLine(garisPotong, Offset(8, top + tinggiSlot), Offset(lebar - 8, top + tinggiSlot));
     g.drawRectangle(pen: garisTipis, bounds: Rect.fromLTWH(tepi - 10, top + 10, w + 20, tinggiSlot - 20));
+    kp.watermark(g, Rect.fromLTWH(tepi, top + 10, w, tinggiSlot - 20));   // v1.79.5
     final yG = kp.gambar(g, tepi, top + 17, w);
     // ── judul, nomor, QR ──
     const qr = 58.0;

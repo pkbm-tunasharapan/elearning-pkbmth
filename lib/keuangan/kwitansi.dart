@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -42,8 +43,9 @@ Future<Uint8List> pngQr(String data) async {
 
 /// v1.72.0: kop surat bersama (kwitansi, slip honor): logo kiri, yayasan + lembaga + baris keterangan di tengah, garis ganda.
 class KopPdf {
-  KopPdf._(this.logo, this.yayasan, this.nama, this.baris, this.kota);
+  KopPdf._(this.logo, this.yayasan, this.nama, this.baris, this.kota, [this.samar]);
   final PdfBitmap? logo;
+  final PdfBitmap? samar;   // v1.79.5: logo dipudarkan untuk watermark
   final String yayasan, nama, kota;
   final List<String> baris;
 
@@ -54,8 +56,18 @@ class KopPdf {
     } catch (_) {
       b = null;
     }
+    final sm = b == null ? null : await pngSamar(b);
     return KopPdf._(b == null ? null : PdfBitmap(b), teks(kop['yayasan']), teks(kop['nama']),
-        daftar(kop['baris']).map((e) => teks(e)).where((e) => e.isNotEmpty).toList(), teks(kop['kota']));
+        daftar(kop['baris']).map((e) => teks(e)).where((e) => e.isNotEmpty).toList(), teks(kop['kota']), sm == null ? null : PdfBitmap(sm));
+  }
+
+  /// v1.79.5: logo samar di tengah [area] (mis. satu kwitansi / satu slip), digambar sebelum isi.
+  void watermark(PdfGraphics g, Rect area, {double porsi = 0.62}) {
+    final s = samar;
+    if (s == null) return;
+    final sisi = math.min(area.width, area.height) * porsi;
+    final lw = s.width >= s.height ? sisi : sisi * s.width / s.height, lh = s.width >= s.height ? sisi * s.height / s.width : sisi;
+    g.drawImage(s, Rect.fromLTWH(area.left + (area.width - lw) / 2, area.top + (area.height - lh) / 2, lw, lh));
   }
 
   /// Gambar kop di (x, y) selebar w; mengembalikan posisi y garis bawah kop (garis ganda sudah digambar).
@@ -63,8 +75,8 @@ class KopPdf {
     PdfFont f(double s, {bool b = false}) => PdfStandardFont(PdfFontFamily.helvetica, s, multiStyle: [b ? PdfFontStyle.bold : PdfFontStyle.regular]);
     final hitam = PdfSolidBrush(PdfColor(20, 20, 20));
     final fmt = PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.top, wordWrap: PdfWordWrapType.word);
-    const sisi = 52.0;
-    final xT = x + sisi + 6, wT = w - 2 * (sisi + 6);
+    // v1.79.5: logo tidak lagi di kop (tampil sebagai watermark); teks memakai lebar penuh
+    final xT = x + 10, wT = w - 20;
     var yk = y;
     if (yayasan.isNotEmpty) {
       g.drawString(yayasan.toUpperCase(), f(9, b: true), brush: hitam, bounds: Rect.fromLTWH(xT, yk, wT, 11), format: fmt);
@@ -73,15 +85,12 @@ class KopPdf {
     g.drawString((nama.isEmpty ? namaCadangan : nama).toUpperCase(), f(14, b: true), brush: hitam, bounds: Rect.fromLTWH(xT, yk, wT, 17), format: fmt);
     yk += 17;
     final fK = f(6.3);
-    for (final t in baris) {
+    for (final t in barisPiramida(baris)) {
       final h = fK.measureString(t, layoutArea: Size(wT, 0), format: fmt).height + 0.6;
       g.drawString(t, fK, brush: hitam, bounds: Rect.fromLTWH(xT, yk, wT, h), format: fmt);
       yk += h;
     }
-    final lg = logo;
-    final tl = lg == null ? 0.0 : sisi * lg.height / lg.width;
-    if (lg != null) g.drawImage(lg, Rect.fromLTWH(x, y + (((yk - y) - tl) > 0 ? ((yk - y) - tl) / 2 : 0), sisi, tl));
-    final yG = (yk > y + tl ? yk : y + tl) + 4;
+    final yG = yk + 4;
     g.drawLine(PdfPen(PdfColor(20, 20, 20), width: 1.6), Offset(x, yG), Offset(x + w, yG));
     g.drawLine(PdfPen(PdfColor(20, 20, 20), width: 0.5), Offset(x, yG + 2.6), Offset(x + w, yG + 2.6));
     return yG;
@@ -119,6 +128,7 @@ Future<List<int>> pdfKwitansi(List<Map<String, dynamic>> kw, [Map<String, dynami
     final y0 = top + 17;
     if (n % 3 != 2) g.drawLine(garisPotong, Offset(8, top + tinggiSlot), Offset(lebar - 8, top + tinggiSlot));
     g.drawRectangle(pen: garisTipis, bounds: Rect.fromLTWH(tepi - 10, top + 10, w + 20, tinggiSlot - 20));
+    kp.watermark(g, Rect.fromLTWH(tepi, top + 10, w, tinggiSlot - 20));   // v1.79.5
     final yGaris = kp.gambar(g, tepi, y0, w, namaCadangan: teks(l['nama'], 'PKBM'));
     // ── judul + nomor (kiri/tengah), QR (kanan) ──
     const qr = 58.0;

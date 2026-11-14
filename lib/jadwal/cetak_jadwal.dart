@@ -103,13 +103,15 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
     final b = StringBuffer();
     if (!excel) {
       final logo = await _logo(kop);
-      b.write('<table class="kopt"><tr><td style="width:22mm">${logo.isEmpty ? '' : '<img src="$logo" style="width:18mm">'}</td><td class="kopisi">');
+      b.write(await watermarkHtml(logo, lanskap: true));   // v1.79.5
+      // v1.79.5: kop tanpa logo (logo jadi watermark), keterangan piramida terbalik
+      b.write('<div class="kopisi">');
       if (teks(kop['yayasan']).isNotEmpty) b.write('<div class="yy">${escHtml(teks(kop['yayasan']).toUpperCase())}</div>');
       b.write('<div class="lb">${escHtml(teks(kop['nama'], 'PKBM').toUpperCase())}</div>');
-      for (final x in daftar(kop['baris'])) {
-        b.write('<div class="kecil">${escHtml(teks(x))}</div>');
+      for (final x in barisPiramida(daftar(kop['baris']).map((e) => teks(e)))) {
+        b.write('<div class="kecil">${escHtml(x)}</div>');
       }
-      b.write('</td><td style="width:22mm"></td></tr></table><div class="garis"></div>');
+      b.write('</div><div class="garis"></div>');
     }
     final namaUnit = _unit.isEmpty ? 'Semua unit' : teks(daftar(d['unit']).map(peta).where((u) => teks(u['id']) == _unit).firstOrNull?['nama'], _unit);
     b.write('<h2>JADWAL TATAP MUKA ${_bulan.isEmpty ? 'MINGGUAN' : 'BULAN ${_teksBulan(_bulan).toUpperCase()}'}</h2>');

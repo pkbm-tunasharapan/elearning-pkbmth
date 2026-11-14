@@ -42,13 +42,15 @@ class _LaporanPemetaanScreenState extends State<LaporanPemetaanScreen> {
     final b = StringBuffer();
     if (!excel) {
       final logo = await _logo(kop);
-      b.write('<table class="kopt"><tr><td style="width:22mm">${logo.isEmpty ? '' : '<img src="$logo" style="width:19mm">'}</td><td class="kopisi">');
+      b.write(await watermarkHtml(logo));   // v1.79.5
+      // v1.79.5: kop tanpa logo (logo jadi watermark), keterangan piramida terbalik
+      b.write('<div class="kopisi">');
       if (teks(kop['yayasan']).isNotEmpty) b.write('<div class="yy">${escHtml(teks(kop['yayasan']).toUpperCase())}</div>');
       b.write('<div class="lb">${escHtml(teks(kop['nama'], 'PKBM').toUpperCase())}</div>');
-      for (final x in daftar(kop['baris'])) {
-        b.write('<div class="kecil">${escHtml(teks(x))}</div>');
+      for (final x in barisPiramida(daftar(kop['baris']).map((e) => teks(e)))) {
+        b.write('<div class="kecil">${escHtml(x)}</div>');
       }
-      b.write('</td><td style="width:22mm"></td></tr></table><div class="garis"></div>');
+      b.write('</div><div class="garis"></div>');
     }
     b.write('<h2>LAPORAN PEMETAAN SISWA PER UNIT BELAJAR</h2>');
     b.write('<p class="kecil">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}. Siswa aktif; siswa tanpa label unit dihitung ke unit utama (tanda *).</p>');
