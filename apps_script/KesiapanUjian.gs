@@ -79,16 +79,31 @@ function waStafMasaLaporan(token, idMasa) {
   for (var i = 1; i < v.length; i++) {
     var idU = String(v[i][cols.idUjian - 1]);
     if (!ids[idU]) continue;
-    (sesi[idU] = sesi[idU] || []).push({ status: String(v[i][cols.status - 1]), terkunci: v[i][cols.terkunci - 1] === true });
+    (sesi[idU] = sesi[idU] || []).push({ status: String(v[i][cols.status - 1]), terkunci: v[i][cols.terkunci - 1] === true,
+      kunci: String(v[i][cols.idRombel - 1]) + '|' + normNama_(v[i][cols.nama - 1]) });
   }
   var hasil = {};
   ujBaca_('HASIL').forEach(function(h) { if (ids[String(h['ID Ujian'])]) (hasil[String(h['ID Ujian'])] = hasil[String(h['ID Ujian'])] || []).push(h); });
   var pilih = muPilihNama_(m);   // v1.83.0: siswa tertentu / unit
   var tot = { terdaftar: 0, mulai: 0, selesai: 0, kirim: 0, waktuHabis: 0, berlangsung: 0, terkunci: 0, tidakHadir: 0 };
+  // v1.83.4: peserta dihitung per ORANG (bukan siswa x mapel); data ujian disaring ke peserta masa ini saja,
+  // karena masa per unit memakai ujian yang sama dengan unit lain.
+  var winU = {};
+  munSemua_().forEach(function(w) { if (w.masa !== m.id) winU[w.idUjian] = (winU[w.idUjian] || []).concat(w.unit); });
+  var orang = {}, orangMulai = {}, orangKirim = {};
   var perJadwal = jad.map(function(j) {
     var mm = mapel[String(j.idMapel)] || {};
-    var siswa = (bm[mm.idRombel] || []).filter(function(sw) { return !pilih || pilih[normNama_(sw.nama)]; });
-    var ss = sesi[String(j.idUjian)] || [], hs = hasil[String(j.idUjian)] || [];
+    var lainU = !j.jadwalUnit ? winU[String(j.idUjian)] : null;
+    var siswa = (bm[mm.idRombel] || []).filter(function(sw) {
+      if (pilih && !pilih[normNama_(sw.nama)]) return false;
+      return !(lainU && lainU.indexOf(munUnitSiswa_(mm.idRombel, sw.nama)) >= 0);   // ikut jadwal unit masa lain
+    });
+    var kn = {};
+    siswa.forEach(function(sw) { var k = String(mm.idRombel) + '|' + normNama_(sw.nama); kn[k] = true; orang[k] = true; });
+    var ss = (sesi[String(j.idUjian)] || []).filter(function(x) { return kn[x.kunci]; });
+    var hs = (hasil[String(j.idUjian)] || []).filter(function(h) { return kn[String(h['ID Rombel']) + '|' + normNama_(h['Nama Siswa'])]; });
+    ss.forEach(function(x) { orangMulai[x.kunci] = true; });
+    hs.forEach(function(h) { if ((parseInt(h['Total'], 10) || 0) > 0) orangKirim[String(h['ID Rombel']) + '|' + normNama_(h['Nama Siswa'])] = true; });
     var o = {
       mapel: mm.namaMapel || j.idMapel, rombel: mm.namaRombel || '', tanggal: j.tanggal, jam: j.jam, terdaftar: siswa.length,
       mulai: ss.length, selesai: ss.filter(function(x) { return x.status === 'Selesai'; }).length, berlangsung: ss.filter(function(x) { return x.status === 'Berlangsung'; }).length,
@@ -111,6 +126,7 @@ function waStafMasaLaporan(token, idMasa) {
     var r = va[a];
     if (String(r[1]) !== 'Siswa' || !kuDalam_(r[0], dari, sampai)) continue;
     var aksi = String(r[4]), gagal = String(r[6]) === 'GAGAL';
+    if (!orang[String(r[2]) + '|' + normNama_(r[3])]) continue;   // v1.83.4: hanya peserta masa ini
     if (aksi === 'Masuk') { akt.masuk[gagal ? 'gagal' : 'ok']++; if (!gagal) akt.siswaMasuk[String(r[2]) + '|' + normNama_(r[3])] = true; }
     else if (aksi === 'Mulai ujian' && String(r[5]).indexOf('ujian ') === 0 && ids[String(r[5]).split(' ')[1]]) {
       akt.mulai[gagal ? 'gagal' : 'ok']++;
@@ -155,6 +171,7 @@ function waStafMasaLaporan(token, idMasa) {
   var pel = { perJenis: {}, siswa: {}, kunci: 0, berat: 0, perangkatLain: 0, tokenSalah: 0, terputus: 0, tindakan: {} };
   pwBaca_(PW.TAB_LG, PW.HDR_LG).forEach(function(r) {
     if (!ids[String(r['ID UJIAN'])]) return;
+    if (!orang[String(r['ID ROMBEL']) + '|' + normNama_(r['NAMA SISWA'])]) return;   // v1.83.4: hanya peserta masa ini
     var j0 = String(r['JENIS']), oleh = String(r['OLEH']);
     if (oleh === 'Jaringan') { pel.terputus++; return; }
     if (oleh !== 'Sistem') { pel.tindakan[j0.split(':')[0]] = (pel.tindakan[j0.split(':')[0]] || 0) + 1; return; }
@@ -202,7 +219,8 @@ function waStafMasaLaporan(token, idMasa) {
   return {
     masa: { id: m.id, nama: m.nama, jenis: m.jenis, smt: m.smt, dari: dari, sampai: sampai, peserta: m.peserta.mode },
     dibuat: absWaktu_(), oleh: p.nama, sekolah: pwSekolah_(),
-    ringkas: tot, jadwal: perJadwal, aktivitas: akt, galat: galat, respons: respons, pelanggaran: pel, bank: bank,
+    ringkas: (function() { tot.peserta = Object.keys(orang).length; tot.pesertaMulai = Object.keys(orangMulai).length; tot.pesertaKirim = Object.keys(orangKirim).length;
+      tot.jadwalKelas = perJadwal.length; return tot; })(), jadwal: perJadwal, aktivitas: akt, galat: galat, respons: respons, pelanggaran: pel, bank: bank,
     kesimpulan: { skor: nilai, status: nilai >= 85 ? 'Siap' : (nilai >= 60 ? 'Siap dengan catatan' : 'Belum siap'), catatan: catatan }
   };
 }

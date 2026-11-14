@@ -85,10 +85,18 @@ class LaporanKesiapanScreen extends StatelessWidget {
                   ]),
                 ),
               ),
-              const JudulBagian('Alur peserta'),
+              // v1.83.4: jumlah ORANG dipisah dari jumlah ujian (siswa x mapel)
+              const JudulBagian('Peserta (orang)'),
               Wrap(spacing: 8, runSpacing: 8, children: [
-                _angka(c, 'peserta terdaftar', '${rk['terdaftar']}'),
-                _angka(c, 'mulai ujian (${_persen(angka(rk['mulai']), angka(rk['terdaftar']))})', '${rk['mulai']}'),
+                _angka(c, 'siswa peserta', '${rk['peserta'] ?? '-'}'),
+                _angka(c, 'sudah ikut ujian (${_persen(angka(rk['pesertaMulai']), angka(rk['peserta']))})', '${rk['pesertaMulai'] ?? '-'}'),
+                _angka(c, 'sudah mengirim jawaban', '${rk['pesertaKirim'] ?? '-'}', warna: Colors.green.shade700),
+                _angka(c, 'jadwal kelas (mapel × rombel)', '${rk['jadwalKelas'] ?? '-'}'),
+              ]),
+              const JudulBagian('Alur ujian (siswa × mapel)'),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                _angka(c, 'ujian terdaftar', '${rk['terdaftar']}'),
+                _angka(c, 'ujian dimulai (${_persen(angka(rk['mulai']), angka(rk['terdaftar']))})', '${rk['mulai']}'),
                 _angka(c, 'jawaban terkirim (${_persen(angka(rk['kirim']), angka(rk['mulai']))})', '${rk['kirim']}', warna: Colors.green.shade700),
                 _angka(c, 'habis waktu tanpa kirim', '${rk['waktuHabis']}', warna: angka(rk['waktuHabis']) > 0 ? Colors.orange.shade800 : null),
                 _angka(c, 'tidak hadir', '${rk['tidakHadir']}'),
@@ -177,7 +185,10 @@ String htmlLaporanKesiapan(Map<String, dynamic> d) {
     ..write('<div class="box"><b>Kesimpulan: ${escHtml(teks(kes['status']))} (${kes['skor']}/100)</b><ul>')
     ..write(daftar(kes['catatan']).map(peta).map((x) => '<li class="${x['baik'] == true ? 'ok' : 'no'}">${escHtml(x['teks'])}</li>').join())
     ..write('</ul></div>')
-    ..write('<h3>1. Alur peserta</h3><table>${baris(['Terdaftar', 'Mulai', 'Terkirim', 'Habis waktu', 'Tidak hadir', 'Berlangsung'], kepala: true)}'
+    ..write('<h3>1. Peserta & alur ujian</h3><table>${baris(['Siswa peserta', 'Sudah ikut ujian', 'Sudah mengirim', 'Jadwal kelas'], kepala: true)}'
+        '${baris(['${rk['peserta'] ?? '-'}', '${rk['pesertaMulai'] ?? '-'}', '${rk['pesertaKirim'] ?? '-'}', '${rk['jadwalKelas'] ?? '-'}'])}</table>'
+        '<p style="font-size:8.5pt;margin:4px 0">Hitungan per ujian (satu siswa × satu mapel):</p>'
+        '<table>${baris(['Ujian terdaftar', 'Dimulai', 'Terkirim', 'Habis waktu', 'Tidak hadir', 'Berlangsung'], kepala: true)}'
         '${baris(['${rk['terdaftar']}', '${rk['mulai']}', '${rk['kirim']}', '${rk['waktuHabis']}', '${rk['tidakHadir']}', '${rk['berlangsung']}'])}</table>');
   final masuk = peta(akt['masuk']), mulai = peta(akt['mulai']), kirim = peta(akt['kirim']);
   b.write('<h3>2. Kelancaran</h3><table>${baris(['Proses', 'Berhasil', 'Gagal'], kepala: true)}'
