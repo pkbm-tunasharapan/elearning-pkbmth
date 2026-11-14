@@ -128,6 +128,41 @@ function waAdminAiSimpan(token, kunci, model, plus) {
   return aiStatus_();
 }
 
+// v1.84.1: daftar model Gemini yang bisa dipakai kunci tertentu (models.list), untuk dipilih di Pengaturan AI.
+// jenis: 'free' | 'plus'; kunci: kunci yang baru diketik (belum disimpan) atau kosong = kunci tersimpan.
+function aiDaftarModel_(json) {
+  return ((json && json.models) || []).filter(function(m) {
+    var nm = String(m.name || '').replace(/^models\//, '');
+    return /^gemini-/.test(nm) && (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0 && !/embedding|aqa|imagen|veo|tts|image-generation|live|native-audio/i.test(nm);
+  }).map(function(m) {
+    return { kode: String(m.name).replace(/^models\//, ''), nama: m.displayName || '', keterangan: String(m.description || '').slice(0, 160),
+      masuk: Number(m.inputTokenLimit) || 0, keluar: Number(m.outputTokenLimit) || 0, pikir: m.thinking === true };
+  }).sort(function(a, b) {
+    var pra = function(x) { return /preview|exp/i.test(x.kode) ? 1 : 0; };
+    return pra(a) - pra(b) || b.kode.localeCompare(a.kode, 'en', { numeric: true });
+  });
+}
+function waAdminAiModel(token, jenis, kunci) {
+  wajibAdmin_(token);
+  var k = String(kunci || '').trim() || aiProp_(jenis === 'plus' ? AI.PROP_KUNCI_PLUS : AI.PROP_KUNCI);
+  if (!k) throw new Error('Isi kunci API ' + (jenis === 'plus' ? 'Plus' : 'Free') + ' dulu.');
+  if (!/^[A-Za-z0-9._\-]{20,200}$/.test(k)) throw new Error('Format kunci API tidak valid.');
+  var semua = [], halaman = '';
+  for (var i = 0; i < 5; i++) {
+    var r = UrlFetchApp.fetch(AI.BASE + '/v1beta/models?pageSize=1000' + (halaman ? '&pageToken=' + encodeURIComponent(halaman) : ''),
+      { method: 'get', muteHttpExceptions: true, headers: { 'x-goog-api-key': k } });
+    var kode = r.getResponseCode(), j = {};
+    try { j = JSON.parse(r.getContentText() || '{}'); } catch (e) {}
+    if (kode !== 200) throw new Error('Gemini menolak kunci ini (' + kode + '): ' + String((j.error && j.error.message) || r.getContentText()).slice(0, 200));
+    semua = semua.concat(j.models || []);
+    halaman = j.nextPageToken || '';
+    if (!halaman) break;
+  }
+  var model = aiDaftarModel_({ models: semua });
+  var kini = jenis === 'plus' ? (aiProp_(AI.PROP_MODEL_PLUS) || aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT) : (aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT);
+  return { jenis: jenis === 'plus' ? 'plus' : 'free', model: model, kini: kini };
+}
+
 // jenis: 'free' | 'plus' (kosong = kunci yang dipakai akun ini).
 function waAdminAiUji(token, jenis) {
   wajibAdmin_(token);

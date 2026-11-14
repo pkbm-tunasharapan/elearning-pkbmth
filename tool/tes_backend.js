@@ -1976,5 +1976,19 @@ tes('kunci AI: Plus hanya untuk peran Admin murni; peran lain, peran kustom, mod
   }
 });
 
+// 65. daftar model Gemini untuk dipilih (v1.84.1)
+tes('daftar model Gemini: hanya model gemini generateContent, tanpa embedding/gambar/audio, versi stabil di atas', () => {
+  const r = g.aiDaftarModel_({ models: [
+    { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', supportedGenerationMethods: ['generateContent', 'countTokens'], inputTokenLimit: 1048576, outputTokenLimit: 65536 },
+    { name: 'models/gemini-3.5-pro-preview', displayName: 'Gemini 3.5 Pro Preview', supportedGenerationMethods: ['generateContent'] },
+    { name: 'models/gemini-3.5-flash', displayName: 'Gemini 3.5 Flash', supportedGenerationMethods: ['generateContent'] },
+    { name: 'models/gemini-embedding-001', supportedGenerationMethods: ['embedContent'] },
+    { name: 'models/gemini-2.5-flash-image-generation', supportedGenerationMethods: ['generateContent'] },
+    { name: 'models/gemini-2.5-flash-preview-tts', supportedGenerationMethods: ['generateContent'] },
+    { name: 'models/gemma-3-27b-it', supportedGenerationMethods: ['generateContent'] }] });
+  sama(r.map((x) => x.kode), ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.5-pro-preview']);
+  sama([r[1].nama, r[1].masuk, r[1].keluar], ['Gemini 2.5 Flash', 1048576, 65536]);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

@@ -19,53 +19,142 @@ class PengaturanAiScreen extends StatefulWidget {
   State<PengaturanAiScreen> createState() => _PengaturanAiScreenState();
 }
 
+/// v1.84.1: alur tiap kunci: isi kunci -> Cek koneksi (server memanggil daftar model Gemini dengan kunci itu) ->
+/// pilih model dari daftar -> Simpan.
 class _PengaturanAiScreenState extends State<PengaturanAiScreen> {
   int _v = 0;
-  final _kunci = TextEditingController();
-  final _model = TextEditingController();
-  final _kunciPlus = TextEditingController();   // v1.84.0: kunci Plus khusus Admin
-  final _modelPlus = TextEditingController();
-  bool _lihat = false, _lihatPlus = false;
+  final _kunci = {'free': TextEditingController(), 'plus': TextEditingController()};
+  final _lihat = {'free': false, 'plus': false};
+  final _daftar = <String, List<Map<String, dynamic>>>{'free': [], 'plus': []};
+  final _pilih = <String, String?>{'free': null, 'plus': null};
+  final _terhubung = {'free': false, 'plus': false};
 
   @override
   void dispose() {
-    for (final c in [_kunci, _model, _kunciPlus, _modelPlus]) {
+    for (final c in _kunci.values) {
       c.dispose();
     }
     super.dispose();
   }
 
-  Future<void> _simpan({bool hapusPlus = false}) async {
-    if (hapusPlus && !await konfirmasi(context, 'Hapus kunci Plus?', 'Admin akan kembali memakai kunci Free.', ya: 'Hapus')) return;
+  void _lupakan(String jenis) {
+    _terhubung[jenis] = false;
+    _daftar[jenis] = [];
+    _pilih[jenis] = null;
+  }
+
+  Future<void> _cek(String jenis, String modelKini) async {
+    final r = await jalankan(context, () async => peta(await Api.instance('waAdminAiModel', [_t, jenis, _kunci[jenis]!.text.trim()], const Duration(seconds: 60))),
+        teksProses: 'Mengecek koneksi & mengambil daftar model...');
+    if (!r.ok || r.data == null || !mounted) return;
+    final l = daftar(r.data!['model']).map(peta).toList();
+    setState(() {
+      _daftar[jenis] = l;
+      _terhubung[jenis] = true;
+      final kini = teks(r.data!['kini'], modelKini);
+      _pilih[jenis] = l.any((m) => teks(m['kode']) == kini) ? kini : (l.isEmpty ? null : teks(l.first['kode']));
+    });
+    kabar(context, l.isEmpty ? 'Kunci terhubung, tetapi tidak ada model teks yang tersedia untuk kunci ini.' : 'Kunci terhubung. ${l.length} model tersedia: pilih lalu tekan Simpan.');
+  }
+
+  Future<void> _simpan(String jenis) async {
+    final kunci = _kunci[jenis]!.text.trim(), model = _pilih[jenis] ?? '';
+    if (kunci.isEmpty && model.isEmpty) return kabar(context, 'Isi kunci lalu tekan Cek koneksi dulu.', galat: true);
+    final args = jenis == 'plus' ? [_t, '', '', {'kunci': kunci, 'model': model}] : [_t, kunci, model];
+    final r = await jalankan(context, () => Api.instance('waAdminAiSimpan', args), teksProses: 'Menyimpan...');
+    if (!r.ok || !mounted) return;
+    kabar(context, 'Pengaturan kunci ${jenis == 'plus' ? 'Plus' : 'Free'} disimpan${model.isEmpty ? '' : ' · model $model'}.');
+    _kunci[jenis]!.clear();
+    setState(() {
+      _lupakan(jenis);
+      _v++;
+    });
+  }
+
+  Future<void> _hapusPlus() async {
+    if (!await konfirmasi(context, 'Hapus kunci Plus?', 'Admin akan kembali memakai kunci Free.', ya: 'Hapus')) return;
     if (!mounted) return;
-    final plus = hapusPlus ? {'hapus': true} : {'kunci': _kunciPlus.text, 'model': _modelPlus.text};
-    final r = await jalankan(context, () => Api.instance('waAdminAiSimpan', [_t, hapusPlus ? '' : _kunci.text, hapusPlus ? '' : _model.text, plus]), teksProses: 'Menyimpan...');
-    if (!r.ok || !mounted) return;
-    kabar(context, hapusPlus ? 'Kunci Plus dihapus.' : 'Pengaturan AI disimpan.');
-    for (final c in [_kunci, _model, _kunciPlus, _modelPlus]) {
-      c.clear();
+    final r = await jalankan(context, () => Api.instance('waAdminAiSimpan', [_t, '', '', {'hapus': true}]), teksProses: 'Menghapus...');
+    if (r.ok && mounted) {
+      kabar(context, 'Kunci Plus dihapus.');
+      setState(() => _v++);
     }
-    setState(() => _v++);
   }
 
-  Future<void> _uji(String jenis) async {
-    final r = await jalankan(context, () => Api.instance('waAdminAiUji', [_t, jenis]), teksProses: 'Menguji koneksi...');
-    if (!r.ok || !mounted) return;
-    final d = peta(r.data);
-    kabar(context, 'Kunci ${teks(d['jenis']) == 'plus' ? 'Plus' : 'Free'} terhubung ke Gemini (${teks(d['model'])}).');
-  }
+  String _tok(dynamic n) => angka(n) >= 1000 ? '${(angka(n) / 1000).round()}rb' : '${angka(n)}';
 
-  Widget _kolomKunci(TextEditingController c, bool lihat, VoidCallback ubahLihat, String label, bool terisi) => TextField(
-        controller: c,
-        obscureText: !lihat,
+  Widget _bagian(BuildContext context, String jenis, Map<String, dynamic> st) {
+    final cs = Theme.of(context).colorScheme;
+    final plus = jenis == 'plus';
+    final terisi = st['kunciTerisi'] == true;
+    final modelKini = teks(st['model']);
+    final l = _daftar[jenis]!;
+    final m = l.where((x) => teks(x['kode']) == _pilih[jenis]).firstOrNull;
+    final ok = _terhubung[jenis]!;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: Text(plus ? 'Kunci Plus · khusus Admin' : 'Kunci Free · semua peran', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+        Lencana(terisi ? 'Tersimpan' : 'Belum diisi', warna: terisi ? Colors.green : (plus ? cs.outline : cs.error)),
+      ]),
+      Text(
+          plus
+              ? 'Hanya dipakai akun berperan Admin. Tidak pernah dipakai peran lain, peran kustom, mode Lihat sebagai, atau proses otomatis. '
+                  'Gunakan kunci dari proyek AI Studio yang billing-nya aktif.'
+              : 'Dipakai tutor, Kepala Sekolah, koordinator, proses otomatis, dan Admin bila kunci Plus kosong.',
+          style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+      if (terisi) Text('Model tersimpan: $modelKini', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _kunci[jenis],
+        obscureText: !_lihat[jenis]!,
         autocorrect: false,
         enableSuggestions: false,
+        onChanged: (_) {
+          if (ok) setState(() => _lupakan(jenis));
+        },
         decoration: InputDecoration(
-          labelText: label,
-          hintText: terisi ? 'Tersimpan. Kosongkan jika tidak ingin mengubah.' : 'Tempel kunci dari aistudio.google.com',
-          suffixIcon: IconButton(onPressed: ubahLihat, icon: Icon(lihat ? Icons.visibility_off_rounded : Icons.visibility_rounded)),
+          labelText: '1. Kunci API Gemini (${plus ? 'Plus' : 'Free'})',
+          hintText: terisi ? 'Kosongkan untuk memakai kunci tersimpan' : 'Tempel kunci dari aistudio.google.com',
+          suffixIcon: IconButton(
+              onPressed: () => setState(() => _lihat[jenis] = !_lihat[jenis]!),
+              icon: Icon(_lihat[jenis]! ? Icons.visibility_off_rounded : Icons.visibility_rounded)),
         ),
-      );
+      ),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          onPressed: () => _cek(jenis, modelKini),
+          icon: Icon(ok ? Icons.check_circle_rounded : Icons.wifi_tethering_rounded, color: ok ? Colors.green : null),
+          label: Text(ok ? 'Terhubung · cek ulang' : '2. Cek koneksi'),
+        ),
+      ),
+      if (ok && l.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: _pilih[jenis],
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: '3. Pilih model'),
+          items: [
+            for (final x in l)
+              DropdownMenuItem(value: teks(x['kode']), child: Text('${teks(x['nama'], teks(x['kode']))} · ${teks(x['kode'])}', overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (v) => setState(() => _pilih[jenis] = v),
+        ),
+        if (m != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+                '${teks(m['keterangan'])}${angka(m['masuk']) > 0 ? '\nMasukan maks. ${_tok(m['masuk'])} token · keluaran maks. ${_tok(m['keluar'])} token' : ''}',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          ),
+        const SizedBox(height: 10),
+        FilledButton.icon(onPressed: () => _simpan(jenis), icon: const Icon(Icons.save_rounded), label: Text('4. Simpan kunci & model ${plus ? 'Plus' : 'Free'}')),
+      ],
+      if (plus && terisi)
+        Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: _hapusPlus, icon: const Icon(Icons.delete_outline_rounded), label: const Text('Hapus kunci Plus'))),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,58 +163,27 @@ class _PengaturanAiScreenState extends State<PengaturanAiScreen> {
       muat: () async => peta(await Api.instance('waAdminAiStatus', [_t])),
       bangun: (context, st, _) {
         final cs = Theme.of(context).colorScheme;
-        final terisi = st['kunciTerisi'] == true;
-        final plus = peta(st['plus']);
-        final terisiPlus = plus['kunciTerisi'] == true;
         return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
           Card(
             child: ListTile(
               leading: IkonBulat(Icons.smart_toy_rounded, warna: Gaya.warnaMenu('ai'), ukuran: 44, sudut: 14),
               title: const Text('Pengaturan AI (Gemini)', style: TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text('Akun Anda saat ini memakai kunci ${teks(st['dipakaiSaya']) == 'plus' ? 'Plus' : 'Free'}.'),
+              subtitle: Text('Akun Anda saat ini memakai kunci ${teks(st['dipakaiSaya']) == 'plus' ? 'Plus' : 'Free'}.\n'
+                  'Alur: isi kunci → Cek koneksi → pilih model → Simpan.'),
+              isThreeLine: true,
             ),
           ),
-          // ── kunci Free: semua peran ──
           const SizedBox(height: 10),
-          Row(children: [
-            const Expanded(child: Text('Kunci Free · semua peran', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
-            Lencana(terisi ? 'Sudah diisi' : 'Belum diisi', warna: terisi ? Colors.green : cs.error),
-          ]),
-          Text('Dipakai tutor, Kepala Sekolah, koordinator, proses otomatis, dan Admin bila kunci Plus kosong. Model: ${teks(st['model'])}'
-              '${teks(st['model']) == teks(st['modelDefault']) ? ' (bawaan)' : ''}', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          _kolomKunci(_kunci, _lihat, () => setState(() => _lihat = !_lihat), 'Kunci API Gemini (Free)', terisi),
-          const SizedBox(height: 8),
-          TextField(controller: _model, maxLength: 60, decoration: InputDecoration(labelText: 'Model Free (opsional)', hintText: teks(st['model']))),
-          Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(onPressed: () => _uji('free'), icon: const Icon(Icons.wifi_tethering_rounded), label: const Text('Uji kunci Free'))),
-          // ── kunci Plus: KHUSUS Admin ──
-          const Divider(height: 28),
-          Row(children: [
-            const Expanded(child: Text('Kunci Plus · khusus Admin', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
-            Lencana(terisiPlus ? 'Sudah diisi' : 'Belum diisi', warna: terisiPlus ? Colors.green : cs.outline),
-          ]),
-          Text('Hanya dipakai bila permintaan datang dari akun berperan Admin. Tidak pernah dipakai peran lain, peran kustom, mode Lihat sebagai, '
-              'atau proses otomatis. Model: ${teks(plus['model'])}. Kunci dari proyek AI Studio yang billing-nya aktif.',
-              style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          _kolomKunci(_kunciPlus, _lihatPlus, () => setState(() => _lihatPlus = !_lihatPlus), 'Kunci API Gemini (Plus)', terisiPlus),
-          const SizedBox(height: 8),
-          TextField(controller: _modelPlus, maxLength: 60, decoration: InputDecoration(labelText: 'Model Plus (opsional)', hintText: teks(plus['model']))),
-          Wrap(spacing: 8, children: [
-            OutlinedButton.icon(onPressed: terisiPlus ? () => _uji('plus') : null, icon: const Icon(Icons.wifi_tethering_rounded), label: const Text('Uji kunci Plus')),
-            if (terisiPlus) TextButton.icon(onPressed: () => _simpan(hapusPlus: true), icon: const Icon(Icons.delete_outline_rounded), label: const Text('Hapus kunci Plus')),
-          ]),
+          _bagian(context, 'free', st),
+          const Divider(height: 32),
+          _bagian(context, 'plus', peta(st['plus'])),
           const SizedBox(height: 16),
-          FilledButton.icon(onPressed: _simpan, icon: const Icon(Icons.save_rounded), label: const Text('Simpan')),
-          const SizedBox(height: 10),
           Text('Kedua kunci disimpan hanya di server (Script Properties) dan tidak pernah dikirim ke perangkat mana pun.',
               style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
           const SizedBox(height: 12),
-          Text(
-            'Catatan pemilik script: sekali saja, jalankan fungsi menuSetujuiIzinGemini dari editor Apps Script dan setujui izin '
-            '"menghubungkan ke layanan eksternal".',
-            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
-          ),
+          Text('Catatan pemilik script: sekali saja, jalankan fungsi menuSetujuiIzinGemini dari editor Apps Script dan setujui izin '
+              '"menghubungkan ke layanan eksternal".',
+              style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
         ]);
       },
     );
