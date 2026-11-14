@@ -183,7 +183,8 @@ function waStafMasaRinci(token, id) {
     var x = pm[String(j.idMapel)] || {};
     return { idUjian: j.idUjian, slot: j.slot, tanggal: j.tanggal, jam: j.jam, namaMapel: x.namaMapel || j.idMapel, namaRombel: x.namaRombel || '' };
   }).sort(function(a, b) { return (a.tanggal + a.jam + a.namaRombel).localeCompare(b.tanggal + b.jam + b.namaRombel); });
-  return { masa: m, slot: muSlot_(m.id).sort(function(a, b) { return (a.tanggal + a.jam).localeCompare(b.tanggal + b.jam); }), mapel: mapel, jumlahJadwal: semuaJ.length, kertas: kertas };
+  var slotM = muSlot_(m.id).sort(function(a, b) { return (a.tanggal + a.jam).localeCompare(b.tanggal + b.jam); }), pkM = muPetaKode_(mapel);
+  return { masa: m, slot: slotM, mapel: mapel, jumlahJadwal: semuaJ.length, kertas: kertas, rapat: muSlotRapat_(slotM, pkM.pk, pkM.nm) };   // v1.83.2
 }
 // Usulan slot otomatis: mapel dibagi ke hari-hari dalam rentang (Minggu dilewati). q: {jam:['07:30','09:30'], durasi, jumlah, kode:[...]}
 function waStafMasaUsulan(token, id, q) {

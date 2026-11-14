@@ -1908,5 +1908,18 @@ tes('masa per unit: jadwal khusus unit per siswa, gerbang unit, rencana batal (h
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 62. peringatan slot terlalu rapat (v1.83.2)
+tes('slot terlalu rapat: per rombel & tanggal, rombel kosong = semua rombel mapel, jeda = durasi + batas masuk', () => {
+  const pk = { MTK: ['R10', 'R11'], IPA: ['R10'], BIN: ['R11'] }, nm = { R10: 'C10', R11: 'C11' };
+  const sl = [
+    { tanggal: '2026-12-10', jam: '15:00', durasi: 30, kode: 'MTK', namaMapel: 'Matematika', rombel: [] },
+    { tanggal: '2026-12-10', jam: '15:30', durasi: 30, kode: 'IPA', namaMapel: 'IPA', rombel: [] },
+    { tanggal: '2026-12-10', jam: '15:45', durasi: 30, kode: 'BIN', namaMapel: 'B. Indonesia', rombel: [] },
+    { tanggal: '2026-12-11', jam: '07:30', durasi: 60, kode: 'IPA', namaMapel: 'IPA', rombel: [] }];
+  const r = g.muSlotRapat_(sl, pk, nm);
+  sama(r.map((x) => x.rombel), ['C10']);
+  sama(/paling cepat 15:45/.test(r[0].pesan), true);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

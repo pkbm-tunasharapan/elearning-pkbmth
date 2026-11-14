@@ -603,6 +603,10 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
                       style: const TextStyle(fontSize: 12.5)),
                 ),
             ],
+            if (daftar(h.data!['rapat']).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _PeringatanRapat(daftar(h.data!['rapat']).map(peta).toList()),
+            ],
             if (galat.isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(slot.isEmpty ? 'Tidak ada slot yang bisa dipakai. Perbaiki baris berikut lalu unggah ulang:' : 'Baris berikut tidak dipakai (perbaiki lalu unggah ulang bila perlu):',
@@ -813,6 +817,8 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
           const SizedBox(height: 8),
           JudulBagian('Slot jadwal (${_slot.length})', sub: draft ? 'Setiap slot berlaku serentak untuk semua rombel peserta.' : 'Terkunci. Batalkan penetapan untuk mengubah.'),
           if (_slot.isEmpty) const Kosong(pesan: 'Belum ada slot. Tekan "Usulkan jadwal" atau "Tambah slot".', ikon: Icons.event_busy_outlined),
+          // v1.83.2: peringatan jeda antar-slot terlalu rapat (dihitung dari slot tersimpan)
+          if (!_berubah && daftar(_d!['rapat']).isNotEmpty) _PeringatanRapat(daftar(_d!['rapat']).map(peta).toList()),
           for (final h in perHari.entries) ...[
             Padding(padding: const EdgeInsets.only(top: 8, bottom: 2), child: Text('${_hari(h.key)}, ${h.key}', style: const TextStyle(fontWeight: FontWeight.w700))),
             for (final s in h.value)
@@ -869,6 +875,34 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
             const SizedBox(height: 12),
           ],
           if (!draft) OutlinedButton.icon(onPressed: _batal, icon: const Icon(Icons.undo_rounded), label: const Text('Batalkan penetapan')),
+        ]),
+      ),
+    );
+  }
+}
+
+/// v1.83.2: daftar slot berurutan yang terlalu rapat untuk rombel yang sama (hanya peringatan).
+class _PeringatanRapat extends StatelessWidget {
+  const _PeringatanRapat(this.l);
+  final List<Map<String, dynamic>> l;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.orange.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.schedule_rounded, color: Colors.orange.shade800, size: 20),
+            const SizedBox(width: 6),
+            Expanded(child: Text('Jeda antar-ujian terlalu rapat (${l.length})', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.orange.shade900))),
+          ]),
+          const SizedBox(height: 4),
+          const Text('Siswa yang mulai di akhir batas masuk (15 menit) atau mendapat tambahan waktu bisa terlewat ujian berikutnya. Slot tetap bisa dipakai.',
+              style: TextStyle(fontSize: 12)),
+          for (final x in l.take(12)) Padding(padding: const EdgeInsets.only(top: 4), child: Text('• ${teks(x['pesan'])}', style: const TextStyle(fontSize: 12.5))),
+          if (l.length > 12) Text('… dan ${l.length - 12} lainnya.', style: const TextStyle(fontSize: 12)),
         ]),
       ),
     );

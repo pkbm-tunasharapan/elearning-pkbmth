@@ -198,6 +198,8 @@ function waStafMasaSlotImporPratinjau(token, id, d) {
   if (!baris) { var k = Object.keys(lembar); baris = lembar[k[0]]; }
   var h = msiRencana_(baris || [], r.masa, r.mapel, r.staf);
   if (h.slot.length > MU.MAKS_SLOT) throw new Error('Maksimal ' + MU.MAKS_SLOT + ' slot (berkas berisi ' + h.slot.length + ').');
+  var pkI = muPetaKode_(r.mapel);
+  h.rapat = muSlotRapat_(h.slot, pkI.pk, pkI.nm);   // v1.83.2
   var kunci = 'msi_' + p.id + '_' + absId_();
   CacheService.getScriptCache().put(kunci, JSON.stringify({ masa: r.masa.id, oleh: p.id, slot: h.slot, adaPengawas: h.adaPengawas }), MSI.CACHE_DETIK);
   h.kunci = kunci;

@@ -147,3 +147,36 @@ function munRencanaBatal_(m, jad, win, akt, unitSiswa) {
   });
   return out;
 }
+
+// ============================================================================
+// v1.83.2: PERINGATAN SLOT TERLALU RAPAT (tidak memblokir)
+// Untuk tiap rombel, slot berikutnya sebaiknya mulai >= jam mulai slot sebelumnya + durasi + batas masuk (15 menit),
+// supaya siswa yang mulai di akhir batas masuk tetap sempat masuk ujian berikutnya.
+// slot: [{tanggal, jam, durasi, kode, namaMapel, rombel[]}]; petaKode: {kode: [idRombel]}; nmRombel: {idRombel: nama}
+// ============================================================================
+function muSlotRapat_(slot, petaKode, nmRombel) {
+  var menit = function(j) { var m = /^(\d{1,2}):(\d{2})/.exec(String(j || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  var jeda = UJ.MASUK_MENIT, per = {};
+  slot.forEach(function(s) {
+    var ids = s.rombel && s.rombel.length ? s.rombel : (petaKode[s.kode] || []);
+    ids.forEach(function(r) { (per[r + '|' + s.tanggal] = per[r + '|' + s.tanggal] || []).push(s); });
+  });
+  var out = [];
+  Object.keys(per).sort().forEach(function(k) {
+    var l = per[k].filter(function(s) { return menit(s.jam) !== null; }).sort(function(a, b) { return menit(a.jam) - menit(b.jam); });
+    for (var i = 1; i < l.length; i++) {
+      var a = l[i - 1], b = l[i], aman = menit(a.jam) + (Number(a.durasi) || 0) + jeda;
+      if (menit(b.jam) < aman) {
+        var r = k.split('|')[0], hh = ('0' + Math.floor(aman / 60)).slice(-2) + ':' + ('0' + (aman % 60)).slice(-2);
+        out.push({ rombel: nmRombel[r] || r, tanggal: a.tanggal, pesan: (nmRombel[r] || r) + ' ' + a.tanggal + ': ' + (a.namaMapel || a.kode) + ' ' + a.jam + ' (' + a.durasi + ' mnt) lalu ' +
+          (b.namaMapel || b.kode) + ' ' + b.jam + ' — sebaiknya mulai paling cepat ' + hh + ' (selesai + batas masuk ' + jeda + ' menit).' });
+      }
+    }
+  });
+  return out;
+}
+function muPetaKode_(mapel) {
+  var pk = {}, nm = {};
+  (mapel || []).forEach(function(x) { pk[x.kode] = (x.rombelId || []).map(function(o) { nm[o.id] = o.nama; return o.id; }); });
+  return { pk: pk, nm: nm };
+}
