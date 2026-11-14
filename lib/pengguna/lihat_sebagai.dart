@@ -23,6 +23,15 @@ class ModeLihat extends ChangeNotifier {
 
   String get label => jenis == 'tutor' ? 'Tutor' : 'Siswa';
 
+  /// v1.83.1: tutup layar di atas beranda SESUDAH dialog proses (jalankan) menutup dirinya. Bila dilakukan langsung,
+  /// dialog proses yang menutup belakangan ikut menutup beranda -> layar hitam.
+  void _keBeranda() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Notif.instance.kunciNavigator.currentState?.popUntil((r) => r.isFirst);
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
   Future<void> mulai(String jenisBaru, Map<String, dynamic> h) async {
     final s = Sesi.instance;
     _tokenAdmin = s.token;
@@ -45,7 +54,7 @@ class ModeLihat extends ChangeNotifier {
       }
       aktif = true;
       notifyListeners();
-      Notif.instance.kunciNavigator.currentState?.popUntil((r) => r.isFirst);
+      _keBeranda();
     } catch (e) {
       api.intip = null;
       api.onModeLihatHabis = null;
@@ -68,8 +77,7 @@ class ModeLihat extends ChangeNotifier {
     _profilAdmin = {};
     _kunci = '';
     notifyListeners();
-    final nav = Notif.instance.kunciNavigator.currentState;
-    nav?.popUntil((r) => r.isFirst);
+    _keBeranda();
     if (pesan != null) Notif.instance.kunciPesan.currentState?.showSnackBar(SnackBar(content: Text(pesan)));
     if (tok != null) {
       try {

@@ -149,8 +149,8 @@ class _AplikasiStafState extends State<AplikasiStaf> {
           final ss = SesiSiswa.instance;
           if (!s.siap || !ss.siap) return const _Pembuka();
           // v1.39.0: masa tenggang PIN habis / PIN di-reset -> wajib buat PIN dulu
-          if (ss.masuk) return ss.wajibPin && !ModeLihat.instance.aktif ? const BuatPinScreen(wajib: true) : const BerandaSiswa();
-          return s.masuk ? const HomeScreen() : const LoginScreen();
+          if (ss.masuk) return ss.wajibPin && !ModeLihat.instance.aktif ? const BuatPinScreen(wajib: true) : BerandaSiswa(key: ValueKey('s${ss.token}'));
+          return s.masuk ? HomeScreen(key: ValueKey('h${s.token}')) : const LoginScreen();   // v1.83.1: ganti akun (mode lihat) -> beranda baru
         },
       ),
     );
