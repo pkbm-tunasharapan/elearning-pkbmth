@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../absensi/umum.dart';
@@ -496,7 +497,7 @@ Future<void> _cetakRapor(BuildContext context, Map<String, dynamic> d, List<Map<
   final pc = peta(data['periode']);
   final akhiran = '_${teks(pc['semester'])}_${teks(pc['tahun']).replaceAll('/', '-')}';
   final nama = namaBerkas.toLowerCase().endsWith('.pdf') ? '${namaBerkas.substring(0, namaBerkas.length - 4)}$akhiran.pdf' : '$namaBerkas$akhiran.pdf';
-  await htmlKePdf(context, nama: nama, args: [_t, raporHtml(data, siswa, opsi: o)]);
+  await htmlKePdf(context, nama: nama, args: [_t, raporHtml(data, siswa, opsi: o, watermark: await _watermarkRapor())]);
   if (context.mounted) kabar(context, 'Rapor ${_periodeTeks(pc)} (${teks(peta(data['rombel'])['nama'])}) dibuat.');
 }
 
@@ -725,7 +726,7 @@ String _kop(Map<String, dynamic> l, String judul) =>
 const _cssDok = '.kop{text-align:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}.lb{font-size:15pt;font-weight:bold}'
     'h2{text-align:center;font-size:12pt;margin:6px 0 10px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:4px 5px;font-size:9.5pt}'
     'th{background:#eee}.c{text-align:center}.id td{border:none;padding:1px 4px}.ttd{width:100%;margin-top:24px}.ttd td{border:none;text-align:center;vertical-align:top;font-size:10pt}'
-    '.hal{page-break-after:always}.hal:last-child{page-break-after:auto}.kecil{font-size:8.5pt;color:#444}';
+    '.hal{position:relative;page-break-after:always}.hal:last-child{page-break-after:auto}.kecil{font-size:8.5pt;color:#444}';
 
 String legerHtml(Map<String, dynamic> d, {bool excel = false}) {
   final mapel = daftar(d['mapel']).map(peta).toList();
@@ -790,7 +791,17 @@ String _deskripsi(String nama, String p) => switch (p) {
 
 /// Rapor (satu halaman per WB) dari data leger.
 /// [opsi]: kepala sekolah penanda tangan & tanggal rapor (untuk rapor periode lalu); null = data saat ini.
-String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs, {OpsiRapor? opsi}) {
+/// v1.79.6: watermark logo samar di tengah setiap halaman rapor (logo kop lembaga).
+Future<String> _watermarkRapor() async {
+  try {
+    final b = (await rootBundle.load('assets/logo_kop.png')).buffer.asUint8List();
+    return await watermarkHtml('data:image/png;base64,${base64Encode(b)}', tetap: false);
+  } catch (_) {
+    return '';
+  }
+}
+
+String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs, {OpsiRapor? opsi, String watermark = ''}) {
   final mapel = daftar(d['mapel']).map(peta).toList();
   final rb = peta(d['rombel']);
   final per = peta(d['periode']);
@@ -804,7 +815,7 @@ String raporHtml(Map<String, dynamic> d, List<Map<String, dynamic>> wbs, {OpsiRa
   final b = StringBuffer();
   for (final w in wbs) {
     final h = peta(w['kehadiran']);
-    b.write('<div class="hal">${_kop(l, 'LAPORAN HASIL BELAJAR')}');
+    b.write('<div class="hal">$watermark${_kop(l, 'LAPORAN HASIL BELAJAR')}');
     b.write('<table class="id"><tr><td>Nama</td><td>: <b>${escHtml(teks(w['nama']))}</b></td><td>Program</td><td>: ${escHtml(namaProgram(teks(rb['program'])))}</td></tr>'
         '<tr><td>NISN</td><td>: ${escHtml(teks(w['nisn'], '-'))}</td><td>Rombel</td><td>: ${escHtml(teks(rb['nama']))}</td></tr>'
         '<tr><td>Lembaga</td><td>: ${escHtml(teks(l['nama']))}</td><td>Semester</td><td>: ${escHtml(teks(per['semester']))} ${escHtml(teks(per['tahun']))}</td></tr></table><br>');

@@ -393,13 +393,14 @@ Future<Uint8List?> pngSamar(Uint8List src, {double opasitas = 0.08, int sisi = 9
 
 /// v1.79.5: watermark logo samar di tengah halaman cetakan HTML (F4; [lanskap] = 33 × 21,5 cm, margin 10 mm).
 /// [dataUri] = 'data:image/png;base64,...' dari logo; kosong = tanpa watermark.
-Future<String> watermarkHtml(String dataUri, {bool lanskap = false, double ukuranMm = 120}) async {
+/// [tetap] = true: position:fixed (tiap halaman); false: position:absolute di dalam wadah ber-position:relative (mis. satu halaman rapor).
+Future<String> watermarkHtml(String dataUri, {bool lanskap = false, double ukuranMm = 120, bool tetap = true}) async {
   if (!dataUri.startsWith('data:image')) return '';
   final b = await pngSamar(base64Decode(dataUri.substring(dataUri.indexOf(',') + 1)));
   if (b == null) return '';
   final isiW = lanskap ? 310.0 : 195.0, isiH = lanskap ? 195.0 : 310.0;
   final kiri = (isiW - ukuranMm) / 2, atas = (isiH - ukuranMm) / 2;
-  return '<div style="position:fixed;left:${kiri.toStringAsFixed(1)}mm;top:${atas.toStringAsFixed(1)}mm;width:${ukuranMm}mm;z-index:-1">'
+  return '<div style="position:${tetap ? 'fixed' : 'absolute'};left:${kiri.toStringAsFixed(1)}mm;top:${atas.toStringAsFixed(1)}mm;width:${ukuranMm}mm;z-index:-1">'
       '<img src="data:image/png;base64,${base64Encode(b)}" style="width:${ukuranMm}mm"></div>';
 }
 
