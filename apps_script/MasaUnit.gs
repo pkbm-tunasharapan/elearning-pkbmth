@@ -180,3 +180,40 @@ function muPetaKode_(mapel) {
   (mapel || []).forEach(function(x) { pk[x.kode] = (x.rombelId || []).map(function(o) { nm[o.id] = o.nama; return o.id; }); });
   return { pk: pk, nm: nm };
 }
+
+// ============================================================================
+// v1.83.3: BANK SOAL TERKUNCI SAAT UJIAN MAPELNYA BERLANGSUNG
+// Soal siswa diundi ulang dari bank saat jawaban dikirim (untuk penilaian). Mengubah bank di tengah ujian dapat membuat
+// soal yang dinilai berbeda dari yang dikerjakan, sehingga perubahan bank ditolak selama:
+// - rentang ujian berjalan: jam mulai s.d. batas masuk + durasi + kelonggaran (jadwal dasar & jadwal khusus unit), atau
+// - ada siswa yang masih mengerjakan (mis. tambahan waktu, susulan, remedial) yang mulai belum lewat durasi + 60 + kelonggaran.
+// ============================================================================
+function kurUjianBerjalan_(idMapel, nowMs) {
+  var now = nowMs || Date.now(), jad = ujJadwalSemua_().filter(function(j) { return String(j.idMapel) === String(idMapel) && j.idUjian; });
+  if (!jad.length) return null;
+  var win = munSemua_(), dur = {}, aktif = null;
+  var cek = function(j) {
+    if (aktif || isNaN(j.mulaiMs)) return;
+    if (now >= j.mulaiMs && now <= j.masukSampaiMs + (j.durasi + UJ.GRACE_MENIT) * 60000) aktif = j;
+  };
+  jad.forEach(function(j) {
+    dur[String(j.idUjian)] = j.durasi;
+    cek(j);
+    win.forEach(function(w) { if (w.idUjian === String(j.idUjian)) cek(munTerapkan_(j, w)); });
+  });
+  if (aktif) return { jadwal: aktif, alasan: 'ujian ' + (aktif.judulKhusus || ujJudul_(aktif.jenis, aktif.smt)) + ' sedang berlangsung (' + aktif.tanggal + ' ' + aktif.jam + ')' };
+  try {
+    var v = getSheetData(CONFIG.SHEETS.PERCOBAAN_UJIAN), c = sesiCols_();
+    for (var i = 1; i < v.length; i++) {
+      var idU = String(v[i][c.idUjian - 1]);
+      if (dur[idU] === undefined || String(v[i][c.status - 1]) !== 'Berlangsung') continue;
+      var wm = ujMsSel_(v[i][c.waktuMulai - 1]);
+      if (wm && now >= wm && now <= wm + (dur[idU] + PW.MAKS_TAMBAH + UJ.GRACE_MENIT) * 60000) return { alasan: 'masih ada siswa yang sedang mengerjakan ujian mapel ini' };
+    }
+  } catch (e) {}
+  return null;
+}
+function kurJagaUjian_(idMapel) {
+  var b = kurUjianBerjalan_(idMapel);
+  if (b) throw new Error('Bank soal mapel ini sedang dipakai: ' + b.alasan + '. Ubah soal setelah ujian selesai agar penilaian siswa tidak keliru.');
+}

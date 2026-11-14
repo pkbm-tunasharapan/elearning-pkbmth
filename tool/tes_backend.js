@@ -1921,5 +1921,35 @@ tes('slot terlalu rapat: per rombel & tanggal, rombel kosong = semua rombel mape
   sama(/paling cepat 15:45/.test(r[0].pesan), true);
 });
 
+// 63. bank soal terkunci saat ujian mapelnya berlangsung (v1.83.3)
+tes('bank soal terkunci: rentang ujian (dasar & jadwal unit), siswa masih mengerjakan; di luar itu bebas', () => {
+  const sv = ['ujJadwalSemua_', 'munSemua_', 'getSheetData', 'sesiCols_'];
+  const simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const m0 = Date.UTC(2026, 11, 10, 8, 0);   // 15.00 WIB
+    const J = { idMapel: 'M1', idUjian: 'U1', jenis: 'UAS', smt: 1, tanggal: '2026-12-10', jam: '15:00', durasi: 30, mulaiMs: m0, masukSampaiMs: m0 + 15 * 60000 };
+    g.ujJadwalSemua_ = () => [J];
+    g.munSemua_ = () => [{ id: 'JU1', idUjian: 'U1', masa: 'MB', slot: 'S', unit: ['LSR'], tanggal: '2026-12-12', jam: '08:00', durasi: 60, mode: 'APK' }];
+    let sesi = [['h']];
+    g.getSheetData = () => sesi;
+    g.sesiCols_ = () => ({ idUjian: 1, status: 2, waktuMulai: 3 });
+    const mnt = (n) => m0 + n * 60000;
+    sama(g.kurUjianBerjalan_('M1', mnt(-10)), null);
+    sama(!!g.kurUjianBerjalan_('M1', mnt(5)), true);
+    sama(!!g.kurUjianBerjalan_('M1', mnt(47)), true);    // batas masuk 15 + 30 + 3
+    sama(g.kurUjianBerjalan_('M1', mnt(49)), null);
+    const w0 = g.ujMs_('2026-12-12', '08:00');
+    sama(!!g.kurUjianBerjalan_('M1', w0 + 30 * 60000), true);   // jadwal khusus unit
+    sama(g.kurUjianBerjalan_('M2', mnt(5)), null);               // mapel lain bebas
+    sesi = [['h'], ['U1', 'Berlangsung', '2026-12-10 15:40:00']];
+    sama(/sedang mengerjakan/.test(g.kurUjianBerjalan_('M1', mnt(100)).alasan), true);   // tambahan waktu
+    sama(g.kurUjianBerjalan_('M1', mnt(200)), null);             // sesi basi tidak mengunci selamanya
+    let pesan = '';
+    try { g.ujJadwalSemua_ = () => [J]; g.kurJagaUjian_('M1'); } catch (e) { pesan = e.message; }
+    sama(pesan, '');   // sekarang (2026) jauh dari 10 Des -> bebas
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

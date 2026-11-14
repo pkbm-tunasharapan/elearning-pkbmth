@@ -422,6 +422,7 @@ function kurRatakan_(j, smt) {
 }
 
 function waStafKurikulumPeta(token, idMapel, refs, opsi) {
+  if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
   return aiLindungi_(token, function() { return kurPetaInti_(token, idMapel, refs, opsi); });
 }
 
@@ -493,6 +494,7 @@ function kurPetaInti_(token, idMapel, refs, opsi) {
 
 // ---------- tahap 1b: bacaan lengkap per sesi (4 sesi per panggilan) ----------
 function waStafKurikulumBacaan(token, idMapel, ref, maks) {
+  if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
   return aiLindungi_(token, function() { return kurBacaanInti_(token, idMapel, ref, maks); });
 }
 
@@ -554,6 +556,7 @@ function kurBacaanInti_(token, idMapel, ref, maks) {
 
 // ---------- tahap 1c: bank soal untuk sesi yang sudah punya bacaan tetapi belum punya soal (teks saja, tanpa PDF) ----------
 function waStafKurikulumSoal(token, idMapel, maks) {
+  if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
   return aiLindungi_(token, function() { return kurSoalInti_(token, idMapel, maks); });
 }
 
@@ -605,6 +608,7 @@ function kurSoalInti_(token, idMapel, maks) {
 // ---------- ubah satu sesi (tutor) ----------
 function waStafKurikulumUbah(token, idMapel, smt, minggu, d) {
   var ctx = wajibMapel_(token, idMapel);
+  if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
   d = d || {};
   smt = parseInt(smt, 10); minggu = parseInt(minggu, 10);
   var topik = aiTeks_(d.topik, KUR.MAKS_TOPIK);
@@ -636,6 +640,7 @@ function waStafKurikulumUbah(token, idMapel, smt, minggu, d) {
 
 function waStafKurikulumHapus(token, idMapel) {
   var ctx = wajibMapel_(token, idMapel);
+  if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
   var kunci = kmKunciUnik_();
   kunci.waitLock(20000);
   try {
@@ -1158,6 +1163,7 @@ function waStafKurikulumImporManual(token, idMapel, daftarTeks, opsi) {
   var r = wajibMapel_(token, idMapel);
   opsi = opsi || {};
   if (!opsi.simpan) return kurRingkasImpor_(kurAnalisisImpor_(idMapel, daftarTeks, opsi), false);
+  if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
   var kunci = kmKunciUnik_();
   kunci.waitLock(30000);
   try {
