@@ -850,6 +850,7 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
   // rombel -> {ruang, pengawas, slot: {idSlot: idPengawas}}
   final Map<String, Map<String, dynamic>> _isi = {};
   final Map<String, TextEditingController> _ruang = {};
+  final Map<String, String> _ruangSlot = {};   // v1.82.2: "rombel|slot" -> ruang khusus slot (dari templat)
 
   @override
   void initState() {
@@ -869,6 +870,7 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
     try {
       final d = peta(await Api.instance('waStafMasaPengawas', [_t, widget.idMasa], const Duration(seconds: 90)));
       _isi.clear();
+      _ruangSlot.clear();
       for (final r in daftar(d['rombel']).map(peta)) {
         _isi[teks(r['id'])] = {'pengawas': '', 'slot': <String, String>{}};
       }
@@ -880,6 +882,7 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
           (_ruang[teks(t['rombel'])] ??= TextEditingController()).text = teks(t['ruang']);
         } else {
           (o['slot'] as Map<String, String>)[teks(t['slot'])] = teks(t['idPengawas']);
+          if (teks(t['ruang']).isNotEmpty) _ruangSlot['${teks(t['rombel'])}|${teks(t['slot'])}'] = teks(t['ruang']);
         }
       }
       if (mounted) setState(() { _d = d; _galat = null; });
@@ -894,7 +897,7 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
       final ruang = _ruang[r]?.text.trim() ?? '';
       if (teks(o['pengawas']).isNotEmpty || ruang.isNotEmpty) tugas.add({'slot': '*', 'rombel': r, 'ruang': ruang, 'idPengawas': o['pengawas']});
       (o['slot'] as Map<String, String>).forEach((s, idP) {
-        if (idP.isNotEmpty) tugas.add({'slot': s, 'rombel': r, 'ruang': '', 'idPengawas': idP});
+        if (idP.isNotEmpty) tugas.add({'slot': s, 'rombel': r, 'ruang': _ruangSlot['$r|$s'] ?? '', 'idPengawas': idP});
       });
     });
     final r = await jalankan(context, () => Api.instance('waStafMasaPengawasSimpan', [_t, widget.idMasa, tugas]), teksProses: 'Menyimpan penugasan...');
@@ -926,16 +929,28 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
       appBar: AppBar(title: const Text('Pengawas ujian')),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), children: [
         Text(teks(peta(d['masa'])['nama']), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        const Text('Tentukan pengawas dan ruang tiap rombel untuk seluruh slot. Bila pengawas berganti pada slot tertentu, atur di "Ganti per slot".',
+        const Text('Tentukan pengawas dan ruang tiap rombel untuk seluruh slot. Bila pengawas berganti pada slot tertentu, atur di "Ganti per slot". Pengawas dari templat slot tersimpan per slot dan sudah berlaku; tidak perlu diatur ulang di sini.',
             style: TextStyle(fontSize: 12.5)),
         const SizedBox(height: 10),
         if (rombel.isEmpty) const Kosong(pesan: 'Belum ada slot jadwal dengan rombel peserta.'),
         for (final r in rombel)
-          Card(
+          Builder(builder: (context) {
+            final semuaSlot = daftar(r['slot']).map((e) => '$e').toList();
+            final perSlot = (_isi[teks(r['id'])]!['slot'] as Map<String, String>);
+            final nSlot = semuaSlot.where((s) => (perSlot[s] ?? '').isNotEmpty).length;
+            final lengkap = nSlot > 0 && nSlot == semuaSlot.length;
+            return Card(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(teks(r['nama']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                if (nSlot > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(lengkap ? 'Pengawas sudah diatur per slot ($nSlot/${semuaSlot.length}), mis. dari templat. Lihat "Ganti per slot".'
+                        : 'Pengawas diatur per slot: $nSlot dari ${semuaSlot.length} slot. Slot lain ikut "Pengawas (semua slot)".',
+                        style: TextStyle(fontSize: 12, color: lengkap ? Colors.green.shade700 : Theme.of(context).colorScheme.onSurfaceVariant)),
+                  ),
                 const SizedBox(height: 6),
                 Row(children: [
                   Expanded(
@@ -944,7 +959,7 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
                       initialValue: sah(teks(_isi[teks(r['id'])]?['pengawas'])),
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Pengawas (semua slot)'),
-                      items: pilihan('Belum ditentukan'),
+                      items: pilihan(lengkap ? 'Ikut pengaturan per slot' : 'Belum ditentukan'),
                       onChanged: (v) => setState(() => _isi[teks(r['id'])]!['pengawas'] = v ?? ''),
                     ),
                   ),
@@ -954,6 +969,7 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
                   ),
                 ]),
                 ExpansionTile(
+                  initiallyExpanded: nSlot > 0,
                   tilePadding: EdgeInsets.zero,
                   title: Text('Ganti per slot (${(_isi[teks(r['id'])]!['slot'] as Map).values.where((x) => '$x'.isNotEmpty).length})', style: const TextStyle(fontSize: 13.5)),
                   children: [
@@ -974,7 +990,8 @@ class _PenugasanPengawasScreenState extends State<PenugasanPengawasScreen> {
                 ),
               ]),
             ),
-          ),
+          );
+          }),
       ]),
       floatingActionButton: FloatingActionButton.extended(onPressed: _simpan, icon: const Icon(Icons.save_rounded), label: const Text('Simpan')),
     );
