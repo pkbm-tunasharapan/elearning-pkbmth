@@ -1927,7 +1927,7 @@ tes('bank soal terkunci: rentang ujian (dasar & jadwal unit), siswa masih menger
   const simpan = {};
   sv.forEach((k) => { simpan[k] = g[k]; });
   try {
-    const m0 = Date.UTC(2026, 11, 10, 8, 0);   // 15.00 WIB
+    const m0 = g.ujMs_('2026-12-10', '15:00');   // zona waktu sama dengan ujMsTeks_ (lokal / CI UTC)
     const J = { idMapel: 'M1', idUjian: 'U1', jenis: 'UAS', smt: 1, tanggal: '2026-12-10', jam: '15:00', durasi: 30, mulaiMs: m0, masukSampaiMs: m0 + 15 * 60000 };
     g.ujJadwalSemua_ = () => [J];
     g.munSemua_ = () => [{ id: 'JU1', idUjian: 'U1', masa: 'MB', slot: 'S', unit: ['LSR'], tanggal: '2026-12-12', jam: '08:00', durasi: 60, mode: 'APK' }];
