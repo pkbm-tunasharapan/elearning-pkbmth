@@ -104,8 +104,8 @@ class _LaporanPemetaanScreenState extends State<LaporanPemetaanScreen> {
   static const _css = '.kopt{width:100%;border-collapse:collapse}.kopt td{border:none;vertical-align:middle}.kopisi{text-align:center}'
       '.yy{font-size:10pt;font-weight:bold;letter-spacing:.5pt}.lb{font-size:15pt;font-weight:bold}.garis{border-top:2px solid #111;border-bottom:.5px solid #111;height:2px;margin:4px 0 8px}'
       'h2{text-align:center;font-size:12pt;margin:6px 0 4px}h3{font-size:11pt;margin:12px 0 4px}h4{font-size:10pt;margin:10px 0 4px}'
-      'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 5px;font-size:9pt}th{background:#eee}.c{text-align:center}'
-      '.sub td{font-weight:bold;background:#f5f5f5}.kecil{font-size:8pt;color:#333}';
+      'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 5px;font-size:9pt}th{font-weight:bold}.c{text-align:center}'
+      '.sub td{font-weight:bold}.kecil{font-size:8pt;color:#333}';
 
   Future<void> _unduh(bool excel) async {
     if (_data == null) return kabar(context, 'Tunggu data selesai dimuat.');

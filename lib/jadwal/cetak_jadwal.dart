@@ -228,12 +228,12 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       '.sub{text-align:center;font-size:9pt;margin:0 0 6px}.kaki{font-size:8pt;color:#555;margin-top:10px;text-align:right}'
       '.tg{display:inline-block;font-size:8pt;font-weight:bold;color:#1d4ed8}'
       'table.grid{border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid}'
-      '.grid th,.grid td{border:1px solid #555;padding:3px 4px;font-size:8.5pt;vertical-align:top}.grid th{background:#ececec}'
-      '.grid th.hr{background:#5B21B6;color:#fff;text-align:left;font-size:10pt;letter-spacing:.5pt}'
-      '.sesi{background:#f6f3ff;white-space:nowrap}.tgl{background:#eef2ff;white-space:nowrap;vertical-align:middle}.mp{font-weight:bold}.tt{color:#222}.un{font-size:7.5pt;color:#555}'
+      '.grid th,.grid td{border:1px solid #555;padding:3px 4px;font-size:8.5pt;vertical-align:top}.grid th{font-weight:bold}'
+      '.grid th.hr{color:#5B21B6;border-bottom:2px solid #5B21B6;text-align:left;font-size:10pt;letter-spacing:.5pt}'
+      '.sesi{white-space:nowrap;font-weight:bold}.tgl{white-space:nowrap;vertical-align:middle;font-weight:bold}.mp{font-weight:bold}.tt{color:#222}.un{font-size:7.5pt;color:#555}'
       '.pisah{border-top:1px dashed #999;margin:3px 0}.kosong{color:#aaa}'
-      '.m13,.m24{display:inline-block;font-size:7pt;font-weight:bold;padding:0 3px;border-radius:3px;color:#fff}'
-      '.m13{background:#1d4ed8}.m24{background:#c2410c}';
+      '.m13,.m24{display:inline-block;font-size:7pt;font-weight:bold;padding:0 3px;border-radius:3px;border:1px solid}'
+      '.m13{color:#1d4ed8}.m24{color:#c2410c}';
 
   Future<void> _unduh(bool excel) async {
     if (_data == null) return kabar(context, 'Tunggu data selesai dimuat.');

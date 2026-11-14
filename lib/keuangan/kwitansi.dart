@@ -151,7 +151,7 @@ Future<List<int>> pdfKwitansi(List<Map<String, dynamic>> kw, [Map<String, dynami
 
     final pihak = teks(k['pihak'], '-') + (teks(k['rombel']).isEmpty ? '' : ' (${teks(k['rombel'])})');
     baris(keluar ? 'Dibayarkan kepada' : 'Telah terima dari', pihak);
-    g.drawRectangle(brush: PdfSolidBrush(PdfColor(238, 238, 238)), bounds: Rect.fromLTWH(tepi + lbl - 2, y - 1, wIsi - lbl + 2, 25));
+    g.drawRectangle(pen: PdfPen(PdfColor(150, 150, 150), width: 0.5), bounds: Rect.fromLTWH(tepi + lbl - 2, y - 1, wIsi - lbl + 2, 25));   // v1.83.6: tanpa warna latar
     baris('Uang sejumlah', teks(k['terbilang']), t: 26, font: f(s: 9.5, b: true, i: true));
     baris('Untuk pembayaran', teks(k['uraian']), t: 24, font: f(s: 9.5));
     baris('Kode transaksi / Cara', '${teks(k['kategori'])} · ${teks(k['cara'])}', t: 16, font: f(s: 9));

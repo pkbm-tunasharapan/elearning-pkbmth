@@ -531,7 +531,7 @@ String tabelHtml(String judul, List<String> kepala, List<List<String>> baris, {S
   }
   b.write('<table border="1" style="border-collapse:collapse;width:100%"><tr>');
   for (final k in kepala) {
-    b.write('<th style="background:#ece8f7;padding:3px 5px;font-size:9pt">${escHtml(k)}</th>');
+    b.write('<th style="padding:3px 5px;font-size:9pt">${escHtml(k)}</th>');
   }
   b.write('</tr>');
   for (final r in baris) {

@@ -121,7 +121,7 @@ String rppHtmlSatu(Map<String, dynamic> d, Map<String, dynamic> x) {
 
 const _gaya = 'body{font-family:Arial,sans-serif;font-size:10pt} h1{font-size:14pt;text-align:center;margin:0} h2{font-size:12pt;text-align:center} '
     'h3{font-size:11pt;margin:8pt 0 3pt} p{font-size:10pt;margin:2pt 0} .sub{text-align:center} table{border-collapse:collapse;width:100%} '
-    'td,th{border:1px solid #444;padding:3pt 5pt;font-size:10pt;vertical-align:top} td.k{width:32%;font-weight:bold;background:#f2f4f7} '
+    'td,th{border:1px solid #444;padding:3pt 5pt;font-size:10pt;vertical-align:top} td.k{width:32%;font-weight:bold} '
     'p.isian{height:15pt;margin:0;border-bottom:1px dotted #777} span.isian{border-bottom:1px dotted #777} .lbl{font-weight:bold}';
 
 String rppHtmlPdf(Map<String, dynamic> d, List<Map<String, dynamic>> daftarSesi) {

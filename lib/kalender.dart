@@ -122,8 +122,8 @@ class _KalenderViewState extends State<KalenderView> {
 
   static const _cssCetak = '.kc-kop{text-align:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}.kc-sekolah{font-size:13pt;font-weight:700}'
       '.kc-judul{font-size:11pt;font-weight:700}.kc-sub{font-size:9pt}table{border-collapse:collapse;width:100%}'
-      'th,td{border:1px solid #444;padding:3px 4px;font-size:8pt;vertical-align:top;text-align:left}th{background:#e5e7eb}tr{page-break-inside:avoid}'
-      'thead{display:table-header-group}.uj{font-weight:700;color:#b45309}.br{background:#dcfce7}.uts{background:#ede9fe}.uas{background:#fee2e2}.tm{color:#1d4ed8}.kc-hal{page-break-after:always}.kc-hal:last-child{page-break-after:auto}';
+      'th,td{border:1px solid #444;padding:3px 4px;font-size:8pt;vertical-align:top;text-align:left}th{font-weight:bold}tr{page-break-inside:avoid}'
+      'thead{display:table-header-group}.uj{font-weight:700;color:#b45309}.br{color:#15803d;font-weight:bold}.uts{color:#6d28d9;font-weight:bold}.uas{color:#b91c1c;font-weight:bold}.tm{color:#1d4ed8}.kc-hal{page-break-after:always}.kc-hal:last-child{page-break-after:auto}';
 
   String _htmlCetak() {
     final mapel = _mapelDipakai;

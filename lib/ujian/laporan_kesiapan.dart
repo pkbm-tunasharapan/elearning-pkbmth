@@ -171,7 +171,7 @@ class LaporanKesiapanScreen extends StatelessWidget {
 
 const _css = '.kop{text-align:center;border-bottom:3px double #333;padding-bottom:6px;margin-bottom:10px}.lb{font-size:15pt;font-weight:bold}'
     'h2{text-align:center;font-size:13pt;margin:10px 0 2px}.sub{text-align:center;margin-bottom:10px}h3{font-size:11pt;margin:12px 0 4px}'
-    'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 5px;font-size:9.5pt;vertical-align:top}th{background:#eee}.c{text-align:center}'
+    'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 5px;font-size:9.5pt;vertical-align:top}th{font-weight:bold}.c{text-align:center}'
     '.ok{color:#166534}.no{color:#b91c1c}.box{border:1px solid #555;padding:6px 8px;margin:6px 0}';
 
 String htmlLaporanKesiapan(Map<String, dynamic> d) {

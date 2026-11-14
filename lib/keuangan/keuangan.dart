@@ -933,7 +933,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
 num nilaiNum(dynamic v) => v is num ? v : num.tryParse('$v') ?? 0;
 
 const _cssKeu = 'h2{text-align:center;font-size:13pt;margin:4px 0 8px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:4px 5px;font-size:9.5pt}'
-    'th{background:#eee}.r{text-align:right}.c{text-align:center}.kop{text-align:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}.lb{font-size:14pt;font-weight:bold}'
+    'th{font-weight:bold}.r{text-align:right}.c{text-align:center}.kop{text-align:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}.lb{font-size:14pt;font-weight:bold}'
     '.ttd{width:100%;margin-top:22px}.ttd td{border:none;text-align:center;vertical-align:top}.ring td{border:none;padding:2px 4px}';
 
 String _kopKeu(Map<String, dynamic> l) =>

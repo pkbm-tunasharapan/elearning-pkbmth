@@ -78,7 +78,6 @@ Future<List<int>> pdfSlipHonor(List<Map<String, dynamic>> data, Map<String, dyna
   final tengahAtas = PdfStringFormat(alignment: PdfTextAlignment.center, lineAlignment: PdfVerticalAlignment.top, wordWrap: PdfWordWrapType.word);
   final hitam = PdfSolidBrush(PdfColor(20, 20, 20));
   final abu = PdfSolidBrush(PdfColor(100, 100, 100));
-  final pita = PdfSolidBrush(PdfColor(236, 236, 236));
   final garisTipis = PdfPen(PdfColor(170, 170, 170), width: 0.6);
   final garisIsi = PdfPen(PdfColor(200, 200, 200), width: 0.5);
   final garisPotong = PdfPen(PdfColor(150, 150, 150), width: 0.6)..dashStyle = PdfDashStyle.dash;
@@ -121,7 +120,7 @@ Future<List<int>> pdfSlipHonor(List<Map<String, dynamic>> data, Map<String, dyna
     // ── rincian (tabel selebar penuh) ──
     const xNilai = tepi + w - 130, wNilai = 130.0;
     void judul(String t) {
-      g.drawRectangle(brush: pita, bounds: Rect.fromLTWH(tepi, y, w, 14));
+      g.drawLine(PdfPen(PdfColor(60, 60, 60), width: 0.8), Offset(tepi, y + 14), Offset(tepi + w, y + 14));   // v1.83.6: tanpa warna latar
       g.drawString(t, f(s: 8.5, b: true), brush: hitam, bounds: Rect.fromLTWH(tepi + 4, y, w - 8, 14), format: kiriTengah);
       y += 15;
     }

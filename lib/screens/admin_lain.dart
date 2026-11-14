@@ -418,10 +418,10 @@ class _KesiapanScreenState extends State<KesiapanScreen> {
   static const _cssLaporan = '.kc-kop{text-align:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:10px}'
       '.kc-sekolah{font-size:14pt;font-weight:700;letter-spacing:.5px}.kc-judul{font-size:12pt;font-weight:700;margin-top:2px}.kc-sub{font-size:9pt;margin-top:2px}'
       'table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #444;padding:3px 4px;font-size:8.5pt;text-align:center;vertical-align:top}'
-      'th.kiri,td.kiri{text-align:left}th{background:#e5e7eb}tr{page-break-inside:avoid}thead{display:table-header-group}'
+      'th.kiri,td.kiri{text-align:left}th{font-weight:bold}tr{page-break-inside:avoid}thead{display:table-header-group}'
       'h3{font-size:10.5pt;margin:12px 0 4px;font-weight:700}.lap-ring{font-size:10pt;margin:4px 0}'
       '.cp-pil{display:inline-block;border-radius:999px;padding:1px 7px;font-weight:700;font-size:8pt;border:1px solid;white-space:nowrap}'
-      '.pil-siap{background:#dcfce7;border-color:#16a34a}.pil-hampir{background:#fef3c7;border-color:#d97706}.pil-belum{background:#fee2e2;border-color:#dc2626}'
+      '.pil-siap{color:#15803d;border-color:#16a34a}.pil-hampir{color:#b45309;border-color:#d97706}.pil-belum{color:#b91c1c;border-color:#dc2626}'
       '.lap-cat{font-size:8.5pt;margin-top:8px}.cp-ok{color:#166534}.cp-mid{color:#b45309}.cp-no{color:#b91c1c}';
 
   String _htmlLaporan(Map<String, dynamic> r) {

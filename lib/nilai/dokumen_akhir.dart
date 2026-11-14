@@ -24,11 +24,11 @@ String _tglIso(String iso) {
 
 const _css = '.kop{text-align:center;border-bottom:3px double #333;padding-bottom:6px;margin-bottom:10px}.lb{font-size:15pt;font-weight:bold}'
     'h2{text-align:center;font-size:13pt;margin:10px 0 2px;text-decoration:underline}.no{text-align:center;margin-bottom:12px}'
-    'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:4px 6px;font-size:10pt}th{background:#eee}.c{text-align:center}'
+    'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:4px 6px;font-size:10pt}th{font-weight:bold}.c{text-align:center}'
     '.id td{border:none;padding:2px 4px;font-size:10.5pt}.isi{font-size:10.5pt;line-height:1.6;text-align:justify}'
     '.ttd{width:100%;margin-top:22px}.ttd td{border:none;text-align:center;vertical-align:top;font-size:10.5pt}'
     '.foto{width:30mm;height:40mm;border:1px solid #333;text-align:center;vertical-align:middle;font-size:9pt;color:#666}'
-    '.kel td{background:#f3f3f3;font-weight:bold}.hal{page-break-after:always}.hal:last-child{page-break-after:auto}.kecil{font-size:8.5pt;color:#444}';
+    '.kel td{font-weight:bold}.hal{page-break-after:always}.hal:last-child{page-break-after:auto}.kecil{font-size:8.5pt;color:#444}';
 
 String _kop(Map<String, dynamic> l) => '<div class="kop"><div class="lb">${escHtml(teks(l['nama'], kNamaSekolah).toUpperCase())}</div>'
     '<div>NPSN ${escHtml(teks(l['npsn'], kNpsn))} · ${escHtml(teks(l['alamat'], kAlamatLembaga))}</div></div>';

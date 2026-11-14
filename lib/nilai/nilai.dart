@@ -725,7 +725,7 @@ String _kop(Map<String, dynamic> l, String judul) =>
 
 const _cssDok = '.kop{text-align:center;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:8px}.lb{font-size:15pt;font-weight:bold}'
     'h2{text-align:center;font-size:12pt;margin:6px 0 10px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:4px 5px;font-size:9.5pt}'
-    'th{background:#eee}.c{text-align:center}.id td{border:none;padding:1px 4px}.ttd{width:100%;margin-top:24px}.ttd td{border:none;text-align:center;vertical-align:top;font-size:10pt}'
+    'th{font-weight:bold}.c{text-align:center}.id td{border:none;padding:1px 4px}.ttd{width:100%;margin-top:24px}.ttd td{border:none;text-align:center;vertical-align:top;font-size:10pt}'
     '.hal{position:relative;page-break-after:always}.hal:last-child{page-break-after:auto}.kecil{font-size:8.5pt;color:#444}';
 
 String legerHtml(Map<String, dynamic> d, {bool excel = false}) {
@@ -1054,7 +1054,7 @@ Future<void> cetakKartuPeserta(BuildContext context, String idRombel) async {
   const css = '.kartu{border:1.5px solid #333;border-radius:6px;padding:7px;margin:0 0 8px;page-break-inside:avoid;width:48%;display:inline-block;vertical-align:top;margin-right:1.5%;box-sizing:border-box}'
       '.kh{text-align:center;font-weight:bold;font-size:10.5pt;border-bottom:1px solid #999;padding-bottom:3px;margin-bottom:4px}.kh span{font-weight:normal;font-size:8pt}'
       '.ki td{border:none;vertical-align:top;font-size:9pt}.qr img{width:80px;height:80px}.nm{font-weight:bold;font-size:10.5pt}'
-      '.jd{border-collapse:collapse;width:100%;margin-top:4px}.jd th,.jd td{border:1px solid #888;font-size:7.5pt;padding:1px 3px}.jd th{background:#eee}'
+      '.jd{border-collapse:collapse;width:100%;margin-top:4px}.jd th,.jd td{border:1px solid #888;font-size:7.5pt;padding:1px 3px}.jd th{font-weight:bold}'
       '.ft{font-size:7.5pt;color:#444;margin-top:3px;text-align:center}.kecil{font-size:8pt}';
   if (!context.mounted) return;
   await htmlKePdf(context, nama: 'Kartu_Peserta_${teks(rb['nama'])}.pdf', args: [_t, dokumenA4(b.toString(), css)]);

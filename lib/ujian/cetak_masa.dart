@@ -35,7 +35,7 @@ const _css = '.kopisi{text-align:center}.yy{font-size:10pt;font-weight:bold;lett
     'h2{text-align:center;font-size:13pt;margin:4px 0 2px}h3{font-size:11pt;margin:12px 0 4px}'
     '.sub{text-align:center;font-size:9.5pt;margin:0 0 8px}.kaki{font-size:8pt;color:#555;margin-top:10px;text-align:right}'
     'table.g{border-collapse:collapse;width:100%}.g th,.g td{border:1px solid #555;padding:4px 5px;font-size:9pt;vertical-align:top}'
-    '.g th{background:#e6f2f0}.tgl{background:#f3f8f7;font-weight:bold;vertical-align:middle;white-space:nowrap}.jam{white-space:nowrap}'
+    '.g th{font-weight:bold}.tgl{font-weight:bold;vertical-align:middle;white-space:nowrap}.jam{white-space:nowrap}'
     '.mp{font-weight:bold}.kecil2{font-size:8pt;color:#444}.paraf{width:70px}ol{margin:4px 0 0 18px;padding:0}li{font-size:9.5pt;margin:2px 0}'
     '.ttd{width:100%;margin-top:18px}.ttd td{border:none;font-size:10pt;text-align:center;width:50%}';
 
@@ -168,8 +168,7 @@ Future<void> cetakKesiapanBank(BuildContext context, String idMasa, Map<String, 
         '<th style="width:70px">Status</th><th>Sesi tanpa bank soal</th><th class="paraf">Paraf tutor</th></tr>');
     for (final x in l) {
       final st = teks(x['status']);
-      final bg = st == 'Kosong' ? '#fde8e8' : (st == 'Kurang' ? '#fff1e0' : '');
-      b.write('<tr${bg.isEmpty ? '' : ' style="background:$bg"'}><td class="mp">${escHtml(teks(x['mapel']))}</td>'
+      b.write('<tr><td class="mp">${escHtml(teks(x['mapel']))}</td>'
           '<td class="jam">${escHtml(_tglPanjang(teks(x['tanggal'])))}<br>${escHtml(teks(x['jam']))}</td><td style="text-align:center">${x['peserta'] ?? ''}</td>'
           '<td style="text-align:center">${x['bank'] ?? 0} / ${x['perlu'] ?? 0}</td><td><b style="color:${warna[st] ?? '#111'}">${escHtml(st)}</b></td>'
           '<td>${escHtml(daftar(x['tanpaBank']).join(', '))}</td><td></td></tr>');

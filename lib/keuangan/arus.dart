@@ -237,8 +237,8 @@ class _LaporanArusScreenState extends State<LaporanArusScreen> {
 
 const _css = '.kop{text-align:center;border-bottom:3px double #333;padding-bottom:6px;margin-bottom:8px}.lb{font-size:14pt;font-weight:bold}'
     'h2{text-align:center;font-size:13pt;margin:6px 0 2px}h3{font-size:11pt;margin:14px 0 4px}.sub{text-align:center;margin-bottom:10px}'
-    'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 5px;font-size:9pt}th{background:#eee}.r{text-align:right}.c{text-align:center}'
-    '.tot td,.tot th{font-weight:bold;background:#f5f5f5}.cat{font-size:8.5pt;color:#444}.ttd{width:100%;margin-top:22px}.ttd td{border:none;text-align:center;vertical-align:top;font-size:10pt}'
+    'table{border-collapse:collapse;width:100%}th,td{border:1px solid #555;padding:3px 5px;font-size:9pt}th{font-weight:bold}.r{text-align:right}.c{text-align:center}'
+    '.tot td,.tot th{font-weight:bold;border-top:2px solid #333}.cat{font-size:8.5pt;color:#444}.ttd{width:100%;margin-top:22px}.ttd td{border:none;text-align:center;vertical-align:top;font-size:10pt}'
     '.hal{page-break-before:always}';
 
 String arusKeuanganHtml(Map<String, dynamic> d, {bool excel = false}) {
