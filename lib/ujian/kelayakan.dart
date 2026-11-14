@@ -73,6 +73,18 @@ class KartuKelayakan extends StatelessWidget {
           ],
           if (aktif.isNotEmpty) _InfoAju(x: aktif, judul: 'Permohonan sedang diproses'),
           if (aktif.isEmpty && terakhir.isNotEmpty && teks(terakhir['status']) != 'Disetujui') _InfoAju(x: terakhir, judul: 'Permohonan terakhir'),
+          // v1.80.0: permohonan hanya 1x; dibuka kembali hanya oleh Admin
+          if (aktif.isEmpty && st == 'Belum layak' && u['sudahAju'] == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Permohonan ${teks(u['ujian'])} sudah pernah diajukan. Permohonan hanya bisa diajukan 1 kali; hubungi admin bila perlu mengajukan kembali.',
+                  style: TextStyle(fontSize: 12.5, color: cs.error)),
+            ),
+          if (teks(terakhir['bukaUlang']).isNotEmpty && u['bolehAju'] == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('Dibuka kembali oleh admin: ${teks(terakhir['bukaUlang'])}', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            ),
           if (aksi.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Wrap(spacing: 8, runSpacing: 6, children: aksi)),
         ]),
       ),
@@ -378,6 +390,17 @@ class _KelayakanSiswaStafScreenState extends State<KelayakanSiswaStafScreen> {
     if (h.ok && mounted) kabar(context, 'Panggilan terkirim ke ${widget.nama}.');
   }
 
+  Future<void> _bukaUlang(String ujian) async {
+    final ok = await konfirmasi(context, 'Izinkan ajukan ulang $ujian?',
+        '${widget.nama} akan bisa menekan tombol permohonan $ujian sekali lagi. Siswa diberi tahu lewat notifikasi.');
+    if (!ok || !mounted) return;
+    final h = await jalankan(context, () => Api.instance('waStafKelayakanBukaUlang', [_t, {'idWb': widget.idWb, 'ujian': ujian}]));
+    if (h.ok && mounted) {
+      kabar(context, 'Tombol permohonan $ujian dibuka kembali untuk ${widget.nama}.');
+      setState(() => _v++);
+    }
+  }
+
   Future<void> _ortu(String ujian, String bagian, num sisa) async {
     final args = <String, dynamic>{'idWb': widget.idWb, 'ujian': ujian, 'bagian': bagian};
     if (bagian == 'akademik') {
@@ -429,6 +452,8 @@ class _KelayakanSiswaStafScreenState extends State<KelayakanSiswaStafScreen> {
                     OutlinedButton.icon(onPressed: () => _ortu(e.key, 'akademik', 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (kurikulum)')),
                   if (belum && kurangKeu && pr['keuAksi'] == true)
                     OutlinedButton.icon(onPressed: () => _ortu(e.key, 'keuangan', keu?['sisa'] ?? 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (keuangan)')),
+                  if (Sesi.instance.isAdmin && u['sudahAju'] == true && peta(u['aktif']).isEmpty)
+                    OutlinedButton.icon(onPressed: () => _bukaUlang(e.key), icon: const Icon(Icons.lock_open_rounded, size: 18), label: const Text('Izinkan ajukan ulang')),
                 ]);
               }),
             if (riwayat.isNotEmpty) ...[
@@ -541,7 +566,8 @@ class _KelayakanSiswaScreenState extends State<KelayakanSiswaScreen> {
     final perluJanji = u['keuOk'] != true && u['izinKeu'] != true;
     final alasan = await _isiTeks(context, 'Permohonan kelayakan $ujian', label: 'Alasan', minimal: 10,
         keterangan: 'Permohonan dikirim ke ${u['akaOk'] != true && perluJanji ? 'bagian kurikulum dan keuangan' : (perluJanji ? 'bagian keuangan' : 'bagian kurikulum')}, '
-            'lalu diputuskan Kepala Sekolah. Bila perlu klarifikasi, Anda akan dipanggil lewat notifikasi.');
+            'lalu diputuskan Kepala Sekolah. Bila perlu klarifikasi, Anda akan dipanggil lewat notifikasi.\n\n'
+            'PERHATIAN: permohonan $ujian hanya bisa diajukan 1 kali, apa pun hasilnya (disetujui atau ditolak). Pastikan alasan sudah lengkap.');
     if (alasan == null || !mounted) return;
     final args = <String, dynamic>{'ujian': ujian, 'alasan': alasan};
     if (perluJanji) {
@@ -581,8 +607,10 @@ class _KelayakanSiswaScreenState extends State<KelayakanSiswaScreen> {
               Builder(builder: (context) {
                 final u = peta(e.value);
                 return KartuKelayakan(u: u, keu: keu, syarat: angka(d['syarat'], 80), rinci: true, aksi: [
-                  if (u['bolehAju'] == true)
+                  if (u['bolehAju'] == true) ...[
                     FilledButton.icon(onPressed: () => _aju(e.key, u, keu), icon: const Icon(Icons.send_rounded, size: 18), label: const Text('Ajukan Permohonan')),
+                    Text('⚠ Permohonan hanya bisa diajukan 1 kali.', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
+                  ],
                 ]);
               }),
             if (riwayat.isNotEmpty) ...[

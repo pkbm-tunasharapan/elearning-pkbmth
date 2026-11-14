@@ -23,7 +23,7 @@ var KL = {
     'PERNYATAAN ORTU', 'JANJI TANGGAL', 'JANJI NOMINAL',
     'REK AKADEMIK', 'REK AKADEMIK CATATAN', 'REK AKADEMIK OLEH', 'REK AKADEMIK PADA',
     'REK KEUANGAN', 'REK KEUANGAN CATATAN', 'REK KEUANGAN OLEH', 'REK KEUANGAN PADA',
-    'STATUS', 'KS OLEH', 'KS CATATAN', 'KS PADA', 'PANGGILAN', 'KEU GUGUR', 'CATATAN SISTEM'],
+    'STATUS', 'KS OLEH', 'KS CATATAN', 'KS PADA', 'PANGGILAN', 'KEU GUGUR', 'CATATAN SISTEM', 'BUKA ULANG'],
   UJIAN: ['UTS', 'UAS', 'UPK'],
   TAMBAH_TM: 0.1,
   SEMUA: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Bendahara'],
@@ -212,7 +212,7 @@ function klAjuRingkas_(x) {
     janjiTanggal: x['JANJI TANGGAL'], janjiNominal: Number(x['JANJI NOMINAL']) || 0, pernyataan: x['PERNYATAAN ORTU'],
     rekAkademik: x['REK AKADEMIK'], rekAkademikCatatan: x['REK AKADEMIK CATATAN'], rekAkademikOleh: x['REK AKADEMIK OLEH'],
     rekKeuangan: x['REK KEUANGAN'], rekKeuanganCatatan: x['REK KEUANGAN CATATAN'], rekKeuanganOleh: x['REK KEUANGAN OLEH'],
-    ksOleh: x['KS OLEH'], ksCatatan: x['KS CATATAN'], ksPada: x['KS PADA'], panggilan: x['PANGGILAN'], keuGugur: x['KEU GUGUR'], catatanSistem: x['CATATAN SISTEM'] };
+    ksOleh: x['KS OLEH'], ksCatatan: x['KS CATATAN'], ksPada: x['KS PADA'], panggilan: x['PANGGILAN'], keuGugur: x['KEU GUGUR'], catatanSistem: x['CATATAN SISTEM'], bukaUlang: x['BUKA ULANG'] || '' };
 }
 
 // ---------- penilaian satu siswa ----------
@@ -233,9 +233,11 @@ function klWb_(d, w, c, keys, o) {
     if (!akaOk) alasan.push('akademik');
     if (!keuOk) alasan.push('keuangan');
     var st = akaOk && keuOk ? 'Layak' : ((akaOk || izin.aka) && (keuOk || izin.keu) ? 'Layak dengan catatan' : 'Belum layak');
+    // v1.80.0: permohonan siswa hanya 1x per jenis ujian per semester (apa pun hasilnya); Admin dapat membuka kembali (BUKA ULANG).
+    var sudahAju = !!izin.terakhir && !izin.terakhir['BUKA ULANG'];
     hasil[u] = { ujian: u, status: st, akaOk: akaOk, keuOk: keuOk, izinAka: izin.aka, izinKeu: izin.keu, alasan: alasan, catatan: st === 'Layak dengan catatan' ? izin.catatan : [],
       mapel: mapel, aktif: klAjuRingkas_(izin.aktif), terakhir: klAjuRingkas_(izin.terakhir),
-      bolehAju: st === 'Belum layak' && !izin.aktif };
+      bolehAju: st === 'Belum layak' && !izin.aktif && !sudahAju, sudahAju: sudahAju };
   });
   return { id: w.id, nama: w.nama, idRombel: w.idRombel, rombel: w.namaRombel || '', akhir: akhir, keu: keu, ujian: hasil };
 }
@@ -477,6 +479,34 @@ function waStafKelayakanOrtu(token, q) {
   } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 
+// v1.80.0: Admin membuka kembali tombol permohonan siswa (permohonan hanya 1x). q: {idWb, ujian}
+function waStafKelayakanBukaUlang(token, q) {
+  var p = stafDariToken_(token);
+  if (p.peran !== 'Admin') throw new Error('Membuka kembali permohonan kelayakan hanya oleh Admin.');
+  q = q || {};
+  var ujian = KL.UJIAN.indexOf(String(q.ujian)) >= 0 ? String(q.ujian) : '';
+  if (!ujian) throw new Error('Pilih jenis ujian.');
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(25000);
+  try {
+    var d = klData_();
+    var x = klAjuPeriode_(d).filter(function(v) { return v['ID WB'] === String(q.idWb || '') && v['UJIAN'] === ujian; }).pop();
+    if (!x) throw new Error('Siswa ini belum pernah mengajukan permohonan ' + ujian + ' semester ini.');
+    if (KL.AKTIF.indexOf(x['STATUS']) >= 0) throw new Error('Permohonan ' + ujian + ' siswa ini masih diproses.');
+    if (x['BUKA ULANG']) throw new Error('Permohonan ' + ujian + ' siswa ini sudah dibuka kembali.');
+    var t = d.ajuT || klAjuBaca_().t;
+    if (absCol_(t, 'BUKA ULANG') < 0) {
+      var n = t.v[0].length;
+      t.sh.getRange(1, n + 1).setValue('BUKA ULANG').setFontWeight('bold');
+      t.h['BUKA ULANG'] = n; t.v[0].push('BUKA ULANG');
+    }
+    klAjuUbah_(t, x.baris, { 'BUKA ULANG': absWaktu_() + ' · ' + p.nama });
+    try { npKirim_('kl_putus', { judul: 'Permohonan kelayakan ' + ujian + ' dapat diajukan kembali', isi: 'Admin membuka kembali tombol permohonan. Permohonan tetap hanya bisa diajukan 1 kali.', aksi: 'kelayakan_saya', siswa: [x['ID WB']], ref: 'buka|' + x['ID'] }); } catch (eN) {}
+    catat_(p.peran, x['ROMBEL'], p.nama, 'Buka ulang permohonan kelayakan', x['NAMA'] + ' ' + ujian + ' (' + x['ID'] + ')', 'OK');
+    return { sukses: true };
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
+}
+
 // ---------- siswa ----------
 function klSiswa_(token) {
   var s = siswaDariSesi_(token), w = ksWb_(s), d = klData_();
@@ -498,6 +528,7 @@ function waSiswaKelayakanAju(token, q) {
     var k = klSiswa_(token), h = klWb_(k.d, k.w, k.c, k.keys, { keu: true });
     var ujian = String(q.ujian || ''), u = h.ujian[ujian];
     if (!u) throw new Error('Pilih jenis ujian.');
+    if (u.sudahAju && !u.aktif) throw new Error('Permohonan kelayakan ' + ujian + ' hanya bisa diajukan 1 kali dan sudah Anda ajukan. Hubungi admin bila perlu mengajukan kembali.');
     var alasan = String(q.alasan || '').trim();
     if (alasan.length < 10) throw new Error('Tuliskan alasan permohonan (minimal 10 huruf).');
     var isi = { 'ALASAN': alasan.slice(0, 600), 'SUMBER': 'Siswa', 'DICATAT OLEH': k.w.nama };
