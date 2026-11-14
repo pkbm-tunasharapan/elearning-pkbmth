@@ -42,7 +42,7 @@ function doPost(e) {
       var boleh = (API_FLUTTER.POLA.test(fn) || API_FLUTTER.TAMBAHAN[fn] === true) && typeof globalThis[fn] === 'function';
       if (!boleh) throw new Error('Fungsi tidak diizinkan: ' + fn);
       API_FN_SAAT_INI_ = fn;
-      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__API_V = String(body.v || ""); globalThis.__DINAS = false; globalThis.__INTIP = false;
+      globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__API_V = String(body.v || ""); globalThis.__DINAS = false; globalThis.__INTIP = false; globalThis.__STAF_P = null; globalThis.__AI_PAKSA = '';
       if (body.intip && typeof intipJaga_ === 'function') intipJaga_(fn, String(body.intip));   // v1.81.0: Lihat sebagai (hanya baca)
       var hasilFn = globalThis[fn].apply(null, args);
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);

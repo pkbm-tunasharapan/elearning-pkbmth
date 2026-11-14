@@ -15,6 +15,9 @@
 var AI = {
   PROP_KUNCI: 'GEMINI_API_KEY',
   PROP_MODEL: 'GEMINI_MODEL',
+  // v1.84.0: kunci "Plus" (proyek berbayar) KHUSUS akun berperan Admin; peran lain selalu memakai kunci Free di atas.
+  PROP_KUNCI_PLUS: 'GEMINI_API_KEY_PLUS',
+  PROP_MODEL_PLUS: 'GEMINI_MODEL_PLUS',
   MODEL_DEFAULT: 'gemini-3.8-flash',
   BASE: 'https://generativelanguage.googleapis.com',
   MAKS_BYTE_PDF: 60 * 1024 * 1024,
@@ -30,12 +33,25 @@ var AI = {
   PERAN_TEKNIS: ['Admin']
 };
 
+function aiProp_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
+
+// v1.84.0: kunci Plus hanya untuk permintaan dari akun yang perannya PERSIS Admin (bukan peran kustom turunan Admin,
+// bukan peran proksi/tugas tambahan, bukan mode Lihat sebagai, bukan akun Dinas). Proses tanpa pengguna (pemicu
+// terjadwal) tidak punya globalThis.__STAF_P sehingga selalu memakai kunci Free. globalThis.__AI_PAKSA: 'free' | 'plus' (uji admin).
+function aiPakaiPlus_() {
+  if (!aiProp_(AI.PROP_KUNCI_PLUS)) return false;
+  if (globalThis.__AI_PAKSA === 'free') return false;
+  var p = globalThis.__STAF_P;
+  var admin = !!(p && p.peran === 'Admin' && !p.peranKustom && !p.proksi && !p.peranAsli && !p.peranDasarAsli && !globalThis.__INTIP && !globalThis.__DINAS);
+  return admin;
+}
 function aiKunci_() {
-  return PropertiesService.getScriptProperties().getProperty(AI.PROP_KUNCI) || '';
+  return aiPakaiPlus_() ? aiProp_(AI.PROP_KUNCI_PLUS) : aiProp_(AI.PROP_KUNCI);
 }
 
 function aiModel_() {
-  return PropertiesService.getScriptProperties().getProperty(AI.PROP_MODEL) || AI.MODEL_DEFAULT;
+  if (aiPakaiPlus_()) return aiProp_(AI.PROP_MODEL_PLUS) || aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT;
+  return aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT;
 }
 
 function aiBolehTeknis_(p) {
@@ -60,18 +76,42 @@ function aiLindungi_(token, fn) {
 }
 
 function aiWajibSiap_() {
-  if (!aiKunci_()) throw new Error('Fitur AI belum diaktifkan. Minta admin mengisi kunci Gemini di tab "Pengaturan AI".');
+  if (!aiKunci_()) throw new Error('Fitur AI belum diaktifkan. Minta admin mengisi kunci Gemini (Free) di tab "Pengaturan AI".');
 }
 
 // ---------- pengaturan (admin) ----------
+function aiStatus_() {
+  return { kunciTerisi: !!aiProp_(AI.PROP_KUNCI), model: aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT, modelDefault: AI.MODEL_DEFAULT,
+    plus: { kunciTerisi: !!aiProp_(AI.PROP_KUNCI_PLUS), model: aiProp_(AI.PROP_MODEL_PLUS) || aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT },
+    dipakaiSaya: aiPakaiPlus_() ? 'plus' : 'free' };
+}
 function waAdminAiStatus(token) {
   wajibAdmin_(token);
-  return { kunciTerisi: !!aiKunci_(), model: aiModel_(), modelDefault: AI.MODEL_DEFAULT };
+  return aiStatus_();
 }
 
-function waAdminAiSimpan(token, kunci, model) {
+// plus (opsional, v1.84.0): {kunci, model, hapus: bool} untuk kunci Plus khusus Admin.
+function waAdminAiSimpan(token, kunci, model, plus) {
   var p = wajibAdmin_(token);
   var props = PropertiesService.getScriptProperties();
+  var catatPlus = '';
+  if (plus && typeof plus === 'object') {
+    if (plus.hapus === true) { props.deleteProperty(AI.PROP_KUNCI_PLUS); props.deleteProperty(AI.PROP_MODEL_PLUS); catatPlus = 'kunci Plus dihapus; '; }
+    else {
+      var kp = String(plus.kunci || '').trim();
+      if (kp) {
+        if (!/^[A-Za-z0-9._\-]{20,200}$/.test(kp)) throw new Error('Format kunci API Plus tidak valid.');
+        props.setProperty(AI.PROP_KUNCI_PLUS, kp);
+        catatPlus = 'kunci Plus diperbarui; ';
+      }
+      var mp = String(plus.model || '').trim().replace(/^models\//i, '').toLowerCase();
+      if (mp) {
+        if (!/^gemini-[a-z0-9.\-]{2,50}$/.test(mp)) throw new Error('Nama model Plus tidak valid. Isi KODE model, contoh: gemini-3.5-pro');
+        props.setProperty(AI.PROP_MODEL_PLUS, mp);
+        catatPlus += 'model Plus ' + mp + '; ';
+      }
+    }
+  }
   var k = String(kunci || '').trim();
   if (k) {
     if (!/^[A-Za-z0-9._\-]{20,200}$/.test(k)) throw new Error('Format kunci API tidak valid.');
@@ -84,19 +124,25 @@ function waAdminAiSimpan(token, kunci, model) {
     if (!/^gemini-[a-z0-9.\-]{2,50}$/.test(m)) throw new Error('Nama model tidak valid. Isi KODE model, bukan nama tampilannya: huruf kecil, tanda hubung, tanpa spasi, diawali "gemini-". Contoh: gemini-3.5-flash-lite');
     props.setProperty(AI.PROP_MODEL, m);
   }
-  catat_('Admin', '-', p.nama, 'AI simpan pengaturan', (k ? 'kunci diperbarui; ' : '') + 'model ' + aiModel_(), 'OK');
-  return { kunciTerisi: !!aiKunci_(), model: aiModel_() };
+  catat_('Admin', '-', p.nama, 'AI simpan pengaturan', catatPlus + (k ? 'kunci Free diperbarui; ' : '') + 'model Free ' + (aiProp_(AI.PROP_MODEL) || AI.MODEL_DEFAULT), 'OK');
+  return aiStatus_();
 }
 
-function waAdminAiUji(token) {
+// jenis: 'free' | 'plus' (kosong = kunci yang dipakai akun ini).
+function waAdminAiUji(token, jenis) {
   wajibAdmin_(token);
+  if (jenis === 'plus') {
+    if (!aiProp_(AI.PROP_KUNCI_PLUS)) throw new Error('Kunci Plus belum diisi.');
+    if (!aiPakaiPlus_()) throw new Error('Kunci Plus hanya dipakai oleh akun berperan Admin.');
+  }
+  if (jenis === 'free') globalThis.__AI_PAKSA = 'free';
   aiWajibSiap_();
   var res = aiPanggil_('POST', AI.BASE + '/v1beta/models/' + aiModel_() + ':generateContent', {
     contents: [{ role: 'user', parts: [{ text: 'Balas hanya dengan kata: siap' }] }],
     generationConfig: { temperature: 0, maxOutputTokens: 512 }
   }, { maks: 1 });
   var teks = aiTeksDariRespons_(res.json, true);
-  return { sukses: true, model: aiModel_(), balasan: String(teks || '(terhubung)').slice(0, 40) };
+  return { sukses: true, jenis: aiPakaiPlus_() ? 'plus' : 'free', model: aiModel_(), balasan: String(teks || '(terhubung)').slice(0, 40) };
 }
 
 // Dijalankan pemilik sekali dari editor agar Google meminta izin "menghubungi layanan eksternal".

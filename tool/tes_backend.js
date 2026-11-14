@@ -1951,5 +1951,30 @@ tes('bank soal terkunci: rentang ujian (dasar & jadwal unit), siswa masih menger
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// 64. kunci AI Plus khusus Admin (v1.84.0)
+tes('kunci AI: Plus hanya untuk peran Admin murni; peran lain, peran kustom, mode lihat, tanpa pengguna -> Free', () => {
+  const pr = g.PropertiesService.getScriptProperties();
+  const simpan = ['GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_API_KEY_PLUS', 'GEMINI_MODEL_PLUS'].map((k) => [k, pr.getProperty(k)]);
+  try {
+    pr.setProperty('GEMINI_API_KEY', 'KUNCI_FREE_xxxxxxxxxxxxxxxx'); pr.setProperty('GEMINI_MODEL', 'gemini-free');
+    pr.setProperty('GEMINI_API_KEY_PLUS', 'KUNCI_PLUS_xxxxxxxxxxxxxxxx'); pr.setProperty('GEMINI_MODEL_PLUS', 'gemini-pro');
+    const cek = (p, ekstra) => { g.__STAF_P = p; g.__INTIP = false; g.__DINAS = false; g.__AI_PAKSA = ''; Object.assign(g, ekstra || {}); return [g.aiKunci_().slice(0, 10), g.aiModel_()]; };
+    const PLUS = ['KUNCI_PLUS', 'gemini-pro'], FREE = ['KUNCI_FREE', 'gemini-free'];
+    sama(cek({ peran: 'Admin' }), PLUS);
+    sama(cek({ peran: 'Tutor' }), FREE);
+    sama(cek({ peran: 'Kepala Sekolah' }), FREE);
+    sama(cek({ peran: 'Admin', peranKustom: 'Operator' }), FREE);
+    sama(cek({ peran: 'Admin', proksi: 'keuangan', peranDasarAsli: 'Bendahara' }), FREE);
+    sama(cek({ peran: 'Admin' }, { __INTIP: { jenis: 'tutor' } }), FREE);
+    sama(cek(null), FREE);                                   // pemicu terjadwal / tanpa pengguna
+    sama(cek({ peran: 'Admin' }, { __AI_PAKSA: 'free' }), FREE);
+    pr.deleteProperty('GEMINI_API_KEY_PLUS');
+    sama(cek({ peran: 'Admin' }), FREE);                     // Plus kosong -> Admin memakai Free
+  } finally {
+    simpan.forEach(([k, v]) => { if (v === null) pr.deleteProperty(k); else pr.setProperty(k, v); });
+    g.__STAF_P = null; g.__INTIP = false; g.__AI_PAKSA = '';
+  }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

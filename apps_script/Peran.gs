@@ -213,6 +213,7 @@ function stafDariToken_(token) {
       var hasilU = (daftar[i].peran === 'Dinas Pendidikan' && typeof dinasSaring_ === 'function') ? dinasSaring_(daftar[i]) : daftar[i];
       if (typeof tgTerapkanMode_ === 'function') hasilU = tgTerapkanMode_(hasilU, token);   // v1.73.0: mode Tutor (tugas tambahan)
       if (typeof izPeriksa_ === 'function') hasilU = izPeriksa_(hasilU) || hasilU;   // v1.41.0/1.41.1: izin per fitur (+ peran pelaksana fitur tambahan)
+      globalThis.__STAF_P = hasilU;   // v1.84.0: pemilih kunci AI (Plus khusus Admin)
       return hasilU;
     }
   }
