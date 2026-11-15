@@ -279,10 +279,14 @@ function waStafMasaTetapkan(token, id) {
   if (m.status !== 'Draft') throw new Error('Masa ujian ini sudah ditetapkan.');
   var slot = muSlot_(m.id);
   if (!slot.length) throw new Error('Belum ada slot jadwal.');
-  var cfg = taBaca_(), now = Date.now(), kelas = muKelas_(m), mapel = ujtPetaMapel_(), hasil = [], lewat = [];
+  var cfg = taBaca_(), now = Date.now(), kelas = muKelas_(m), mapel = ujtPetaMapel_(), hasil = [], lewat = [], info = [], diganti = 0;
   var kunci = kmKunciUnik_();
   kunci.waitLock(30000);
   try {
+    // v1.87.0: masa UTS/UAS semua siswa di minggu materi -> minggu itu menjadi minggu ujian kalender (materi bergeser)
+    var tukar = mgTukarRencana_(m, slot, cfg, now);
+    if (tukar && tukar.alasan) info.push(tukar.alasan);
+    else if (tukar) { mgTukarPasang_(m, tukar); cfg = taBaca_(); }
     var adaKunci = {}, jKunci = {};
     ujJadwalSemua_().forEach(function(x) { adaKunci[x.kunci] = true; jKunci[x.kunci] = x; });
     slot.forEach(function(s) {
@@ -294,6 +298,13 @@ function waStafMasaTetapkan(token, id) {
           if (!em) throw new Error('mapel tidak aktif');
           if (isNaN(mulaiMs) || mulaiMs < now) throw new Error('waktu mulai sudah lewat');
           var kj = m.jenis === 'UTS' || m.jenis === 'UAS' ? ujKunciJadwal_(k.idMapel, m.smt, m.jenis) : ujKunciJadwal_(k.idMapel, m.smt, m.jenis) + '|' + m.id;
+          // v1.87.0: ujian sejenis dari kalender akademik (bukan milik masa) diganti masa ini; nilainya memakai hasil masa
+          if (adaKunci[kj] && jKunci[kj] && !jKunci[kj].masa) {
+            if (!mgBolehGanti_(jKunci[kj], now)) throw new Error('ujian ' + m.jenis + ' kalender akademik mapel ini sedang berlangsung');
+            mgGantiLama_(m, jKunci[kj]);
+            delete adaKunci[kj]; delete jKunci[kj];
+            diganti++;
+          }
           if (adaKunci[kj]) {
             // v1.83.0: masa per unit -> jadwal khusus unit pada ujian yang sama (tanpa jadwal/item ujian baru)
             if (m.peserta.mode !== 'unit' || !jKunci[kj]) throw new Error('sudah terjadwal ' + (MU.NAMA_JENIS[m.jenis] || m.jenis) + ' Semester ' + m.smt + (m.peserta.mode !== 'unit' ? ' (pakai peserta Unit untuk jadwal berbeda per unit)' : ''));
@@ -325,10 +336,14 @@ function waStafMasaTetapkan(token, id) {
       sh.getRange(m.baris, MU.HDR.indexOf('DITETAPKAN PADA') + 1).setValue(ujNow_());
       var shS = muTab_(MU.TAB_SLOT, MU.HDR_SLOT), kT = MU.HDR_SLOT.indexOf('TOKEN') + 1;
       slot.forEach(function(s) { if (!s.token) shS.getRange(s.baris, kT).setNumberFormat('@').setValue(muTokenBaru_()); });
-    }
+      if (tukar && !tukar.alasan) info.push(mgTeksTukar_(cfg, tukar));
+      if (diganti) info.push(diganti + ' ujian ' + m.jenis + ' dari kalender akademik dinonaktifkan dan diganti masa ini; nilai rapor memakai hasil ujian masa.');
+      if (m.peserta.mode !== 'siswa') info.push('Tatap muka peserta diliburkan pada hari-hari ujian masa ini.');
+    } else if (tukar && !tukar.alasan) mgTukarLepas_(m.id);
   } finally { kunci.releaseLock(); }
-  catat_(p.peran, '', p.nama, 'Tetapkan masa ujian', m.id + ' ' + m.nama + ': ' + hasil.length + ' jadwal, ' + lewat.length + ' dilewati', 'OK');
-  return { ditetapkan: hasil, lewat: lewat };
+  catat_(p.peran, '', p.nama, 'Tetapkan masa ujian', m.id + ' ' + m.nama + ': ' + hasil.length + ' jadwal, ' + lewat.length + ' dilewati, ' + diganti + ' diganti' +
+    (tukar && !tukar.alasan && hasil.length ? ', minggu ' + m.jenis + ' -> minggu ' + tukar.p : ''), 'OK');
+  return { ditetapkan: hasil, lewat: lewat, info: info };
 }
 // Batalkan penetapan (selama belum ada siswa yang mulai): hapus jadwal & nonaktifkan item ujiannya.
 function waStafMasaBatal(token, id, alasan) {
@@ -366,9 +381,13 @@ function waStafMasaBatal(token, id, alasan) {
       munReset_();
     } finally { kunci.releaseLock(); }
   }
+  // v1.87.0: kembalikan kalender & ujian kalender akademik yang diganti masa ini
+  var kLepas = kmKunciUnik_(), pulih = 0, lepas = false;
+  kLepas.waitLock(30000);
+  try { lepas = mgTukarLepas_(m.id); pulih = mgPulihkanLama_(m.id); } finally { kLepas.releaseLock(); }
   var sh = muTab_(MU.TAB, MU.HDR);
   sh.getRange(m.baris, MU.HDR.indexOf('STATUS') + 1).setValue('Draft');
-  sh.getRange(m.baris, MU.HDR.indexOf('CATATAN') + 1).setValue(('Dibatalkan ' + p.nama + ' ' + ujNow_() + ': ' + alasan).slice(0, 300));
+  sh.getRange(m.baris, MU.HDR.indexOf('CATATAN') + 1).setValue(('Dibatalkan ' + p.nama + ' ' + ujNow_() + ': ' + alasan + (lepas ? ' (kalender dikembalikan)' : '') + (pulih ? ' (' + pulih + ' ujian kalender dipulihkan)' : '')).slice(0, 300));
   catat_(p.peran, '', p.nama, 'Batal masa ujian', m.id + ' ' + m.nama + ' (' + rc.hapusJadwal.length + ' jadwal, ' + rc.hapusWin.length + ' jadwal unit, ' + rc.pindah.length + ' dipindah): ' + alasan, 'OK');
   return { sukses: true, dihapus: rc.hapusJadwal.length + rc.hapusWin.length };
 }

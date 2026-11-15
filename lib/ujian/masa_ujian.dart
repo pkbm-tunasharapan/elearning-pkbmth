@@ -670,6 +670,7 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
     if (!r.ok || !mounted) return;
     final ok = daftar(r.data!['ditetapkan']).length;
     final lewat = daftar(r.data!['lewat']).map(peta).toList();
+    final info = daftar(r.data!['info']).map(teks).where((x) => x.isNotEmpty).toList();
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
@@ -680,6 +681,11 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
             if (lewat.isEmpty) const Text('Semua jadwal berhasil ditetapkan.'),
             if (lewat.isNotEmpty) Text('${lewat.length} dilewati:', style: const TextStyle(fontWeight: FontWeight.w700)),
             for (final l in lewat) Text('• ${teks(l['nama'])}: ${teks(l['alasan'])}', style: const TextStyle(fontSize: 13)),
+            if (info.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const Text('Penyesuaian otomatis:', style: TextStyle(fontWeight: FontWeight.w700)),
+              for (final x in info) Text('• $x', style: const TextStyle(fontSize: 13)),
+            ],
           ]),
         ),
         actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('OK'))],
@@ -695,7 +701,8 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
       builder: (c) => AlertDialog(
         title: const Text('Batalkan penetapan?'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Semua jadwal kelas dari masa ini dihapus dan item ujiannya dinonaktifkan. Hanya bisa selama belum ada siswa yang mengerjakan.'),
+          const Text('Semua jadwal kelas dari masa ini dihapus dan item ujiannya dinonaktifkan. Kalender materi dan ujian kalender akademik yang diganti dikembalikan. '
+              'Hanya bisa selama belum ada siswa yang mengerjakan.'),
           const SizedBox(height: 10),
           TextField(controller: alasan, decoration: const InputDecoration(labelText: 'Alasan')),
         ]),

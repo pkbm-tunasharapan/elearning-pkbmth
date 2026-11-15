@@ -77,9 +77,11 @@ function agJadwalLibur_(daftar, tanggal, idRombel, program, unitPm) {
 var AG_PROG_ = null;
 function agLiburPm_(x, tanggal) {
   var d = agSah_();
-  if (!d.length) return null;
+  // v1.87.0: hari ujian masa ujian juga meniadakan tatap muka peserta
+  if (!d.length) return typeof mgLiburPm_ === 'function' ? mgLiburPm_(x, tanggal) : null;
   if (!AG_PROG_) { AG_PROG_ = {}; try { var rb = honProgramRombel_(); Object.keys(rb).forEach(function(k) { AG_PROG_[k] = rb[k].program; }); } catch (e) {} }
-  return agJadwalLibur_(d, tanggal, x.idRombel, AG_PROG_[x.idRombel] || x.paket || '', x.unit || '');
+  return agJadwalLibur_(d, tanggal, x.idRombel, AG_PROG_[x.idRombel] || x.paket || '', x.unit || '') ||
+    (typeof mgLiburPm_ === 'function' ? mgLiburPm_(x, tanggal) : null);
 }
 // Siswa (ID WB) sasaran & bukan sasaran.
 function agPenerima_(a) {

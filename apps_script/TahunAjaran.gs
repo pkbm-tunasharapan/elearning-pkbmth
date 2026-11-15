@@ -46,6 +46,12 @@ function taBaca_() {
   cfg.upk = parseInt(cfg.upk, 10) || 0;
   cfg.masaBukaHari = parseInt(cfg.masaBukaHari, 10) || TA.DEFAULT.masaBukaHari;
   cfg.jumlahSemester = TA.JUMLAH_SEMESTER;
+  // v1.87.0: minggu ujian yang dipindah oleh masa ujian (lihat MasaGeser.gs); hanya berlaku untuk tahun ajaran yang sama
+  cfg.tukar = {};
+  try {
+    var tk = JSON.parse(PropertiesService.getScriptProperties().getProperty('TA_TUKAR') || 'null');
+    if (tk && tk.mulai === cfg.mulai && tk.smt) cfg.tukar = tk.smt;
+  } catch (e2) {}
   TA_MEMO_ = cfg;
   return cfg;
 }
@@ -102,8 +108,33 @@ function taParse_(cfg, teks) {
   return { smt: smt, n: n };
 }
 
+// v1.87.0: posisi minggu fisik (1..sesiPerSemester) sesi n. Bawaan = n. Bila minggu UTS/UAS dipindah masa ujian ke minggu p,
+// sesi ujian itu menempati minggu p dan sesi materi di antaranya bergeser satu minggu (panjang semester tetap).
+function taPosisi_(cfg, smt, n) {
+  var t = cfg.tukar && cfg.tukar[String(smt)];
+  if (!t) return n;
+  var S = cfg.sesiPerSemester, urut = [];
+  for (var i = 1; i <= S; i++) urut.push(i);
+  ['UTS', 'UAS'].forEach(function(jn) {
+    var x = t[jn], p = x ? parseInt(x.p, 10) : 0, e = jn === 'UTS' ? cfg.uts : cfg.uas, k = urut.indexOf(e);
+    if (!(p >= 1 && p <= S) || k < 0) return;
+    urut.splice(k, 1);
+    urut.splice(p - 1, 0, e);
+  });
+  return urut.indexOf(n) + 1 || n;
+}
+
+// Minggu fisik tanggal iso: {smt, p} atau null bila di luar tahun ajaran.
+function taMingguFisik_(cfg, iso) {
+  var a = taTgl_(cfg.mulai), d = taTgl_(iso);
+  if (!a || !d) return null;
+  var g = Math.floor(Math.round((d.getTime() - a.getTime()) / 86400000) / TA.HARI_PER_SESI);
+  if (g < 0 || g >= cfg.sesiPerSemester * cfg.jumlahSemester) return null;
+  return { smt: Math.floor(g / cfg.sesiPerSemester) + 1, p: (g % cfg.sesiPerSemester) + 1 };
+}
+
 function taRentang_(cfg, smt, n) {
-  var g = (smt - 1) * cfg.sesiPerSemester + (n - 1);
+  var g = (smt - 1) * cfg.sesiPerSemester + (taPosisi_(cfg, smt, n) - 1);
   var awal = taTgl_(cfg.mulai);
   var jt = taJam_(cfg.jamTayang) || [0, 1];
   var jb = taJam_(cfg.jamBatas) || [23, 59];
