@@ -2023,6 +2023,13 @@ tes('impor JSON: kunci yang kehilangan kutip pembuka (opsi": {) diperbaiki otoma
   sama(r.obj.hasil[0].isi_materi_lengkap, 'Paragraf satu, kata: dua.\n\nParagraf dua');
   // jalur API juga
   sama(g.aiParseJson_('{"a": 1, b": {"c": 2}}'), { a: 1, b: { c: 2 } });
+  // v1.87.3: kunci tanpa kutip sama sekali di awal baris (variabel: "..."); teks "x,\nkata: y" di dalam string tidak disentuh
+  const t2 = '{\n  "hasil": [\n    {\n      "id": "1-1",\n      "soal": [\n        {\n          "pertanyaan": "Apa itu, sebut: koefisien?",\n' +
+    '          variabel: "Variabel mewakili harga",\n          "opsi": {\n            "A": "Satu",\n            "B": "Dua"\n          },\n          "kunci": "A"\n        }\n      ]\n    }\n  ]\n}';
+  const r2 = g.kurParseLonggar_(t2);
+  sama(r2.obj.hasil[0].soal[0].variabel, 'Variabel mewakili harga');
+  sama(r2.obj.hasil[0].soal[0].pertanyaan, 'Apa itu, sebut: koefisien?');
+  sama(g.kurKutipKunci_('{"a": "baris satu,\\nkata: dua"}'), '{"a": "baris satu,\\nkata: dua"}');
 });
 
 tes('masa: slot online di minggu materi menutup sesi itu untuk kelas peserta; bukan untuk slot tulis, sesi yang sudah mulai, atau rombel campuran unit', () => {

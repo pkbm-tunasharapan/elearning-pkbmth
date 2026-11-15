@@ -994,8 +994,11 @@ function kurPerbaikiString_(t) {
 // Bersihkan keluaran Gemini web: penanda sumber [cite: ..], koma yang tertukar titik dua pada opsi ("C","teks" menjadi "C":"teks"), kunci tambahan icon.
 // v1.86.2: nama kunci yang kehilangan kutip pembuka (opsi": { menjadi "opsi": {). Hanya kunci tepat setelah { atau , dan
 // diikuti ": sehingga teks di dalam string tidak tersentuh (kutip di dalam string selalu ber-escape \").
+// v1.87.3: juga kunci tanpa kutip sama sekali (variabel: "..."), hanya bila di awal baris setelah baris yang berakhir { atau , dan
+// diikuti nilai string/objek/larik, sehingga teks berisi titik dua di dalam string tidak ikut berubah.
 function kurKutipKunci_(t) {
-  return String(t || '').replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)"(\s*:)/g, '$1"$2"$3');
+  return String(t || '').replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)"(\s*:)/g, '$1"$2"$3')
+    .replace(/([{,][ \t]*\r?\n[ \t]*)([A-Za-z_][A-Za-z0-9_]*)([ \t]*:[ \t]*["{\[])/g, '$1"$2"$3');
 }
 
 function kurBersihGemini_(t) {
