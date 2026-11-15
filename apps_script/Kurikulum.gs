@@ -106,6 +106,21 @@ function kurAcakKunci_(out) {
   return out;
 }
 
+// v1.86.1: soal ujian harus berdiri sendiri. Soal yang menyebut hal fisik buku (halaman, bab/unit, nomor aktivitas, judul/sampul/penerbit, gambar/tabel di buku) dibuang.
+var KUR_RUJUKAN_TERLARANG = new RegExp([
+  '\\b(halaman|hlm\\.?|page|pages)\\s*\\d', '\\bhal\\.\\s*\\d',                                                         // nomor halaman
+  '\\b(bab|unit|chapter|subbab|section)\\s+(ke-?\\s*)?\\d', '\\b(activity|aktivitas|kegiatan|latihan|exercise|task)\\s+\\d',   // nomor bab / aktivitas
+  '\\b(buku siswa|buku paket|buku teks|buku pelajaran|student\'?s book|textbook)\\b',                                   // menyebut buku sumber
+  '\\b(judul|sampul|cover|penulis|pengarang|penerbit|ilustrator)\\s+(buku|dari buku)\\b', '\\bdaftar isi\\b',
+  '\\b(gambar|ilustrasi|foto|tabel|diagram|bagan)\\s+(di atas|di bawah|berikut|pada buku|dalam buku|di buku|pada halaman)\\b',
+  '\\bpenerbit\\b'
+].join('|'), 'i');
+
+function kurRujukTerlarang_(tanya, opsi) {
+  if (KUR_RUJUKAN_TERLARANG.test(tanya)) return true;
+  return Object.keys(opsi).some(function(h) { return KUR_RUJUKAN_TERLARANG.test(opsi[h]); });
+}
+
 function kurBersihSoal_(daftar) {
   if (!Array.isArray(daftar)) return [];
   var out = [];
@@ -121,6 +136,7 @@ function kurBersihSoal_(daftar) {
     });
     var kunci = String(s.kunci === undefined || s.kunci === null ? '' : s.kunci).trim().toUpperCase().charAt(0);
     if (!tanya || n < 4 || !opsi.hasOwnProperty(kunci)) return;
+    if (kurRujukTerlarang_(tanya, opsi)) return;
     out.push({ pertanyaan: tanya, opsi: opsi, kunci: kunci, tingkat: kurTingkat_(s.tingkat) });
   });
   return kurAcakKunci_(out.slice(0, KUR.MAKS_SOAL_BANK));
@@ -351,6 +367,8 @@ function kurSpesifikasiSoal_(dariBacaanSendiri) {
     '- Tiap soal punya TEPAT 5 opsi: A, B, C, D, E. Hanya satu yang paling benar. Kunci jawaban disebar merata di A sampai E.\n' +
     '- Pengecoh harus masuk akal dan setara panjangnya dengan jawaban benar. Jangan memakai "semua benar", "tidak ada yang benar", dan jangan ada opsi yang merujuk opsi lain (mis. "A dan B benar"), karena urutan opsi akan diacak.\n' +
     '- Soal harus bisa dijawab tanpa membaca bacaan: jangan menulis "berdasarkan bacaan" atau merujuk gambar, tabel, atau halaman.\n' +
+    '- Soal HANYA menguji ISI materi (konsep, fakta, kosakata, contoh, penerapan), BUKAN fisik buku. DILARANG membahas atau menyebut: nomor/rentang halaman, judul buku, nomor bab/unit/subbab, nomor aktivitas atau latihan, daftar isi, sampul, penulis/penerbit, letak atau urutan bagian di buku, serta gambar, foto, atau tabel di buku. Larangan ini berlaku untuk pertanyaan maupun opsi. ' +
+    'Contoh SALAH: "Apa yang dibahas pada halaman 22-26?", "Bab 2 berjudul ...", "Pada Activity 3 siswa diminta ...", "Gambar di buku menunjukkan ...". Contoh BENAR: pertanyaan langsung tentang isi materinya. Soal yang melanggar akan dibuang otomatis oleh sistem.\n' +
     '- pertanyaan maksimal 300 karakter; tiap opsi maksimal 150 karakter, tanpa awalan huruf seperti "A.".\n';
 }
 
@@ -363,12 +381,14 @@ function kurPromptBacaan_(mapel, rows, judulBuku, bagian, web) {
     return '[' + r.smt + '-' + r.minggu + '] Topik: ' + r.topik + '. Halaman buku: ' + (r.halaman || '(tidak diketahui, cari bagian yang sesuai topik)') + '.' +
       (r.tp ? ' Tujuan: ' + r.tp.replace(/\n/g, '; ') : '');
   }).join('\n');
+  var catatHalaman = 'PENTING: keterangan "Halaman buku" pada daftar sesi hanya petunjuk bagi Anda untuk menemukan bagian buku yang dipakai. ' +
+    'Bacaan dan soal fokus HANYA pada isi materi, seolah-olah berdiri sendiri tanpa buku. JANGAN menyebut atau membahas fisik buku: nomor halaman, judul buku, nomor bab/unit, nomor aktivitas, gambar atau tabel di buku, maupun urutan bagian buku.\n\n';
   return kurPromptDasar_(mapel) + (web ? kurAwalanWeb_() : '') +
     'Lampiran: Buku Siswa' + (judulBuku ? ' "' + judulBuku + '"' : '') + '.\n\n' + kurCatatBagian_(bagian) +
     'TUGAS: untuk SETIAP sesi di bawah, tulis (1) bacaan materi lengkap dan (2) bank soal ujian, keduanya khusus untuk sesi itu dan hanya berdasarkan bagian buku pada halaman yang disebutkan.\n\n' +
     'BACAAN: 4 sampai 6 paragraf, dipisah satu baris kosong: mulai dari pengantar, lalu konsep inti secara runtut, sertakan contoh kontekstual, ' +
     'definisikan istilah penting saat pertama muncul, dan akhiri dengan penutup singkat. Jangan menulis materi sesi lain.\n\n' +
-    kurSpesifikasiSoal_(true) + '\n' +
+    catatHalaman + kurSpesifikasiSoal_(true) + '\n' +
     'SESI:\n' + daftar + '\n\n' +
     (web
       ? 'FORMAT KELUARAN: tulis HANYA SATU blok kode ' + kurPagar_() + 'json yang berisi satu objek JSON valid, tanpa penjelasan sebelum atau sesudahnya. ' +

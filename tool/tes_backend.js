@@ -1999,5 +1999,16 @@ tes('kisi-kisi: soal dibagi bergiliran per tingkat seperti undian; kekurangan ti
   sama(g.kkSebar_([], { mudah: 5 }), []);
 });
 
+tes('bank soal: soal yang membahas fisik buku (halaman, bab, aktivitas, judul, gambar di buku) dibuang; soal isi materi tetap', () => {
+  const o = { A: 'satu', B: 'dua', C: 'tiga', D: 'empat', E: 'lima' };
+  const buang = ['Apa yang dibahas pada halaman 22-26?', 'Topik di hal. 27 adalah', 'What is on page 30?', 'Menurut buku siswa, panjat pinang adalah',
+    'Bab 2 berjudul', 'Pada Activity 3 siswa diminta', 'Unit 1 membahas', 'Judul buku tersebut adalah', 'Gambar pada buku menunjukkan', 'Siapa penerbit buku ini?'];
+  const tetap = ['Panjat pinang biasanya diadakan saat', 'Read the text. Based on the text, why did Beni win?', 'Berdasarkan teks tersebut, siapa juaranya?',
+    'Sinta membaca dalam buku cerita tentang', 'Kalimat "I won the race" menggunakan tense'];
+  for (const q of buang) sama([q, g.kurBersihSoal_([{ pertanyaan: q, opsi: o, kunci: 'A' }]).length], [q, 0]);
+  for (const q of tetap) sama([q, g.kurBersihSoal_([{ pertanyaan: q, opsi: o, kunci: 'A' }]).length], [q, 1]);
+  sama(g.kurBersihSoal_([{ pertanyaan: 'Isi materi?', opsi: { A: 'Halaman 22', B: 'b', C: 'c', D: 'd', E: 'e' }, kunci: 'B' }]).length, 0);   // opsi juga diperiksa
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
