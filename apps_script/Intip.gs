@@ -21,7 +21,7 @@ var INTIP = {
   STAF_TOLAK_NAMA: { waNotifDaftar: true, waStafKeluar: true, waStafHtmlPdf: true },
   SISWA_BACA: { waProfilSiswa: true, waKartuSiswa: true, waSiswaBeranda: true, waSiswaPencapaian: true, waSiswaKelayakan: true, waSiswaTagihan: true,
     waGetMateri: true, waGetRiwayatJawaban: true, waGetDraftDiskusi: true, waStatusUjian: true, waSiswaKalender: true, waMediaAjarSiswa: true,
-    waRuangPoll: true, waRuangCek: true, waRefKonteks: true, waRefDetail: true, waNotifCek: true, waNotifKotak: true, waUlangTahun: true, waDaftarRombel: true }
+    waRuangPoll: true, waRuangCek: true, waSiswaKisi: true, waSiswaHtmlPdf: true, waRefKonteks: true, waRefDetail: true, waNotifCek: true, waNotifKotak: true, waUlangTahun: true, waDaftarRombel: true }
 };
 if (typeof API_FLUTTER !== 'undefined' && API_FLUTTER && API_FLUTTER.TAMBAHAN) {
   ['waAdminIntipDaftar', 'waAdminIntipMulai', 'waAdminIntipAkhiri'].forEach(function(f) { API_FLUTTER.TAMBAHAN[f] = true; });

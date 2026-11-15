@@ -19,6 +19,7 @@ import 'pin_siswa.dart';
 import 'sesi_siswa.dart';
 import 'tagihan_siswa.dart';
 import '../kotak_notif.dart';
+import '../ujian/kisi_kisi.dart';
 
 const _ikonMapel = <String, IconData>{
   'matematika': Icons.calculate_rounded,
@@ -174,6 +175,17 @@ class _BerandaIsi extends StatelessWidget {
                 judul: 'Kelayakan Ujian',
                 sub: 'Status UTS, UAS & UPK serta permohonan',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KelayakanSiswaScreen())),
+              ),
+            ),
+            // v1.85.0: kisi-kisi ujian sesuai konteks (UTS / UAS / UPK, per semester)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _Pintasan(
+                ikon: Icons.checklist_rounded,
+                warna: const Color(0xFF1D4ED8),
+                judul: 'Kisi-kisi Ujian',
+                sub: 'Materi yang diujikan per mata pelajaran',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KisiSiswaScreen())),
               ),
             ),
             Padding(

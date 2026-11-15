@@ -11,6 +11,7 @@ import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
 import 'cetak_masa.dart';
+import 'kisi_kisi.dart';
 import 'laporan_kesiapan.dart';
 import 'pengawas.dart';
 import 'tinjauan.dart';
@@ -793,6 +794,9 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
                 icon: const Icon(Icons.print_outlined), label: const Text('Cetak jadwal ujian')),
             OutlinedButton.icon(onPressed: () async { if (_berubah && !await _simpanSlot()) return; if (context.mounted) await cetakJadwalPengawas(context, widget.id); },
                 icon: const Icon(Icons.assignment_ind_outlined), label: const Text('Cetak jadwal pengawas')),
+            // v1.85.0: kisi-kisi per rombel (konteks masa ini)
+            OutlinedButton.icon(onPressed: () async { if (_berubah && !await _simpanSlot()) return; if (context.mounted) await cetakKisiMasa(context, widget.id); },
+                icon: const Icon(Icons.checklist_rounded), label: const Text('Cetak kisi-kisi')),
             OutlinedButton.icon(
               onPressed: () async {
                 if (_berubah && !await _simpanSlot()) return;

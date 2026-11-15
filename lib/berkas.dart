@@ -350,7 +350,7 @@ Future<void> bagikanExcel(BuildContext context, String html, String nama) async 
 Future<void> htmlKePdf(BuildContext context, {required String nama, String fn = 'waStafHtmlPdf', required List<dynamic> args, bool watermark = true}) async {
   if (_tolakDinas(context)) return;
   var a = args;
-  if (watermark && fn == 'waStafHtmlPdf' && args.length >= 2 && args[1] is String) {
+  if (watermark && (fn == 'waStafHtmlPdf' || fn == 'waSiswaHtmlPdf') && args.length >= 2 && args[1] is String) {
     a = [args[0], await sisipWatermark(args[1] as String), ...args.skip(2)];
   }
   final r = await jalankan(context, () => Api.instance(fn, a, const Duration(minutes: 3)), teksProses: 'Membuat PDF...');

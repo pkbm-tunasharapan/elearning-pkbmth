@@ -1990,5 +1990,14 @@ tes('daftar model Gemini: hanya model gemini generateContent, tanpa embedding/ga
   sama([r[1].nama, r[1].masuk, r[1].keluar], ['Gemini 2.5 Flash', 1048576, 65536]);
 });
 
+// 66. kisi-kisi: perkiraan sebaran soal per sesi (v1.85.0)
+tes('kisi-kisi: soal dibagi bergiliran per tingkat seperti undian; kekurangan tingkat diisi tingkat lain', () => {
+  const r = g.kkSebar_([{ mudah: 3, sedang: 4, sulit: 3 }, { mudah: 3, sedang: 4, sulit: 3 }, { mudah: 3, sedang: 4, sulit: 0 }], { mudah: 6, sedang: 9, sulit: 5 });
+  sama(r, [{ mudah: 2, sedang: 3, sulit: 3 }, { mudah: 2, sedang: 3, sulit: 2 }, { mudah: 2, sedang: 3, sulit: 0 }]);
+  const k = g.kkSebar_([{ mudah: 1, sedang: 1, sulit: 0 }], { mudah: 2, sedang: 1, sulit: 1 });   // bank kurang
+  sama(k, [{ mudah: 1, sedang: 1, sulit: 0 }]);
+  sama(g.kkSebar_([], { mudah: 5 }), []);
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
