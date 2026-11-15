@@ -12,7 +12,7 @@
 // ============================================================================
 var MU = {
   TAB: 'MASA UJIAN',
-  HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN', 'SYARAT BAYAR', 'KATEGORI BAYAR', 'ID TAGIHAN', 'MODE', 'PISAH UNIT'],
+  HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN', 'SYARAT BAYAR', 'KATEGORI BAYAR', 'ID TAGIHAN', 'MODE', 'PISAH UNIT', 'TEMPAT', 'UNIT TEMPAT'],
   TAB_SLOT: 'SLOT UJIAN',
   HDR_SLOT: ['ID', 'MASA', 'TANGGAL', 'JAM', 'DURASI', 'KODE MAPEL', 'NAMA MAPEL', 'JUMLAH SOAL', 'MUDAH', 'SEDANG', 'SULIT', 'CATATAN', 'TOKEN', 'ROMBEL', 'MODE'],
   // v1.63.0: UPK = Ujian Pendidikan Kesetaraan (ujian kelulusan, kelas akhir: 6 / 9 / 12). Tidak masuk rapor.
@@ -52,7 +52,24 @@ function muObj_(r) {
     peserta: { mode: ps.mode || 'semua', rombel: ps.rombel || [], siswa: ps.siswa || [], unit: ps.unit || [] }, cakupan: r['CAKUPAN'] || '', kkm: parseFloat(r['KKM']) || 0,
     status: r['STATUS'] || 'Draft', dibuatOleh: r['DIBUAT OLEH'], dibuatPada: r['DIBUAT PADA'], ditetapkanOleh: r['DITETAPKAN OLEH'], ditetapkanPada: r['DITETAPKAN PADA'],
     catatan: r['CATATAN'], syaratBayar: parseFloat(r['SYARAT BAYAR']) || 0, kategoriBayar: r['KATEGORI BAYAR'] || '', idTagihan: r['ID TAGIHAN'] || '',
-    mode: r['MODE'] === 'Offline' ? 'Offline' : 'Online', pisahUnit: r['PISAH UNIT'] === 'Ya', baris: r._baris };
+    mode: r['MODE'] === 'Offline' ? 'Offline' : 'Online', pisahUnit: r['PISAH UNIT'] === 'Ya',
+    // v1.87.1: tempat pelaksanaan: 'Full online' (dari mana saja) atau 'Di unit' (unit tertentu; kosong = unit masing-masing)
+    tempat: r['TEMPAT'] === 'Di unit' || r['TEMPAT'] === 'Full online' ? r['TEMPAT'] : '',
+    unitTempat: String(r['UNIT TEMPAT'] || '').split(',').map(function(x) { return x.trim(); }).filter(String), baris: r._baris };
+}
+
+// v1.87.1: teks tempat pelaksanaan. pendek=true untuk baris agenda / keterangan TTM.
+function muTeksTempat_(m, pendek, modeJadwal) {
+  if (!m) return '';
+  var tulis = modeJadwal ? modeJadwal === 'Kertas' : m.mode === 'Offline';
+  var tempat = tulis ? 'Di unit' : m.tempat;   // ujian tulis selalu di unit
+  if (tempat === 'Full online' && !tulis) return pendek ? 'full online' : 'Full online: dikerjakan lewat aplikasi dari mana saja (tidak perlu datang ke unit).';
+  if (tempat !== 'Di unit') return '';
+  var nama = [];
+  try { var pu = ubPetaUnit_(); (m.unitTempat || []).forEach(function(id) { if (pu[id]) nama.push(pu[id].nama); }); } catch (e) {}
+  var di = nama.length ? nama.map(function(n) { return /^unit\b/i.test(n) ? n : 'Unit ' + n; }).join(' / ') : 'unit belajar masing-masing';
+  if (pendek) return (tulis ? 'tulis' : 'online') + ' di ' + di;
+  return (tulis ? 'Ujian tulis' : 'Online lewat aplikasi') + ', dikerjakan di ' + di + ' bersama pengawas.';
 }
 // v1.63.0: slot berlaku untuk rombel SIM ini? (slot.rombel kosong = semua rombel peserta)
 function muSlotKena_(s, idRombelSim) { return !s.rombel || !s.rombel.length || s.rombel.indexOf(String(idRombelSim)) >= 0; }
@@ -149,8 +166,12 @@ function waStafMasaSimpan(token, d) {
     peserta = { mode: 'rombel', rombel: muRombelAkhir_(), siswa: [] };
     if (!peserta.rombel.length) throw new Error('Tidak ada rombel kelas akhir (kelas 6, 9, atau 12) yang aktif.');
   }
+  var modeM = d.mode === 'Offline' ? 'Offline' : 'Online';
+  var tempat = modeM === 'Offline' || d.tempat === 'Di unit' ? 'Di unit' : (d.tempat === 'Full online' ? 'Full online' : '');
+  var unitTempat = tempat === 'Di unit' ? (d.unitTempat || []).map(String).filter(function(x, i, a) { return x && a.indexOf(x) === i; }) : [];
   var isi = { 'NAMA': nama, 'JENIS': jenis, 'SEMESTER': smt, 'DARI': dari, 'SAMPAI': sampai, 'PESERTA': JSON.stringify(peserta), 'CAKUPAN': cakupan, 'KKM': kkm,
-    'CATATAN': String(d.catatan || '').slice(0, 300), 'MODE': d.mode === 'Offline' ? 'Offline' : 'Online', 'PISAH UNIT': d.pisahUnit === true ? 'Ya' : '' };
+    'CATATAN': String(d.catatan || '').slice(0, 300), 'MODE': modeM, 'PISAH UNIT': d.pisahUnit === true ? 'Ya' : '',
+    'TEMPAT': tempat, 'UNIT TEMPAT': unitTempat.join(',') };
   var sh = muTab_(MU.TAB, MU.HDR);
   if (d.id) {
     var m = muCari_(d.id);
@@ -317,6 +338,8 @@ function waStafMasaTetapkan(token, id) {
           var judul = m.jenis === 'UTS' || m.jenis === 'UAS' ? ujJudul_(m.jenis, m.smt) : (m.jenis === 'TRYOUT' ? 'Tryout ' : '') + m.nama;
           var konten = modeJ === 'Kertas' ? 'Ujian tulis (offline) ' + m.nama + ': dikerjakan di kertas, di ruang ujian, bersama pengawas. Jadwal: ' + ujTeksWaktu_(mulaiMs) + ', ' + s.durasi + ' menit.' : 'Ujian serentak ' + m.nama + '. Kerjakan semua soal dengan teliti; soal dan urutan jawaban berbeda untuk setiap siswa.\n' +
             'Masukkan kode akses dari pengawas saat mulai. Jadwal: ' + ujTeksWaktu_(mulaiMs) + ', ' + s.durasi + ' menit.' + (m.jenis === 'TRYOUT' ? '\nTryout: nilai tidak masuk rapor.' : ' Nilai minimal ' + m.kkm + '.');
+          var tTempat = muTeksTempat_(m, false, modeJ);
+          if (tTempat) konten += '\nTempat: ' + tTempat;
           var idU = ujBuatItemUjian_(k.idMapel, judul, konten, ses.nama, s.durasi);
           ujTambah_('JADWAL', {
             'Kunci': kj, 'ID Mapel': k.idMapel, 'Semester': m.smt, 'Jenis': m.jenis, 'ID Ujian': idU, 'Tanggal': s.tanggal, 'Jam Mulai': s.jam, 'Durasi Menit': s.durasi,

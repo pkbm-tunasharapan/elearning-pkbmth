@@ -8,7 +8,8 @@
 // 2) Ujian sejenis dari kalender akademik (jadwal UTS/UAS per mapel di luar masa) DIGANTI masa: jadwal lama ditandai
 //    "diganti" (Kunci + "|diganti|ID masa", Jenis + "-DIGANTI") dan item ujiannya dinonaktifkan, tanpa menghapus baris.
 //    Nilai rapor otomatis memakai hasil ujian masa. Dipulihkan saat penetapan masa dibatalkan.
-// 3) Tatap muka (TTM) peserta diliburkan pada hari-hari slot masa (dan sepanjang minggu ujian hasil tukar).
+// 3) Tatap muka (TTM) peserta ditiadakan dan DIGANTI ujian masa pada hari-hari slot masa (dan sepanjang minggu ujian hasil tukar).
+//    Keterangannya memuat tempat pelaksanaan masa (full online / di unit tertentu).
 //    Peserta "siswa tertentu" tidak meliburkan TTM rombel. Dipakai jadBerlaku_ lewat agLiburPm_.
 // ============================================================================
 var MG = { PROP: 'TA_TUKAR', AKHIRAN: '|diganti|', JENIS_GANTI: '-DIGANTI' };
@@ -129,7 +130,7 @@ function mgLiburData_() {
           var rg = taRentang_(cfg, m.smt, m.jenis === 'UTS' ? cfg.uts : cfg.uas);
           minggu = { dari: taIso_(rg.mulai), sampai: taIso_(rg.selesai) };
         }
-        out.push({ id: m.id, nama: m.nama, slot: sl, rombel: rombel, unit: unit, minggu: minggu });
+        out.push({ id: m.id, nama: m.nama, tempat: muTeksTempat_(m, true), slot: sl, rombel: rombel, unit: unit, minggu: minggu });
       });
     }
   } catch (e) {}
@@ -145,7 +146,7 @@ function mgLiburPm_(x, tanggal) {
     if (a.unit && x.unit && !String(x.unit).split(',').some(function(u) { return a.unit.indexOf(u.trim()) >= 0; })) continue;
     var kena = !!(a.minggu && tanggal >= a.minggu.dari && tanggal <= a.minggu.sampai);
     if (!kena) kena = a.slot.some(function(s) { return s.tanggal === tanggal && muSlotKena_(s, x.idRombel); });
-    if (kena) return { nama: 'Ujian ' + a.nama, masa: a.id };
+    if (kena) return { nama: 'diganti ujian ' + a.nama + (a.tempat ? ' (' + a.tempat + ')' : ''), masa: a.id };
   }
   return null;
 }

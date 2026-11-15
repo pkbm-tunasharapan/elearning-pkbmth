@@ -2095,5 +2095,20 @@ tes('ujian kalender akademik: diganti masa (tidak dihapus), dipulihkan saat masa
   } finally { Object.assign(g, asli); }
 });
 
+tes('masa: tempat pelaksanaan full online / di unit tampil di keterangan TTM yang diganti ujian', () => {
+  const asli = g.ubPetaUnit_;
+  g.ubPetaUnit_ = () => ({ 'U-S': { nama: 'Sampiran' }, 'U-L': { nama: 'Unit Losari' } });
+  try {
+    sama(g.muTeksTempat_({ mode: 'Online', tempat: 'Full online', unitTempat: [] }, true), 'full online');
+    sama(g.muTeksTempat_({ mode: 'Online', tempat: 'Di unit', unitTempat: ['U-S', 'U-L'] }, true), 'online di Unit Sampiran / Unit Losari');
+    sama(g.muTeksTempat_({ mode: 'Online', tempat: 'Di unit', unitTempat: [] }, true), 'online di unit belajar masing-masing');
+    sama(g.muTeksTempat_({ mode: 'Offline', tempat: '', unitTempat: ['U-S'] }, true), 'tulis di Unit Sampiran');
+    sama(g.muTeksTempat_({ mode: 'Online', tempat: '', unitTempat: [] }, true), '');   // masa lama: belum ditentukan
+    sama(g.muTeksTempat_({ mode: 'Online', tempat: 'Full online', unitTempat: [] }, true, 'Kertas'), 'tulis di unit belajar masing-masing');   // slot tulis
+    g.MG_LIBUR_ = [{ id: 'MU-A', nama: 'UAS Sampiran', tempat: 'online di Unit Sampiran', slot: [{ tanggal: '2026-12-01', rombel: [] }], rombel: null, unit: null, minggu: null }];
+    sama(g.mgLiburPm_({ idRombel: 'R1', unit: '' }, '2026-12-01').nama, 'diganti ujian UAS Sampiran (online di Unit Sampiran)');
+  } finally { g.ubPetaUnit_ = asli; g.MG_LIBUR_ = null; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

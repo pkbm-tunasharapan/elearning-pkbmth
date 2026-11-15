@@ -227,6 +227,8 @@ class _FormMasaState extends State<_FormMasa> {
   final Set<String> _rombel = {};
   final Set<String> _siswa = {};
   final Set<String> _unit = {};   // v1.83.0
+  String _tempat = '';   // v1.87.1: 'Full online' | 'Di unit' ('' = belum ditentukan)
+  final Set<String> _unitTempat = {};
 
   @override
   void initState() {
@@ -250,6 +252,8 @@ class _FormMasaState extends State<_FormMasa> {
       _rombel.addAll(daftar(ps['rombel']).map((e) => '$e'));
       _siswa.addAll(daftar(ps['siswa']).map((e) => '$e'));
       _unit.addAll(daftar(ps['unit']).map((e) => '$e'));
+      _tempat = teks(m['tempat']);
+      _unitTempat.addAll(daftar(m['unitTempat']).map((e) => '$e'));
     }
   }
 
@@ -283,6 +287,8 @@ class _FormMasaState extends State<_FormMasa> {
             'catatan': _catatan.text.trim(),
             'mode': _cara,
             'pisahUnit': _pisahUnit,
+            'tempat': _cara == 'Offline' ? 'Di unit' : _tempat,
+            'unitTempat': _unitTempat.toList(),
             'peserta': {'mode': _mode, 'rombel': _rombel.toList(), 'siswa': _siswa.toList(), 'unit': _unit.toList()},
           }
         ])), teksProses: 'Menyimpan masa ujian...');
@@ -332,6 +338,43 @@ class _FormMasaState extends State<_FormMasa> {
           padding: EdgeInsets.only(top: 4),
           child: Text('Offline: naskah & kunci dicetak dari bank soal, nilai diinput tutor di menu Nilai. Tiap jadwal mapel bisa diubah sendiri.', style: TextStyle(fontSize: 12)),
         ),
+        const SizedBox(height: 12),
+        const Text('Tempat pelaksanaan', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        if (_cara == 'Online')
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'Full online', label: Text('Full online'), icon: Icon(Icons.public_rounded)),
+              ButtonSegment(value: 'Di unit', label: Text('Online di unit'), icon: Icon(Icons.apartment_rounded)),
+            ],
+            emptySelectionAllowed: true,
+            selected: {if (_tempat.isNotEmpty) _tempat},
+            onSelectionChanged: (v) => setState(() => _tempat = v.isEmpty ? '' : v.first),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+              _cara == 'Offline'
+                  ? 'Ujian tulis selalu dikerjakan di unit. Pilih unitnya (kosong = unit belajar masing-masing).'
+                  : _tempat == 'Full online'
+                      ? 'Siswa mengerjakan lewat aplikasi dari mana saja, tidak perlu datang ke unit.'
+                      : _tempat == 'Di unit'
+                          ? 'Siswa mengerjakan lewat aplikasi di unit terpilih bersama pengawas (kosong = unit belajar masing-masing).'
+                          : 'Pilih tempat pelaksanaan. Keterangannya tampil di item ujian, agenda siswa, dan sebagai pengganti tatap muka.',
+              style: const TextStyle(fontSize: 12)),
+        ),
+        if (_cara == 'Offline' || _tempat == 'Di unit')
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final u in daftar(widget.data['unit']).map(peta))
+                FilterChip(
+                  label: Text(teks(u['nama'])),
+                  selected: _unitTempat.contains(teks(u['id'])),
+                  onSelected: (v) => setState(() => v ? _unitTempat.add(teks(u['id'])) : _unitTempat.remove(teks(u['id']))),
+                ),
+            ]),
+          ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           value: _pisahUnit,

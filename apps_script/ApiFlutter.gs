@@ -3920,13 +3920,15 @@ function brdMapelBm_() {
 }
 // Agenda ujian (online dari Jadwal Ujian + tatap muka dari ASESMEN) dalam hari hari ke depan.
 function brdAgenda_(bolehBm, bolehSim, hari, siswa) {
-  var h0 = absHariIni_(), h1 = brdTgl_(hari || 21), mp = brdMapelBm_(), out = [];
+  var h0 = absHariIni_(), h1 = brdTgl_(hari || 21), mp = brdMapelBm_(), out = [], masa = {};
+  try { muSemua_().forEach(function(x) { masa[x.id] = x; }); } catch (eM) {}   // v1.87.1: tempat pelaksanaan masa
   ujJadwalSemua_().forEach(function(j) {
     if (siswa) j = ujJadwalSiswa_(j, siswa.idRombel, siswa.nama);   // v1.83.0: tanggal sesuai jadwal khusus unit siswa
     if (!j.tanggal || j.tanggal < h0 || j.tanggal > h1) return;
     var m = mp[j.idMapel];
     if (!m || (bolehBm && !bolehBm(j.idMapel, m))) return;
-    out.push({ tgl: j.tanggal, t: j.jenis + ' ' + m.nama, s: m.rombel + ' · ' + j.jam + ' · ' + j.durasi + ' menit · online' });
+    var tmp = j.masa && masa[j.masa] ? muTeksTempat_(masa[j.masa], true, j.mode) : '';
+    out.push({ tgl: j.tanggal, t: j.jenis + ' ' + m.nama, s: m.rombel + ' · ' + j.jam + ' · ' + j.durasi + ' menit · ' + (tmp || (j.mode === 'Kertas' ? 'tulis' : 'online')) });
   });
   try {
     nilAsSemua_(null).forEach(function(a) {
