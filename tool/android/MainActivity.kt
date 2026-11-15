@@ -13,6 +13,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.Handler
+import android.os.Looper
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -34,6 +37,48 @@ import java.net.URL
 // dan tidak ada yang berjalan saat aplikasi dimulai. Semua galat ditangkap (Throwable) agar
 // fitur notifikasi tidak pernah bisa membuat aplikasi berhenti.
 class MainActivity : FlutterActivity() {
+    // v1.86.0: anti curang saat layar ujian aktif (FLAG_SECURE dipasang):
+    // - layar terbagi / jendela mengambang -> dilaporkan SEKETIKA (onMultiWindowModeChanged)
+    // - jendela aplikasi lain mengambil fokus (gelembung chat, aplikasi melayang, panel samping) lebih dari 3 detik
+    //   padahal aplikasi masih tampil (tidak pause) -> "jendela_lain"
+    private var kanalUjian: MethodChannel? = null
+    private var ujianAktif = false
+    private var tampil = false
+    private val penunda = Handler(Looper.getMainLooper())
+    private val cekFokus = Runnable {
+        try {
+            if (ujianAktif && tampil && !hasWindowFocus() && !(Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode)) kirimPeristiwa("jendela_lain")
+        } catch (e: Throwable) {}
+    }
+
+    private fun kirimPeristiwa(jenis: String) {
+        try { kanalUjian?.invokeMethod("peristiwa", mapOf("jenis" to jenis)) } catch (e: Throwable) {}
+    }
+
+    override fun onResume() {
+        super.onResume()
+        tampil = true
+    }
+
+    override fun onPause() {
+        tampil = false
+        penunda.removeCallbacks(cekFokus)
+        super.onPause()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        try {
+            penunda.removeCallbacks(cekFokus)
+            if (!hasFocus && ujianAktif) penunda.postDelayed(cekFokus, 3000L)
+        } catch (e: Throwable) {}
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean, newConfig: Configuration) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        try { if (isInMultiWindowMode && ujianAktif) kirimPeristiwa("layar_terbagi") } catch (e: Throwable) {}
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // v1.54.0: alarm pelanggaran ujian di jalur suara ALARM (tetap berbunyi saat senyap/getar)
@@ -49,11 +94,14 @@ class MainActivity : FlutterActivity() {
             }
         }
         // v1.54.0: layar ujian aman (tidak bisa di-screenshot / direkam / tampil di daftar aplikasi terbaru) + ID perangkat
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "the_course/ujian").setMethodCallHandler { call, result ->
+        kanalUjian = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "the_course/ujian")
+        kanalUjian!!.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
                     "aman" -> {
                         val aktif = call.argument<Boolean>("aktif") ?: false
+                        ujianAktif = aktif
+                        if (!aktif) penunda.removeCallbacks(cekFokus)
                         runOnUiThread {
                             try {
                                 if (aktif) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)

@@ -13,6 +13,20 @@ class UjianAman {
   static const _kanal = MethodChannel('the_course/ujian');
   static String? _id;
 
+  /// v1.86.0: peristiwa dari Android selama layar ujian aktif: 'layar_terbagi' (seketika) atau
+  /// 'jendela_lain' (jendela aplikasi lain mengambil fokus > 3 detik). null = tidak didengarkan.
+  static void Function(String jenis)? _pendengar;
+  static set pendengar(void Function(String jenis)? f) {
+    _pendengar = f;
+    if (kIsWeb) return;
+    _kanal.setMethodCallHandler(f == null
+        ? null
+        : (call) async {
+            if (call.method == 'peristiwa') _pendengar?.call('${(call.arguments as Map?)?['jenis'] ?? ''}');
+            return null;
+          });
+  }
+
   static Future<void> aman(bool aktif) async {
     if (kIsWeb) return;
     try {

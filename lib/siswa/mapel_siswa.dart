@@ -1061,6 +1061,10 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
       _jam = Timer.periodic(const Duration(seconds: 1), (_) => _hitung(_akhirMs));
     }
     UjianAman.aman(true);   // v1.54.0: layar ujian tidak bisa di-screenshot / direkam
+    // v1.86.0: layar terbagi seketika & jendela aplikasi lain di atas layar ujian
+    UjianAman.pendengar = (jenis) {
+      if (mounted && !_kirim && (jenis == 'layar_terbagi' || jenis == 'jendela_lain')) _laporPelanggaran(jenis);
+    };
     // v1.53.0: detak ke server (status tersambung di layar pengawas) + menerima tambahan waktu dari pengawas
     _kirimDetak();
     _detak = Timer.periodic(const Duration(seconds: 60), (_) => _kirimDetak());
@@ -1089,7 +1093,18 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     } catch (_) {}
   }
 
+  // v1.86.0: satu kejadian bisa memicu dua laporan (mis. layar terbagi di Android lama juga membuat aplikasi "pause").
+  // Laporan dalam 5 detik setelah laporan sebelumnya tidak dihitung lagi.
+  DateTime? _terakhirLapor;
+  bool _baruDilapor() {
+    final k = DateTime.now();
+    final baru = _terakhirLapor != null && k.difference(_terakhirLapor!) < const Duration(seconds: 5);
+    _terakhirLapor = k;
+    return baru;
+  }
+
   void _laporPelanggaran(String jenis) {
+    if (_baruDilapor()) return;
     AlarmUjian.mulai();
     Future<void>.delayed(const Duration(seconds: 1), AlarmUjian.henti);
     Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, jenis]).then((r) {
@@ -1098,7 +1113,8 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
       if (d['terkunci'] == true) {
         _tanganiKunci(d, 'Ujian terkunci karena pelanggaran berulang.');
       } else if (angka(d['percobaan']) > 0) {
-        kabar(context, 'Peringatan: layar terbagi / jendela mengambang terdeteksi (${angka(d['percobaan'])}/${angka(d['batasPercobaan'])}). Tutup aplikasi lain.', galat: true);
+        kabar(context, 'Peringatan: ${jenis == 'jendela_lain' ? 'jendela aplikasi lain terdeteksi di atas layar ujian' : 'layar terbagi / jendela mengambang terdeteksi'} '
+            '(${angka(d['percobaan'])}/${angka(d['batasPercobaan'])}). Tutup aplikasi lain.', galat: true);
       }
     }).catchError((_) {});
   }
@@ -1115,6 +1131,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     WidgetsBinding.instance.removeObserver(this);
     AlarmUjian.henti(segera: true);
     UjianAman.aman(false);
+    UjianAman.pendengar = null;
     _jam?.cancel();
     _detak?.cancel();
     _halaman.dispose();
@@ -1128,6 +1145,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
       return;
     }
     if (state == AppLifecycleState.paused && !_kirim) {
+      if (_baruDilapor()) return;
       AlarmUjian.mulai();
       Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode]).then((r) {
         final d = peta(r);

@@ -24,6 +24,7 @@ const panduanPengawas = <(String, IconData, List<String>)>[
   ]),
   ('Memantau siswa', Icons.monitor_heart_outlined, [
     'Status siswa: Belum hadir, Mengerjakan, Terputus (tidak tersambung lebih dari 3 menit), Terkunci, Selesai, Waktu habis. Tarik layar ke bawah atau tekan Muat ulang untuk memperbarui.',
+    'Pelanggaran yang terekam otomatis: keluar aplikasi, layar terbagi / jendela mengambang, dan jendela aplikasi lain (gelembung chat, aplikasi melayang) di atas layar ujian. Video kecil (PiP) yang tidak disentuh tidak terdeteksi aplikasi: awasi layar siswa secara langsung.',
     'Siswa yang perlu perhatian tampil paling atas: merah = terkunci/terputus, oranye/kuning = baru saja melanggar.',
     'Ketuk nama siswa untuk melihat riwayat kejadian (keluar aplikasi, terputus, token salah, dsb.) dan tombol tindakan.',
   ]),
