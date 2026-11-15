@@ -113,7 +113,8 @@ var KUR_RUJUKAN_TERLARANG = new RegExp([
   '\\b(buku siswa|buku paket|buku teks|buku pelajaran|student\'?s book|textbook)\\b',                                   // menyebut buku sumber
   '\\b(judul|sampul|cover|penulis|pengarang|penerbit|ilustrator)\\s+(buku|dari buku)\\b', '\\bdaftar isi\\b',
   '\\b(gambar|ilustrasi|foto|tabel|diagram|bagan)\\s+(di atas|di bawah|berikut|pada buku|dalam buku|di buku|pada halaman)\\b',
-  '\\bpenerbit\\b'
+  '\\bpenerbit\\b',
+  '\\bPKBM\\b', '\\bwarga belajar\\b'                                                                            // soal untuk penyelenggara, bukan siswa
 ].join('|'), 'i');
 
 function kurRujukTerlarang_(tanya, opsi) {
@@ -369,6 +370,10 @@ function kurSpesifikasiSoal_(dariBacaanSendiri) {
     '- Soal harus bisa dijawab tanpa membaca bacaan: jangan menulis "berdasarkan bacaan" atau merujuk gambar, tabel, atau halaman.\n' +
     '- Soal HANYA menguji ISI materi (konsep, fakta, kosakata, contoh, penerapan), BUKAN fisik buku. DILARANG membahas atau menyebut: nomor/rentang halaman, judul buku, nomor bab/unit/subbab, nomor aktivitas atau latihan, daftar isi, sampul, penulis/penerbit, letak atau urutan bagian di buku, serta gambar, foto, atau tabel di buku. Larangan ini berlaku untuk pertanyaan maupun opsi. ' +
     'Contoh SALAH: "Apa yang dibahas pada halaman 22-26?", "Bab 2 berjudul ...", "Pada Activity 3 siswa diminta ...", "Gambar di buku menunjukkan ...". Contoh BENAR: pertanyaan langsung tentang isi materinya. Soal yang melanggar akan dibuang otomatis oleh sistem.\n' +
+    '- RELEVAN DENGAN PDF: tiap soal menguji konsep, fakta, istilah, atau contoh yang benar-benar ada di bagian buku sesi itu. Jawaban benar harus bisa dibuktikan dari isi tersebut. Jangan membuat soal pengetahuan umum di luar materi, opini tanpa dasar materi, atau istilah akademik yang tidak muncul di buku.\n' +
+    '- SASARAN SISWA: soal ditujukan kepada siswa yang sedang mempelajari materi ini, dengan bahasa sesuai jenjangnya. DILARANG membuat soal tentang cara mengajar, merancang program atau strategi pembelajaran, kurikulum, tutor, PKBM, atau "warga belajar". Keterangan bahwa siswa umumnya dewasa/bekerja hanya untuk gaya bahasa dan pilihan contoh, bukan bahan soal.\n' +
+    '- Soal "sulit" tetap tentang isi materi: membandingkan konsep, menentukan sebab-akibat, atau memilih sikap/tindakan yang tepat dalam situasi sehari-hari siswa. Jangan memakai bingkai seperti "analisis teologis/sosiologis" yang melampaui isi buku.\n' +
+    '- Jawaban benar tidak boleh selalu opsi yang paling panjang atau paling lengkap; pengecoh harus terdengar sama meyakinkannya.\n' +
     '- pertanyaan maksimal 300 karakter; tiap opsi maksimal 150 karakter, tanpa awalan huruf seperti "A.".\n';
 }
 
@@ -387,7 +392,9 @@ function kurPromptBacaan_(mapel, rows, judulBuku, bagian, web) {
     'Lampiran: Buku Siswa' + (judulBuku ? ' "' + judulBuku + '"' : '') + '.\n\n' + kurCatatBagian_(bagian) +
     'TUGAS: untuk SETIAP sesi di bawah, tulis (1) bacaan materi lengkap dan (2) bank soal ujian, keduanya khusus untuk sesi itu dan hanya berdasarkan bagian buku pada halaman yang disebutkan.\n\n' +
     'BACAAN: 4 sampai 6 paragraf, dipisah satu baris kosong: mulai dari pengantar, lalu konsep inti secara runtut, sertakan contoh kontekstual, ' +
-    'definisikan istilah penting saat pertama muncul, dan akhiri dengan penutup singkat. Jangan menulis materi sesi lain.\n\n' +
+    'definisikan istilah penting saat pertama muncul, dan akhiri dengan penutup singkat. Jangan menulis materi sesi lain.\n' +
+    'Isi bacaan wajib setia pada bagian buku tersebut: konsep, istilah, contoh, dan urutan penjelasannya diambil dari buku, bukan dari pengetahuan umum. ' +
+    'Contoh sehari-hari boleh ditambahkan untuk memperjelas, tetapi fakta inti tetap dari buku. Bacaan ditulis untuk dibaca langsung oleh siswa (sapa dengan "kita" atau "Anda"), bukan untuk tutor.\n\n' +
     catatHalaman + kurSpesifikasiSoal_(true) + '\n' +
     'SESI:\n' + daftar + '\n\n' +
     (web
@@ -985,8 +992,14 @@ function kurPerbaikiString_(t) {
 
 // Hasil: { obj, terpotong } atau null. Bila JSON terpotong, dipotong pada penutup kurung terakhir yang utuh lalu ditutup otomatis.
 // Bersihkan keluaran Gemini web: penanda sumber [cite: ..], koma yang tertukar titik dua pada opsi ("C","teks" menjadi "C":"teks"), kunci tambahan icon.
+// v1.86.2: nama kunci yang kehilangan kutip pembuka (opsi": { menjadi "opsi": {). Hanya kunci tepat setelah { atau , dan
+// diikuti ": sehingga teks di dalam string tidak tersentuh (kutip di dalam string selalu ber-escape \").
+function kurKutipKunci_(t) {
+  return String(t || '').replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)"(\s*:)/g, '$1"$2"$3');
+}
+
 function kurBersihGemini_(t) {
-  return String(t || '')
+  return kurKutipKunci_(String(t || ''))
     .replace(/\s*\[(?:cite_start|cite[^\]]*)\]/g, '')
     .replace(/([{,]\s*)"([A-Ea-e])"\s*,\s*"/g, function(m0, p, h) { return p + '"' + h.toUpperCase() + '":"'; })
     .replace(/,\s*"icon"\s*:\s*null/g, '');

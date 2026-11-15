@@ -2002,12 +2002,27 @@ tes('kisi-kisi: soal dibagi bergiliran per tingkat seperti undian; kekurangan ti
 tes('bank soal: soal yang membahas fisik buku (halaman, bab, aktivitas, judul, gambar di buku) dibuang; soal isi materi tetap', () => {
   const o = { A: 'satu', B: 'dua', C: 'tiga', D: 'empat', E: 'lima' };
   const buang = ['Apa yang dibahas pada halaman 22-26?', 'Topik di hal. 27 adalah', 'What is on page 30?', 'Menurut buku siswa, panjat pinang adalah',
-    'Bab 2 berjudul', 'Pada Activity 3 siswa diminta', 'Unit 1 membahas', 'Judul buku tersebut adalah', 'Gambar pada buku menunjukkan', 'Siapa penerbit buku ini?'];
+    'Bab 2 berjudul', 'Pada Activity 3 siswa diminta', 'Unit 1 membahas', 'Judul buku tersebut adalah', 'Gambar pada buku menunjukkan', 'Siapa penerbit buku ini?', 'Bagaimana merancang program dialog di lingkungan PKBM?', 'Apa tantangan bagi warga belajar dewasa?'];
   const tetap = ['Panjat pinang biasanya diadakan saat', 'Read the text. Based on the text, why did Beni win?', 'Berdasarkan teks tersebut, siapa juaranya?',
     'Sinta membaca dalam buku cerita tentang', 'Kalimat "I won the race" menggunakan tense'];
   for (const q of buang) sama([q, g.kurBersihSoal_([{ pertanyaan: q, opsi: o, kunci: 'A' }]).length], [q, 0]);
   for (const q of tetap) sama([q, g.kurBersihSoal_([{ pertanyaan: q, opsi: o, kunci: 'A' }]).length], [q, 1]);
   sama(g.kurBersihSoal_([{ pertanyaan: 'Isi materi?', opsi: { A: 'Halaman 22', B: 'b', C: 'c', D: 'd', E: 'e' }, kunci: 'B' }]).length, 0);   // opsi juga diperiksa
+});
+
+tes('impor JSON: kunci yang kehilangan kutip pembuka (opsi": {) diperbaiki otomatis, teks di dalam string tidak berubah', () => {
+  const soal = (kunciOpsi) => '{\n  "tingkat": "mudah",\n  "pertanyaan": "Apa arti amanah, \\"terpercaya\\": benar?",\n  ' + kunciOpsi + ': {\n    "A": "Terpercaya, jujur",\n    "B": "Berani",\n    "C": "Dermawan",\n    "D": "Sabar",\n    "E": "Rendah hati"\n  },\n  "kunci": "A"\n}';
+  const teks = '{\n  "hasil": [\n    {\n      "id": "1-12",\n      "isi_materi_lengkap": "Paragraf satu, kata: dua.\\n\\nParagraf dua",\n      "soal": [\n' +
+    soal('"opsi"') + ',\n' + soal('opsi"') + ',\n' + soal('opsi"') + '\n      ]\n    }\n  ]\n}';
+  const r = g.kurParseLonggar_(teks);
+  sama(r && r.terpotong, false);
+  const s = r.obj.hasil[0].soal;
+  sama(s.length, 3);
+  sama(s.map(x => x.opsi.A), ['Terpercaya, jujur', 'Terpercaya, jujur', 'Terpercaya, jujur']);
+  sama(s[1].pertanyaan, 'Apa arti amanah, "terpercaya": benar?');
+  sama(r.obj.hasil[0].isi_materi_lengkap, 'Paragraf satu, kata: dua.\n\nParagraf dua');
+  // jalur API juga
+  sama(g.aiParseJson_('{"a": 1, b": {"c": 2}}'), { a: 1, b: { c: 2 } });
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

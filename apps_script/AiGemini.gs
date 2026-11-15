@@ -455,6 +455,8 @@ function aiBangunPrompt_(mapel, konteks, opsi) {
     '- Pengecoh harus masuk akal dan setara panjangnya dengan jawaban benar. Jangan memakai "semua benar" atau "tidak ada yang benar".\n' +
     '- Sebarkan kunci jawaban secara merata di A, B, C, D (jangan dominan satu huruf).\n' +
     '- Setiap soal harus bisa dijawab mandiri: jangan merujuk "gambar/tabel/halaman sekian" kecuali isinya dituliskan di soal.\n' +
+    '- Tiap soal menguji isi PDF (konsep, fakta, istilah, contoh yang ada di PDF) dan ditujukan kepada siswa. Jangan membuat soal pengetahuan umum di luar PDF, ' +
+    'dan jangan soal tentang cara mengajar, merancang program pembelajaran, tutor, PKBM, atau "warga belajar".\n' +
     '- pertanyaan maksimal 300 karakter; tiap opsi maksimal 150 karakter, tanpa awalan huruf seperti "A.".\n' +
     '- judul: judul ujian (maksimal 90 karakter). durasi_menit: perkiraan wajar (sekitar 1,5 menit per soal, dibulatkan ke kelipatan 5).' +
     aturanJson +
@@ -470,6 +472,8 @@ function aiParseJson_(teks) {
   var a = t.indexOf('{'), b = t.lastIndexOf('}');
   if (a >= 0 && b > a) {
     try { return JSON.parse(t.substring(a, b + 1)); } catch (e2) {}
+    // v1.86.2: kunci yang kehilangan kutip pembuka (opsi": {)
+    if (typeof kurKutipKunci_ === 'function') { try { return JSON.parse(kurKutipKunci_(t.substring(a, b + 1))); } catch (e3) {} }
   }
   throw new Error('Jawaban Gemini tidak berupa JSON yang valid. Coba proses lagi.');
 }
