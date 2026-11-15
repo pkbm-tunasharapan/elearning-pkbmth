@@ -629,9 +629,11 @@ function abSisipItem_(idMapel, daftar) {
     var p = taParse_(cfg, m.sesiKey || '');
     urut.push({ m: m, smt: p ? p.smt : 99, n: p ? p.n : 999, rank: 1, idx: idx });
   });
+  var tutup = typeof mgSesiTutup_ === 'function' ? mgSesiTutup_() : {};   // v1.87.0: sesi diganti ujian masa
   for (var smt = 1; smt <= cfg.jumlahSemester; smt++) {
     for (var n = 1; n <= cfg.sesiPerSemester; n++) {
       if (!abSesiWajib_(cfg, smt, n)) continue;
+      if (tutup[String(idMapel) + '|' + smt + '|' + n]) continue;
       var info = taInfo_(cfg, smt, n, now);
       if (info.status === 'mendatang') continue;
       urut.push({
@@ -671,6 +673,7 @@ function waAbsenIsi(payload) {
   if (!ref) return gagal('Absensi tidak dikenali.');
   var cfg = taBaca_();
   if (!abSesiWajib_(cfg, ref.smt, ref.n)) return gagal('Sesi ini tidak memerlukan absensi.');
+  if (typeof mgSesiTutup_ === 'function' && mgSesiTutup_()[idMapel + '|' + ref.smt + '|' + ref.n]) return gagal('Sesi ini diganti ujian masa; kehadirannya dihitung dari ikut ujian.');
   try { ruangSiswa_(nama, idRombel, RUANG.AWALAN_MAPEL + idMapel); } catch (e) {
     // v1.38.7: bedakan mapel yang sudah dinonaktifkan sekolah dari data siswa yang tidak cocok
     var mapelAda = false;

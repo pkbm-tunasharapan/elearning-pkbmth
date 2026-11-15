@@ -744,7 +744,7 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
       builder: (c) => AlertDialog(
         title: const Text('Batalkan penetapan?'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Semua jadwal kelas dari masa ini dihapus dan item ujiannya dinonaktifkan. Kalender materi dan ujian kalender akademik yang diganti dikembalikan. '
+          const Text('Semua jadwal kelas dari masa ini dihapus dan item ujiannya dinonaktifkan. Sesi materi yang dinonaktifkan dan ujian kalender akademik yang diganti diaktifkan kembali. '
               'Hanya bisa selama belum ada siswa yang mengerjakan.'),
           const SizedBox(height: 10),
           TextField(controller: alasan, decoration: const InputDecoration(labelText: 'Alasan')),

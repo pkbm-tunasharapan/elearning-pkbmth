@@ -12,7 +12,7 @@
 // ============================================================================
 var MU = {
   TAB: 'MASA UJIAN',
-  HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN', 'SYARAT BAYAR', 'KATEGORI BAYAR', 'ID TAGIHAN', 'MODE', 'PISAH UNIT', 'TEMPAT', 'UNIT TEMPAT'],
+  HDR: ['ID', 'NAMA', 'JENIS', 'SEMESTER', 'DARI', 'SAMPAI', 'PESERTA', 'CAKUPAN', 'KKM', 'STATUS', 'DIBUAT OLEH', 'DIBUAT PADA', 'DITETAPKAN OLEH', 'DITETAPKAN PADA', 'CATATAN', 'SYARAT BAYAR', 'KATEGORI BAYAR', 'ID TAGIHAN', 'MODE', 'PISAH UNIT', 'TEMPAT', 'UNIT TEMPAT', 'SESI NONAKTIF'],
   TAB_SLOT: 'SLOT UJIAN',
   HDR_SLOT: ['ID', 'MASA', 'TANGGAL', 'JAM', 'DURASI', 'KODE MAPEL', 'NAMA MAPEL', 'JUMLAH SOAL', 'MUDAH', 'SEDANG', 'SULIT', 'CATATAN', 'TOKEN', 'ROMBEL', 'MODE'],
   // v1.63.0: UPK = Ujian Pendidikan Kesetaraan (ujian kelulusan, kelas akhir: 6 / 9 / 12). Tidak masuk rapor.
@@ -55,7 +55,8 @@ function muObj_(r) {
     mode: r['MODE'] === 'Offline' ? 'Offline' : 'Online', pisahUnit: r['PISAH UNIT'] === 'Ya',
     // v1.87.1: tempat pelaksanaan: 'Full online' (dari mana saja) atau 'Di unit' (unit tertentu; kosong = unit masing-masing)
     tempat: r['TEMPAT'] === 'Di unit' || r['TEMPAT'] === 'Full online' ? r['TEMPAT'] : '',
-    unitTempat: String(r['UNIT TEMPAT'] || '').split(',').map(function(x) { return x.trim(); }).filter(String), baris: r._baris };
+    unitTempat: String(r['UNIT TEMPAT'] || '').split(',').map(function(x) { return x.trim(); }).filter(String),
+    sesiNonaktif: r['SESI NONAKTIF'] || '', baris: r._baris };
 }
 
 // v1.87.1: teks tempat pelaksanaan. pendek=true untuk baris agenda / keterangan TTM.
@@ -304,10 +305,6 @@ function waStafMasaTetapkan(token, id) {
   var kunci = kmKunciUnik_();
   kunci.waitLock(30000);
   try {
-    // v1.87.0: masa UTS/UAS semua siswa di minggu materi -> minggu itu menjadi minggu ujian kalender (materi bergeser)
-    var tukar = mgTukarRencana_(m, slot, cfg, now);
-    if (tukar && tukar.alasan) info.push(tukar.alasan);
-    else if (tukar) { mgTukarPasang_(m, tukar); cfg = taBaca_(); }
     var adaKunci = {}, jKunci = {};
     ujJadwalSemua_().forEach(function(x) { adaKunci[x.kunci] = true; jKunci[x.kunci] = x; });
     slot.forEach(function(s) {
@@ -359,13 +356,19 @@ function waStafMasaTetapkan(token, id) {
       sh.getRange(m.baris, MU.HDR.indexOf('DITETAPKAN PADA') + 1).setValue(ujNow_());
       var shS = muTab_(MU.TAB_SLOT, MU.HDR_SLOT), kT = MU.HDR_SLOT.indexOf('TOKEN') + 1;
       slot.forEach(function(s) { if (!s.token) shS.getRange(s.baris, kT).setNumberFormat('@').setValue(muTokenBaru_()); });
-      if (tukar && !tukar.alasan) info.push(mgTeksTukar_(cfg, tukar));
-      if (diganti) info.push(diganti + ' ujian ' + m.jenis + ' dari kalender akademik dinonaktifkan dan diganti masa ini; nilai rapor memakai hasil ujian masa.');
-      if (m.peserta.mode !== 'siswa') info.push('Tatap muka peserta diliburkan pada hari-hari ujian masa ini.');
-    } else if (tukar && !tukar.alasan) mgTukarLepas_(m.id);
+      if (diganti) info.push(diganti + ' ujian ' + m.jenis + ' dari kalender akademik dinonaktifkan karena sudah terpenuhi masa ini; nilai rapor memakai hasil ujian masa.');
+      // v1.87.0: sesi materi yang berbenturan dengan ujian online dinonaktifkan; kehadirannya dari ikut ujian masa
+      var rs = mgSesiRencana_(m, slot, kelas, cfg, now), tutup = mgSesiNonaktifkan_(m, rs.target);
+      if (tutup.length) {
+        var nItem = tutup.reduce(function(a, t) { return a + t.item.length; }, 0), nSesi = {};
+        tutup.forEach(function(t) { nSesi['Sesi ' + t.n] = true; });
+        info.push(Object.keys(nSesi).join(', ') + ' Semester ' + m.smt + ' dinonaktifkan untuk ' + tutup.length + ' kelas (' + nItem + ' materi/diskusi); kehadiran sesi itu dihitung dari ikut ujian masa.');
+      }
+      rs.info.forEach(function(x) { info.push(x); });
+      if (m.peserta.mode !== 'siswa') info.push('Tatap muka peserta yang berbenturan dengan hari ujian otomatis ditiadakan (diganti ujian masa).');
+    }
   } finally { kunci.releaseLock(); }
-  catat_(p.peran, '', p.nama, 'Tetapkan masa ujian', m.id + ' ' + m.nama + ': ' + hasil.length + ' jadwal, ' + lewat.length + ' dilewati, ' + diganti + ' diganti' +
-    (tukar && !tukar.alasan && hasil.length ? ', minggu ' + m.jenis + ' -> minggu ' + tukar.p : ''), 'OK');
+  catat_(p.peran, '', p.nama, 'Tetapkan masa ujian', m.id + ' ' + m.nama + ': ' + hasil.length + ' jadwal, ' + lewat.length + ' dilewati, ' + diganti + ' diganti', 'OK');
   return { ditetapkan: hasil, lewat: lewat, info: info };
 }
 // Batalkan penetapan (selama belum ada siswa yang mulai): hapus jadwal & nonaktifkan item ujiannya.
@@ -404,13 +407,13 @@ function waStafMasaBatal(token, id, alasan) {
       munReset_();
     } finally { kunci.releaseLock(); }
   }
-  // v1.87.0: kembalikan kalender & ujian kalender akademik yang diganti masa ini
-  var kLepas = kmKunciUnik_(), pulih = 0, lepas = false;
+  // v1.87.0: pulihkan sesi materi yang dinonaktifkan & ujian kalender akademik yang diganti masa ini
+  var kLepas = kmKunciUnik_(), pulih = 0, lepas = 0;
   kLepas.waitLock(30000);
-  try { lepas = mgTukarLepas_(m.id); pulih = mgPulihkanLama_(m.id); } finally { kLepas.releaseLock(); }
+  try { lepas = mgSesiPulihkan_(m); pulih = mgPulihkanLama_(m.id); } finally { kLepas.releaseLock(); }
   var sh = muTab_(MU.TAB, MU.HDR);
   sh.getRange(m.baris, MU.HDR.indexOf('STATUS') + 1).setValue('Draft');
-  sh.getRange(m.baris, MU.HDR.indexOf('CATATAN') + 1).setValue(('Dibatalkan ' + p.nama + ' ' + ujNow_() + ': ' + alasan + (lepas ? ' (kalender dikembalikan)' : '') + (pulih ? ' (' + pulih + ' ujian kalender dipulihkan)' : '')).slice(0, 300));
+  sh.getRange(m.baris, MU.HDR.indexOf('CATATAN') + 1).setValue(('Dibatalkan ' + p.nama + ' ' + ujNow_() + ': ' + alasan + (lepas ? ' (' + lepas + ' materi/diskusi diaktifkan kembali)' : '') + (pulih ? ' (' + pulih + ' ujian kalender dipulihkan)' : '')).slice(0, 300));
   catat_(p.peran, '', p.nama, 'Batal masa ujian', m.id + ' ' + m.nama + ' (' + rc.hapusJadwal.length + ' jadwal, ' + rc.hapusWin.length + ' jadwal unit, ' + rc.pindah.length + ' dipindah): ' + alasan, 'OK');
   return { sukses: true, dihapus: rc.hapusJadwal.length + rc.hapusWin.length };
 }

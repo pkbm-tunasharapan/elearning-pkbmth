@@ -2556,6 +2556,8 @@ function hdrOnline_(per) {
         if (info.status === 'lewat') { out.wajibLewat[kk] = true; out.lewat++; }
         else if (info.status === 'berjalan') out.wajibMulai[kk] = true;
       }
+      // v1.87.0: sesi yang dinonaktifkan masa ujian -> hadir bila ikut ujian masa
+      if (typeof mgHadirUjian_ === 'function') { try { semua = semua.concat(mgHadirUjian_(smt)); } catch (eM) {} }
       semua.forEach(function(r) {
         var kk = r.smt + '|' + r.n;
         if (r.smt !== smt || (!out.wajibLewat[kk] && !out.wajibMulai[kk])) return;

@@ -2025,40 +2025,57 @@ tes('impor JSON: kunci yang kehilangan kutip pembuka (opsi": {) diperbaiki otoma
   sama(g.aiParseJson_('{"a": 1, b": {"c": 2}}'), { a: 1, b: { c: 2 } });
 });
 
-tes('kalender: minggu UAS dipindah ke minggu 17 -> materi Sesi 17 pindah ke minggu 18, sesi lain tetap', () => {
-  const dasar = { mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, jumlahSemester: 2, jamTayang: '00:01', jamBatas: '23:59' };
-  const cfg = Object.assign({}, dasar, { tukar: { '1': { UAS: { p: 17, masa: 'MU-X' } } } });
-  sama([g.taPosisi_(cfg, 1, 17), g.taPosisi_(cfg, 1, 18), g.taPosisi_(cfg, 1, 16), g.taPosisi_(cfg, 2, 17)], [18, 17, 16, 17]);
-  const iso = (c, smt, n) => g.taInfo_(c, smt, n, 0).mulaiIso;
-  sama(iso(cfg, 1, 18), iso(dasar, 1, 17));   // UAS di minggu 17
-  sama(iso(cfg, 1, 17), iso(dasar, 1, 18));   // materi Sesi 17 di minggu 18
-  sama(iso(cfg, 1, 16), iso(dasar, 1, 16));
-  // UTS ke minggu 7: sesi 7 & 8 bergeser satu minggu
-  const c2 = Object.assign({}, dasar, { tukar: { '1': { UTS: { p: 7 } } } });
-  sama([7, 8, 9, 10].map(n => g.taPosisi_(c2, 1, n)), [8, 9, 7, 10]);
-  sama(g.taMingguFisik_(dasar, '2026-07-27'), { smt: 1, p: 1 });
-  sama(g.taMingguFisik_(dasar, iso(dasar, 2, 3)), { smt: 2, p: 3 });
-  sama(g.taMingguFisik_(dasar, '2026-07-26'), null);
-});
-
-tes('masa UAS: tukar minggu hanya untuk peserta semua siswa, minggu biasa, dan minggu yang belum berjalan', () => {
-  const cfg = { mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, jumlahSemester: 2, jamTayang: '00:01', jamBatas: '23:59', tukar: {} };
+tes('masa: slot online di minggu materi menutup sesi itu untuk kelas peserta; bukan untuk slot tulis, sesi yang sudah mulai, atau rombel campuran unit', () => {
+  const cfg = { mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, jumlahSemester: 2, jamTayang: '00:01', jamBatas: '23:59' };
   const tgl = (n) => g.taInfo_(cfg, 1, n, 0).mulaiIso;
-  const m = (mode, jenis) => ({ id: 'MU-1', jenis: jenis || 'UAS', smt: 1, peserta: { mode: mode } });
   const awal = g.taInfo_(cfg, 1, 1, 0).mulaiMs - 86400000;
-  const r = g.mgTukarRencana_(m('semua'), [{ tanggal: tgl(17) }, { tanggal: tgl(17) }], cfg, awal);
-  sama([r.smt, r.jenis, r.p, r.asal, r.sesi], [1, 'UAS', 17, 18, 17]);
-  sama(g.mgTukarRencana_(m('semua'), [{ tanggal: tgl(18) }], cfg, awal), null);   // sudah di minggu UAS
-  sama(g.mgTukarRencana_(m('semua', 'TRYOUT'), [{ tanggal: tgl(17) }], cfg, awal), null);
-  sama(!!g.mgTukarRencana_(m('unit'), [{ tanggal: tgl(17) }], cfg, awal).alasan, true);
-  sama(!!g.mgTukarRencana_(m('semua', 'UTS'), [{ tanggal: tgl(18) }], cfg, awal).alasan, true);   // minggu UAS bukan minggu biasa
-  sama(!!g.mgTukarRencana_(m('semua'), [{ tanggal: tgl(17) }], cfg, g.taInfo_(cfg, 1, 17, 0).mulaiMs + 1000).alasan, true);   // sudah berjalan
+  const kelas = [{ kode: 'MTK', idRombelSim: 'R1', idMapel: 'M1' }, { kode: 'MTK', idRombelSim: 'R2', idMapel: 'M2' }, { kode: 'IPA', idRombelSim: 'R1', idMapel: 'M3' }];
+  const slot = [
+    { tanggal: tgl(17), kode: 'MTK', rombel: [], mode: '' },          // online, minggu materi
+    { tanggal: tgl(18), kode: 'IPA', rombel: [], mode: '' },          // minggu UAS: tidak menutup sesi
+    { tanggal: tgl(16), kode: 'IPA', rombel: [], mode: 'Offline' }    // tulis: tidak menutup sesi
+  ];
+  const asli = { muPilihWb_: g.muPilihWb_, keuWbSemua_: g.keuWbSemua_ };
+  try {
+    g.muPilihWb_ = () => null;
+    const r = g.mgSesiRencana_({ jenis: 'UAS', smt: 1, mode: 'Online', peserta: { mode: 'semua' } }, slot, kelas, cfg, awal);
+    sama(r.target.map(t => [t.idMapel, t.smt, t.n]), [['M1', 1, 17], ['M2', 1, 17]]);
+    // sudah dimulai
+    const r2 = g.mgSesiRencana_({ jenis: 'UAS', smt: 1, mode: 'Online', peserta: { mode: 'semua' } }, slot, kelas, cfg, g.taInfo_(cfg, 1, 17, 0).mulaiMs + 1000);
+    sama([r2.target.length, r2.info.length], [0, 1]);
+    // peserta unit: R1 berisi siswa unit lain -> tidak ditutup
+    g.muPilihWb_ = () => ({ W1: true, W3: true });
+    g.keuWbSemua_ = () => [{ id: 'W1', idRombel: 'R1', aktif: true }, { id: 'W2', idRombel: 'R1', aktif: true }, { id: 'W3', idRombel: 'R2', aktif: true }];
+    const r3 = g.mgSesiRencana_({ jenis: 'UAS', smt: 1, mode: 'Online', peserta: { mode: 'unit', unit: ['U-S'] } }, slot, kelas, cfg, awal);
+    sama(r3.target.map(t => t.idMapel), ['M2']);
+    sama(r3.info.length, 1);
+    sama(g.mgSesiRencana_({ jenis: 'UAS', smt: 1, peserta: { mode: 'siswa' } }, slot, kelas, cfg, awal).target, []);
+  } finally { Object.assign(g, asli); }
 });
 
-tes('TTM: diliburkan pada hari slot masa untuk rombel/unit peserta, minggu ujian hasil tukar seluruhnya', () => {
+tes('masa: kehadiran sesi yang ditutup dihitung dari hasil ujian masa; absensi sesi itu disembunyikan', () => {
+  const asli = { mgSesiTutup_: g.mgSesiTutup_, ujJadwalSemua_: g.ujJadwalSemua_, munSemua_: g.munSemua_, ujBaca_: g.ujBaca_, taBaca_: g.taBaca_ };
+  try {
+    g.mgSesiTutup_ = () => ({ 'M1|1|17': 'MU-1', 'M9|2|5': 'MU-1' });
+    g.ujJadwalSemua_ = () => [{ idUjian: 'U1', idMapel: 'M1', masa: 'MU-1' }, { idUjian: 'U2', idMapel: 'M2', masa: 'MU-1' }];
+    g.munSemua_ = () => [];
+    g.ujBaca_ = () => [{ 'ID Ujian': 'U1', 'Nama Siswa': 'Ani  Rahma' }, { 'ID Ujian': 'U1', 'Nama Siswa': 'ani rahma' }, { 'ID Ujian': 'U2', 'Nama Siswa': 'Budi' }];
+    const h = g.mgHadirUjian_(1);
+    sama(h.length, 1);
+    sama([h[0].idMapel, h[0].smt, h[0].n], ['M1', 1, 17]);
+    sama(g.mgHadirUjian_(2), []);   // tidak ada hasil ujian M9
+    // item absensi sesi 17 tidak disisipkan untuk M1
+    g.taBaca_ = () => ({ mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, jumlahSemester: 2, jamTayang: '00:01', jamBatas: '23:59' });
+    const ids = g.abSisipItem_('M1', []).map(x => x.id);
+    sama(ids.indexOf(g.abIdItem_(1, 17)), -1);
+    sama(ids.indexOf(g.abIdItem_(1, 16)) >= 0, true);
+  } finally { Object.assign(g, asli); }
+});
+
+tes('TTM: ditiadakan pada hari slot masa untuk rombel/unit peserta', () => {
   g.MG_LIBUR_ = [
-    { id: 'MU-A', nama: 'UAS Sampiran', slot: [{ tanggal: '2026-12-01', rombel: [] }], rombel: { R1: true }, unit: ['U-S'], minggu: null },
-    { id: 'MU-B', nama: 'UAS Semua', slot: [{ tanggal: '2026-12-10', rombel: ['R9'] }], rombel: null, unit: null, minggu: { dari: '2026-12-14', sampai: '2026-12-20' } }
+    { id: 'MU-A', nama: 'UAS Sampiran', slot: [{ tanggal: '2026-12-01', rombel: [] }], rombel: { R1: true }, unit: ['U-S'] },
+    { id: 'MU-B', nama: 'UAS Semua', slot: [{ tanggal: '2026-12-10', rombel: ['R9'] }], rombel: null, unit: null }
   ];
   sama(g.mgLiburPm_({ idRombel: 'R1', unit: '' }, '2026-12-01').masa, 'MU-A');
   sama(g.mgLiburPm_({ idRombel: 'R1', unit: 'U-L' }, '2026-12-01'), null);   // pemetaan khusus unit lain
@@ -2066,7 +2083,6 @@ tes('TTM: diliburkan pada hari slot masa untuk rombel/unit peserta, minggu ujian
   sama(g.mgLiburPm_({ idRombel: 'R1', unit: '' }, '2026-12-02'), null);      // bukan hari ujian
   sama(g.mgLiburPm_({ idRombel: 'R9', unit: '' }, '2026-12-10').masa, 'MU-B');
   sama(g.mgLiburPm_({ idRombel: 'R5', unit: '' }, '2026-12-10'), null);      // slot khusus rombel R9
-  sama(g.mgLiburPm_({ idRombel: 'R5', unit: '' }, '2026-12-16').masa, 'MU-B');   // minggu ujian hasil tukar
   g.MG_LIBUR_ = null;
 });
 
