@@ -2027,7 +2027,7 @@ tes('impor JSON: kunci yang kehilangan kutip pembuka (opsi": {) diperbaiki otoma
 
 tes('masa: slot online di minggu materi menutup sesi itu untuk kelas peserta; bukan untuk slot tulis, sesi yang sudah mulai, atau rombel campuran unit', () => {
   const cfg = { mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, jumlahSemester: 2, jamTayang: '00:01', jamBatas: '23:59' };
-  const tgl = (n) => g.taInfo_(cfg, 1, n, 0).mulaiIso;
+  const tgl = (n) => g.ujtTambahHari_(g.taInfo_(cfg, 1, n, 0).mulaiIso, 2);   // tengah minggu: aman dari zona waktu CI (UTC)
   const awal = g.taInfo_(cfg, 1, 1, 0).mulaiMs - 86400000;
   const kelas = [{ kode: 'MTK', idRombelSim: 'R1', idMapel: 'M1' }, { kode: 'MTK', idRombelSim: 'R2', idMapel: 'M2' }, { kode: 'IPA', idRombelSim: 'R1', idMapel: 'M3' }];
   const slot = [
