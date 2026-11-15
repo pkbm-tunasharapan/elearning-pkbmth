@@ -50,11 +50,30 @@ Color _warnaStatus(BuildContext c, String s) => switch (s) {
     };
 
 /// Detail satu mata pelajaran: konten, absensi, nilai, siswa.
-class MapelDetailScreen extends StatelessWidget {
+class MapelDetailScreen extends StatefulWidget {
   const MapelDetailScreen({super.key, required this.idMapel, required this.namaMapel, required this.namaRombel});
   final String idMapel;
   final String namaMapel;
   final String namaRombel;
+
+  @override
+  State<MapelDetailScreen> createState() => _MapelDetailScreenState();
+}
+
+class _MapelDetailScreenState extends State<MapelDetailScreen> {
+  int _v = 0;   // v1.85.1: naik saat tombol Muat ulang ditekan -> semua tab dimuat ulang dari server
+
+  String get idMapel => widget.idMapel;
+  String get namaMapel => widget.namaMapel;
+  String get namaRombel => widget.namaRombel;
+
+  void _muatUlang() {
+    Api.instance.bersihkanCache();
+    setState(() => _v++);
+    kabar(context, 'Memuat ulang data terbaru...');
+  }
+
+  Widget _tab(String nama, Widget w) => KeyedSubtree(key: ValueKey('$nama$_v'), child: w);
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +88,7 @@ class MapelDetailScreen extends StatelessWidget {
             Text(namaRombel, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
           actions: [
+            IconButton(tooltip: 'Muat ulang semua tab', onPressed: _muatUlang, icon: const Icon(Icons.refresh_rounded)),
             IconButton(
               tooltip: 'Chat kelas',
               onPressed: () => bukaChatStaf(Navigator.of(context), 'MAPEL:$idMapel', namaRombel: namaRombel),
@@ -118,13 +138,13 @@ class MapelDetailScreen extends StatelessWidget {
           ),
         ),
         body: TabBarView(children: [
-          _TabKonten(idMapel: idMapel, judul: '$namaMapel · $namaRombel'),
-          KurikulumTab(idMapel: idMapel, judul: '$namaMapel · $namaRombel'),
-          JadwalUjianTab(idMapel: idMapel),
-          _TabAbsensi(idMapel: idMapel),
-          _TabNilai(idMapel: idMapel),
-          if (!lihat) _TabSiswa(idMapel: idMapel),
-          RppTab(idMapel: idMapel),
+          _tab('konten', _TabKonten(idMapel: idMapel, judul: '$namaMapel · $namaRombel')),
+          _tab('kurikulum', KurikulumTab(idMapel: idMapel, judul: '$namaMapel · $namaRombel')),
+          _tab('ujian', JadwalUjianTab(idMapel: idMapel)),
+          _tab('absensi', _TabAbsensi(idMapel: idMapel)),
+          _tab('nilai', _TabNilai(idMapel: idMapel)),
+          if (!lihat) _tab('siswa', _TabSiswa(idMapel: idMapel)),
+          _tab('rpp', RppTab(idMapel: idMapel)),
         ]),
       ),
     );
