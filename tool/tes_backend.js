@@ -2578,5 +2578,50 @@ tes('Custom Transaction: metode bayar hanya Virtual Account dan QRIS, metode lai
 });
 
 
+// v1.90.2: fungsi baca tidak lagi mengosongkan cache; riwayat jawaban di-cache per siswa
+tes('perfSetelah_: fungsi baca (TANPA_HAPUS) tidak mengosongkan cache, fungsi ubah tetap', () => {
+  const asli = ['perfHapusCache_', 'perfGantiVersi_'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  const aktif = g.PERF.AKTIF;
+  try {
+    let hapus = 0, versi = 0;
+    g.perfHapusCache_ = () => { hapus++; }; g.perfGantiVersi_ = () => { versi++; };
+    g.PERF.AKTIF = false;
+    ['waAdminRilisStatus', 'waAdminBroadcastDaftar', 'waSimpanDraftDiskusi', 'waAdminLog', 'waLaporPindahTab', 'waStafKsAbsenStatus'].forEach((f) => g.perfSetelah_(f, 100, true));
+    sama([hapus, versi], [0, 0], 'fungsi baca');
+    g.perfSetelah_('waAdminSimpanPengguna', 100, true);
+    g.perfSetelah_('waStafDiskusiSimpanNilai', 100, true);
+    g.perfSetelah_('waStafMateriStatus', 100, true);
+    g.perfSetelah_('waAdminSimpanPengguna', 100, false);
+    sama([hapus, versi], [2, 1], 'fungsi ubah');
+    Object.keys(g.PERF.TANPA_HAPUS).forEach((f) => { if (!/^wa/.test(f)) throw new Error('nama salah ' + f); });
+  } finally { Object.assign(g, asli); g.PERF.AKTIF = aktif; }
+});
+tes('waGetRiwayatJawaban: hasil berat di-cache per siswa per mapel; gugur saat siswa kirim/absen atau versi data berganti', () => {
+  const asli = ['getSheet', 'abRiwayatSiswa_', 'sbSaringRiwayat_', 'taDibukaUntuk_'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  try {
+    let baca = 0;
+    const isi = [['ID Rombel', 'ID Mapel', 'Nama Mapel', 'ID Materi', 'Judul', 'Jenis', 'Nama Siswa', 'Jawaban', 'Nilai', 'Waktu Kirim'],
+      ['R1', 'MP1', 'Mat', 'M1', 'x', 'Diskusi', 'Ani', 'jawab ani', 80, '2026-11-16 10:00'],
+      ['R1', 'MP1', 'Mat', 'M2', 'x', 'Diskusi', 'Budi', 'jawab budi', '', '2026-11-16 10:00']];
+    g.getSheet = () => ({ getDataRange: () => ({ getValues: () => { baca++; return isi.map((r) => r.slice()); } }) });
+    g.abRiwayatSiswa_ = () => ({}); g.sbSaringRiwayat_ = () => {};
+    let buka = 0; g.taDibukaUntuk_ = () => { buka++; return { S1: true }; };
+    const a = g.waGetRiwayatJawaban('MP1', 'Ani');
+    sama([a.M1.jawaban, a.M1.nilai, !!a.M2, a.__buka.S1, typeof a.__sekarang, baca], ['jawab ani', 80, false, true, 'number', 1]);
+    const b = g.waGetRiwayatJawaban('MP1', 'Ani');
+    sama([b.M1.jawaban, baca, buka], ['jawab ani', 1, 2], 'kedua dari cache, sesi dibuka tetap dihitung');
+    g.waGetRiwayatJawaban('MP1', 'Budi');
+    sama(baca, 2, 'siswa lain dihitung sendiri');
+    isi[1][7] = 'jawab ani baru';
+    g.brdLupakanSiswa_('R1', 'Ani');
+    sama([g.waGetRiwayatJawaban('MP1', 'Ani').M1.jawaban, baca], ['jawab ani baru', 3], 'setelah kirim');
+    g.waGetRiwayatJawaban('MP1', 'Budi');
+    sama(baca, 3, 'cache Budi tidak terganggu');
+    g.perfGantiVersi_();
+    g.waGetRiwayatJawaban('MP1', 'Budi');
+    sama(baca, 4, 'versi data berganti');
+  } finally { Object.assign(g, asli); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

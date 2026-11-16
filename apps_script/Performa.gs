@@ -17,7 +17,20 @@ var PERF = {
   CACHE_SIM: 'abs_sim_v1',
   POLA_UBAH: /^waAdmin|Simpan|Hapus|Atur|Ubah|Nonaktif|Pengguna|Sandi|Tambah|Impor/,
   // v1.65.0: fungsi yang mengubah data lain -> versi cache data diganti (cache pengguna/pengaturan tetap)
-  POLA_DATA: /Tetapkan|Batal|Setujui|Tolak|Putus|Sahkan|Terapkan|Verifikasi|Proses|Ajukan|Input|Terbit|Gabung|Pindah|Buat|Reset|Status$/
+  POLA_DATA: /Tetapkan|Batal|Setujui|Tolak|Putus|Sahkan|Terapkan|Verifikasi|Proses|Ajukan|Input|Terbit|Gabung|Pindah|Buat|Reset|Status$/,
+  // v1.90.2: fungsi yang namanya cocok pola di atas tetapi hanya MEMBACA (atau hanya menulis draf/log milik satu orang).
+  // Dulu setiap panggilannya mengosongkan semua cache, sehingga beranda siswa/staf terus dihitung ulang.
+  TANPA_HAPUS: {
+    waAdminAiStatus: 1, waAdminAiUji: 1, waAdminBroadcastDaftar: 1, waAdminCekData: 1, waAdminCekDataJadwal: 1, waAdminCekDataRinci: 1,
+    waAdminDaftarMapel: 1, waAdminDaftarPendaftaran: 1, waAdminDapodikPratinjau: 1, waAdminGandaDaftar: 1, waAdminImporPratinjau: 1,
+    waAdminIntipDaftar: 1, waAdminKerangkaBaca: 1, waAdminKerangkaDaftar: 1, waAdminKerangkaPromptManual: 1, waAdminLog: 1, waAdminLogGalat: 1,
+    waAdminNotifAturan: 1, waAdminOfflinePratinjau: 1, waAdminOtoNilaiPratinjau: 1, waAdminPeranDaftar: 1, waAdminPeranIzin: 1,
+    waAdminPerforma: 1, waAdminRefGatewayTes: 1, waAdminResetRencana: 1, waAdminRilisStatus: 1, waAdminSinkronSiswaPratinjau: 1,
+    waAdminSiswaPratinjau: 1, waAdminSusulanBaca: 1, waAdminTaBaca: 1, waAdminTutorPengajuan: 1,
+    waStafMasaSlotImporPratinjau: 1, waStafPemetaanImporPratinjau: 1, waStafPengampuImporPratinjau: 1, waStafUnitImporPratinjau: 1,
+    waSimpanDraftDiskusi: 1, waLaporPindahTab: 1, waDaftarTutorStatus: 1, waStafAiStatus: 1, waStafKsAbsenStatus: 1
+  },
+  RIWAYAT_DETIK: 300   // v1.90.2: cache riwayat jawaban per siswa per mapel
 };
 var PERF_MEMO_ = { pengguna: null, sim: null };
 
@@ -28,7 +41,8 @@ function perfSetelah_(fn, ms, ok) {
   fn = String(fn || '(tanpa fn)');
   try { if (typeof kuCatat_ === 'function') kuCatat_(fn, ms, ok); } catch (eKu) {}   // v1.58.0: kinerja fungsi ujian per jam
   try {
-    if (ok && PERF.POLA_UBAH.test(fn)) perfHapusCache_();
+    if (PERF.TANPA_HAPUS[fn] === 1) { /* hanya membaca: cache tetap */ }
+    else if (ok && PERF.POLA_UBAH.test(fn)) perfHapusCache_();
     else if (ok && PERF.POLA_DATA.test(fn)) perfGantiVersi_();
   } catch (e) {}
   if (!PERF.AKTIF || fn === 'waStafHangatkan') return;

@@ -4369,6 +4369,7 @@ function brdCacheTulis_(c, k, tanda, data, detik) {
 // Dipanggil sesudah siswa mengirim jawaban/ujian: beranda siswa itu dihitung ulang (agenda "belum dikerjakan", nilai).
 function brdLupakanSiswa_(idRombel, nama) {
   try { if (idRombel && nama) CacheService.getScriptCache().remove(brdKunciSiswa_(idRombel, nama)); } catch (e) {}
+  if (typeof riwayatLupakan_ === 'function') riwayatLupakan_(nama);   // v1.90.2: riwayat jawaban siswa ini dihitung ulang
 }
 
 

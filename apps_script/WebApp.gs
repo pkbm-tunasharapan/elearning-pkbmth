@@ -93,7 +93,30 @@ function riwayatPrim_(x) {
   return x === null || x === undefined ? '' : x;
 }
 
+// v1.90.2: bagian yang berat (tab Jawaban, absensi, syarat bayar) di-cache per siswa per mapel (PERF.RIWAYAT_DETIK).
+// Cache gugur bila data berubah (versi data), bila siswa itu mengirim jawaban/ujian/absensi (riwayatLupakan_), atau setelah 5 menit.
+// Sesi yang dibuka tutor/susulan (__buka) dan waktu server selalu dihitung langsung.
 function waGetRiwayatJawaban(idMapel, nama) {
+  var out = riwayatCache_(idMapel, nama);
+  out.__buka = taDibukaUntuk_(idMapel, nama);
+  out.__sekarang = new Date().getTime();
+  return out;
+}
+function riwayatKunci_(idMapel, nama) {
+  var c = CacheService.getScriptCache(), kn = normNama_(nama);
+  return 'rwy|' + perfVersiData_() + '|' + String(idMapel) + '|' + kn + '|' + (c.get('rwyT|' + kn) || '0');
+}
+function riwayatLupakan_(nama) {
+  try { if (nama) CacheService.getScriptCache().put('rwyT|' + normNama_(nama), String(Date.now()), 21600); } catch (e) {}
+}
+function riwayatCache_(idMapel, nama) {
+  var kunci = null, c = null;
+  try { c = CacheService.getScriptCache(); kunci = riwayatKunci_(idMapel, nama); var ada = c.get(kunci); if (ada) return JSON.parse(ada); } catch (e) { kunci = null; }
+  var out = riwayatHitung_(idMapel, nama);
+  try { if (kunci) { var s = JSON.stringify(out); if (s.length < 95000) c.put(kunci, s, PERF.RIWAYAT_DETIK); } } catch (e2) {}
+  return out;
+}
+function riwayatHitung_(idMapel, nama) {
   var sheet = getSheet(CONFIG.SHEETS.JAWABAN);
   var values = sheet.getDataRange().getValues();
   var out = {};
@@ -116,8 +139,6 @@ function waGetRiwayatJawaban(idMapel, nama) {
   }
   try { if (typeof abRiwayatSiswa_ === 'function') { var ab = abRiwayatSiswa_(idMapel, nama); Object.keys(ab).forEach(function(k) { out[k] = ab[k]; }); } } catch (e) {}
   try { sbSaringRiwayat_(out, idMapel, nama); } catch (eSb) {}   // v1.57.0
-  out.__buka = taDibukaUntuk_(idMapel, nama);
-  out.__sekarang = new Date().getTime();
   return out;
 }
 
