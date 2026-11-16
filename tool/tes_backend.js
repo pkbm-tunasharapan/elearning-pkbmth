@@ -25,7 +25,9 @@ function tokoKunci() {
 const props = tokoKunci();
 const cache = (() => {
   const m = new Map();
-  return { get: (k) => (m.has(k) ? m.get(k) : null), put: (k, v) => { m.set(k, String(v)); }, remove: (k) => { m.delete(k); }, removeAll: (ks) => { ks.forEach((k) => m.delete(k)); } };
+  return { get: (k) => (m.has(k) ? m.get(k) : null), put: (k, v) => { m.set(k, String(v)); }, remove: (k) => { m.delete(k); }, removeAll: (ks) => { ks.forEach((k) => m.delete(k)); },
+    getAll: (ks) => { const o = {}; ks.forEach((k) => { if (m.has(k)) o[k] = m.get(k); }); return o; },
+    putAll: (o) => { Object.keys(o).forEach((k) => m.set(k, String(o[k]))); }, _peta: m };
 })();
 const pad = (n) => String(n).padStart(2, '0');
 const Utilities = {
@@ -2360,6 +2362,29 @@ tes('getMateriAktifUntukMapel_: Konten tepat per baris, kolom Konten tidak dibac
     sama(g.materiTanpaKonten_()[0][ik], 'Konten/Instruksi', 'judul kolom Konten tetap ada');
     sama(g.materiTanpaKonten_()[1][ik], '', 'sel Konten dikosongkan');
   } finally { Object.assign(g, simpan); }
+});
+
+// v1.88.6: cache besar bertanda versi (daftar materi per mapel)
+tes('perfCacheBesar_: dipakai ulang, dipecah bila besar, dihitung ulang saat versi data berganti, objek baru tiap panggilan', () => {
+  let hitung = 0;
+  const besar = { isi: 'x'.repeat(120000), daftar: [{ id: 'M1', konten: 'é'.repeat(10) }] };
+  const f = () => { hitung++; return JSON.parse(JSON.stringify(besar)); };
+  g.perfGantiVersi_();
+  const a = g.perfCacheBesar_('tes|besar', 900, f);
+  const b = g.perfCacheBesar_('tes|besar', 900, f);
+  sama([hitung, b.isi.length, b.daftar[0].konten, a !== b], [1, 120000, 'é'.repeat(10), true], 'dipakai ulang & utuh');
+  b.daftar[0].id = 'DIUBAH';
+  sama(g.perfCacheBesar_('tes|besar', 900, f).daftar[0].id, 'M1', 'perubahan pemanggil tidak memengaruhi cache');
+  const kunciPecahan = [...cache._peta.keys()].filter((k) => k.startsWith('db|tes|besar|') && /\|\d+$/.test(k));
+  sama(kunciPecahan.length >= 3, true, 'dipecah beberapa bagian');
+  const lalu = Date.now(); while (Date.now() === lalu) { /* versi berbasis milidetik */ }
+  g.perfGantiVersi_();
+  g.perfCacheBesar_('tes|besar', 900, f);
+  sama(hitung, 2, 'versi berganti -> dihitung ulang');
+  // satu pecahan hilang -> dihitung ulang, bukan data rusak
+  const k0 = 'db|tes|besar|' + g.perfVersiData_() + '|1';
+  cache.remove(k0);
+  sama([g.perfCacheBesar_('tes|besar', 900, f).isi.length, hitung], [120000, 3], 'pecahan hilang');
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

@@ -89,6 +89,34 @@ function perfCacheData_(nama, detik, hitung) {
   return (PERF_DATA_MEMO_[nama] = hasil);
 }
 
+// v1.88.6: cache bertanda versi data untuk hasil besar (dipecah per 45.000 karakter, batas CacheService 100 KB per
+// nilai). Selalu segar terhadap penyimpanan lewat aplikasi & edit langsung di spreadsheet (versi data berganti);
+// masa simpan membatasi kemungkinan penulisan lain (mis. pemicu terjadwal). Setiap pemanggilan menerima objek baru.
+function perfCacheBesar_(nama, detik, hitung) {
+  var c = CacheService.getScriptCache(), k = 'db|' + nama + '|' + perfVersiData_(), UK = 45000, MAKS = 40;
+  try {
+    var n = parseInt(c.get(k) || '0', 10);
+    if (n > 0 && n <= MAKS) {
+      var kunci = [];
+      for (var i = 0; i < n; i++) kunci.push(k + '|' + i);
+      var bag = c.getAll(kunci), s = '';
+      for (var j = 0; j < n && s !== null; j++) s = (bag[kunci[j]] === undefined || bag[kunci[j]] === null) ? null : s + bag[kunci[j]];
+      if (s !== null) return JSON.parse(s);
+    }
+  } catch (e) {}
+  var hasil = hitung();
+  try {
+    var t = JSON.stringify(hasil), m = Math.max(1, Math.ceil(t.length / UK));
+    if (m <= MAKS) {
+      var o = {};
+      for (var x = 0; x < m; x++) o[k + '|' + x] = t.substr(x * UK, UK);
+      c.putAll(o, detik);
+      c.put(k, String(m), detik);
+    }
+  } catch (e2) {}
+  return hasil;
+}
+
 function perfGantiVersi_() {
   PERF_DATA_MEMO_ = {};
   try { CacheService.getScriptCache().put('data_versi', String(Date.now()), 21600); } catch (eV) {}

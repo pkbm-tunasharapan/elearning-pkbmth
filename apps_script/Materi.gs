@@ -115,7 +115,13 @@ function doValidasiMateri() {
 // DIPANGGIL DARI WEB APP (lihat WebApp.gs)
 // ============================================
 
+// v1.88.6: daftar materi aktif per mapel dipakai bersama semua siswa rombel itu -> cache bertanda versi data (15 menit).
+// Penyaringan yang bergantung waktu (sesi berjalan/berakhir, terkunci) tetap dihitung setiap permintaan di waGetMateri.
 function getMateriAktifUntukMapel_(idMapel) {
+  return perfCacheBesar_('materi|' + String(idMapel), 900, function() { return getMateriAktifUntukMapelInti_(idMapel); });
+}
+
+function getMateriAktifUntukMapelInti_(idMapel) {
   pastikanIdMateri_();
   // v1.88.5: baca tanpa kolom Konten, lalu Konten dibaca hanya untuk rentang baris mapel ini (satu panggilan).
   // Sebelumnya seluruh sheet Materi (±5 MB) dibaca dua kali setiap siswa membuka daftar materi.
