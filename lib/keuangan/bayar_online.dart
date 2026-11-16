@@ -8,6 +8,15 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../api.dart';
 import '../honor/honor.dart' show rp;
 import '../widgets.dart';
+import 'popup_bayar.dart';
+
+export 'popup_bayar.dart' show tampilkanInfoBayar, PanelInfoBayar, pesanInfoBayar, pngInfoBayar, konteksBayar;
+
+/// Info bayar dari jawaban server (null bila tidak ada / aplikasi memakai halaman web).
+Map<String, dynamic>? infoBayar(dynamic v) {
+  final m = peta(v);
+  return teks(m['jenis']).isEmpty ? null : m;
+}
 
 /// v1.49.0: pembayaran online DOKU dengan biaya admin ditanggung pembayar.
 /// Total = pokok + biaya admin metode (sama dengan hitungan server gwHitungTotal_), tidak bisa diubah.
@@ -72,7 +81,12 @@ String keteranganBayar(Map<String, dynamic> o) {
   return [baris1, baris2].where((x) => x.isNotEmpty).join('\n');
 }
 
-Future<bool> bukaPembayaranDoku(BuildContext context, {required String url, required Future<String> Function() cekStatus, String judul = 'Pembayaran', String keterangan = ''}) async {
+Future<bool> bukaPembayaranDoku(BuildContext context,
+    {required String url, required Future<String> Function() cekStatus, String judul = 'Pembayaran', String keterangan = '', Map<String, dynamic>? info, String lembaga = ''}) async {
+  // v1.90.0: server mengirim info bayar (nomor VA / kode / QRIS / e-wallet) -> popup di aplikasi, tanpa halaman web
+  if (info != null && teks(info['jenis']).isNotEmpty) {
+    return tampilkanInfoBayar(context, info: info, cekStatus: cekStatus, judul: judul, keterangan: keterangan, lembaga: lembaga);
+  }
   if (url.isEmpty) return false;
   if (kIsWeb) {
     await launchUrl(Uri.parse(url), webOnlyWindowName: '_blank');

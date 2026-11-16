@@ -67,8 +67,9 @@ function waSiswaTagihan(token) {
     return { id: x.id, tanggal: x.tanggal, tagihan: namaTag[x.idTagihan] || (x.kategori === 'ADP' ? 'Biaya admin pembayaran online' : ''), jumlah: x.jumlah,
       cara: /DOKU|Midtrans/.test(x.uraian) ? 'Online' : (x.dicatatOleh === 'Gateway otomatis' ? 'Online' : 'Petugas / transfer') };
   }).sort(function(a, b) { return b.tanggal.localeCompare(a.tanggal); }).slice(0, 100);
-  var pending = gwBaca_().filter(function(o) { return o['JENIS'] === 'Tagihan' && o['ID WB'] === w.id && o['STATUS'] === 'Menunggu'; }).map(function(o) {
-    return { invoice: o['INVOICE'], idTagihan: o['REF'], total: Number(o['JUMLAH']) || 0, metode: o['METODE'], url: o['URL'], kadaluarsa: o['KADALUARSA'] };
+  var popup = gwPopupBoleh_();   // v1.90.0: aplikasi lama hanya bisa membuka order yang punya halaman (URL)
+  var pending = gwBaca_().filter(function(o) { return o['JENIS'] === 'Tagihan' && o['ID WB'] === w.id && o['STATUS'] === 'Menunggu' && (popup || o['URL']); }).map(function(o) {
+    return { invoice: o['INVOICE'], idTagihan: o['REF'], total: Number(o['JUMLAH']) || 0, metode: o['METODE'], url: o['URL'], kadaluarsa: o['KADALUARSA'], info: popup ? gwInfo_(o) : null };
   });
   var at = rfAturan_(), d = gwAktif_();   // v1.89.0: DOKU atau Midtrans
   return {

@@ -39,7 +39,8 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
     if (!r.ok || !mounted) return;
     final o = r.data!;
     if (!await konfirmasiTotalBayar(context, o) || !mounted) return;
-    final lunas = await bukaPembayaranDoku(context, url: teks(o['url']), judul: teks(t['nama']), keterangan: keteranganBayar(o), cekStatus: () => _cek(teks(o['invoice'])));
+    final lunas = await bukaPembayaranDoku(context, url: teks(o['url']), judul: teks(t['nama']), keterangan: keteranganBayar(o), cekStatus: () => _cek(teks(o['invoice'])),
+        info: infoBayar(o['info']), lembaga: teks(d['lembaga']));
     if (mounted) setState(() => _v++);
     if (lunas && mounted) kabar(context, '${teks(t['nama'])} lunas. Terima kasih!');
   }
@@ -51,7 +52,8 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
 
   Future<void> _lanjutPending(Map<String, dynamic> p, Map<String, dynamic> t, Map<String, dynamic> d) async {
     final ket = keteranganBayar({'judul': teks(t['nama']), 'nama': teks(peta(d['wb'])['nama']), 'total': p['total']});
-    final lunas = await bukaPembayaranDoku(context, url: teks(p['url']), judul: teks(t['nama']), keterangan: ket, cekStatus: () => _cek(teks(p['invoice'])));
+    final lunas = await bukaPembayaranDoku(context, url: teks(p['url']), judul: teks(t['nama']), keterangan: ket, cekStatus: () => _cek(teks(p['invoice'])),
+        info: infoBayar(p['info']), lembaga: teks(d['lembaga']));
     if (mounted) setState(() => _v++);
     if (lunas && mounted) kabar(context, '${teks(t['nama'])} lunas. Terima kasih!');
   }

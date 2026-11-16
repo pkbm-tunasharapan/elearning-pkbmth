@@ -13,10 +13,19 @@
 // ============================================================================
 var GW = {
   TAB: 'GATEWAY ORDER',
-  HDR: ['INVOICE', 'WAKTU', 'JENIS', 'REF', 'ID WB', 'NAMA', 'URAIAN', 'JUMLAH', 'STATUS', 'URL', 'KADALUARSA', 'KANAL', 'DIBAYAR PADA', 'ID TRANSAKSI', 'CATATAN', 'PENYEDIA', 'DIBUAT OLEH', 'POKOK', 'BIAYA ADMIN', 'METODE'],
+  HDR: ['INVOICE', 'WAKTU', 'JENIS', 'REF', 'ID WB', 'NAMA', 'URAIAN', 'JUMLAH', 'STATUS', 'URL', 'KADALUARSA', 'KANAL', 'DIBAYAR PADA', 'ID TRANSAKSI', 'CATATAN', 'PENYEDIA', 'DIBUAT OLEH', 'POKOK', 'BIAYA ADMIN', 'METODE', 'INFO BAYAR'],
   BASE: { sandbox: 'https://api-sandbox.doku.com', produksi: 'https://api.doku.com' },
-  MASA_BAWAAN: 1440, REKON_HARI: 3
+  MASA_BAWAAN: 1440, REKON_HARI: 3,
+  V_POPUP: '1.90.0'   // v1.90.0: versi aplikasi pertama yang menampilkan info bayar sebagai popup (Midtrans Core API)
 };
+// Aplikasi pemanggil sudah bisa menampilkan popup info bayar? (versi dikirim aplikasi di setiap permintaan)
+function gwPopupBoleh_() {
+  var v = String(globalThis.__API_V || '');
+  return !!v && typeof updBanding_ === 'function' && updBanding_(v, GW.V_POPUP) >= 0;
+}
+function gwInfo_(x) {
+  try { var j = JSON.parse(String((x && x['INFO BAYAR']) || '') || 'null'); return j && typeof j === 'object' ? j : null; } catch (e) { return null; }
+}
 
 // ---------- tabel order ----------
 function gwTab_() {
@@ -141,13 +150,13 @@ function gwBuatOrder_(o) {
   if (!m) throw new Error('Pilih metode pembayaran.');
   var h = gwHitungTotal_(o.pokok, m), jml = h.total;
   if (h.pokok < 1000) throw new Error('Jumlah pembayaran online minimal Rp1.000.');
-  var kini = Date.now();
+  var kini = Date.now(), popup = gwPopupBoleh_();
   var lama = gwBaca_().filter(function(x) {
     return x['JENIS'] === o.jenis && x['REF'] === String(o.ref) && x['ID WB'] === String(o.idWb || '') && Number(x['JUMLAH']) === jml && x['METODE'] === m.kode
-      && x['STATUS'] === 'Menunggu' && x['URL'] && (!x['KADALUARSA'] || new Date(String(x['KADALUARSA']).replace(' ', 'T') + ':00+07:00').getTime() - kini > 10 * 60000);
+      && x['STATUS'] === 'Menunggu' && (popup ? (x['URL'] || x['INFO BAYAR']) : x['URL']) && (!x['KADALUARSA'] || new Date(String(x['KADALUARSA']).replace(' ', 'T') + ':00+07:00').getTime() - kini > 10 * 60000);
   })[0];
   if (lama) return { invoice: lama['INVOICE'], url: lama['URL'], jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: lama['KADALUARSA'], lama: true,
-    judul: o.judul || o.uraian || '', nama: o.nama || '' };
+    judul: o.judul || o.uraian || '', nama: o.nama || '', info: popup ? gwInfo_(lama) : null };
   var awal = o.jenis === 'Pendaftaran' ? 'REG' : o.jenis === 'Custom' ? 'VAC' : 'TAG';
   var invoice = (awal + '-' + Utilities.formatDate(new Date(), absTz_(), 'yyMMdd') + '-' + absId_().toUpperCase()).slice(0, 60);
   var isi = {
@@ -158,9 +167,11 @@ function gwBuatOrder_(o) {
   };
   if (o.email && /@/.test(o.email)) isi.customer.email = String(o.email).slice(0, 100);
   if (o.hp) isi.customer.phone = String(o.hp).replace(/[^\d]/g, '').slice(0, 16);
-  var pay = {};
+  var pay = {}, info = null;
   if (d.penyedia === 'midtrans') {
-    pay.url = gwMtBuat_(d, invoice, h, m, o);
+    // v1.90.0: aplikasi baru -> Core API (info bayar tampil sebagai popup di aplikasi); aplikasi lama -> halaman Snap
+    if (popup && gwMtBisaPopup_(m.kode)) { info = gwMtCharge_(d, invoice, h, m, o); pay.url = ''; }
+    else pay.url = gwMtBuat_(d, invoice, h, m, o);
   } else {
   var r = gwPanggil_(d, 'post', '/checkout/v1/payment', isi);
   pay = ((r.json || {}).response || {}).payment || {};
@@ -174,10 +185,11 @@ function gwBuatOrder_(o) {
   }
   var kd = '';
   try { kd = Utilities.formatDate(new Date(kini + d.masa * 60000), absTz_(), 'yyyy-MM-dd HH:mm'); } catch (e2) {}
+  if (info && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(String(info.kadaluarsa || ''))) kd = String(info.kadaluarsa).slice(0, 16);   // batas dari Midtrans
   gwTambah_({ 'INVOICE': invoice, 'WAKTU': rfWaktu_(), 'JENIS': o.jenis, 'REF': String(o.ref), 'ID WB': String(o.idWb || ''), 'NAMA': o.nama || '', 'URAIAN': String(o.uraian || '').slice(0, 200),
     'JUMLAH': jml, 'STATUS': 'Menunggu', 'URL': pay.url, 'KADALUARSA': kd, 'PENYEDIA': d.nama + (d.produksi ? '' : ' (sandbox)'), 'DIBUAT OLEH': o.oleh || '',
-    'POKOK': h.pokok, 'BIAYA ADMIN': h.biaya, 'METODE': m.kode });
-  return { invoice: invoice, url: pay.url, jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: kd, lama: false, judul: o.judul || o.uraian || '', nama: o.nama || '' };
+    'POKOK': h.pokok, 'BIAYA ADMIN': h.biaya, 'METODE': m.kode, 'INFO BAYAR': info ? JSON.stringify(info) : '' });
+  return { invoice: invoice, url: pay.url, jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: kd, lama: false, judul: o.judul || o.uraian || '', nama: o.nama || '', info: info };
 }
 
 // Periksa status ke DOKU dan selesaikan bila lunas. Hasil: status order sesudahnya.
@@ -374,7 +386,7 @@ function waStafTagihanOrder(token, q) {
   if (n) semua = gwBaca_().filter(function(x) { return !q.idTagihan || (x['JENIS'] === 'Tagihan' && x['REF'] === String(q.idTagihan)); });
   return { aktif: gwAktif_().aktif, order: semua.reverse().slice(0, 300).map(function(x) {
     return { invoice: x['INVOICE'], waktu: x['WAKTU'], jenis: x['JENIS'], idWb: x['ID WB'], nama: x['NAMA'], uraian: x['URAIAN'], jumlah: Number(x['JUMLAH']) || 0,
-      status: x['STATUS'], url: x['STATUS'] === 'Menunggu' ? x['URL'] : '', kadaluarsa: x['KADALUARSA'], kanal: x['KANAL'], dibayarPada: x['DIBAYAR PADA'], catatan: x['CATATAN'] };
+      status: x['STATUS'], url: x['STATUS'] === 'Menunggu' ? x['URL'] : '', info: x['STATUS'] === 'Menunggu' ? gwInfo_(x) : null, kadaluarsa: x['KADALUARSA'], kanal: x['KANAL'], dibayarPada: x['DIBAYAR PADA'], catatan: x['CATATAN'] };
   }) };
 }
 
@@ -619,4 +631,76 @@ function gwMtNotif_(body) {
     h = gwPeriksa_(inv);
   }
   return h;
+}
+
+// ============================================================================
+// MIDTRANS CORE API (v1.90.0) - info bayar (nomor VA, kode bayar, QRIS, tombol e-wallet) dikirim ke aplikasi dan
+// ditampilkan sebagai popup, tanpa halaman web. Status, notifikasi, rekonsiliasi, dan pencatatan sama dengan Snap.
+// Info disimpan di kolom INFO BAYAR (JSON) agar popup bisa dibuka ulang.
+// ============================================================================
+function gwMtBisaPopup_(kode) {
+  return /^(BCA|BNI|BRI|CIMB|PERMATA|OTHER)_VA$|^ECHANNEL$|^OTHER_QRIS$|^GOPAY$|^SHOPEEPAY$|^INDOMARET$|^ALFAMART$/.test(String(kode || ''));
+}
+// Isi permintaan /v2/charge per metode katalog.
+function gwMtIsiCharge_(kode, uraian) {
+  var k = String(kode || '');
+  var mva = /^(BCA|BNI|BRI|CIMB)_VA$/.exec(k);
+  if (mva) return { payment_type: 'bank_transfer', bank_transfer: { bank: mva[1].toLowerCase() } };
+  if (k === 'PERMATA_VA') return { payment_type: 'bank_transfer', bank_transfer: { bank: 'permata' } };
+  if (k === 'OTHER_VA') return { payment_type: 'bank_transfer', bank_transfer: { bank: 'bni' } };   // dibayar dari bank lain lewat ATM Bersama/Prima/Alto
+  if (k === 'ECHANNEL') return { payment_type: 'echannel', echannel: { bill_info1: 'Pembayaran', bill_info2: String(uraian || 'Tagihan').slice(0, 18) } };
+  if (k === 'OTHER_QRIS') return { payment_type: 'qris', qris: { acquirer: 'gopay' } };
+  if (k === 'GOPAY') return { payment_type: 'gopay', gopay: { enable_callback: false } };
+  if (k === 'SHOPEEPAY') return { payment_type: 'shopeepay', shopeepay: {} };
+  if (k === 'INDOMARET' || k === 'ALFAMART') return { payment_type: 'cstore', cstore: { store: k.toLowerCase(), message: String(uraian || 'Pembayaran').slice(0, 20) } };
+  return null;
+}
+// Info bayar dari jawaban /v2/charge (bentuk yang dipakai popup aplikasi).
+function gwMtInfo_(kode, j, m, h) {
+  var aksi = {};
+  (j.actions || []).forEach(function(a) { if (a && a.name) aksi[a.name] = a.url; });
+  var dasar = { metode: m.nama, kode: kode, total: h.total, pokok: h.pokok, biaya: h.biaya, kadaluarsa: String(j.expiry_time || '') };
+  var t = String(j.payment_type || '');
+  if (t === 'bank_transfer') {
+    var va = (j.va_numbers || [])[0] || {}, bank = j.permata_va_number ? 'permata' : String(va.bank || '');
+    dasar.jenis = 'va'; dasar.bank = bank.toUpperCase(); dasar.nomor = String(j.permata_va_number || va.va_number || '');
+    dasar.antarBank = kode === 'OTHER_VA';
+  } else if (t === 'echannel') {
+    dasar.jenis = 'mandiri'; dasar.kodePerusahaan = String(j.biller_code || ''); dasar.kodeBayar = String(j.bill_key || '');
+  } else if (t === 'qris') {
+    dasar.jenis = 'qris'; dasar.qr = String(j.qr_string || ''); dasar.qrUrl = String(aksi['generate-qr-code'] || '');
+  } else if (t === 'gopay' || t === 'shopeepay') {
+    dasar.jenis = 'ewallet'; dasar.aplikasi = t === 'gopay' ? 'GoPay' : 'ShopeePay';
+    dasar.tautan = String(aksi['deeplink-redirect'] || ''); dasar.qrUrl = String(aksi['generate-qr-code'] || ''); dasar.qr = String(j.qr_string || '');
+  } else if (t === 'cstore') {
+    dasar.jenis = 'gerai'; dasar.gerai = String(j.store || '').toLowerCase() === 'alfamart' ? 'Alfamart' : 'Indomaret'; dasar.kodeBayar = String(j.payment_code || '');
+  }
+  return dasar;
+}
+function gwMtCharge_(d, invoice, h, m, o) {
+  var isi = gwMtIsiCharge_(m.kode, o.uraian);
+  if (!isi) throw new Error('Metode ini belum bisa dipakai. Pilih metode lain.');
+  var items = [{ id: 'POKOK', price: h.pokok, quantity: 1, name: String(o.uraian || o.jenis || 'Pembayaran').slice(0, 50) }];
+  if (h.biaya > 0) items.push({ id: 'ADMIN', price: h.biaya, quantity: 1, name: ('Biaya admin ' + m.nama).slice(0, 50) });
+  isi.transaction_details = { order_id: invoice, gross_amount: h.total };
+  isi.item_details = items;
+  isi.customer_details = { first_name: String(o.nama || 'Peserta').slice(0, 50) };
+  if (o.email && /@/.test(o.email)) isi.customer_details.email = String(o.email).slice(0, 100);
+  if (o.hp) isi.customer_details.phone = String(o.hp).replace(/[^\d]/g, '').slice(0, 16);
+  isi.custom_expiry = { expiry_duration: d.masa, unit: 'minute' };
+  var r = gwMtPanggil_(d, 'post', gwMtBase_(d, false) + '/v2/charge', isi);
+  var sc = String(r.json.status_code || '');
+  if (r.kode >= 300 || !/^20[01]$/.test(sc)) {
+    try { catat_('Sistem', '', o.oleh || 'Sistem', 'Midtrans charge GAGAL', invoice + ' ' + m.kode + ' HTTP ' + r.kode + ' ' + r.teks, 'GAGAL'); } catch (e) {}
+    throw new Error('Gagal membuat pembayaran online (HTTP ' + r.kode + (sc ? ', kode ' + sc : '') + '). Coba lagi beberapa saat atau pilih metode lain; bila tetap gagal, hubungi admin (rincian di Log Aktivitas).');
+  }
+  var info = gwMtInfo_(m.kode, r.json, m, h);
+  // konteks pembayaran (tampil di popup, gambar instruksi, pesan WA; juga saat popup dibuka ulang)
+  info.judul = String(o.judul || o.uraian || '').slice(0, 120); info.nama = String(o.nama || '').slice(0, 80); info.jenisOrder = String(o.jenis || '');
+  info.uraian = String(o.uraian || '').slice(0, 160);
+  if (!info.jenis || (info.jenis === 'va' && !info.nomor) || (info.jenis === 'qris' && !info.qr && !info.qrUrl)) {
+    try { catat_('Sistem', '', o.oleh || 'Sistem', 'Midtrans charge tanpa info bayar', invoice + ' ' + m.kode + ' ' + r.teks, 'GAGAL'); } catch (e2) {}
+    throw new Error('Info pembayaran belum tersedia. Coba lagi atau pilih metode lain.');
+  }
+  return info;
 }

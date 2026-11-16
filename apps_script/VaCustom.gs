@@ -82,7 +82,7 @@ function waStafVaCustomDaftar(token) {
     return { id: x.id, dibuatPada: x.dibuatPada, kategori: x.kategori, namaKategori: semua[x.kategori] ? semua[x.kategori].nama : x.kategori,
       pembayar: x.pembayar, siswa: !!x.idTagihan, idWb: x.idWb, rombel: w ? w.namaRombel : '', hp: x.hp, pokok: x.pokok, keterangan: x.keterangan, catatan: x.catatan,
       idTagihan: x.idTagihan, status: s.status, dibayar: s.dibayar, sisa: s.sisa, idTransaksi: x.idTransaksi, dibayarPada: x.dibayarPada || (o && o['STATUS'] === 'Lunas' ? o['DIBAYAR PADA'] : ''),
-      oleh: x.oleh, invoice: x.invoice, orderStatus: o ? o['STATUS'] : '', url: o && o['STATUS'] === 'Menunggu' ? o['URL'] : '', kadaluarsa: o ? o['KADALUARSA'] : '',
+      oleh: x.oleh, invoice: x.invoice, orderStatus: o ? o['STATUS'] : '', url: o && o['STATUS'] === 'Menunggu' ? o['URL'] : '', info: o && o['STATUS'] === 'Menunggu' ? gwInfo_(o) : null, kadaluarsa: o ? o['KADALUARSA'] : '',
       total: o ? Number(o['JUMLAH']) || 0 : 0, metode: o ? o['METODE'] : '' };
   }).reverse().slice(0, 500);
   var d = gwAktif_();   // v1.89.0

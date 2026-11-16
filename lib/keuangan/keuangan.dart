@@ -1701,8 +1701,11 @@ String bukuPajakHtml(Map<String, dynamic> d) {
 Future<void> tampilLinkBayar(BuildContext context, Map<String, dynamic> o) async {
   final url = teks(o['url']);
   final invoice = teks(o['invoice']);
-  final pesan = 'Yth. ${teks(o['nama'])}, berikut link pembayaran ${teks(o['tagihan'])} sebesar ${rp(o['jumlah'])} di ${teks(o['lembaga'], 'PKBM')}:\n$url\n'
-      'Bisa dibayar dengan QRIS, virtual account, e-wallet, atau kartu${teks(o['kadaluarsa']).isEmpty ? '' : ' sampai ${teks(o['kadaluarsa'])}'}. Terima kasih.';
+  final info = infoBayar(o['info']);   // v1.90.0: nomor VA / kode / QRIS langsung, sesuai konteks tagihan
+  final pesan = info != null
+      ? pesanInfoBayar(info, nama: teks(o['nama']), judul: teks(o['tagihan']), lembaga: teks(o['lembaga'], 'PKBM'))
+      : 'Yth. ${teks(o['nama'])}, berikut link pembayaran ${teks(o['tagihan'])} sebesar ${rp(o['jumlah'])} di ${teks(o['lembaga'], 'PKBM')}:\n$url\n'
+          'Bisa dibayar dengan QRIS, virtual account, e-wallet, atau kartu${teks(o['kadaluarsa']).isEmpty ? '' : ' sampai ${teks(o['kadaluarsa'])}'}. Terima kasih.';
   var hp = teks(o['hp']).replaceAll(RegExp(r'[^0-9]'), '');
   if (hp.startsWith('0')) hp = '62${hp.substring(1)}';
   await showDialog<void>(
@@ -1720,7 +1723,7 @@ Future<void> tampilLinkBayar(BuildContext context, Map<String, dynamic> o) async
         TextButton(
           onPressed: () async {
             Navigator.pop(c);
-            await bukaPembayaranDoku(context, url: url, judul: teks(o['tagihan']), keterangan: keteranganBayar(o),
+            await bukaPembayaranDoku(context, url: url, judul: teks(o['tagihan']), keterangan: keteranganBayar(o), info: infoBayar(o['info']), lembaga: teks(o['lembaga']),
                 cekStatus: () async => teks(peta(await Api.instance('waStafTagihanCekBayar', [_t, invoice], const Duration(minutes: 1)))['status'], 'Menunggu'));
           },
           child: const Text('Buka pembayaran'),
@@ -1802,7 +1805,7 @@ class _OrderOnlineScreenState extends State<OrderOnlineScreen> {
                           child: const Padding(padding: EdgeInsets.only(top: 4), child: Text('Cek status', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline))),
                         ),
                     ]),
-                    onTap: teks(o['url']).isEmpty ? null : () => tampilLinkBayar(context, {...o, 'tagihan': teks(o['uraian'])}),
+                    onTap: teks(o['url']).isEmpty && infoBayar(o['info']) == null ? null : () => tampilLinkBayar(context, {...o, 'tagihan': teks(o['uraian'])}),
                   ),
                 ),
             ]),

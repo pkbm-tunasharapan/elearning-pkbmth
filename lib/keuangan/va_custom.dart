@@ -65,7 +65,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
     final kode = await pilihMetodeBayar(context, pokok: pokok, metode: metode, judul: 'Metode yang dipilih pembayar');
     if (kode == null || !mounted) return;
     final h = await jalankan(context, () async => peta(await Api.instance('waStafVaCustomBayar', [_t, {'id': teks(x['id']), 'metode': kode}], const Duration(minutes: 2))),
-        teksProses: 'Menyiapkan halaman bayar...');
+        teksProses: 'Menyiapkan pembayaran...');
     if (!h.ok || !mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => LayarBayarVa(order: h.data!)));
   }
@@ -443,6 +443,8 @@ class _LayarBayarVaState extends State<LayarBayarVa> {
 
   Map<String, dynamic> get o => widget.order;
   String get _url => teks(o['url']);
+  // v1.90.0: info bayar langsung (nomor VA / kode / QRIS) dari server; null = pakai QR halaman bayar
+  Map<String, dynamic>? get _info => infoBayar(o['info']);
 
   @override
   void initState() {
@@ -478,11 +480,14 @@ class _LayarBayarVaState extends State<LayarBayarVa> {
     }
   }
 
-  String get _pesanWa => 'Yth. ${teks(o['nama'])}, berikut pembayaran ${teks(o['tagihan'])} di ${teks(o['lembaga'], 'PKBM')}:\n'
+  String get _pesanWa => _info != null
+      ? pesanInfoBayar(_info!, nama: teks(o['nama']), judul: teks(o['tagihan']), lembaga: teks(o['lembaga'], 'PKBM'))
+      : 'Yth. ${teks(o['nama'])}, berikut pembayaran ${teks(o['tagihan'])} di ${teks(o['lembaga'], 'PKBM')}:\n'
       '${teks(o['metode'])}: ${rp(o['pokok'])} + biaya admin ${rp(o['biaya'])} = ${rp(o['jumlah'])}\n$_url\n'
       '${teks(o['kadaluarsa']).isEmpty ? '' : 'Berlaku sampai ${teks(o['kadaluarsa'])}. '}Terima kasih.';
 
   Future<Uint8List> _pngInstruksi() async {
+    if (_info != null) return pngInfoBayar(_info!, judul: teks(o['tagihan']), nama: teks(o['nama']), lembaga: teks(o['lembaga'], 'PKBM'));
     const lebar = 720.0, pad = 36.0, sisi = 440.0;
     TextPainter tp(String s, double ukuran, {FontWeight w = FontWeight.w500, Color warna = Colors.black87}) => TextPainter(
           text: TextSpan(text: s, style: TextStyle(color: warna, fontSize: ukuran, fontWeight: w, height: 1.3)),
@@ -537,10 +542,18 @@ class _LayarBayarVaState extends State<LayarBayarVa> {
     if (hp.startsWith('0')) hp = '62${hp.substring(1)}';
     final lunas = _status == 'Lunas';
     return Scaffold(
-      appBar: AppBar(title: const Text('QR bayar'), actions: [
+      appBar: AppBar(title: Text(_info != null ? 'Info bayar' : 'QR bayar'), actions: [
         if (!lunas) TextButton.icon(onPressed: () => _cek(), icon: const Icon(Icons.refresh_rounded), label: const Text('Cek status')),
       ]),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
+        if (_info != null && !lunas)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: PanelInfoBayar(info: _info!, judul: teks(o['tagihan']), nama: teks(o['nama']), lembaga: teks(o['lembaga'])),
+            ),
+          )
+        else
         Card(
           color: Colors.white,
           child: Padding(
@@ -597,6 +610,7 @@ class _LayarBayarVaState extends State<LayarBayarVa> {
             label: const Text('Simpan / bagikan gambar instruksi bayar'),
           ),
           const SizedBox(height: 8),
+          if (_url.isNotEmpty)
           OutlinedButton.icon(
             onPressed: () async {
               final ok = await bukaPembayaranDoku(context, url: _url, judul: teks(o['tagihan']), keterangan: keteranganBayar(o), cekStatus: _status0);
@@ -615,7 +629,7 @@ class _LayarBayarVaState extends State<LayarBayarVa> {
                 kabar(context, 'Pesan pembayaran disalin.');
               },
               icon: const Icon(Icons.copy_rounded, size: 18),
-              label: const Text('Salin pesan + link'),
+              label: const Text('Salin pesan bayar'),
             ),
             if (hp.length >= 9)
               TextButton.icon(

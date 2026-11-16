@@ -534,9 +534,10 @@ class _LembarBayarState extends State<_LembarBayar> {
   String _qrUrl = '';
   String _urlOnline = '';
   String _ketOnline = '';
+  Map<String, dynamic>? _infoOnline;   // v1.90.0: info bayar untuk popup
 
   Future<void> _bukaOnline() async {
-    if (_urlOnline.isEmpty) {
+    if (_urlOnline.isEmpty && _infoOnline == null) {
       final kode = await pilihMetodeBayar(context, pokok: angka(widget.aturan['biaya']), metode: daftar(widget.aturan['metodeBayar']).map(peta).toList(), judul: 'Bayar biaya pendaftaran');
       if (kode == null || !mounted) return;
       final r = await jalankan(context, () async => peta(await Api.instance('waRefBayar', [widget.token, teks(widget.x['id']), 'Online', kode], const Duration(minutes: 2))),
@@ -546,10 +547,11 @@ class _LembarBayarState extends State<_LembarBayar> {
       setState(() {
         _urlOnline = teks(r.data!['url']);
         _ketOnline = keteranganBayar(r.data!);
+        _infoOnline = infoBayar(r.data!['info']);
       });
     }
-    if (_urlOnline.isEmpty || !mounted) return;
-    final lunas = await bukaPembayaranDoku(context, url: _urlOnline, judul: 'Biaya pendaftaran', keterangan: _ketOnline,
+    if ((_urlOnline.isEmpty && _infoOnline == null) || !mounted) return;
+    final lunas = await bukaPembayaranDoku(context, url: _urlOnline, judul: 'Biaya pendaftaran', keterangan: _ketOnline, info: _infoOnline,
         cekStatus: () async => teks(peta(await Api.instance('waRefCekBayar', [widget.token, teks(widget.x['id'])], const Duration(minutes: 1)))['status'], 'Menunggu'));
     if (lunas && mounted) Navigator.pop(context, true);
   }

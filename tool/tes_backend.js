@@ -2493,5 +2493,67 @@ tes('gwNamaKanal_ & pesan aktif: nama kanal ramah, tanpa DOKU/Midtrans', () => {
   } finally { g.rfAturan_ = asli; }
 });
 
+// v1.90.0: Midtrans Core API -> info bayar untuk popup aplikasi (aplikasi lama tetap Snap)
+tes('Midtrans Core API: aplikasi baru dapat info bayar per metode, aplikasi lama tetap halaman Snap, order dipakai ulang', () => {
+  const tabel = [], panggil = [];
+  const asli = ['rfAturan_', 'gwBaca_', 'gwTambah_', 'gwUbah_', 'gwCari_', 'catat_', 'UrlFetchApp', '__API_V'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  const jawab = {
+    bank_transfer: (b) => ({ status_code: '201', payment_type: 'bank_transfer', expiry_time: '2026-11-17 17:00:00',
+      ...(b.bank_transfer.bank === 'permata' ? { permata_va_number: '8562000001' } : { va_numbers: [{ bank: b.bank_transfer.bank, va_number: '12345' + b.bank_transfer.bank }] }) }),
+    echannel: () => ({ status_code: '201', payment_type: 'echannel', biller_code: '70012', bill_key: '990011', expiry_time: '2026-11-17 17:00:00' }),
+    qris: () => ({ status_code: '201', payment_type: 'qris', qr_string: '00020101021226...', actions: [{ name: 'generate-qr-code', url: 'https://api.sandbox.midtrans.com/v2/qris/x/qr-code' }] }),
+    gopay: () => ({ status_code: '201', payment_type: 'gopay', actions: [{ name: 'generate-qr-code', url: 'https://q' }, { name: 'deeplink-redirect', url: 'gojek://gopay/x' }] }),
+    shopeepay: () => ({ status_code: '201', payment_type: 'shopeepay', actions: [{ name: 'deeplink-redirect', url: 'https://wsa.wallet.airpay.co.id/x' }] }),
+    cstore: (b) => ({ status_code: '201', payment_type: 'cstore', store: b.cstore.store, payment_code: 'KODE' + b.cstore.store }),
+  };
+  try {
+    g.rfAturan_ = () => ({ gateway: { aktif: true, penyedia: 'midtrans', serverKey: 'SB-Mid-server-TES', produksi: false, dokuMasaBayar: 60 } });
+    g.gwBaca_ = () => tabel.map((x, i) => Object.assign({ _baris: i + 2 }, x));
+    g.gwTambah_ = (o) => tabel.push(Object.assign({}, o));
+    g.gwUbah_ = (b, o) => Object.assign(tabel[b - 2], o);
+    g.gwCari_ = (inv) => g.gwBaca_().filter((x) => x['INVOICE'] === String(inv))[0] || null;
+    g.catat_ = () => {};
+    g.UrlFetchApp = { fetch: (url, opsi) => {
+      const b = opsi.payload ? JSON.parse(opsi.payload) : null;
+      panggil.push([url, b]);
+      if (/snap\/v1\/transactions$/.test(url)) return { getResponseCode: () => 201, getContentText: () => JSON.stringify({ redirect_url: 'https://snap/x' }) };
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify(jawab[b.payment_type](b)) };
+    } };
+    const buat = (metode, ref) => g.gwBuatOrder_({ jenis: 'Tagihan', ref: ref || ('T-' + metode), idWb: 'WB1', nama: 'Ani', uraian: 'SPP - Ani', pokok: 100000, metode });
+    // aplikasi lama -> Snap
+    g.__API_V = '1.89.2';
+    const lamaApp = buat('BCA_VA', 'T-LAMA');
+    sama([lamaApp.url, lamaApp.info, /snap/.test(panggil[0][0])], ['https://snap/x', null, true], 'aplikasi lama');
+    // aplikasi baru -> Core API
+    g.__API_V = '1.90.0';
+    const va = buat('BCA_VA');
+    const pc = panggil[panggil.length - 1];
+    sama([/api\.sandbox\.midtrans\.com\/v2\/charge$/.test(pc[0]), pc[1].payment_type, pc[1].bank_transfer.bank, pc[1].transaction_details.gross_amount, pc[1].custom_expiry],
+      [true, 'bank_transfer', 'bca', 104000, { expiry_duration: 60, unit: 'minute' }], 'isi charge VA');
+    sama([va.url, va.info.jenis, va.info.bank, va.info.nomor, va.info.total, va.kadaluarsa], ['', 'va', 'BCA', '12345bca', 104000, '2026-11-17 17:00'], 'info VA');
+    sama(JSON.parse(tabel[tabel.length - 1]['INFO BAYAR']).nomor, '12345bca', 'info tersimpan');
+    const n = panggil.length;
+    const ulang = buat('BCA_VA');
+    sama([ulang.lama, ulang.info.nomor, panggil.length], [true, '12345bca', n], 'dipakai ulang tanpa charge baru');
+    sama(buat('PERMATA_VA').info.nomor, '8562000001', 'permata');
+    const lain = buat('OTHER_VA');
+    sama([panggil[panggil.length - 1][1].bank_transfer.bank, lain.info.antarBank], ['bni', true], 'VA bank lain lewat BNI');
+    const mdr = buat('ECHANNEL').info;
+    sama([mdr.jenis, mdr.kodePerusahaan, mdr.kodeBayar], ['mandiri', '70012', '990011'], 'mandiri');
+    const qr = buat('OTHER_QRIS').info;
+    sama([qr.jenis, qr.qr.slice(0, 6), /qr-code$/.test(qr.qrUrl)], ['qris', '000201', true], 'qris');
+    const gp = buat('GOPAY').info;
+    sama([gp.jenis, gp.aplikasi, gp.tautan], ['ewallet', 'GoPay', 'gojek://gopay/x'], 'gopay');
+    const sp = buat('SHOPEEPAY').info;
+    sama([sp.aplikasi, /airpay/.test(sp.tautan)], ['ShopeePay', true], 'shopeepay');
+    const im = buat('INDOMARET').info;
+    sama([im.jenis, im.gerai, im.kodeBayar], ['gerai', 'Indomaret', 'KODEindomaret'], 'indomaret');
+    // aplikasi lama tidak memakai ulang order tanpa halaman
+    g.__API_V = '1.89.2';
+    const lama2 = buat('BCA_VA');
+    sama([lama2.lama, lama2.url], [false, 'https://snap/x'], 'aplikasi lama membuat halaman baru');
+  } finally { Object.assign(g, asli); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
