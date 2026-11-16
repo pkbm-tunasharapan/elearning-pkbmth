@@ -30,6 +30,13 @@ function pastikanSheetAktivitas_() {
   return sh;
 }
 
+// Nilai sel log sebagai teks apa adanya: awalan ' (tidak ikut tersimpan) mencegah Sheets mengubahnya menjadi tanggal,
+// angka, atau rumus.
+function aktTeks_(x) {
+  var s = String(x === null || x === undefined ? '' : x);
+  return s ? "'" + s : s;
+}
+
 function potongTeks_(t, maks) {
   t = String(t === null || t === undefined ? '' : t);
   return t.length > maks ? t.slice(0, maks - 1) + '…' : t;
@@ -41,12 +48,13 @@ function catat_(peran, idKelas, nama, aksi, detail, hasil) {
   try {
     var sh = pastikanSheetAktivitas_();
     var waktu = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
-    var baris = sh.getLastRow() + 1;
-    sh.getRange(baris, 1, 1, 7).setNumberFormat('@');
-    sh.getRange(baris, 1, 1, 7).setValues([[
+    // v1.88.7: satu panggilan appendRow (sebelumnya 3: getLastRow + setNumberFormat + setValues). appendRow atomik, jadi
+    // dua tindakan pada saat yang sama tidak lagi menulis ke baris yang sama (dulu satu baris log bisa tertimpa).
+    // Awalan ' membuat nilai tersimpan apa adanya sebagai teks (dulu lewat format '@'), termasuk isian yang diawali "=".
+    sh.appendRow([
       waktu, potongTeks_(peran, 20), potongTeks_(idKelas, 40), potongTeks_(nama, 80),
       potongTeks_(aksi, 60), potongTeks_(detail, 300), hasil === 'GAGAL' ? 'GAGAL' : 'OK'
-    ]]);
+    ].map(aktTeks_));
   } catch (e) {
     // sengaja diabaikan
   }

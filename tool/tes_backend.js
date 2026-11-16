@@ -2387,5 +2387,26 @@ tes('perfCacheBesar_: dipakai ulang, dipecah bila besar, dihitung ulang saat ver
   sama([g.perfCacheBesar_('tes|besar', 900, f).isi.length, hitung], [120000, 3], 'pecahan hilang');
 });
 
+// v1.88.7: log aktivitas ditulis dengan satu appendRow, nilai tetap teks apa adanya
+tes('catat_: satu appendRow, nilai berawalan apostrof (teks), mode lihat tidak mencatat', () => {
+  const simpan = { catat_: g.catat_, pastikanSheetAktivitas_: g.pastikanSheetAktivitas_ };
+  try {
+    vm.runInContext(fs.readFileSync(path.join(dir, 'Aktivitas.gs'), 'utf8'), konteks);   // catat_ asli (tes lain menggantinya)
+    const tulis = [];
+    const lembar = { appendRow: (r) => tulis.push(r), getLastRow() { throw new Error('tidak perlu getLastRow'); }, getRange() { throw new Error('tidak perlu getRange'); } };
+    g.pastikanSheetAktivitas_ = () => lembar;
+    g.__INTIP = false;
+    g.catat_('Siswa', 'ROM-C10', 'Ani', 'Kirim jawaban', '=HYPERLINK("x")', 'OK');
+    sama(tulis.length, 1, 'satu panggilan');
+    const r = tulis[0];
+    sama([r.length, r[1], r[2], r[5], r[6], /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(r[0])], [7, "'Siswa", "'ROM-C10", "'=HYPERLINK(\"x\")", "'OK", true]);
+    g.catat_('Staf', '', 'B', 'x', '', 'GAGAL');
+    sama([tulis[1][2], tulis[1][5], tulis[1][6]], ['', '', "'GAGAL"], 'sel kosong tetap kosong');
+    g.__INTIP = true;
+    g.catat_('Siswa', '', 'C', 'x', '', 'OK');
+    sama(tulis.length, 2, 'mode lihat tidak mencatat');
+  } finally { g.__INTIP = false; Object.assign(g, simpan); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

@@ -40,8 +40,11 @@ function pmlCatatGalat_(sumber, fungsi, pesan, detail, versi, pengguna) {
     var sh = pmlSheet_(PML.SHEET_GALAT, PML.HDR_GALAT);
     sh.appendRow([absWaktu_(), pmlAman_(sumber, 20), pmlAman_(fungsi, 80), pmlAman_(pesan, 500), pmlAman_(detail, 1500), pmlAman_(versi, 20), pmlAman_(pengguna, 80)]);
     if (typeof rlsCatatGalat_ === 'function') rlsCatatGalat_(sumber, pesan, versi);   // galat rilis uji (Rilis.gs)
-    var n = sh.getLastRow();
-    if (n > PML.MAKS_GALAT + 200) sh.deleteRows(2, n - 1 - PML.MAKS_GALAT);
+    // v1.88.7: jumlah baris cukup diperiksa sesekali (rata-rata 1 dari 20 galat), bukan di setiap galat
+    if (Math.random() < 0.05) {
+      var n = sh.getLastRow();
+      if (n > PML.MAKS_GALAT + 200) sh.deleteRows(2, n - 1 - PML.MAKS_GALAT);
+    }
   } catch (e) {}
 }
 
