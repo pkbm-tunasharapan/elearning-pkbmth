@@ -44,9 +44,11 @@ function doPost(e) {
       var boleh = (API_FLUTTER.POLA.test(fn) || API_FLUTTER.TAMBAHAN[fn] === true) && typeof globalThis[fn] === 'function';
       if (!boleh) throw new Error('Fungsi tidak diizinkan: ' + fn);
       API_FN_SAAT_INI_ = fn;
+      SHEET_MEMO_ = memoBolehFn_(fn) ? {} : null;   // v1.88.4: fungsi baca -> tiap sheet cukup dibaca sekali
       globalThis.__API_FN = fn; globalThis.__API_ARGS = args; globalThis.__API_V = String(body.v || ""); globalThis.__DINAS = false; globalThis.__INTIP = false; globalThis.__STAF_P = null; globalThis.__AI_PAKSA = '';
       if (body.intip && typeof intipJaga_ === 'function') intipJaga_(fn, String(body.intip));   // v1.81.0: Lihat sebagai (hanya baca)
       var hasilFn = globalThis[fn].apply(null, args);
+      SHEET_MEMO_ = null;
       if (globalThis.__DINAS && typeof dinasRapikan_ === 'function') hasilFn = dinasRapikan_(hasilFn);
       if (typeof updLama_ === 'function') hasilFn = updLama_(fn, args, hasilFn, body);
       if (typeof rlsCatatPakai_ === 'function' && !globalThis.__INTIP) rlsCatatPakai_(fn, args, body);   // pemakaian rilis uji oleh penguji

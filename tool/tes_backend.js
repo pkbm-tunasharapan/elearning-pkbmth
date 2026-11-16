@@ -2153,6 +2153,8 @@ function siapKirimJawaban() {
     }),
   };
   g.getSheet = (n) => (n === g.CONFIG.SHEETS.MATERI ? materi : n === g.CONFIG.SHEETS.JAWABAN ? jawaban : { getDataRange: () => ({ getValues: () => [[]] }) });
+  g.getSheetMentah_ = g.getSheet;
+  g.getSheetData = (n) => g.getSheet(n).getDataRange().getValues();   // tes lain mengganti getSheetData tanpa memulihkan
   g.taGerbang_ = (idMapel, idMateri) => { g.getMateriById_(idMateri); return ''; };
   g.ndAlasanTolak_ = () => '';
   g.getNamaMapel_ = () => 'Mapel 1';
@@ -2161,7 +2163,7 @@ function siapKirimJawaban() {
   return { hit, jv };
 }
 tes('waSubmitJawaban: Materi dibaca sekali, Jawaban tidak dibaca utuh, kirim ulang menimpa baris yang sama', () => {
-  const asli = ['getSheet', 'taGerbang_', 'ndAlasanTolak_', 'getNamaMapel_', 'cekKodeAksesSiswa_', 'draftHapus_', 'catat_', 'nvTulis_', 'mapelAktifSemua_']
+  const asli = ['getSheet', 'getSheetMentah_', 'getSheetData', 'taGerbang_', 'ndAlasanTolak_', 'getNamaMapel_', 'cekKodeAksesSiswa_', 'draftHapus_', 'catat_', 'nvTulis_', 'mapelAktifSemua_']
     .reduce((o, k) => { o[k] = g[k]; return o; }, {});
   try {
     const { hit, jv } = siapKirimJawaban();
@@ -2179,7 +2181,7 @@ tes('waSubmitJawaban: Materi dibaca sekali, Jawaban tidak dibaca utuh, kirim ula
   } finally { Object.assign(g, asli); g.MATERI_MEMO_ = null; }
 });
 tes('waSubmitJawaban: kiriman ganda siswa yang sama menunggu kiriman pertama, lalu menimpa (tidak dobel)', () => {
-  const asli = ['getSheet', 'taGerbang_', 'ndAlasanTolak_', 'getNamaMapel_', 'cekKodeAksesSiswa_', 'draftHapus_', 'catat_', 'nvTulis_', 'mapelAktifSemua_']
+  const asli = ['getSheet', 'getSheetMentah_', 'getSheetData', 'taGerbang_', 'ndAlasanTolak_', 'getNamaMapel_', 'cekKodeAksesSiswa_', 'draftHapus_', 'catat_', 'nvTulis_', 'mapelAktifSemua_']
     .reduce((o, k) => { o[k] = g[k]; return o; }, {});
   const tidur = g.Utilities.sleep;
   try {
@@ -2291,6 +2293,32 @@ tes('brdCacheBaca_: hanya dipakai bila versi data, tanggal, dan tambahan masih s
     g.brdLupakanSiswa_('R1', 'ani ');
     sama(cache.get(g.brdKunciSiswa_('R1', 'Ani')), null, 'kirim jawaban membuang beranda siswa itu');
   } finally { g.absHariIni_ = asli; }
+});
+
+// v1.88.4: memo baca sheet per permintaan baca
+tes('getSheetData: memo per permintaan baca - sekali baca, salinan terpisah, getSheet membuang memo, fungsi tulis tanpa memo', () => {
+  const simpan = { getSheet: g.getSheet, getSheetData: g.getSheetData, getSheetMentah_: g.getSheetMentah_, SpreadsheetApp: g.SpreadsheetApp };
+  try {
+    vm.runInContext(fs.readFileSync(path.join(dir, 'SheetUtils.gs'), 'utf8'), konteks);   // fungsi asli (tes lain menggantinya)
+    let baca = 0;
+    const isi = [['ID', 'Nama'], ['R1', 'Ani']];
+    const lembar = { getDataRange: () => { baca++; return { getValues: () => isi.map((r) => r.slice()) }; } };
+    g.SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => lembar }) };
+    g.SHEET_MEMO_ = null;
+    g.getSheetData('Siswa'); g.getSheetData('Siswa');
+    sama(baca, 2, 'tanpa memo: dibaca tiap kali');
+    g.SHEET_MEMO_ = {};
+    const a = g.getSheetData('Siswa');
+    a[1][1] = 'DIUBAH';
+    const b = g.getSheetData('Siswa');
+    sama([baca, b[1][1]], [3, 'Ani'], 'memo: sekali baca, salinan terpisah');
+    g.getSheet('Siswa');
+    g.getSheetData('Siswa');
+    sama(baca, 4, 'getSheet (jalur tulis) membuang memo');
+    sama([g.memoBolehFn_('waSiswaBeranda'), g.memoBolehFn_('waGetMateri'), g.memoBolehFn_('waStafRuangCek')], [true, true, true], 'fungsi baca');
+    sama([g.memoBolehFn_('waSubmitJawaban'), g.memoBolehFn_('waAdminSimpanPengguna'), g.memoBolehFn_('waStafAbsenWbCatat'), g.memoBolehFn_('waStafMasaTetapkan'), g.memoBolehFn_('')],
+      [false, false, false, false, false], 'fungsi tulis');
+  } finally { g.SHEET_MEMO_ = null; Object.assign(g, simpan); }
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

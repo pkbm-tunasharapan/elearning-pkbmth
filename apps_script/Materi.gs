@@ -166,7 +166,7 @@ var MATERI_MEMO_ = null;
 function getMateriById_(idMateri) {
   var values = MATERI_MEMO_ && MATERI_MEMO_.v;
   if (!values) {
-    values = getSheet(CONFIG.SHEETS.MATERI).getDataRange().getValues();
+    values = getSheetData(CONFIG.SHEETS.MATERI);   // v1.88.4: ikut memo baca per permintaan
     if (MATERI_MEMO_) MATERI_MEMO_.v = values;
   }
   var cols = materiCols_();
