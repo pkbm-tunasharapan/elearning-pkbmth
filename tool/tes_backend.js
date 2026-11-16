@@ -2267,5 +2267,31 @@ tes('onEdit: edit langsung di tab Pengguna/Broadcast/Notif/PIN/Perangkat membuan
   } finally { g.perfHapusCache_ = asli; }
 });
 
+// v1.88.3: cache beranda bertanda (versi data + tanggal + tambahan)
+tes('brdCacheBaca_: hanya dipakai bila versi data, tanggal, dan tambahan masih sama', () => {
+  const asli = g.absHariIni_;
+  try {
+    let hari = '2026-11-16';
+    g.absHariIni_ = () => hari;
+    const k = 'brds_tes';
+    const t1 = g.brdTanda_('x');
+    g.brdCacheTulis_(cache, k, t1, { kartu: [1] }, 1800);
+    sama(g.brdCacheBaca_(cache, k, g.brdTanda_('x')), { kartu: [1] }, 'tanda sama');
+    sama(g.brdCacheBaca_(cache, k, g.brdTanda_('y')), null, 'tambahan beda (jawaban baru)');
+    g.perfGantiVersi_();
+    const lalu = Date.now(); while (Date.now() === lalu) { /* versi berbasis milidetik */ }
+    g.perfGantiVersi_();
+    sama(g.brdCacheBaca_(cache, k, g.brdTanda_('x')), null, 'versi data berganti');
+    g.brdCacheTulis_(cache, k, g.brdTanda_('x'), { kartu: [2] }, 1800);
+    hari = '2026-11-17';
+    sama(g.brdCacheBaca_(cache, k, g.brdTanda_('x')), null, 'ganti hari');
+    cache.put(k, JSON.stringify({ kartu: [9] }));   // format lama (tanpa tanda)
+    sama(g.brdCacheBaca_(cache, k, g.brdTanda_('x')), null, 'format lama diabaikan');
+    cache.put(g.brdKunciSiswa_('R1', 'Ani'), 'x');
+    g.brdLupakanSiswa_('R1', 'ani ');
+    sama(cache.get(g.brdKunciSiswa_('R1', 'Ani')), null, 'kirim jawaban membuang beranda siswa itu');
+  } finally { g.absHariIni_ = asli; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

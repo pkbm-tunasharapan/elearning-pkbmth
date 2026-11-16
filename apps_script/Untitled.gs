@@ -553,6 +553,7 @@ function waSubmitUjian(payload) {
     try { pwCatat_(payload.idUjian, payload.idRombel, payload.nama, 'Jawaban dikirim otomatis (pelanggaran berat)', r && r.sukses ? 'Nilai sementara ' + r.nilaiTotal + ', menunggu tinjauan' : 'Gagal: ' + (r && r.pesan)); } catch (eC) {}
     if (r && r.sukses) r.pelanggaranBerat = true;
   }
+  if (r && r.sukses) brdLupakanSiswa_(payload.idRombel, payload.nama);   // v1.88.3: hasil ujian tampil di beranda
   if (r && r.sukses) {   // v1.57.0: nilai ditahan bila biaya ujian belum lunas
     var thK = null;
     try { thK = sbTertahan_(j, payload.idRombel, payload.nama); } catch (eK) {}

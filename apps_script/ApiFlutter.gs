@@ -34,8 +34,10 @@ function doPost(e) {
     var args = Array.isArray(body.args) ? body.args : [];
     if (!fn && body && body.signature_key && typeof refWebhook_ === 'function') {
       out = { ok: true, data: refWebhook_(body) };
+      if (typeof perfGantiVersi_ === 'function') perfGantiVersi_();   // v1.88.3: data berubah -> cache beranda dll. basi
     } else if (!fn && body && body.order && body.order.invoice_number && typeof dokuNotif_ === 'function') {   // v1.48.0: notifikasi DOKU
       out = { ok: true, data: dokuNotif_(body) };
+      if (typeof perfGantiVersi_ === 'function') perfGantiVersi_();   // v1.88.3: pembayaran masuk -> tagihan di beranda segar
     } else if (fn === 'ping') {
       out = { ok: true, data: { versi: API_FLUTTER.VERSI, waktu: waktuSekarang_() } };
     } else {
@@ -4087,8 +4089,8 @@ function brdIzinKsMenunggu_() {
 // ---------- staf ----------
 function waStafBeranda(token, paksa) {
   var p = stafDariToken_(token), q = absPeran_(p), k = [];
-  var ckB = 'brd_' + p.id, cB = CacheService.getScriptCache();
-  if (!paksa) { try { var lamaB = cB.get(ckB); if (lamaB) return JSON.parse(lamaB); } catch (eB) {} }
+  var ckB = 'brd_' + p.id, cB = CacheService.getScriptCache(), tandaB = brdTanda_(String(kcpAkhir_('jwb')));
+  if (!paksa) { var lamaB = brdCacheBaca_(cB, ckB, tandaB); if (lamaB) return lamaB; }
   var saya = q.tutor ? absTutorSaya_(p) : null;
   if (q.tutor) {
     var mapelSaya = {};
@@ -4170,7 +4172,8 @@ function waStafBeranda(token, paksa) {
     brdKartu_(k, function() { return brdKartuJadwalHariIni_(token); });
   }
   var hasilB = { peran: p.peran, kartu: k, waktu: absWaktu_() };
-  try { cB.put(ckB, JSON.stringify(hasilB), 600); } catch (eB2) {}
+  // v1.88.3: beranda yang memuat status absen hari ini (tutor, KS, FO, koordinator) tetap 10 menit; lainnya 30 menit.
+  brdCacheTulis_(cB, ckB, tandaB, hasilB, (q.tutor || q.ks || q.fo || q.koord || p.peran === 'Koordinator Unit') ? 600 : BRD.CACHE_DETIK);
   return hasilB;
 }
 function tglIndoBrd_(iso) { return brdTglPendek_(iso); }
@@ -4178,8 +4181,8 @@ function tglIndoBrd_(iso) { return brdTglPendek_(iso); }
 // ---------- siswa ----------
 function waSiswaBeranda(token, paksa) {
   var s = siswaDariSesi_(token), k = [], h0 = absHariIni_(), nn = normNama_(s.nama);
-  var ckS = 'brds_' + Utilities.base64EncodeWebSafe(String(s.idRombel) + '|' + nn).slice(0, 200), cS = CacheService.getScriptCache();
-  if (!paksa) { try { var lamaS = cS.get(ckS); if (lamaS) return JSON.parse(lamaS); } catch (eS) {} }
+  var ckS = brdKunciSiswa_(s.idRombel, s.nama), cS = CacheService.getScriptCache(), tandaS = brdTanda_('');
+  if (!paksa) { var lamaS = brdCacheBaca_(cS, ckS, tandaS); if (lamaS) return lamaS; }
   var mp = brdMapelBm_();
   var mapelKu = {};
   Object.keys(mp).forEach(function(id) { if (mp[id].idRombel === String(s.idRombel)) mapelKu[id] = mp[id]; });
@@ -4342,8 +4345,28 @@ function waSiswaBeranda(token, paksa) {
   });
   // v1.38.4: status kondisi belajar (Bahaya / Perlu perhatian / Baik) ditampilkan sebagai spanduk di atas beranda.
   var hasilS = { kartu: k, status: statusBelajar, waktu: absWaktu_() };
-  try { cS.put(ckS, JSON.stringify(hasilS), 600); } catch (eS2) {}
+  brdCacheTulis_(cS, ckS, tandaS, hasilS, BRD.CACHE_DETIK);
   return hasilS;
+}
+
+// ---------- v1.88.3: cache beranda ----------
+// Beranda disimpan bersama "tanda" (versi data + tanggal hari ini + tambahan). Cache hanya dipakai bila tandanya masih
+// sama: setiap penyimpanan data lewat aplikasi (perfGantiVersi_), edit langsung di spreadsheet (onEdit), ganti hari,
+// atau kiriman jawaban/ujian siswa itu sendiri membuat beranda dihitung ulang. Karena selalu segar, masa simpan bisa
+// lebih panjang (30 menit, sebelumnya 10 menit tanpa pemeriksaan).
+var BRD = { CACHE_DETIK: 1800 };
+function brdTanda_(tambahan) { return perfVersiData_() + '|' + absHariIni_() + '|' + (tambahan || ''); }
+function brdKunciSiswa_(idRombel, nama) { return 'brds_' + Utilities.base64EncodeWebSafe(String(idRombel) + '|' + normNama_(nama)).slice(0, 200); }
+function brdCacheBaca_(c, k, tanda) {
+  try { var x = JSON.parse(c.get(k) || 'null'); if (x && x.t === tanda && x.d) return x.d; } catch (e) {}
+  return null;
+}
+function brdCacheTulis_(c, k, tanda, data, detik) {
+  try { var s = JSON.stringify({ t: tanda, d: data }); if (s.length < 95000) c.put(k, s, detik); } catch (e) {}
+}
+// Dipanggil sesudah siswa mengirim jawaban/ujian: beranda siswa itu dihitung ulang (agenda "belum dikerjakan", nilai).
+function brdLupakanSiswa_(idRombel, nama) {
+  try { if (idRombel && nama) CacheService.getScriptCache().remove(brdKunciSiswa_(idRombel, nama)); } catch (e) {}
 }
 
 

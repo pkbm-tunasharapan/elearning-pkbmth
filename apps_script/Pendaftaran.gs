@@ -478,6 +478,7 @@ function waSubmitJawabanInti_(payload) {
     try { draftHapus_(payload && payload.idRombel, payload && payload.idMateri, payload && payload.nama); } catch (e) {}
     try { nvCatatJawaban_(payload); } catch (e) {}
     kcpTanda_('jwb');   // v1.42.0: Jawaban berubah
+    brdLupakanSiswa_(payload && payload.idRombel, payload && payload.nama);   // v1.88.3
   }
   try {
     catat_('Siswa', payload && payload.idRombel, payload && payload.nama, 'Kirim jawaban',

@@ -9,6 +9,7 @@
 var EDL = { MAKS_BARIS: 300 };
 
 function onEdit(e) {
+  try { perfGantiVersi_(); } catch (errV) {}   // v1.88.3: edit di tab mana pun -> cache berversi (beranda, dll.) dihitung ulang
   try { edlBuangCache_(e); } catch (err) {}
 }
 
