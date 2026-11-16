@@ -118,11 +118,16 @@ function npBaca_(hari, maks) {
   return sh.getRange(sh.getLastRow() - ambil + 1, 1, ambil, NP.HDR.length).getValues().map(npDariBaris_)
     .filter(function(e) { return e.id && e.ms >= batas; });
 }
+// v1.88.2: cache 30 menit (sebelumnya 10 menit). Dihapus setiap ada kejadian baru (npKirim_); isi cache disaring
+// ulang dengan waktu sekarang agar kejadian yang lewat dari HARI_TAMPIL tidak ikut.
 function npAktif_() {
   var c = CacheService.getScriptCache();
-  try { var lama = c.get(NP.CACHE); if (lama) return JSON.parse(lama); } catch (e) {}
+  try {
+    var lama = c.get(NP.CACHE), batas = Date.now() - NP.HARI_TAMPIL * 86400000;
+    if (lama) return JSON.parse(lama).filter(function(e) { return e.ms >= batas; });
+  } catch (e) {}
   var a = npBaca_(NP.HARI_TAMPIL, 600);
-  try { var s = JSON.stringify(a); if (s.length < 95000) c.put(NP.CACHE, s, 600); } catch (e2) {}
+  try { var s = JSON.stringify(a); if (s.length < 95000) c.put(NP.CACHE, s, 1800); } catch (e2) {}
   return a;
 }
 

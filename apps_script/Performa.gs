@@ -4,7 +4,7 @@
 //    (Run dari editor, hasil di Log eksekusi) atau waAdminPerforma (Admin). Panggilan cepat dicatat
 //    sebagian (1 dari 4, dihitung ulang), panggilan lambat (>= 1,5 detik) selalu dicatat.
 // 2) Cache data yang dibaca di hampir setiap permintaan:
-//    - daftar pengguna (pemeriksaan sesi stafDariToken_) selama 2 menit;
+//    - daftar pengguna (pemeriksaan sesi stafDariToken_) selama 10 menit (v1.88.2; sebelumnya 2 menit);
 //    - pengaturan absensi dari spreadsheet SIM (absSim_) selama 5 menit.
 //    Cache dihapus otomatis setiap ada fungsi Admin/simpan/ubah yang berhasil, sehingga perubahan
 //    pengaturan atau pengguna langsung berlaku.
@@ -138,7 +138,7 @@ function penggunaCache_() {
   var d = bacaPengguna_();
   try {
     var j = JSON.stringify(d);
-    if (j.length < 90000) c.put(PERF.CACHE_PENGGUNA, j, 120);
+    if (j.length < 90000) c.put(PERF.CACHE_PENGGUNA, j, 600);   // v1.88.2: 10 menit (sebelumnya 2 menit); tetap dihapus setiap pengguna diubah lewat aplikasi
   } catch (e2) {}
   PERF_MEMO_.pengguna = d;
   return d;

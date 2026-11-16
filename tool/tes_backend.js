@@ -2195,5 +2195,52 @@ tes('waSubmitJawaban: kiriman ganda siswa yang sama menunggu kiriman pertama, la
   } finally { Object.assign(g, asli); g.Utilities.sleep = tidur; g.MATERI_MEMO_ = null; }
 });
 
+// v1.88.2: cache notifikasi lebih lama, tetapi isi cache disaring ulang dengan waktu sekarang
+tes('bcAktif_: dari cache, broadcast yang sudah habis masa berlakunya tidak ikut', () => {
+  const asli = g.bcBacaSemua_;
+  try {
+    const now = Date.now();
+    let baca = 0;
+    g.bcBacaSemua_ = () => { baca++; return [
+      { id: 'A', status: 'Aktif', waktuMs: now - 1000, berlakuMs: now + 300, judul: 'a', sasaran: {} },
+      { id: 'B', status: 'Aktif', waktuMs: now - 2000, berlakuMs: now + 86400000, judul: 'b', sasaran: {} },
+    ]; };
+    cache.remove(g.BC.CACHE);
+    sama(g.bcAktif_().map((b) => b.id), ['A', 'B'], 'baca sheet');
+    // A dibuat kedaluwarsa di dalam cache -> tidak boleh ikut walau sheet tidak dibaca ulang
+    const isi = JSON.parse(cache.get(g.BC.CACHE)); isi[0].berlakuMs = now - 1; cache.put(g.BC.CACHE, JSON.stringify(isi));
+    sama([g.bcAktif_().map((b) => b.id), baca], [['B'], 1], 'dari cache, tersaring');
+    g.bcLupakan_();
+    g.bcAktif_();
+    sama(baca, 2, 'bcLupakan_ memaksa baca ulang');
+  } finally { g.bcBacaSemua_ = asli; cache.remove(g.BC.CACHE); }
+});
+tes('npAktif_: dari cache, kejadian lebih lama dari HARI_TAMPIL tidak ikut', () => {
+  const asli = g.npBaca_;
+  try {
+    const now = Date.now();
+    let baca = 0;
+    g.npBaca_ = () => { baca++; return [{ id: 'N1', ms: now - 1000 }, { id: 'N2', ms: now - 2000 }]; };
+    cache.remove(g.NP.CACHE);
+    sama(g.npAktif_().map((e) => e.id), ['N1', 'N2']);
+    const isi = JSON.parse(cache.get(g.NP.CACHE)); isi[1].ms = now - (g.NP.HARI_TAMPIL + 1) * 86400000; cache.put(g.NP.CACHE, JSON.stringify(isi));
+    sama([g.npAktif_().map((e) => e.id), baca], [['N1'], 1]);
+  } finally { g.npBaca_ = asli; cache.remove(g.NP.CACHE); }
+});
+tes('pinStatusCepat_: cache dipakai di hari yang sama, dihitung ulang saat ganti hari / cache lama', () => {
+  const asli = { pinStatus_: g.pinStatus_, absHariIni_: g.absHariIni_ };
+  try {
+    let hitung = 0, hari = '2026-11-16';
+    g.pinStatus_ = () => { hitung++; return { perlu: true, sisaHari: hitung }; };
+    g.absHariIni_ = () => hari;
+    const ck = g.PIN.CK_STATUS + g.pinCacheId_(g.normNama_('Ani') + '|R1');
+    cache.put(ck, JSON.stringify({ perlu: false }));   // format lama (tanpa tanggal) -> diabaikan
+    sama([g.pinStatusCepat_('Ani', 'R1').sisaHari, g.pinStatusCepat_('Ani', 'R1').sisaHari, hitung], [1, 1, 1], 'hari sama');
+    hari = '2026-11-17';
+    sama([g.pinStatusCepat_('Ani', 'R1').sisaHari, hitung], [2, 2], 'ganti hari');
+    cache.remove(ck);
+  } finally { Object.assign(g, asli); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

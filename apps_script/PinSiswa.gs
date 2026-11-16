@@ -139,12 +139,14 @@ function pinVersiDukung_() {
 function pinStatus_(nama, idRombel, catat) {
   return pinStatusTgl_(nama, idRombel, pinTglSiswa_(idRombel, nama), catat);
 }
-// Versi ringan (cache 10 menit) untuk pemeriksaan berkala pemberitahuan.
+// Versi ringan untuk pemeriksaan berkala pemberitahuan. v1.88.2: cache 1 jam (sebelumnya 10 menit), dengan tanggal
+// hari ini ikut disimpan; ganti hari = hitung ulang (sisa hari masa tenggang berubah per hari). Cache tetap dihapus
+// saat PIN dibuat / di-reset.
 function pinStatusCepat_(nama, idRombel) {
-  var c = CacheService.getScriptCache(), ck = PIN.CK_STATUS + pinCacheId_(normNama_(nama) + '|' + idRombel);
-  try { var lama = c.get(ck); if (lama) return JSON.parse(lama); } catch (e) {}
+  var c = CacheService.getScriptCache(), ck = PIN.CK_STATUS + pinCacheId_(normNama_(nama) + '|' + idRombel), hari = absHariIni_();
+  try { var lama = JSON.parse(c.get(ck) || 'null'); if (lama && lama.h === hari && lama.s) return lama.s; } catch (e) {}
   var s = pinStatus_(nama, idRombel, false);
-  try { c.put(ck, JSON.stringify(s), 600); } catch (e2) {}
+  try { c.put(ck, JSON.stringify({ h: hari, s: s }), 3600); } catch (e2) {}
   return s;
 }
 

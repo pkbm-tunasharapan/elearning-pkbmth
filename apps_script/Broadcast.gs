@@ -14,7 +14,7 @@ var BC = {
   H: ['ID', 'WAKTU', 'WAKTU MS', 'JUDUL', 'ISI', 'SASARAN', 'DIKIRIM OLEH', 'BERLAKU SAMPAI', 'BERLAKU MS', 'STATUS', 'DITARIK OLEH'],
   SH_PR: 'Perangkat Notif',
   H_PR: ['KUNCI', 'JENIS', 'ID', 'NAMA', 'ROMBEL', 'PERAN', 'PLATFORM', 'TERDAFTAR'],
-  CACHE: 'bc_aktif_v1',
+  CACHE: 'bc_aktif_v1', CACHE_DETIK: 1800,
   HARI_TAMPIL: 7,          // broadcast lebih lama dari ini tidak dikirim ke perangkat lagi
   MAKS_HARI: 30,
   PERAN: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Superadmin', 'Koordinator Unit', 'Dinas Pendidikan']
@@ -46,15 +46,20 @@ function bcBacaSemua_() {
   return out;
 }
 
-// Broadcast aktif terbaru (di-cache 60 detik; dibaca semua perangkat).
+// Broadcast aktif terbaru (dibaca semua perangkat). v1.88.2: cache 30 menit (sebelumnya 60 detik). Cache dihapus
+// setiap broadcast dikirim/ditarik (bcLupakan_), dan isi cache disaring ulang dengan waktu sekarang agar broadcast
+// yang sudah habis masa berlakunya tidak ikut terkirim.
 function bcAktif_() {
   var c = CacheService.getScriptCache();
-  try { var lama = c.get(BC.CACHE); if (lama) return JSON.parse(lama); } catch (e) {}
   var now = new Date().getTime(), batas = now - BC.HARI_TAMPIL * 86400000;
+  try {
+    var lama = c.get(BC.CACHE);
+    if (lama) return JSON.parse(lama).filter(function(b) { return b.berlakuMs > now && b.waktuMs >= batas; });
+  } catch (e) {}
   var a = bcBacaSemua_().filter(function(b) { return b.status === 'Aktif' && b.berlakuMs > now && b.waktuMs >= batas; })
     .sort(function(x, y) { return y.waktuMs - x.waktuMs; }).slice(0, 30)
     .map(function(b) { return { id: b.id, waktu: b.waktu, waktuMs: b.waktuMs, judul: b.judul, isi: b.isi, sasaran: b.sasaran, berlakuMs: b.berlakuMs, oleh: b.oleh }; });
-  try { c.put(BC.CACHE, JSON.stringify(a), 60); } catch (e2) {}
+  try { c.put(BC.CACHE, JSON.stringify(a), BC.CACHE_DETIK); } catch (e2) {}
   return a;
 }
 function bcLupakan_() { try { CacheService.getScriptCache().remove(BC.CACHE); } catch (e) {} }
