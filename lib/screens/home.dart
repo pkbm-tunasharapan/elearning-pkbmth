@@ -58,12 +58,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const _ikonGrup = <String, IconData>{
     'Pembelajaran': Icons.auto_stories_rounded,
+    'Ujian': Icons.assignment_turned_in_rounded,
     'Nilai & Rapor': Icons.grading_rounded,
     'Kehadiran': Icons.how_to_reg_rounded,
     'Jadwal & Kalender': Icons.calendar_month_rounded,
     'Warga Belajar': Icons.school_rounded,
-    'Keuangan & Honor': Icons.account_balance_wallet_rounded,
-    'Pengguna & Komunikasi': Icons.forum_rounded,
+    'Keuangan': Icons.account_balance_wallet_rounded,
+    'Pengguna': Icons.manage_accounts_rounded,
+    'Komunikasi': Icons.forum_rounded,
     'Sistem': Icons.settings_suggest_rounded,
   };
 

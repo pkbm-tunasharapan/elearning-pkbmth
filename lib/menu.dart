@@ -142,7 +142,7 @@ final List<MenuApp> semuaMenu = [
   MenuApp(id: 'peranIzin', judul: 'Peran & Izin', ikon: Icons.admin_panel_settings_outlined, peran: _admin, native: () => const PeranIzinScreen()),
   MenuApp(id: 'aturNotif', judul: 'Pengaturan Notifikasi', ikon: Icons.notifications_active_outlined, peran: _admin, native: () => const NotifAturanScreen()),
   MenuApp(id: 'pemeliharaan', judul: 'Pemeliharaan Sistem', ikon: Icons.health_and_safety_outlined, peran: _admin, native: () => const PemeliharaanScreen()),
-  MenuApp(id: 'maintenance', judul: 'Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
+  MenuApp(id: 'maintenance', judul: 'Mode Maintenance', ikon: Icons.construction_outlined, peran: _admin, native: () => const MaintenanceScreen()),
   MenuApp(id: 'cp', judul: 'CP · TP · ATP', ikon: Icons.account_tree_outlined, peran: _admin, native: () => const KerangkaScreen()),
 ];
 
@@ -161,19 +161,24 @@ List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.per
 // ───────────────────────── pengelompokan & pencarian menu ─────────────────────────
 
 /// Urutan grup menu di laci, beranda, dan pencarian.
-const urutanGrup = ['Pembelajaran', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kalender', 'Warga Belajar', 'Keuangan & Honor', 'Pengguna & Komunikasi', 'Sistem'];
+const urutanGrup = ['Pembelajaran', 'Ujian', 'Nilai & Rapor', 'Kehadiran', 'Jadwal & Kalender', 'Warga Belajar', 'Keuangan', 'Pengguna', 'Komunikasi', 'Sistem'];
 
+// v1.91.0: menu dikelompokkan sesuai fungsinya (urusan uang di Keuangan, urusan akun di Pengguna).
 const _grupMenu = <String, String>{
-  'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'kotakUjian': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
-  'progres': 'Pembelajaran', 'susulan': 'Pembelajaran', 'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'asesmen': 'Pembelajaran', 'ujianTerpusat': 'Pembelajaran', 'masaUjian': 'Pembelajaran', 'pengawasUjian': 'Pembelajaran', 'dispensasi': 'Pembelajaran', 'kelayakanUjian': 'Pembelajaran',
-  'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor', 'kinerja': 'Pengguna & Komunikasi',
+  'mapelSaya': 'Pembelajaran', 'nilai': 'Pembelajaran', 'progres': 'Pembelajaran', 'rpp': 'Pembelajaran', 'rppSemua': 'Pembelajaran',
+  'cp': 'Pembelajaran', 'kelolaMapel': 'Pembelajaran', 'susulan': 'Pembelajaran',
+  'masaUjian': 'Ujian', 'kotakUjian': 'Ujian', 'pengawasUjian': 'Ujian', 'kelayakanUjian': 'Ujian', 'dispensasi': 'Ujian', 'asesmen': 'Ujian', 'ujianTerpusat': 'Ujian',
+  'nilaiRapor': 'Nilai & Rapor', 'waliKelas': 'Nilai & Rapor', 'aturNilai': 'Nilai & Rapor', 'otoNilai': 'Nilai & Rapor',
   'absensi': 'Kehadiran', 'absenTutor': 'Kehadiran', 'absenSaya': 'Kehadiran', 'persetujuanKs': 'Kehadiran', 'laporanHadir': 'Kehadiran',
   'aturAbsensi': 'Kehadiran', 'kodeDarurat': 'Kehadiran',
-  'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'agendaLembaga': 'Jadwal & Kalender', 'ta': 'Jadwal & Kalender',
-  'dataInduk': 'Warga Belajar', 'referral': 'Warga Belajar', 'referralAdmin': 'Warga Belajar', 'promosi': 'Pengguna & Komunikasi', 'broadcast': 'Pengguna & Komunikasi', 'siswaRombel': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'pantauanUnit': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar', 'aktivasiQr': 'Warga Belajar', 'daftar': 'Warga Belajar', 'ganda': 'Warga Belajar',
-  'keuangan': 'Keuangan & Honor', 'vaCustom': 'Keuangan & Honor', 'kwitansi': 'Keuangan & Honor', 'rekapHonor': 'Keuangan & Honor', 'aturHonor': 'Keuangan & Honor', 'honorSaya': 'Keuangan & Honor',
-  'pengguna': 'Pengguna & Komunikasi', 'lihatSebagai': 'Pengguna & Komunikasi', 'pengajuanTutor': 'Pengguna & Komunikasi', 'ruangStaf': 'Pengguna & Komunikasi',
-  'log': 'Sistem', 'reset': 'Sistem', 'ai': 'Sistem', 'pemeliharaan': 'Sistem', 'arsip': 'Sistem', 'peranIzin': 'Sistem', 'maintenance': 'Sistem',
+  'jadwal': 'Jadwal & Kalender', 'usulanJadwal': 'Jadwal & Kalender', 'aturJadwal': 'Jadwal & Kalender', 'kalender': 'Jadwal & Kalender', 'agendaLembaga': 'Jadwal & Kalender',
+  'dataInduk': 'Warga Belajar', 'siswaRombel': 'Warga Belajar', 'daftar': 'Warga Belajar', 'imporDapodik': 'Warga Belajar', 'kartuQr': 'Warga Belajar',
+  'ganda': 'Warga Belajar', 'unitBelajar': 'Warga Belajar', 'pantauanUnit': 'Warga Belajar',
+  'keuangan': 'Keuangan', 'vaCustom': 'Keuangan', 'kwitansi': 'Keuangan', 'aktivasiQr': 'Keuangan', 'referral': 'Keuangan', 'referralAdmin': 'Keuangan',
+  'rekapHonor': 'Keuangan', 'aturHonor': 'Keuangan', 'honorSaya': 'Keuangan',
+  'pengguna': 'Pengguna', 'peranIzin': 'Pengguna', 'lihatSebagai': 'Pengguna', 'pengajuanTutor': 'Pengguna', 'kinerja': 'Pengguna',
+  'broadcast': 'Komunikasi', 'promosi': 'Komunikasi', 'ruangStaf': 'Komunikasi', 'aturNotif': 'Komunikasi',
+  'ta': 'Sistem', 'ai': 'Sistem', 'arsip': 'Sistem', 'log': 'Sistem', 'pemeliharaan': 'Sistem', 'maintenance': 'Sistem', 'reset': 'Sistem',
 };
 
 /// Kata kunci tambahan agar pencarian menemukan menu dengan istilah sehari-hari.
