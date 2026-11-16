@@ -102,8 +102,7 @@ function getSoalLengkapUntukUjian_(idUjian) {
 
 function hitungJumlahSoalUjian_(idUjian) {
   if (!idUjian) return 0;
-  var sheet = getSheet(CONFIG.SHEETS.SOAL_UJIAN);
-  var values = sheet.getDataRange().getValues();
+  var values = getSheetData(CONFIG.SHEETS.SOAL_UJIAN);   // v1.88.5: ikut memo baca per permintaan
   var cols = soalCols_();
   var jumlah = 0;
   for (var i = 1; i < values.length; i++) {

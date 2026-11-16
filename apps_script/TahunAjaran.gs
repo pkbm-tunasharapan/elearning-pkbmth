@@ -467,7 +467,7 @@ function waStafTahunBaruPratinjau(token) {
   var arsip = tbSheetArsip_().map(function(n) { return { nama: n, baris: tbBarisIsi_(ss.getSheetByName(n)) }; });
   var h = CONFIG.HEADERS.MATERI, iSt = h.indexOf('Status');
   var materi = 0;
-  getSheetData(CONFIG.SHEETS.MATERI).slice(1).forEach(function(r) {
+  materiTanpaKonten_().slice(1).forEach(function(r) {   // v1.88.5
     var s = sTeks_(r[iSt]).trim();
     if (s && s !== 'Draft') materi++;
   });

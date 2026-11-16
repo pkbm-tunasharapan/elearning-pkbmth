@@ -35,8 +35,7 @@ function generateId_(prefix) {
 // sengaja dibiarkan tanpa ID - supaya tutor bisa menyiapkan draft tanpa
 // langsung "terikat" ID sebelum yakin mau dipakai.
 function pastikanIdMateri_() {
-  var sheet = getSheet(CONFIG.SHEETS.MATERI);
-  var values = sheet.getDataRange().getValues();
+  var values = materiTanpaKonten_(), sheet = null;   // v1.88.5: tanpa kolom Konten; sheet diambil hanya bila perlu menulis
   var cols = materiCols_();
   var diisi = 0;
   for (var i = 1; i < values.length; i++) {
@@ -46,6 +45,7 @@ function pastikanIdMateri_() {
     var judul = row[cols.judul - 1];
     if (!judul) continue; // baris kosong, lewati
     if ((status === 'Aktif' || status === 'Selesai') && !sudahAdaId) {
+      sheet = sheet || getSheet(CONFIG.SHEETS.MATERI);
       sheet.getRange(i + 1, cols.id).setValue(generateId_('M-'));
       if (!row[cols.dibuatPada - 1]) {
         sheet.getRange(i + 1, cols.dibuatPada).setValue(new Date());
@@ -117,15 +117,26 @@ function doValidasiMateri() {
 
 function getMateriAktifUntukMapel_(idMapel) {
   pastikanIdMateri_();
-  var sheet = getSheet(CONFIG.SHEETS.MATERI);
-  var values = sheet.getDataRange().getValues();
+  // v1.88.5: baca tanpa kolom Konten, lalu Konten dibaca hanya untuk rentang baris mapel ini (satu panggilan).
+  // Sebelumnya seluruh sheet Materi (±5 MB) dibaca dua kali setiap siswa membuka daftar materi.
+  var values = materiTanpaKonten_();
   var cols = materiCols_();
+  var cocok = [];
+  for (var c0 = 1; c0 < values.length; c0++) {
+    var r0 = values[c0];
+    if (String(r0[cols.idMapel - 1]) === String(idMapel) && r0[cols.status - 1] === 'Aktif' && r0[cols.id - 1]) cocok.push(c0);
+  }
+  var kontenBaris = {};
+  if (cocok.length && cols.konten) {
+    var awal = cocok[0], akhir = cocok[cocok.length - 1];
+    var kv = getSheetMentah_(CONFIG.SHEETS.MATERI).getRange(awal + 1, cols.konten, akhir - awal + 1, 1).getValues();
+    cocok.forEach(function(b) { kontenBaris[b] = kv[b - awal][0]; });
+  }
   var out = [];
-  for (var i = 1; i < values.length; i++) {
+  for (var n = 0; n < cocok.length; n++) {
+    var i = cocok[n];
     var row = values[i];
-    if (String(row[cols.idMapel - 1]) !== String(idMapel)) continue;
-    if (row[cols.status - 1] !== 'Aktif') continue;
-    if (!row[cols.id - 1]) continue;
+    row[cols.konten - 1] = kontenBaris[i];
     var jenis = row[cols.jenis - 1];
     // 'Ujian' sekarang bisa berisi banyak soal (lihat SoalUjian.gs) - jadi
     // Opsi A-E pada baris Materi TIDAK dipakai lagi untuk jenis ini.
@@ -166,14 +177,41 @@ var MATERI_MEMO_ = null;
 function getMateriById_(idMateri) {
   var values = MATERI_MEMO_ && MATERI_MEMO_.v;
   if (!values) {
-    values = getSheetData(CONFIG.SHEETS.MATERI);   // v1.88.4: ikut memo baca per permintaan
+    values = materiTanpaKonten_();   // v1.88.5: tanpa kolom Konten (88% ukuran sheet); Konten baris ini dibaca sendiri
     if (MATERI_MEMO_) MATERI_MEMO_.v = values;
   }
   var cols = materiCols_();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][cols.id - 1]) === String(idMateri)) {
-      return { row: values[i], cols: cols };
+      var row = values[i], sudah = MATERI_MEMO_ ? (MATERI_MEMO_.k = MATERI_MEMO_.k || {}) : {};
+      if (cols.konten && row.length >= cols.konten && !sudah[i]) {
+        row[cols.konten - 1] = getSheetMentah_(CONFIG.SHEETS.MATERI).getRange(i + 1, cols.konten).getValue();
+        sudah[i] = true;
+      }
+      return { row: row, cols: cols };
     }
   }
   return null;
+}
+
+// v1.88.5: sheet Materi berukuran ±5 MB dan 88%-nya ada di kolom Konten/Instruksi. Fungsi yang tidak menampilkan isi
+// materi cukup membaca kolom di kiri dan kanan kolom Konten (dua rentang). Bentuk hasil sama dengan
+// getSheetData(Materi): selebar sheet, baris pertama = judul kolom, hanya sel Konten yang dikosongkan.
+// Ikut memo baca per permintaan (dibuang otomatis bila sheet Materi diambil untuk ditulis lewat getSheet).
+function materiTanpaKonten_() {
+  var nama = CONFIG.SHEETS.MATERI, kunci = nama + '|tk';
+  if (SHEET_MEMO_ && SHEET_MEMO_[kunci]) return SHEET_MEMO_[kunci].map(function(r) { return r.slice(); });
+  var sh = getSheetMentah_(nama), last = sh.getLastRow(), lebar = sh.getLastColumn(), k = materiCols_().konten, v = [];
+  if (last >= 1 && lebar >= 1) {
+    if (!k || k > lebar) {
+      v = sh.getRange(1, 1, last, lebar).getValues();
+    } else {
+      var kiri = k > 1 ? sh.getRange(1, 1, last, k - 1).getValues() : null;
+      var kanan = lebar > k ? sh.getRange(1, k + 1, last, lebar - k).getValues() : null;
+      for (var i = 0; i < last; i++) v.push((kiri ? kiri[i] : []).concat([i === 0 ? CONFIG.HEADERS.MATERI[k - 1] : ''], kanan ? kanan[i] : []));
+    }
+  }
+  if (!SHEET_MEMO_) return v;
+  SHEET_MEMO_[kunci] = v;
+  return v.map(function(r) { return r.slice(); });
 }

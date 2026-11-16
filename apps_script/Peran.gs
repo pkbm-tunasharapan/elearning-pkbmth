@@ -323,7 +323,7 @@ function waStafMateri(token, idMapel) {
   var iId = h.indexOf('ID Materi'), iMapel = h.indexOf('ID Mapel'), iJenis = h.indexOf('Jenis'),
       iJudul = h.indexOf('Judul'), iStatus = h.indexOf('Status'), iSesi = h.indexOf('Sesi'),
       iDibuat = h.indexOf('Dibuat Pada');
-  var v = getSheetData(CONFIG.SHEETS.MATERI);
+  var v = materiTanpaKonten_();   // v1.88.5
   var out = [];
   for (var i = 1; i < v.length; i++) {
     if (sTeks_(v[i][iMapel]).trim() !== String(idMapel)) continue;
@@ -379,7 +379,7 @@ function idUjianUntukMapel_(idMapel) {
   var h = CONFIG.HEADERS.MATERI;
   var iId = h.indexOf('ID Materi'), iMapel = h.indexOf('ID Mapel'), iJenis = h.indexOf('Jenis'), iJudul = h.indexOf('Judul');
   var peta = {};
-  var v = getSheetData(CONFIG.SHEETS.MATERI);
+  var v = materiTanpaKonten_();   // v1.88.5
   for (var i = 1; i < v.length; i++) {
     if (sTeks_(v[i][iMapel]).trim() === String(idMapel) && sTeks_(v[i][iJenis]).trim() === 'Ujian') {
       peta[sTeks_(v[i][iId]).trim()] = sTeks_(v[i][iJudul]);
@@ -774,7 +774,7 @@ function waAdminDaftarMapel(token) {
   });
   var iMateriMapel = CONFIG.HEADERS.MATERI.indexOf('ID Mapel');
   var jumlahMateri = {};
-  getSheetData(CONFIG.SHEETS.MATERI).forEach(function(r, i) {
+  materiTanpaKonten_().forEach(function(r, i) {   // v1.88.5
     if (i === 0) return;
     var k = sTeks_(r[iMateriMapel]).trim();
     if (k) jumlahMateri[k] = (jumlahMateri[k] || 0) + 1;
@@ -1377,7 +1377,7 @@ function rapikanSimCore_(terapkan) {
     var shR = getSheet(CONFIG.SHEETS.ROMBEL), shM = getSheet(CONFIG.SHEETS.MAPEL);
     var ss = shR.getParent();
     var vR = shR.getDataRange().getValues(), vM = shM.getDataRange().getValues();
-    var vMat = getSheetData(CONFIG.SHEETS.MATERI || 'Materi');
+    var vMat = materiTanpaKonten_();   // v1.88.5
     var vSis = getSheetData(CONFIG.SHEETS.SISWA);
 
     var materiPerMapel = {};

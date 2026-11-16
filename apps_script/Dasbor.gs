@@ -98,7 +98,7 @@ function dsbOnline_() {
   // diskusi aktif pada sesi berjalan, per mapel; jawaban siswa
   var diskusi = {}, dijawab = {};
   if (adaSesi) {
-    var vm = getSheetData(CONFIG.SHEETS.MATERI);
+    var vm = materiTanpaKonten_();   // v1.88.5
     if (vm.length) {
       var hm = vm[0].map(function(x) { return String(x).trim(); });
       var mId = hm.indexOf('ID Materi'), mMp = hm.indexOf('ID Mapel'), mJ = hm.indexOf('Jenis'), mSt = hm.indexOf('Status'), mSs = hm.indexOf('Sesi');

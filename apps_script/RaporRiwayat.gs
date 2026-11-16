@@ -208,7 +208,7 @@ function waAdminNilaiOtomatis(token, q, terapkan) {
 // Tugas diskusi yang belum dinilai tutor dan sesinya sudah berakhir.
 function nilTugasBelumDinilai_() {
   var cfg = taBaca_(), now = new Date().getTime(), materi = {}, mp = brdMapelBm_();
-  var vm = getSheetData(CONFIG.SHEETS.MATERI);
+  var vm = materiTanpaKonten_();   // v1.88.5
   if (vm.length) {
     var hm = vm[0].map(function(x) { return String(x).trim(); });
     var mId = hm.indexOf('ID Materi'), mJ = hm.indexOf('Jenis'), mSs = hm.indexOf('Sesi'), mJd = hm.indexOf('Judul');

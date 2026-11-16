@@ -58,7 +58,7 @@ function klData_() {
   try { ujJadwalSemua_().forEach(function(j) { if (j.idUjian) ujSet[String(j.idUjian)] = true; }); } catch (e1) {}
   if (aktifTa) {
     try {
-      var v = getSheet(CONFIG.SHEETS.MATERI).getDataRange().getValues(), c = materiCols_();
+      var v = materiTanpaKonten_(), c = materiCols_();   // v1.88.5
       for (var i = 1; i < v.length; i++) {
         var r = v[i], id = sTeks_(r[c.id - 1]).trim(), jenis = sTeks_(r[c.jenis - 1]).trim();
         if (!id || sTeks_(r[c.status - 1]).trim() !== 'Aktif' || ['Materi', 'Diskusi', 'Ujian'].indexOf(jenis) < 0) continue;

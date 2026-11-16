@@ -180,7 +180,7 @@ tes('rlsCatatGalat_: galat jaringan diabaikan, galat aplikasi dihitung', () => {
 // 6b. dasbor: absensi & tugas sesi berjalan (v1.38.9)
 tes('dsbOnline_: hitung absen sesi berjalan, belum absensi/tugas, kehadiran semester', () => {
   const simpan = {};
-  ['taBaca_', 'taInfo_', 'nilPeriode_', 'abSesiWajib_', 'brdMapelBm_', 'abBaca_', 'getSheetData', 'taParse_', 'hdrOnline_', 'nilSiswaBm_'].forEach((k) => { simpan[k] = g[k]; });
+  ['taBaca_', 'taInfo_', 'nilPeriode_', 'abSesiWajib_', 'brdMapelBm_', 'abBaca_', 'getSheetData', 'materiTanpaKonten_', 'taParse_', 'hdrOnline_', 'nilSiswaBm_'].forEach((k) => { simpan[k] = g[k]; });
   try {
     g.taBaca_ = () => ({ sesiPerSemester: 3 });
     g.taInfo_ = (c, smt, n) => ({ status: n < 3 ? 'lewat' : 'berjalan' });
@@ -189,6 +189,7 @@ tes('dsbOnline_: hitung absen sesi berjalan, belum absensi/tugas, kehadiran seme
     g.brdMapelBm_ = () => ({ M1: { idRombel: 'R1', rombel: 'Kelas 10', nama: 'MTK' }, M2: { idRombel: 'R1', rombel: 'Kelas 10', nama: 'IPA' } });
     g.abBaca_ = () => [{ smt: 1, n: 3, idMapel: 'M1', kunciNama: g.normNama_('Ani') }, { smt: 1, n: 3, idMapel: 'M2', kunciNama: g.normNama_('Ani') },
       { smt: 1, n: 3, idMapel: 'M1', kunciNama: g.normNama_('Budi') }, { smt: 1, n: 2, idMapel: 'M2', kunciNama: g.normNama_('Budi') }];
+    g.materiTanpaKonten_ = () => g.getSheetData('Materi');
     g.getSheetData = (nama) => nama === 'Materi'
       ? [['ID Materi', 'ID Mapel', 'Jenis', 'Status', 'Sesi'], ['D1', 'M1', 'Diskusi', 'Aktif', 'S1-3'], ['D0', 'M1', 'Diskusi', 'Aktif', 'S1-2']]
       : [['ID Rombel', 'ID Materi', 'Nama Siswa'], ['R1', 'D1', 'Ani']];
@@ -2138,8 +2139,18 @@ function siapKirimJawaban() {
   const H = g.CONFIG.HEADERS.MATERI;
   const baris = (id, jenis, kunci) => H.map((h) => ({ 'ID Materi': id, 'ID Mapel': 'MP1', 'Jenis': jenis, 'Judul': 'J-' + id, 'Status': 'Aktif',
     'Kunci Jawaban (A/B/C/D/E)': kunci || '', 'Poin': 100, 'Sesi': '' }[h] ?? ''));
-  const hit = { materi: 0, jawabanSemua: 0 };
-  const materi = { getDataRange: () => { hit.materi++; return { getValues: () => [H.slice(), baris('M-D', 'Diskusi'), baris('M-U', 'Ujian', 'B')] }; } };
+  const hit = { materi: 0, jawabanSemua: 0, utuh: 0 };
+  const mv = [H.slice(), baris('M-D', 'Diskusi'), baris('M-U', 'Ujian', 'B')];
+  mv[1][H.indexOf('Konten/Instruksi')] = 'isi diskusi';
+  const materi = {
+    getDataRange: () => { hit.materi++; hit.utuh++; return { getValues: () => mv.map((b) => b.slice()) }; },
+    getLastRow: () => mv.length, getLastColumn: () => H.length,
+    getRange: (r, c, nr, nc) => {
+      if (r === 1 && c === 1 && nr === mv.length) hit.materi++;
+      if (c <= H.indexOf('Konten/Instruksi') + 1 && c + (nc || 1) - 1 >= H.indexOf('Konten/Instruksi') + 1 && (nr || 1) > 1) hit.utuh++;
+      return { getValues: () => mv.slice(r - 1, r - 1 + (nr || 1)).map((b) => b.slice(c - 1, c - 1 + (nc || 1))), getValue: () => mv[r - 1][c - 1] };
+    },
+  };
   const jv = [g.CONFIG.HEADERS.JAWABAN.slice(), ['R0', 'MP1', 'X', 'M-D', 'J', 'Diskusi', 'Lain', 'teks', '', new Date()]];
   const jawaban = {
     v: jv,
@@ -2171,13 +2182,15 @@ tes('waSubmitJawaban: Materi dibaca sekali, Jawaban tidak dibaca utuh, kirim ula
     const a = g.waSubmitJawaban(p);
     sama([a.sukses, a.pesan, jv.length, hit.materi, hit.jawabanSemua], [true, 'Jawaban terkirim.', 3, 1, 0], 'kirim pertama');
     sama(g.MATERI_MEMO_, null, 'memo dilepas');
+    sama(hit.utuh, 0, 'kolom Konten tidak pernah dibaca utuh');
+    sama(g.getMateriById_('M-D').row[g.materiCols_().konten - 1], 'isi diskusi', 'Konten baris yang dicari tetap terisi');
     const waktu1 = jv[2][9];
     const b = g.waSubmitJawaban(Object.assign({}, p, { jawaban: 'tanggapan diperbaiki' }));
     sama([b.sukses, b.pesan, jv.length, jv[2][7], jv[2][9] === waktu1, jv[1][6]], [true, 'Jawaban diperbarui.', 3, 'tanggapan diperbaiki', true, 'Lain'], 'kirim ulang');
-    sama([hit.materi, hit.jawabanSemua], [2, 0], 'tetap sekali per kiriman');
+    sama([hit.materi, hit.jawabanSemua], [3, 0], 'tetap sekali per kiriman (1 tambahan dari pemeriksaan Konten di atas)');
     const c = g.waSubmitJawaban({ idRombel: 'R1', idMapel: 'MP1', idMateri: 'M-U', nama: 'Ani', jawaban: 'b', kodeAkses: 'X' });
     sama([c.sukses, c.nilai, jv.length, jv[3][7]], [true, 100, 4, 'B'], 'ujian pilihan ganda');
-    sama(g.getMateriById_('M-D') !== null && hit.materi === 4, true, 'di luar kiriman tanpa memo');
+    sama(g.getMateriById_('M-D') !== null && hit.materi === 5, true, 'di luar kiriman tanpa memo');
   } finally { Object.assign(g, asli); g.MATERI_MEMO_ = null; }
 });
 tes('waSubmitJawaban: kiriman ganda siswa yang sama menunggu kiriman pertama, lalu menimpa (tidak dobel)', () => {
@@ -2319,6 +2332,34 @@ tes('getSheetData: memo per permintaan baca - sekali baca, salinan terpisah, get
     sama([g.memoBolehFn_('waSubmitJawaban'), g.memoBolehFn_('waAdminSimpanPengguna'), g.memoBolehFn_('waStafAbsenWbCatat'), g.memoBolehFn_('waStafMasaTetapkan'), g.memoBolehFn_('')],
       [false, false, false, false, false], 'fungsi tulis');
   } finally { g.SHEET_MEMO_ = null; Object.assign(g, simpan); }
+});
+
+// v1.88.5: daftar materi siswa - Konten dibaca hanya untuk rentang baris mapel itu
+tes('getMateriAktifUntukMapel_: Konten tepat per baris, kolom Konten tidak dibaca utuh', () => {
+  const simpan = { getSheet: g.getSheet, getSheetMentah_: g.getSheetMentah_, getSheetData: g.getSheetData, hitungJumlahSoalUjian_: g.hitungJumlahSoalUjian_ };
+  try {
+    const H = g.CONFIG.HEADERS.MATERI, ik = H.indexOf('Konten/Instruksi');
+    const baris = (id, mp, jenis, konten, status) => H.map((h) => ({ 'ID Materi': id, 'ID Mapel': mp, 'Jenis': jenis, 'Judul': 'J-' + id, 'Konten/Instruksi': konten, 'Status': status || 'Aktif', 'Sesi': 'Sesi 1' }[h] ?? ''));
+    const mv = [H.slice(), baris('A1', 'MA', 'Materi', 'isi A1'), baris('B1', 'MB', 'Materi', 'isi B1'), baris('B2', 'MB', 'Diskusi', 'isi B2'),
+      baris('B3', 'MB', 'Materi', 'isi B3', 'Draft'), baris('B4', 'MB', 'Materi', 'isi B4'), baris('C1', 'MC', 'Materi', 'isi C1')];
+    const bacaKonten = [];
+    const lembar = {
+      getLastRow: () => mv.length, getLastColumn: () => H.length,
+      getDataRange: () => { throw new Error('tidak boleh membaca seluruh sheet'); },
+      getRange: (r, c, nr, nc) => {
+        nr = nr || 1; nc = nc || 1;
+        if (c <= ik + 1 && c + nc - 1 >= ik + 1) bacaKonten.push([r, nr]);
+        return { getValues: () => mv.slice(r - 1, r - 1 + nr).map((b) => b.slice(c - 1, c - 1 + nc)), setValue() { throw new Error('tidak boleh menulis'); } };
+      },
+    };
+    g.getSheet = g.getSheetMentah_ = () => lembar;
+    g.hitungJumlahSoalUjian_ = () => 0;
+    const d = g.getMateriAktifUntukMapel_('MB');
+    sama(d.map((x) => [x.id, x.konten]), [['B1', 'isi B1'], ['B2', 'isi B2'], ['B4', 'isi B4']], 'konten tepat, Draft dilewati');
+    sama(bacaKonten, [[3, 4]], 'Konten dibaca sekali, hanya baris 3..6 (mapel MB)');
+    sama(g.materiTanpaKonten_()[0][ik], 'Konten/Instruksi', 'judul kolom Konten tetap ada');
+    sama(g.materiTanpaKonten_()[1][ik], '', 'sel Konten dikosongkan');
+  } finally { Object.assign(g, simpan); }
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

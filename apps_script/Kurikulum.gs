@@ -1313,7 +1313,7 @@ function waStafKesiapanSemua(token) {
   var h = CONFIG.HEADERS.MATERI;
   var iMapel = h.indexOf('ID Mapel'), iJenis = h.indexOf('Jenis');
   var hitung = {};
-  getSheetData(CONFIG.SHEETS.MATERI).slice(1).forEach(function(r) {
+  materiTanpaKonten_().slice(1).forEach(function(r) {   // v1.88.5
     var id = sTeks_(r[iMapel]).trim();
     var jenis = sTeks_(r[iJenis]);
     if (!id || (jenis !== 'Materi' && jenis !== 'Diskusi')) return;

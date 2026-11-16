@@ -19,7 +19,7 @@ var SHEET_MEMO_TULIS = new RegExp('(Simpan|Hapus|Tetapkan|Batal|Catat|Ajukan|Set
 function memoBolehFn_(fn) { return !!fn && !SHEET_MEMO_TULIS.test(String(fn)); }
 
 function getSheet(name) {
-  if (SHEET_MEMO_) delete SHEET_MEMO_[name];   // sheet diambil langsung (mungkin akan ditulis) -> memo-nya tidak dipakai lagi
+  if (SHEET_MEMO_) { delete SHEET_MEMO_[name]; delete SHEET_MEMO_[name + '|tk']; }   // sheet diambil langsung (mungkin akan ditulis) -> memo-nya tidak dipakai lagi
   return getSheetMentah_(name);
 }
 

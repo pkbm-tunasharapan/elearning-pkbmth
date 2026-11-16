@@ -4204,7 +4204,7 @@ function waSiswaBeranda(token, paksa) {
       var hd = v[0].map(function(x) { return String(x).trim(); }), iR = hd.indexOf('ID Rombel'), iMt = hd.indexOf('ID Materi'), iS = hd.indexOf('Nama Siswa');
       for (var i = 1; i < v.length; i++) if (sTeks_(v[i][iR]) === String(s.idRombel) && normNama_(v[i][iS]) === nn) sudah[sTeks_(v[i][iMt]).trim()] = true;
     }
-    var m = getSheetData(CONFIG.SHEETS.MATERI), tugas = [];
+    var m = materiTanpaKonten_(), tugas = [];   // v1.88.5
     if (m.length) {
       var hm = m[0].map(function(x) { return String(x).trim(); });
       var cId = hm.indexOf('ID Materi'), cMp = hm.indexOf('ID Mapel'), cJ = hm.indexOf('Jenis'), cJd = hm.indexOf('Judul'), cB = hm.indexOf('Batas Waktu (opsional)'), cSt = hm.indexOf('Status');
@@ -4297,7 +4297,7 @@ function waSiswaBeranda(token, paksa) {
         var hj = vj[0].map(function(x) { return String(x).trim(); }), jR = hj.indexOf('ID Rombel'), jM = hj.indexOf('ID Materi'), jS = hj.indexOf('Nama Siswa');
         for (var a = 1; a < vj.length; a++) if (sTeks_(vj[a][jR]) === String(s.idRombel) && normNama_(vj[a][jS]) === nn) dijawab[sTeks_(vj[a][jM]).trim()] = true;
       }
-      var vm = getSheetData(CONFIG.SHEETS.MATERI);
+      var vm = materiTanpaKonten_();   // v1.88.5
       if (vm.length) {
         var hm = vm[0].map(function(x) { return String(x).trim(); });
         var mId = hm.indexOf('ID Materi'), mMp = hm.indexOf('ID Mapel'), mJ = hm.indexOf('Jenis'), mSt = hm.indexOf('Status'), mSs = hm.indexOf('Sesi');
