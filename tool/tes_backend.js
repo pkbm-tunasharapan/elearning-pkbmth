@@ -25,7 +25,7 @@ function tokoKunci() {
 const props = tokoKunci();
 const cache = (() => {
   const m = new Map();
-  return { get: (k) => (m.has(k) ? m.get(k) : null), put: (k, v) => { m.set(k, String(v)); }, remove: (k) => { m.delete(k); } };
+  return { get: (k) => (m.has(k) ? m.get(k) : null), put: (k, v) => { m.set(k, String(v)); }, remove: (k) => { m.delete(k); }, removeAll: (ks) => { ks.forEach((k) => m.delete(k)); } };
 })();
 const pad = (n) => String(n).padStart(2, '0');
 const Utilities = {
@@ -2240,6 +2240,31 @@ tes('pinStatusCepat_: cache dipakai di hari yang sama, dihitung ulang saat ganti
     sama([g.pinStatusCepat_('Ani', 'R1').sisaHari, hitung], [2, 2], 'ganti hari');
     cache.remove(ck);
   } finally { Object.assign(g, asli); }
+});
+
+// v1.88.2: edit langsung di spreadsheet membuang cache terkait
+tes('onEdit: edit langsung di tab Pengguna/Broadcast/Notif/PIN/Perangkat membuang cache terkait', () => {
+  const asli = g.perfHapusCache_;
+  try {
+    const ev = (nama, baris, isi) => ({ range: {
+      getRow: () => baris, getLastRow: () => baris + isi.length - 1,
+      getSheet: () => ({ getName: () => nama, getRange: (r, c, n, m) => ({ getValues: () => isi.slice(0, n).map((x) => x.slice(c - 1, c - 1 + m)) }) }),
+    } });
+    let hapus = 0;
+    g.perfHapusCache_ = () => { hapus++; };
+    sama([g.edlBuangCache_(ev('Pengguna', 3, [['U1']])), hapus], ['pengguna', 1]);
+    cache.put(g.BC.CACHE, '[]'); cache.put(g.NP.CACHE, '[]');
+    sama([g.edlBuangCache_(ev(g.BC.SH, 2, [['x']])), cache.get(g.BC.CACHE)], ['broadcast', null]);
+    sama([g.edlBuangCache_(ev(g.NP.TAB, 2, [['x']])), cache.get(g.NP.CACHE)], ['notif', null]);
+    const kPin = g.PIN.CK_STATUS + g.pinCacheId_(g.normNama_('Ani Lestari') + '|ROM-C10');
+    cache.put(kPin, 'x'); cache.put(g.PIN.CK_PETA, 'x');
+    sama([g.edlBuangCache_(ev(g.PIN.SHEET, 5, [['K', 'Ani Lestari', 'ROM-C10']])), cache.get(kPin), cache.get(g.PIN.CK_PETA)], ['pin', null, null]);
+    const kunciPr = 'P'.repeat(70);
+    cache.put('pn_' + kunciPr.slice(0, 60), 'x');
+    sama([g.edlBuangCache_(ev(g.BC.SH_PR, 4, [[kunciPr]])), cache.get('pn_' + kunciPr.slice(0, 60))], ['perangkat', null]);
+    sama([g.edlBuangCache_(ev('Siswa', 2, [['x']])), g.edlBuangCache_({}), hapus], ['', '', 1], 'tab lain / tanpa range');
+    g.onEdit(null);   // tidak boleh melempar galat
+  } finally { g.perfHapusCache_ = asli; }
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
