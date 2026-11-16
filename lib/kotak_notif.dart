@@ -99,8 +99,43 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
   if (layar != null) await nav.push(MaterialPageRoute(builder: (_) => layar!));
 }
 
+/// v1.88.0: notifikasi dikelompokkan per tanggal. Layar utama hanya hari ini s.d. [_hariTampil] hari sebelumnya;
+/// yang lebih lama masuk Inbox (layar yang sama dengan [inbox] = true).
+const _hariTampil = 3;
+const _namaHari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+const _namaBulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+/// Tanggal (tanpa jam) dari kolom waktu "yyyy-MM-dd HH:mm"; null bila tidak terbaca.
+DateTime? _tglNotif(Map<String, dynamic> p) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(teks(p['waktu']).trim());
+  if (m == null) return null;
+  return DateTime(int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
+}
+
+DateTime _hariIni() {
+  final n = DateTime.now();
+  return DateTime(n.year, n.month, n.day);
+}
+
+/// Masuk Inbox bila tanggalnya lebih lama dari [_hariTampil] hari sebelum hari ini. Tanggal tak terbaca tetap di layar utama.
+bool _masukInbox(Map<String, dynamic> p) {
+  final t = _tglNotif(p);
+  return t != null && t.isBefore(_hariIni().subtract(const Duration(days: _hariTampil)));
+}
+
+String _judulTanggal(DateTime? t) {
+  if (t == null) return 'Lainnya';
+  final selisih = _hariIni().difference(t).inDays;
+  if (selisih == 0) return 'Hari ini';
+  if (selisih == 1) return 'Kemarin';
+  return '${_namaHari[t.weekday - 1]}, ${t.day} ${_namaBulan[t.month - 1]} ${t.year}';
+}
+
 class KotakNotifScreen extends StatefulWidget {
-  const KotakNotifScreen({super.key});
+  const KotakNotifScreen({super.key, this.inbox = false});
+
+  /// true = layar Inbox (notifikasi lebih lama dari 3 hari).
+  final bool inbox;
 
   @override
   State<KotakNotifScreen> createState() => _KotakNotifScreenState();
@@ -137,14 +172,60 @@ class _KotakNotifScreenState extends State<KotakNotifScreen> {
     );
   }
 
+  Future<void> _bukaInbox() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const KotakNotifScreen(inbox: true)));
+    if (mounted) setState(() => _v++);
+  }
+
+  Widget _kartu(Map<String, dynamic> p, ColorScheme cs) {
+    final dibaca = _dibaca.contains(teks(p['id']));
+    final w = teks(p['waktu']).trim();
+    final jam = _tglNotif(p) != null && w.length >= 16 ? w.substring(11, 16) : w;
+    return Card(
+      color: dibaca ? null : cs.primaryContainer.withValues(alpha: 0.45),
+      child: ListTile(
+        onTap: () => _ketuk(p),
+        leading: Icon(_ikonJenis(teks(p['jenis'])), color: cs.primary),
+        title: Text(teks(p['judul'], 'Pemberitahuan'), style: TextStyle(fontWeight: dibaca ? FontWeight.w500 : FontWeight.w800)),
+        subtitle: Text('${teks(p['isi'])}\n$jam', maxLines: 3, overflow: TextOverflow.ellipsis),
+        isThreeLine: true,
+        trailing: teks(p['aksi']).isEmpty ? null : const Icon(Icons.chevron_right_rounded),
+      ),
+    );
+  }
+
+  /// Daftar yang dikelompokkan per tanggal (terbaru di atas), urutan dalam satu tanggal mengikuti server.
+  List<Widget> _kelompok(List<Map<String, dynamic>> data, ColorScheme cs) {
+    final grup = <String, List<Map<String, dynamic>>>{};
+    final tgl = <String, DateTime?>{};
+    for (final p in data) {
+      final t = _tglNotif(p);
+      final k = t == null ? '' : t.toIso8601String();
+      (grup[k] ??= []).add(p);
+      tgl[k] = t;
+    }
+    final kunci = grup.keys.toList()
+      ..sort((a, b) => a.isEmpty ? 1 : (b.isEmpty ? -1 : b.compareTo(a)));
+    return [
+      for (final k in kunci) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
+          child: Text(_judulTanggal(tgl[k]), style: TextStyle(fontWeight: FontWeight.w800, color: cs.primary)),
+        ),
+        for (final p in grup[k]!) _kartu(p, cs),
+      ],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final inbox = widget.inbox;
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifikasi'), actions: [
+      appBar: AppBar(title: Text(inbox ? 'Inbox Notifikasi' : 'Notifikasi'), actions: [
         TextButton(
           onPressed: () async {
-            final semua = await Pemberitahuan.instance.kotak();
+            final semua = (await Pemberitahuan.instance.kotak()).where((p) => _masukInbox(p) == inbox);
             await Pemberitahuan.instance.tandaiDibaca(semua.map((p) => teks(p['id'])));
             if (mounted) setState(() => _v++);
           },
@@ -154,24 +235,34 @@ class _KotakNotifScreenState extends State<KotakNotifScreen> {
       body: Muatan<List<Map<String, dynamic>>>(
         key: ValueKey(_v),
         muat: _muat,
-        bangun: (context, data, segarkan) => RefreshIndicator(
-          onRefresh: segarkan,
-          child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 32), children: [
-            if (data.isEmpty) const Kosong(pesan: 'Belum ada notifikasi.', ikon: Icons.notifications_none_rounded),
-            for (final p in data)
-              Card(
-                color: _dibaca.contains(teks(p['id'])) ? null : cs.primaryContainer.withValues(alpha: 0.45),
-                child: ListTile(
-                  onTap: () => _ketuk(p),
-                  leading: Icon(_ikonJenis(teks(p['jenis'])), color: cs.primary),
-                  title: Text(teks(p['judul'], 'Pemberitahuan'), style: TextStyle(fontWeight: _dibaca.contains(teks(p['id'])) ? FontWeight.w500 : FontWeight.w800)),
-                  subtitle: Text('${teks(p['isi'])}\n${teks(p['waktu'])}', maxLines: 3, overflow: TextOverflow.ellipsis),
-                  isThreeLine: true,
-                  trailing: teks(p['aksi']).isEmpty ? null : const Icon(Icons.chevron_right_rounded),
+        bangun: (context, semua, segarkan) {
+          final data = semua.where((p) => _masukInbox(p) == inbox).toList();
+          final lama = inbox ? const <Map<String, dynamic>>[] : semua.where(_masukInbox).toList();
+          final lamaBaru = lama.where((p) => !_dibaca.contains(teks(p['id']))).length;
+          return RefreshIndicator(
+            onRefresh: segarkan,
+            child: ListView(padding: const EdgeInsets.fromLTRB(12, 0, 12, 32), children: [
+              if (data.isEmpty)
+                Kosong(
+                  pesan: inbox ? 'Inbox kosong.' : 'Tidak ada notifikasi dalam $_hariTampil hari terakhir.',
+                  ikon: Icons.notifications_none_rounded,
                 ),
-              ),
-          ]),
-        ),
+              ..._kelompok(data, cs),
+              if (lama.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: ListTile(
+                    onTap: _bukaInbox,
+                    leading: Icon(Icons.inbox_rounded, color: cs.primary),
+                    title: Text('Inbox (${lama.length})', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('Notifikasi lebih dari $_hariTampil hari lalu${lamaBaru > 0 ? ' · $lamaBaru belum dibaca' : ''}'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                  ),
+                ),
+              ],
+            ]),
+          );
+        },
       ),
     );
   }
