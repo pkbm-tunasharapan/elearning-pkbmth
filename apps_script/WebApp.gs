@@ -170,16 +170,35 @@ function waSubmitJawabanAsli_(payload) {
 
   // Cegah duplikasi: kalau siswa sudah pernah submit untuk materi yang sama,
   // TIMPA baris lama (dianggap perbaikan jawaban) alih-alih menambah baris baru.
-  var existing = jawabanSheet.getDataRange().getValues();
-  for (var i = 1; i < existing.length; i++) {
-    var r = existing[i];
-    if (String(r[3]) === String(idMateri) && r[6] === nama) {
-      jawabanSheet.getRange(i + 1, 1, 1, 10).setValues([[idRombel, idMapel, namaMapel, idMateri, judul, jenis, nama, jawabanTeks, nilai, (jenis === 'Diskusi' && r[9] ? r[9] : new Date())]]);
+  // v1.88.1: kiriman ganda dari siswa yang sama untuk materi yang sama (ketuk dua kali / kirim ulang saat lambat)
+  // menunggu kiriman pertama selesai, supaya tidak tercatat dua baris. Siswa lain tidak ikut menunggu.
+  var kc = CacheService.getScriptCache(), kk = ('sbm|' + idMateri + '|' + nama).slice(0, 240);
+  for (var t = 0; t < 16 && kc.get(kk); t++) Utilities.sleep(500);
+  kc.put(kk, '1', 20);
+  try {
+    var baris = jwbCariBaris_(jawabanSheet, idMateri, nama);
+    if (baris) {
+      var waktuLama = jenis === 'Diskusi' ? jawabanSheet.getRange(baris, 10).getValue() : '';
+      jawabanSheet.getRange(baris, 1, 1, 10).setValues([[idRombel, idMapel, namaMapel, idMateri, judul, jenis, nama, jawabanTeks, nilai, (jenis === 'Diskusi' && waktuLama ? waktuLama : new Date())]]);
       return { sukses: true, pesan: 'Jawaban diperbarui.', nilai: nilai, jenis: jenis };
     }
+    jawabanSheet.appendRow([idRombel, idMapel, namaMapel, idMateri, judul, jenis, nama, jawabanTeks, nilai, new Date()]);
+    return { sukses: true, pesan: 'Jawaban terkirim.', nilai: nilai, jenis: jenis };
+  } finally {
+    kc.remove(kk);
   }
-  jawabanSheet.appendRow([idRombel, idMapel, namaMapel, idMateri, judul, jenis, nama, jawabanTeks, nilai, new Date()]);
-  return { sukses: true, pesan: 'Jawaban terkirim.', nilai: nilai, jenis: jenis };
+}
+
+// v1.88.1: cari baris jawaban (ID Materi + Nama Siswa) dengan membaca kolom D..G saja, bukan seluruh sheet Jawaban
+// (kolom Jawaban, komentar, dsb. berisi teks panjang dan memperlambat pembacaan). Hasil: nomor baris atau 0.
+function jwbCariBaris_(sh, idMateri, nama) {
+  var last = sh.getLastRow();
+  if (last < 2) return 0;
+  var v = sh.getRange(2, 4, last - 1, 4).getValues();   // D = ID Materi ... G = Nama Siswa
+  for (var i = 0; i < v.length; i++) {
+    if (String(v[i][0]) === String(idMateri) && v[i][3] === nama) return i + 2;
+  }
+  return 0;
 }
 
 // ---- Ujian multi-soal: mulai/lapor-pindah-tab/submit (implementasi di

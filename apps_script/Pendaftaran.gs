@@ -464,6 +464,11 @@ function waLogin(nama, kataSandi) {
 
 // ---------- pembungkus pencatat log untuk fungsi siswa yang sudah ada ----------
 function waSubmitJawaban(payload) {
+  MATERI_MEMO_ = {};   // v1.88.1: sheet Materi cukup dibaca sekali per kiriman
+  try { return waSubmitJawabanInti_(payload); } finally { MATERI_MEMO_ = null; }
+}
+
+function waSubmitJawabanInti_(payload) {
   var gSesi = taGerbang_(payload && payload.idMapel, payload && payload.idMateri, payload && payload.nama, 0) ||
     ndGerbangEdit_(payload) ||
     ndGerbangDiskusi_(payload && payload.idMapel, payload && payload.idMateri, payload && payload.jawaban);
@@ -578,15 +583,15 @@ function ndGerbangEdit_(payload) {
     var c = found.cols, row = found.row;
     if (String(row[c.idMapel - 1]) !== String(payload.idMapel)) return '';
     if (String(row[c.jenis - 1] || '').trim() !== 'Diskusi') return '';
-    var v = getSheet(CONFIG.SHEETS.JAWABAN).getDataRange().getValues();
-    for (var i = 1; i < v.length; i++) {
-      if (String(v[i][3]) === String(payload.idMateri) && v[i][6] === payload.nama) {
-        var w = (v[i][9] instanceof Date) ? v[i][9].getTime() : new Date(String(v[i][9])).getTime();
-        if (isNaN(w) || new Date().getTime() - w > ND_EDIT_MENIT * 60000) {
-          return 'Jawaban diskusi hanya dapat diubah dalam ' + ND_EDIT_MENIT + ' menit setelah dikirim. Waktu untuk mengubah sudah habis.';
-        }
-        return '';
+    var sh = getSheet(CONFIG.SHEETS.JAWABAN);
+    var baris = jwbCariBaris_(sh, payload.idMateri, payload.nama);
+    if (baris) {
+      var wk = sh.getRange(baris, 10).getValue();
+      var w = (wk instanceof Date) ? wk.getTime() : new Date(String(wk)).getTime();
+      if (isNaN(w) || new Date().getTime() - w > ND_EDIT_MENIT * 60000) {
+        return 'Jawaban diskusi hanya dapat diubah dalam ' + ND_EDIT_MENIT + ' menit setelah dikirim. Waktu untuk mengubah sudah habis.';
       }
+      return '';
     }
   } catch (e) {}
   return '';

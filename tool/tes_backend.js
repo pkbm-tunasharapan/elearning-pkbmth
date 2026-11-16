@@ -2133,5 +2133,67 @@ tes('masa: tempat pelaksanaan full online / di unit tampil di keterangan TTM yan
   } finally { g.ubPetaUnit_ = asli; g.MG_LIBUR_ = null; }
 });
 
+// v1.88.1: kirim jawaban - Materi dibaca sekali, Jawaban dicari lewat kolom D..G, kiriman ganda ditunggu
+function siapKirimJawaban() {
+  const H = g.CONFIG.HEADERS.MATERI;
+  const baris = (id, jenis, kunci) => H.map((h) => ({ 'ID Materi': id, 'ID Mapel': 'MP1', 'Jenis': jenis, 'Judul': 'J-' + id, 'Status': 'Aktif',
+    'Kunci Jawaban (A/B/C/D/E)': kunci || '', 'Poin': 100, 'Sesi': '' }[h] ?? ''));
+  const hit = { materi: 0, jawabanSemua: 0 };
+  const materi = { getDataRange: () => { hit.materi++; return { getValues: () => [H.slice(), baris('M-D', 'Diskusi'), baris('M-U', 'Ujian', 'B')] }; } };
+  const jv = [g.CONFIG.HEADERS.JAWABAN.slice(), ['R0', 'MP1', 'X', 'M-D', 'J', 'Diskusi', 'Lain', 'teks', '', new Date()]];
+  const jawaban = {
+    v: jv,
+    getDataRange: () => { hit.jawabanSemua++; return { getValues: () => jv.map((b) => b.slice()) }; },
+    getLastRow: () => jv.length,
+    appendRow: (r) => jv.push(r.slice()),
+    getRange: (r, c, nr, nc) => ({
+      getValues: () => jv.slice(r - 1, r - 1 + nr).map((b) => b.slice(c - 1, c - 1 + nc)),
+      getValue: () => jv[r - 1][c - 1],
+      setValues: (xs) => { xs.forEach((x, i) => { jv[r - 1 + i] = x.slice(); }); },
+    }),
+  };
+  g.getSheet = (n) => (n === g.CONFIG.SHEETS.MATERI ? materi : n === g.CONFIG.SHEETS.JAWABAN ? jawaban : { getDataRange: () => ({ getValues: () => [[]] }) });
+  g.taGerbang_ = (idMapel, idMateri) => { g.getMateriById_(idMateri); return ''; };
+  g.ndAlasanTolak_ = () => '';
+  g.getNamaMapel_ = () => 'Mapel 1';
+  g.cekKodeAksesSiswa_ = () => true;
+  g.draftHapus_ = () => {}; g.catat_ = () => {}; g.nvTulis_ = () => {}; g.mapelAktifSemua_ = () => [];
+  return { hit, jv };
+}
+tes('waSubmitJawaban: Materi dibaca sekali, Jawaban tidak dibaca utuh, kirim ulang menimpa baris yang sama', () => {
+  const asli = ['getSheet', 'taGerbang_', 'ndAlasanTolak_', 'getNamaMapel_', 'cekKodeAksesSiswa_', 'draftHapus_', 'catat_', 'nvTulis_', 'mapelAktifSemua_']
+    .reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  try {
+    const { hit, jv } = siapKirimJawaban();
+    const p = { idRombel: 'R1', idMapel: 'MP1', idMateri: 'M-D', nama: 'Ani', jawaban: 'tanggapan pertama' };
+    const a = g.waSubmitJawaban(p);
+    sama([a.sukses, a.pesan, jv.length, hit.materi, hit.jawabanSemua], [true, 'Jawaban terkirim.', 3, 1, 0], 'kirim pertama');
+    sama(g.MATERI_MEMO_, null, 'memo dilepas');
+    const waktu1 = jv[2][9];
+    const b = g.waSubmitJawaban(Object.assign({}, p, { jawaban: 'tanggapan diperbaiki' }));
+    sama([b.sukses, b.pesan, jv.length, jv[2][7], jv[2][9] === waktu1, jv[1][6]], [true, 'Jawaban diperbarui.', 3, 'tanggapan diperbaiki', true, 'Lain'], 'kirim ulang');
+    sama([hit.materi, hit.jawabanSemua], [2, 0], 'tetap sekali per kiriman');
+    const c = g.waSubmitJawaban({ idRombel: 'R1', idMapel: 'MP1', idMateri: 'M-U', nama: 'Ani', jawaban: 'b', kodeAkses: 'X' });
+    sama([c.sukses, c.nilai, jv.length, jv[3][7]], [true, 100, 4, 'B'], 'ujian pilihan ganda');
+    sama(g.getMateriById_('M-D') !== null && hit.materi === 4, true, 'di luar kiriman tanpa memo');
+  } finally { Object.assign(g, asli); g.MATERI_MEMO_ = null; }
+});
+tes('waSubmitJawaban: kiriman ganda siswa yang sama menunggu kiriman pertama, lalu menimpa (tidak dobel)', () => {
+  const asli = ['getSheet', 'taGerbang_', 'ndAlasanTolak_', 'getNamaMapel_', 'cekKodeAksesSiswa_', 'draftHapus_', 'catat_', 'nvTulis_', 'mapelAktifSemua_']
+    .reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  const tidur = g.Utilities.sleep;
+  try {
+    const { jv } = siapKirimJawaban();
+    const p = { idRombel: 'R1', idMapel: 'MP1', idMateri: 'M-D', nama: 'Budi', jawaban: 'satu' };
+    g.waSubmitJawaban(p);
+    const kk = 'sbm|M-D|Budi';
+    cache.put(kk, '1');   // seolah kiriman pertama masih berjalan
+    let tunggu = 0;
+    g.Utilities.sleep = () => { tunggu++; if (tunggu === 2) cache.remove(kk); };
+    const b = g.waSubmitJawaban(Object.assign({}, p, { jawaban: 'dua' }));
+    sama([b.pesan, tunggu, jv.length, jv[2][7], cache.get(kk)], ['Jawaban diperbarui.', 2, 3, 'dua', null]);
+  } finally { Object.assign(g, asli); g.Utilities.sleep = tidur; g.MATERI_MEMO_ = null; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

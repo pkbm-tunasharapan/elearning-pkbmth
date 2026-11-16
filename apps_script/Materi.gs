@@ -158,9 +158,17 @@ function getMateriAktifUntukMapel_(idMapel) {
   return out;
 }
 
+// v1.88.1: memo isi sheet Materi selama satu permintaan kirim jawaban (diaktifkan waSubmitJawaban, yang tidak
+// mengubah Materi). Sebelumnya satu kiriman membaca seluruh sheet Materi 5 kali (gerbang sesi, gerbang edit,
+// gerbang diskusi, simpan, catat notifikasi). Di luar kiriman jawaban memo = null, jadi perilaku tidak berubah.
+var MATERI_MEMO_ = null;
+
 function getMateriById_(idMateri) {
-  var sheet = getSheet(CONFIG.SHEETS.MATERI);
-  var values = sheet.getDataRange().getValues();
+  var values = MATERI_MEMO_ && MATERI_MEMO_.v;
+  if (!values) {
+    values = getSheet(CONFIG.SHEETS.MATERI).getDataRange().getValues();
+    if (MATERI_MEMO_) MATERI_MEMO_.v = values;
+  }
   var cols = materiCols_();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][cols.id - 1]) === String(idMateri)) {
