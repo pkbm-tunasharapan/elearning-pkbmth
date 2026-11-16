@@ -420,7 +420,6 @@ var GWM = {
     'BRI_VA | VA BRI | 0 | 4000',
     'ECHANNEL | VA Mandiri (Mandiri Bill) | 0 | 4000',
     'PERMATA_VA | VA Permata | 0 | 4000',
-    'CIMB_VA | VA CIMB Niaga | 0 | 4000',
     'OTHER_VA | VA bank lain (ATM Bersama/Prima/Alto) | 0 | 4000',
     'OTHER_QRIS | QRIS (semua e-wallet & m-banking) | 0.7 | 0',
     'GOPAY | GoPay | 2 | 0',
