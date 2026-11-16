@@ -827,7 +827,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(title: Text(teks(w['nama']), style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text('Sisa ${rp(w['sisa'])} dari ${rp(w['tagihan'])}')),
           if (angka(w['sisa']) > 0) ListTile(leading: const Icon(Icons.payments_rounded), title: const Text('Catat pembayaran'), onTap: () => Navigator.pop(c, 'bayar')),
-          if (angka(w['sisa']) > 0 && online) ListTile(leading: const Icon(Icons.credit_card_rounded), title: const Text('Bayar online (DOKU)'), subtitle: const Text('Sisa + biaya admin metode · buka sekarang atau kirim ke WB'), onTap: () => Navigator.pop(c, 'online')),
+          if (angka(w['sisa']) > 0 && online) ListTile(leading: const Icon(Icons.credit_card_rounded), title: const Text('Bayar online'), subtitle: const Text('Sisa + biaya admin metode · buka sekarang atau kirim ke WB'), onTap: () => Navigator.pop(c, 'online')),
           if (angka(w['sisa']) > 0) ListTile(leading: const Icon(Icons.volunteer_activism_outlined), title: const Text('Beri keringanan'), onTap: () => Navigator.pop(c, 'ringan')),
         ]),
       ),
@@ -837,7 +837,7 @@ class _TagihanRinciScreenState extends State<TagihanRinciScreen> {
       final kode = await pilihMetodeBayar(context, pokok: angka(w['sisa']), metode: metode, judul: 'Metode bayar ${teks(w['nama'])}');
       if (kode == null || !mounted) return;
       final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanLinkBayar', [_t, {'idTagihan': widget.id, 'idWb': teks(w['idWb']), 'metode': kode}], const Duration(minutes: 2))),
-          teksProses: 'Membuat link DOKU...');
+          teksProses: 'Membuat link bayar...');
       if (r.ok && mounted) await tampilLinkBayar(context, r.data!);
       if (mounted) setState(() => _v++);
       return;
@@ -1759,7 +1759,7 @@ class _OrderOnlineScreenState extends State<OrderOnlineScreen> {
       };
 
   Future<void> _cek(Map<String, dynamic> o) async {
-    final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanCekBayar', [_t, teks(o['invoice'])], const Duration(minutes: 1))), teksProses: 'Memeriksa ke DOKU...');
+    final r = await jalankan(context, () async => peta(await Api.instance('waStafTagihanCekBayar', [_t, teks(o['invoice'])], const Duration(minutes: 1))), teksProses: 'Memeriksa status pembayaran...');
     if (r.ok && mounted) {
       kabar(context, 'Status: ${teks(r.data!['status'])}${teks(r.data!['galat']).isEmpty ? '' : '\n${teks(r.data!['galat'])}'}');
       setState(() => _v++);
@@ -1782,7 +1782,7 @@ class _OrderOnlineScreenState extends State<OrderOnlineScreen> {
                 const Card(
                   child: ListTile(
                     leading: Icon(Icons.info_outline_rounded),
-                    title: Text('Pembayaran online DOKU belum diaktifkan'),
+                    title: Text('Pembayaran online belum diaktifkan'),
                     subtitle: Text('Atur di Referral → Pengaturan → Payment gateway.'),
                   ),
                 ),

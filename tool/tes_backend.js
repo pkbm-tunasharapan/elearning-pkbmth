@@ -40,8 +40,8 @@ const Utilities = {
   computeHmacSha256Signature: (v, k) => Array.from(crypto.createHmac('sha256', k).update(v).digest()).map((b) => (b > 127 ? b - 256 : b)),
   base64Encode: (b) => Buffer.from(b).toString('base64'),
   base64EncodeWebSafe: (b) => Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
-  computeDigest: (alg, v) => Array.from(crypto.createHash('sha256').update(String(v), 'utf8').digest()).map((b) => (b > 127 ? b - 256 : b)),
-  DigestAlgorithm: { SHA_256: 'SHA_256' }, Charset: { UTF_8: 'UTF_8' },
+  computeDigest: (alg, v) => Array.from(crypto.createHash(alg === 'SHA_512' ? 'sha512' : 'sha256').update(String(v), 'utf8').digest()).map((b) => (b > 127 ? b - 256 : b)),
+  DigestAlgorithm: { SHA_256: 'SHA_256', SHA_512: 'SHA_512' }, Charset: { UTF_8: 'UTF_8' },
 };
 const tolak = (nama) => new Proxy({}, { get: (_, p) => () => { throw new Error('Layanan ' + nama + '.' + String(p) + ' tidak tersedia di tes'); } });
 const konteks = {
@@ -2406,6 +2406,77 @@ tes('catat_: satu appendRow, nilai berawalan apostrof (teks), mode lihat tidak m
     g.catat_('Siswa', '', 'C', 'x', '', 'OK');
     sama(tulis.length, 2, 'mode lihat tidak mencatat');
   } finally { g.__INTIP = false; Object.assign(g, simpan); }
+});
+
+// v1.89.0: Midtrans Snap untuk pembayaran online (tiruan server Midtrans)
+function siapMidtrans(statusJawab) {
+  const tabel = [], panggil = [];
+  const asli = ['rfAturan_', 'gwBaca_', 'gwTambah_', 'gwUbah_', 'gwCari_', 'gwSelesai_', 'catat_', 'UrlFetchApp'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  g.rfAturan_ = () => ({ gateway: { aktif: true, penyedia: 'midtrans', serverKey: 'SB-Mid-server-TES', produksi: false, dokuMasaBayar: 60 } });
+  g.gwBaca_ = () => tabel.map((x, i) => Object.assign({ _baris: i + 2 }, x));
+  g.gwTambah_ = (o) => tabel.push(Object.assign({}, o));
+  g.gwUbah_ = (b, o) => Object.assign(tabel[b - 2], o);
+  g.gwCari_ = (inv) => g.gwBaca_().filter((x) => x['INVOICE'] === String(inv))[0] || null;
+  g.catat_ = () => {};
+  g.gwSelesai_ = (x, bayar, kanal) => { panggil.push(['selesai', x['INVOICE'], bayar, kanal]); return { status: 'Lunas' }; };
+  g.UrlFetchApp = { fetch: (url, opsi) => {
+    panggil.push(['fetch', url, opsi.method, opsi.headers.Authorization, opsi.payload ? JSON.parse(opsi.payload) : null]);
+    if (/snap\/v1\/transactions$/.test(url)) return { getResponseCode: () => 201, getContentText: () => JSON.stringify({ token: 't', redirect_url: 'https://app.sandbox.midtrans.com/snap/v4/redirection/t' }) };
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify(statusJawab()) };
+  } };
+  return { tabel, panggil, pulihkan: () => Object.assign(g, asli) };
+}
+tes('Midtrans: buat order Snap (metode terpilih, total tetap, Basic auth), order lama dipakai ulang', () => {
+  const m = siapMidtrans(() => ({}));
+  try {
+    const o = g.gwBuatOrder_({ jenis: 'Tagihan', ref: 'TG1', idWb: 'WB1', nama: 'Ani', uraian: 'SPP - Ani', pokok: 100000, metode: 'BCA_VA', hp: '0812-3456', oleh: 'Ani (siswa)' });
+    const f = m.panggil[0];
+    sama([/^https:\/\/app\.sandbox\.midtrans\.com\/snap\/v1\/transactions$/.test(f[1]), f[2], f[3]], [true, 'post', 'Basic ' + Buffer.from('SB-Mid-server-TES:').toString('base64')], 'alamat & kunci');
+    sama([f[4].enabled_payments, f[4].transaction_details.gross_amount, f[4].item_details.map((i) => i.price), f[4].expiry, f[4].customer_details.phone],
+      [['bca_va'], 104000, [100000, 4000], { unit: 'minute', duration: 60 }, '08123456'], 'isi Snap');
+    sama([o.url, o.jumlah, o.biaya, m.tabel[0]['PENYEDIA'], m.tabel[0]['METODE']], ['https://app.sandbox.midtrans.com/snap/v4/redirection/t', 104000, 4000, 'Midtrans (sandbox)', 'BCA_VA'], 'order tercatat');
+    m.tabel[0]['KADALUARSA'] = '2999-01-01 00:00';
+    const o2 = g.gwBuatOrder_({ jenis: 'Tagihan', ref: 'TG1', idWb: 'WB1', nama: 'Ani', uraian: 'SPP - Ani', pokok: 100000, metode: 'BCA_VA' });
+    sama([o2.lama, m.panggil.length], [true, 1], 'dipakai ulang tanpa memanggil Midtrans');
+    sama(g.gwMetode_({ penyedia: 'midtrans' }).map((x) => x.grup).filter((v, i, a) => a.indexOf(v) === i), ['Virtual Account', 'QRIS & e-wallet', 'Gerai retail'], 'grup katalog');
+  } finally { m.pulihkan(); }
+});
+tes('Midtrans: cek status - settlement diselesaikan dengan kanal katalog, expire/cancel, belum ada transaksi tetap menunggu', () => {
+  let jawab = {};
+  const m = siapMidtrans(() => jawab);
+  try {
+    m.tabel.push({ 'INVOICE': 'TAG-1', 'STATUS': 'Menunggu', 'JUMLAH': 104000, 'PENYEDIA': 'Midtrans (sandbox)', 'KADALUARSA': '2999-01-01 00:00' });
+    jawab = { status_code: '404', status_message: "Transaction doesn't exist." };
+    sama(g.gwPeriksa_('TAG-1').status, 'Menunggu', 'belum memilih bayar');
+    sama(/api\.sandbox\.midtrans\.com\/v2\/TAG-1\/status$/.test(m.panggil[0][1]), true, 'mode sandbox mengikuti order');
+    jawab = { status_code: '201', transaction_status: 'pending', order_id: 'TAG-1' };
+    sama(g.gwPeriksa_('TAG-1').status, 'Menunggu', 'pending');
+    jawab = { status_code: '200', transaction_status: 'settlement', order_id: 'TAG-1', gross_amount: '104000.00', payment_type: 'bank_transfer', va_numbers: [{ bank: 'bca', va_number: '1' }] };
+    g.gwPeriksa_('TAG-1');
+    sama(m.panggil.filter((p) => p[0] === 'selesai'), [['selesai', 'TAG-1', 104000, 'BCA_VA']], 'lunas');
+    sama([g.gwMtKanal_({ payment_type: 'echannel' }), g.gwMtKanal_({ payment_type: 'qris' }), g.gwMtKanal_({ payment_type: 'cstore', store: 'indomaret' }),
+      g.gwMtKanal_({ payment_type: 'bank_transfer', permata_va_number: '9' }), g.gwMtKanal_({ payment_type: 'gopay' })],
+      ['ECHANNEL', 'OTHER_QRIS', 'INDOMARET', 'PERMATA_VA', 'GOPAY'], 'pemetaan kanal');
+    jawab = { status_code: '407', transaction_status: 'expire', order_id: 'TAG-1' };
+    sama([g.gwPeriksa_('TAG-1').status, m.tabel[0]['STATUS']], ['Kedaluwarsa', 'Kedaluwarsa'], 'expire');
+    m.tabel.push({ 'INVOICE': 'TAG-2', 'STATUS': 'Menunggu', 'JUMLAH': 1000, 'PENYEDIA': 'Midtrans' });
+    jawab = { status_code: '202', transaction_status: 'deny', order_id: 'TAG-2' };
+    sama(g.gwPeriksa_('TAG-2').status, 'Gagal', 'deny');
+    sama(/\/\/api\.midtrans\.com\//.test(m.panggil[m.panggil.length - 1][1]), true, 'order produksi diperiksa ke produksi');
+  } finally { m.pulihkan(); }
+});
+tes('Midtrans: notifikasi - tanda tangan salah ditolak, order gateway diteruskan ke pemeriksaan status', () => {
+  let jawab = { status_code: '200', transaction_status: 'settlement', order_id: 'TAG-9', gross_amount: '50000.00', payment_type: 'qris' };
+  const m = siapMidtrans(() => jawab);
+  try {
+    m.tabel.push({ 'INVOICE': 'TAG-9', 'STATUS': 'Menunggu', 'JUMLAH': 50000, 'PENYEDIA': 'Midtrans (sandbox)' });
+    const ttd = (b) => require('crypto').createHash('sha512').update(b.order_id + b.status_code + b.gross_amount + 'SB-Mid-server-TES').digest('hex');
+    const body = { order_id: 'TAG-9', status_code: '200', gross_amount: '50000.00', transaction_status: 'settlement' };
+    sama(g.refWebhook_(Object.assign({}, body, { signature_key: 'palsu' })).alasan, 'tanda tangan', 'palsu ditolak');
+    sama(m.panggil.length, 0, 'tidak memanggil Midtrans');
+    const h = g.refWebhook_(Object.assign({}, body, { signature_key: ttd(body) }));
+    sama([h.status, m.panggil.filter((p) => p[0] === 'selesai')], ['Lunas', [['selesai', 'TAG-9', 50000, 'OTHER_QRIS']]], 'sah -> dikonfirmasi lalu lunas');
+  } finally { m.pulihkan(); }
 });
 
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');

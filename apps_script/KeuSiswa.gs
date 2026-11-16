@@ -65,12 +65,12 @@ function waSiswaTagihan(token) {
   keuTagSemua_().data.forEach(function(t) { namaTag[t.id] = t.nama; });
   var riwayat = keuSemua_().filter(function(x) { return x.idWb === w.id && x.jenis === 'Pemasukan' && keuSah_(x) && (x.idTagihan || x.kategori === 'ADP'); }).map(function(x) {
     return { id: x.id, tanggal: x.tanggal, tagihan: namaTag[x.idTagihan] || (x.kategori === 'ADP' ? 'Biaya admin pembayaran online' : ''), jumlah: x.jumlah,
-      cara: /DOKU/.test(x.uraian) ? 'Online' : (x.dicatatOleh === 'Gateway otomatis' ? 'Online' : 'Petugas / transfer') };
+      cara: /DOKU|Midtrans/.test(x.uraian) ? 'Online' : (x.dicatatOleh === 'Gateway otomatis' ? 'Online' : 'Petugas / transfer') };
   }).sort(function(a, b) { return b.tanggal.localeCompare(a.tanggal); }).slice(0, 100);
   var pending = gwBaca_().filter(function(o) { return o['JENIS'] === 'Tagihan' && o['ID WB'] === w.id && o['STATUS'] === 'Menunggu'; }).map(function(o) {
     return { invoice: o['INVOICE'], idTagihan: o['REF'], total: Number(o['JUMLAH']) || 0, metode: o['METODE'], url: o['URL'], kadaluarsa: o['KADALUARSA'] };
   });
-  var at = rfAturan_(), d = gwDoku_();
+  var at = rfAturan_(), d = gwAktif_();   // v1.89.0: DOKU atau Midtrans
   return {
     wb: { id: w.id, nama: w.nama, rombel: w.namaRombel }, tagihan: tagihan, riwayat: riwayat, pending: pending,
     transfer: tf.slice(-20).reverse().map(function(x) { return { id: x.id, waktu: x.waktu, idTagihan: x.idTagihan, tagihan: namaTag[x.idTagihan] || x.idTagihan, jumlah: x.jumlah, status: x.status, catatan: x.catatan }; }),

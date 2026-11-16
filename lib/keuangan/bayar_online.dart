@@ -241,7 +241,7 @@ class _TungguBayarState extends State<_TungguBayar> {
           ],
           const LinearProgressIndicator(),
           const SizedBox(height: 12),
-          Text('Halaman pembayaran DOKU terbuka di tab baru. Selesaikan pembayaran di sana; status di sini diperbarui otomatis.\n\nStatus: $_status'),
+          Text('Halaman pembayaran terbuka di tab baru. Selesaikan pembayaran di sana; status di sini diperbarui otomatis.\n\nStatus: $_status'),
         ]),
         actions: [
           TextButton(onPressed: () => launchUrl(Uri.parse(widget.url), webOnlyWindowName: '_blank'), child: const Text('Buka lagi')),

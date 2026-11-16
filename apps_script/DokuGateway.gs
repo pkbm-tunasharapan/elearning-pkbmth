@@ -59,9 +59,31 @@ function gwDoku_() {
   return { aktif: !!g.aktif && g.penyedia === 'doku' && !!g.dokuClientId && !!g.dokuSecretKey, produksi: !!g.produksi, clientId: g.dokuClientId || '',
     secret: g.dokuSecretKey || '', masa: Math.round(Number(g.dokuMasaBayar) || GW.MASA_BAWAAN), g: g };
 }
+// v1.89.0: Midtrans Snap sebagai penyedia kedua (pilihan "penyedia" di Pengaturan Referral -> Payment gateway).
+// Batas waktu bayar memakai pengaturan yang sama (dokuMasaBayar, menit).
+function gwMidtrans_(produksi) {
+  var g = rfAturan_().gateway || {};
+  return { aktif: !!g.aktif && g.penyedia === 'midtrans' && !!g.serverKey, produksi: produksi === undefined ? !!g.produksi : !!produksi,
+    serverKey: g.serverKey || '', masa: Math.round(Number(g.dokuMasaBayar) || GW.MASA_BAWAAN), g: g, penyedia: 'midtrans', nama: 'Midtrans' };
+}
+// Penyedia yang dipakai untuk order BARU.
+function gwAktif_() {
+  var g = rfAturan_().gateway || {};
+  if (g.penyedia !== 'midtrans') { var d = gwDoku_(); d.penyedia = 'doku'; d.nama = 'DOKU'; return d; }   // tanpa pilihan = DOKU (seperti sebelumnya)
+  return gwMidtrans_();
+}
+// Penyedia order yang SUDAH dibuat (kolom PENYEDIA), supaya order lama tetap diperiksa ke penyedia asalnya.
+function gwOrderMidtrans_(x) { return /^Midtrans/i.test(String((x && x['PENYEDIA']) || '')); }
+function gwNamaOrder_(x) { return gwOrderMidtrans_(x) ? 'Midtrans' : 'DOKU'; }
+// Pengaturan gateway dengan penyedia order itu (untuk katalog metode & biaya layanan).
+function gwCfgOrder_(x) {
+  var g = JSON.parse(JSON.stringify(rfAturan_().gateway || {}));
+  g.penyedia = gwOrderMidtrans_(x) ? 'midtrans' : 'doku';
+  return g;
+}
 function gwWajibAktif_() {
-  var d = gwDoku_();
-  if (!d.aktif) throw new Error('Pembayaran online DOKU belum diaktifkan Admin (Pengaturan Referral → Payment gateway).');
+  var d = gwAktif_();
+  if (!d.aktif) throw new Error('Pembayaran online ' + d.nama + ' belum diaktifkan Admin (Pengaturan Referral → Payment gateway).');
   return d;
 }
 function gwWaktuUtc_() { return Utilities.formatDate(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ss'Z'"); }
@@ -127,18 +149,23 @@ function gwBuatOrder_(o) {
   };
   if (o.email && /@/.test(o.email)) isi.customer.email = String(o.email).slice(0, 100);
   if (o.hp) isi.customer.phone = String(o.hp).replace(/[^\d]/g, '').slice(0, 16);
+  var pay = {};
+  if (d.penyedia === 'midtrans') {
+    pay.url = gwMtBuat_(d, invoice, h, m, o);
+  } else {
   var r = gwPanggil_(d, 'post', '/checkout/v1/payment', isi);
-  var pay = ((r.json || {}).response || {}).payment || {};
+  pay = ((r.json || {}).response || {}).payment || {};
   if (r.kode >= 300 || !pay.url) {
     try { catat_('Sistem', '', o.oleh || 'Sistem', 'DOKU order GAGAL', invoice + ' HTTP ' + r.kode + ' ' + r.teks, 'GAGAL'); } catch (e) {}
     var pesanDoku = '';
     try { pesanDoku = [].concat((r.json || {}).message || (r.json || {}).error || []).join(' ').slice(0, 160); } catch (eM) {}
     throw new Error('Gagal membuat pembayaran DOKU (HTTP ' + r.kode + (pesanDoku ? ': ' + pesanDoku : '') + '). Periksa kunci, mode sandbox/produksi, atau kode metode ' + m.kode + ' di pengaturan.');
   }
+  }
   var kd = '';
   try { kd = Utilities.formatDate(new Date(kini + d.masa * 60000), absTz_(), 'yyyy-MM-dd HH:mm'); } catch (e2) {}
   gwTambah_({ 'INVOICE': invoice, 'WAKTU': rfWaktu_(), 'JENIS': o.jenis, 'REF': String(o.ref), 'ID WB': String(o.idWb || ''), 'NAMA': o.nama || '', 'URAIAN': String(o.uraian || '').slice(0, 200),
-    'JUMLAH': jml, 'STATUS': 'Menunggu', 'URL': pay.url, 'KADALUARSA': kd, 'PENYEDIA': 'DOKU' + (d.produksi ? '' : ' (sandbox)'), 'DIBUAT OLEH': o.oleh || '',
+    'JUMLAH': jml, 'STATUS': 'Menunggu', 'URL': pay.url, 'KADALUARSA': kd, 'PENYEDIA': d.nama + (d.produksi ? '' : ' (sandbox)'), 'DIBUAT OLEH': o.oleh || '',
     'POKOK': h.pokok, 'BIAYA ADMIN': h.biaya, 'METODE': m.kode });
   return { invoice: invoice, url: pay.url, jumlah: jml, pokok: h.pokok, biaya: h.biaya, metode: m.nama, kadaluarsa: kd, lama: false, judul: o.judul || o.uraian || '', nama: o.nama || '' };
 }
@@ -148,6 +175,7 @@ function gwPeriksa_(invoice) {
   var x = gwCari_(invoice);
   if (!x) return { status: 'Tidak dikenal' };
   if (x['STATUS'] === 'Lunas') return { status: 'Lunas', idTransaksi: x['ID TRANSAKSI'] };
+  if (gwOrderMidtrans_(x)) return gwMtPeriksa_(x);   // v1.89.0
   var d = gwDoku_();
   if (!d.clientId || !d.secret) return { status: x['STATUS'] };
   var r = gwPanggil_(d, 'get', '/orders/v1/status/' + encodeURIComponent(invoice), null);
@@ -179,22 +207,22 @@ function gwSelesai_(x, bayar, kanal) {
       gwUbah_(x._baris, { 'STATUS': 'Lunas', 'DIBAYAR PADA': x['DIBAYAR PADA'] || rfWaktu_(), 'KANAL': kanal || x['KANAL'], 'ID TRANSAKSI': sudah, 'CATATAN': 'Sudah tercatat sebelumnya (tidak dicatat ulang)' });
       return { status: 'Lunas', idTransaksi: sudah };
     }
-    var g = gwDoku_().g, fee = gwBiaya_(bayar, kanal || x['METODE'], g), ids = '', catatan = '';
+    var g = gwCfgOrder_(x), nmG = gwNamaOrder_(x), fee = gwBiaya_(bayar, kanal || x['METODE'], g), ids = '', catatan = '';   // v1.89.0
     var pokok = Math.round(Number(x['POKOK']) || bayar), adminBayar = Math.max(0, bayar - pokok);   // v1.49.0
     if (x['JENIS'] === 'Pendaftaran') {
       var rf = rfCari_(x['REF']);
       if (['Lunas', 'Pengembalian Diajukan', 'Dikembalikan'].indexOf(rf['STATUS BAYAR']) >= 0) {
-        catatan = 'Pendaftaran sudah berstatus ' + rf['STATUS BAYAR'] + ' saat pembayaran DOKU masuk; periksa kemungkinan bayar ganda.';
+        catatan = 'Pendaftaran sudah berstatus ' + rf['STATUS BAYAR'] + ' saat pembayaran ' + nmG + ' masuk; periksa kemungkinan bayar ganda.';
         ids = gwCatatLain_(x, bayar, kanal, fee, catatan);
       } else {
-        rfUbah_('DAFTAR', rf._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': pokok, 'METODE BAYAR': 'DOKU ' + kanal, 'ORDER GATEWAY': x['INVOICE'],
+        rfUbah_('DAFTAR', rf._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': pokok, 'METODE BAYAR': nmG + ' ' + kanal, 'ORDER GATEWAY': x['INVOICE'],
           'VERIF BAYAR OLEH': 'Gateway otomatis', 'VERIF BAYAR PADA': rfWaktu_(), 'DIPERBARUI': rfWaktu_() });
         var oto = { nama: 'Gateway otomatis', peran: 'Sistem', biayaGw: fee };
         ids = rfCatatBayarAman_(rfCari_(x['REF']), oto, true);
         if (adminBayar > 0) ids = [ids, gwCatatAdminBayar_(x, adminBayar, kanal, 'Swadaya')].filter(String).join(',');
         rfSelesaikan_(rfCari_(x['REF']), oto);
-        rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online lewat DOKU (' + kanal + ').');
-        npKirim_('bayar_online_masuk', { judul: 'Biaya pendaftaran dibayar online ' + honRp_(pokok), isi: rf['NAMA'] + ' (' + (kanal || 'DOKU') + ').', aksi: 'referral_admin', ref: 'gw|' + x['INVOICE'] });   // v1.50.0: notifikasi
+        rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online lewat ' + nmG + ' (' + kanal + ').');
+        npKirim_('bayar_online_masuk', { judul: 'Biaya pendaftaran dibayar online ' + honRp_(pokok), isi: rf['NAMA'] + ' (' + (kanal || nmG) + ').', aksi: 'referral_admin', ref: 'gw|' + x['INVOICE'] });   // v1.50.0: notifikasi
       }
     } else if (x['JENIS'] === 'Custom') {
       ids = vcCatat_(x, pokok, kanal, fee, bayar, adminBayar);   // v1.68.0: VA custom pembayar umum
@@ -202,7 +230,7 @@ function gwSelesai_(x, bayar, kanal) {
       ids = gwCatatTagihan_(x, pokok, kanal, fee, bayar, adminBayar);
     }
     gwUbah_(x._baris, { 'STATUS': 'Lunas', 'DIBAYAR PADA': rfWaktu_(), 'KANAL': kanal, 'ID TRANSAKSI': ids, 'CATATAN': catatan, 'JUMLAH': bayar });
-    try { catat_('Sistem', '', 'Gateway otomatis', 'DOKU lunas', x['INVOICE'] + ' ' + honRp_(bayar) + ' ' + kanal, 'OK'); } catch (e) {}
+    try { catat_('Sistem', '', 'Gateway otomatis', nmG + ' lunas', x['INVOICE'] + ' ' + honRp_(bayar) + ' ' + kanal, 'OK'); } catch (e) {}
     return { status: 'Lunas', idTransaksi: ids };
   } finally {
     // v1.70.6: tulisan wajib tersimpan sebelum kunci dilepas; tanpa ini panggilan berikutnya (notifikasi DOKU / cek status
@@ -224,44 +252,46 @@ function gwTrxAda_(invoice) {
   }
   return ids.join(',');
 }
-function gwBarisDasar_(tgl, sumber) {
+function gwBarisDasar_(tgl, sumber, nmG) {
   var sim = {};
   try { sim = absSim_(); } catch (e) {}
   return { 'TANGGAL': tgl, 'STATUS': 'Disetujui', 'TANGGAL KEPUTUSAN': tgl, 'TAHUN PELAJARAN': sim.tahun || '', 'DICATAT OLEH': 'Gateway otomatis', 'DICATAT PADA': absWaktu_(),
-    'SUMBER DANA': sumber, 'AKUN KAS': kalAkunBawaan_('gateway'), 'DIPUTUS OLEH': 'Sistem (pembayaran online DOKU)' };
+    'SUMBER DANA': sumber, 'AKUN KAS': kalAkunBawaan_('gateway'), 'DIPUTUS OLEH': 'Sistem (pembayaran online ' + (nmG || 'DOKU') + ')' };
 }
 function gwCatatBiaya_(x, bayar, kanal, fee, sumber) {
   if (!(fee.biaya > 0)) return '';
   rfKategori_(KAL.KAT_ADM, 'Biaya Administrasi Payment Gateway', 'Pengeluaran');
-  return rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), sumber), {
-    'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': KAL.KAT_ADM, 'PIHAK TERKAIT': 'DOKU', 'JUMLAH': fee.biaya,
-    'URAIAN': ('Biaya layanan DOKU ' + fee.ket + ' atas ' + honRp_(bayar) + ' (invoice ' + x['INVOICE'] + ', ' + (x['NAMA'] || '') + ')').slice(0, 300),
-    'CATATAN KEPUTUSAN': 'Dibayar ' + honRp_(bayar) + ' - biaya ' + honRp_(fee.biaya) + ' = diterima bersih ' + honRp_(bayar - fee.biaya) + '. Sesuaikan bila laporan DOKU berbeda.'
+  var nmG = gwNamaOrder_(x);
+  return rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), sumber, nmG), {
+    'JENIS': 'Pengeluaran', 'KATEGORI KEUANGAN': KAL.KAT_ADM, 'PIHAK TERKAIT': nmG, 'JUMLAH': fee.biaya,
+    'URAIAN': ('Biaya layanan ' + nmG + ' ' + fee.ket + ' atas ' + honRp_(bayar) + ' (invoice ' + x['INVOICE'] + ', ' + (x['NAMA'] || '') + ')').slice(0, 300),
+    'CATATAN KEPUTUSAN': 'Dibayar ' + honRp_(bayar) + ' - biaya ' + honRp_(fee.biaya) + ' = diterima bersih ' + honRp_(bayar - fee.biaya) + '. Sesuaikan bila laporan ' + nmG + ' berbeda.'
   }));
 }
 function gwCatatTagihan_(x, bayar, kanal, fee, total, adminBayar) {
   total = total || bayar;
-  var tag = keuTagCari_(x['REF']), sumber = KEU.SUMBER_KAT[tag.kategori] || 'Swadaya';
+  var tag = keuTagCari_(x['REF']), sumber = KEU.SUMBER_KAT[tag.kategori] || 'Swadaya', nmG = gwNamaOrder_(x);
   var t = keuTrxTab_(), id = 'TRX-' + absId_().toUpperCase();
-  t.sh.appendRow(absBaris_(t, kalGabung_(gwBarisDasar_(absHariIni_(), sumber), {
+  t.sh.appendRow(absBaris_(t, kalGabung_(gwBarisDasar_(absHariIni_(), sumber, nmG), {
     'ID TRANSAKSI': id, 'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': tag.kategori, 'WARGA BELAJAR': x['ID WB'], 'TAGIHAN': tag.id, 'JUMLAH': bayar,
-    'URAIAN': ('Pembayaran ' + tag.nama + ' - ' + x['NAMA'] + ' (DOKU ' + kanal + ', invoice ' + x['INVOICE'] + ')').slice(0, 300), 'PIHAK TERKAIT': x['NAMA'],
+    'URAIAN': ('Pembayaran ' + tag.nama + ' - ' + x['NAMA'] + ' (' + nmG + ' ' + kanal + ', invoice ' + x['INVOICE'] + ')').slice(0, 300), 'PIHAK TERKAIT': x['NAMA'],
     'CATATAN KEPUTUSAN': 'Dibayar online; dicatat sebesar yang dibayar'
   })));
   var a = adminBayar > 0 ? gwCatatAdminBayar_(x, adminBayar, kanal, sumber) : '';
   var b = gwCatatBiaya_(x, total, kanal, fee, sumber);
   try { catat_('Sistem', '', 'Gateway otomatis', 'Bayar tagihan online', tag.nama + ' ' + x['NAMA'] + ' ' + bayar + (adminBayar ? ' + admin ' + adminBayar : ''), 'OK'); } catch (e) {}
   npBayarDiterima_(x['ID WB'], tag.nama, bayar, 'online ' + (kanal || ''));   // v1.50.0: notifikasi
-  aqrSetelahBayar_(tag.id, x['ID WB'], 'VA / online ' + (kanal || 'DOKU'), id);   // v1.67.0: aktivasi QR otomatis bila lunas
-  npKirim_('bayar_online_masuk', { judul: 'Pembayaran online masuk ' + honRp_(bayar), isi: tag.nama + ' - ' + x['NAMA'] + ' (' + (kanal || 'DOKU') + ').', aksi: 'keuangan', ref: 'gw|' + x['INVOICE'] });
+  aqrSetelahBayar_(tag.id, x['ID WB'], 'VA / online ' + (kanal || nmG), id);   // v1.67.0: aktivasi QR otomatis bila lunas
+  npKirim_('bayar_online_masuk', { judul: 'Pembayaran online masuk ' + honRp_(bayar), isi: tag.nama + ' - ' + x['NAMA'] + ' (' + (kanal || nmG) + ').', aksi: 'keuangan', ref: 'gw|' + x['INVOICE'] });
   return [id, a, b].filter(String).join(',');
 }
 // Uang masuk yang tidak cocok dengan apa pun (mis. bayar ganda): tetap dicatat agar kas sesuai, ditandai untuk diperiksa.
 function gwCatatLain_(x, bayar, kanal, fee, catatan) {
   rfKategori_('LPM', 'Penerimaan Lain-lain', 'Pemasukan');
-  var id = rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), 'Swadaya'), {
+  var nmG = gwNamaOrder_(x);
+  var id = rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), 'Swadaya', nmG), {
     'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': 'LPM', 'PIHAK TERKAIT': x['NAMA'], 'JUMLAH': bayar,
-    'URAIAN': ('Pembayaran DOKU perlu diperiksa: ' + x['URAIAN'] + ' (invoice ' + x['INVOICE'] + ', ' + kanal + ')').slice(0, 300), 'CATATAN KEPUTUSAN': catatan.slice(0, 300)
+    'URAIAN': ('Pembayaran ' + nmG + ' perlu diperiksa: ' + x['URAIAN'] + ' (invoice ' + x['INVOICE'] + ', ' + kanal + ')').slice(0, 300), 'CATATAN KEPUTUSAN': catatan.slice(0, 300)
   }));
   return [id, gwCatatBiaya_(x, bayar, kanal, fee, 'Swadaya')].filter(String).join(',');
 }
@@ -281,8 +311,8 @@ function dokuNotif_(body) {
 }
 // Pemicu tiap jam: periksa order yang masih menunggu (maks. 3 hari).
 function gwRekonsiliasi_() {
-  var d = gwDoku_();
-  if (!d.clientId || !d.secret) return 0;
+  var d = gwDoku_(), g = d.g || {};
+  if ((!d.clientId || !d.secret) && !g.serverKey) return 0;   // v1.89.0: DOKU atau Midtrans
   var batas = Date.now() - GW.REKON_HARI * 86400000, n = 0;
   gwBaca_().forEach(function(x) {
     if (x['STATUS'] !== 'Menunggu' || new Date(x['WAKTU']).getTime() < batas || n >= 40) return;
@@ -315,7 +345,7 @@ function waStafTagihanLinkBayar(token, d) {
   if (row.sisa <= 0) throw new Error('Tagihan ini sudah lunas.');
   var kontak = gwHpWb_(w.id);
   var o = gwBuatOrder_({ jenis: 'Tagihan', ref: tag.id, idWb: w.id, nama: w.nama, judul: tag.nama, uraian: tag.nama + ' - ' + w.nama, pokok: row.sisa, metode: d.metode, hp: kontak.hp, email: kontak.email, oleh: p.nama });
-  catat_(p.peran, w.idRombel, p.nama, 'Link bayar DOKU', tag.nama + ' ' + w.nama + ' ' + o.jumlah + ' ' + o.invoice, 'OK');
+  catat_(p.peran, w.idRombel, p.nama, 'Link bayar ' + gwAktif_().nama, tag.nama + ' ' + w.nama + ' ' + o.jumlah + ' ' + o.invoice, 'OK');
   o.nama = w.nama; o.tagihan = tag.nama; o.hp = kontak.hp; o.lembaga = nilLembaga_().nama;
   return o;
 }
@@ -332,7 +362,7 @@ function waStafTagihanOrder(token, q) {
   var n = 0, semua = gwBaca_().filter(function(x) { return !q.idTagihan || (x['JENIS'] === 'Tagihan' && x['REF'] === String(q.idTagihan)); });
   semua.forEach(function(x) { if (x['STATUS'] === 'Menunggu' && n < 10) { n++; try { gwPeriksa_(x['INVOICE']); } catch (e) {} } });
   if (n) semua = gwBaca_().filter(function(x) { return !q.idTagihan || (x['JENIS'] === 'Tagihan' && x['REF'] === String(q.idTagihan)); });
-  return { aktif: gwDoku_().aktif, order: semua.reverse().slice(0, 300).map(function(x) {
+  return { aktif: gwAktif_().aktif, order: semua.reverse().slice(0, 300).map(function(x) {
     return { invoice: x['INVOICE'], waktu: x['WAKTU'], jenis: x['JENIS'], idWb: x['ID WB'], nama: x['NAMA'], uraian: x['URAIAN'], jumlah: Number(x['JUMLAH']) || 0,
       status: x['STATUS'], url: x['STATUS'] === 'Menunggu' ? x['URL'] : '', kadaluarsa: x['KADALUARSA'], kanal: x['KANAL'], dibayarPada: x['DIBAYAR PADA'], catatan: x['CATATAN'] };
   }) };
@@ -341,7 +371,7 @@ function waStafTagihanOrder(token, q) {
 // ---------- promotor: cek status pembayaran online ----------
 function waRefCekBayar(token, id) {
   var m = rfMilik_(token, id), x = m.x;
-  if (!x['ORDER GATEWAY'] || String(x['METODE BAYAR']).indexOf('DOKU') !== 0) return { status: x['STATUS BAYAR'] || 'Belum' };
+  if (!x['ORDER GATEWAY'] || !/^(DOKU|Midtrans)/.test(String(x['METODE BAYAR']))) return { status: x['STATUS BAYAR'] || 'Belum' };
   var h = gwPeriksa_(x['ORDER GATEWAY']);
   return { status: h.status, statusBayar: rfCari_(id)['STATUS BAYAR'] };
 }
@@ -383,11 +413,27 @@ var GWM = {
     'ONLINE_TO_OFFLINE_ALFA | Alfamart / Alfamidi | 0 | 5000',
     'ONLINE_TO_OFFLINE_INDOMARET | Indomaret | 0 | 5000'
   ].join('\n'),
+  // v1.89.0: kode = enabled_payments Midtrans Snap (huruf kecil saat dikirim). Tarif umum Midtrans; sesuaikan dengan kontrak.
+  BAWAAN_MT: [
+    'BCA_VA | VA BCA | 0 | 4000',
+    'BNI_VA | VA BNI | 0 | 4000',
+    'BRI_VA | VA BRI | 0 | 4000',
+    'ECHANNEL | VA Mandiri (Mandiri Bill) | 0 | 4000',
+    'PERMATA_VA | VA Permata | 0 | 4000',
+    'CIMB_VA | VA CIMB Niaga | 0 | 4000',
+    'OTHER_VA | VA bank lain (ATM Bersama/Prima/Alto) | 0 | 4000',
+    'OTHER_QRIS | QRIS (semua e-wallet & m-banking) | 0.7 | 0',
+    'GOPAY | GoPay | 2 | 0',
+    'SHOPEEPAY | ShopeePay | 2 | 0',
+    'INDOMARET | Indomaret | 0 | 5000',
+    'ALFAMART | Alfamart | 0 | 5000'
+  ].join('\n'),
   LARANG: /PEER_TO_PEER|AKULAKU|KREDIVO|INDODANA|ATOME|PAYLATER|CICIL|INSTALLMENT/i
 };
 function gwMetode_(g) {
   g = g || (rfAturan_().gateway || {});
-  var teks = String(g.metodeBayar || '').trim() || GWM.BAWAAN, out = [], ada = {};
+  var mt = g.penyedia === 'midtrans';   // v1.89.0: katalog sesuai penyedia (tanpa pilihan = katalog DOKU, seperti sebelumnya)
+  var teks = (mt ? String(g.metodeBayarMidtrans || '').trim() || GWM.BAWAAN_MT : String(g.metodeBayar || '').trim() || GWM.BAWAAN), out = [], ada = {};
   teks.split(/\r?\n/).forEach(function(b) {
     var p = b.split('|').map(function(s) { return s.trim(); });
     var kode = String(p[0] || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
@@ -395,7 +441,8 @@ function gwMetode_(g) {
     ada[kode] = true;
     out.push({ kode: kode, nama: p[1] || kode, persen: Math.max(0, Number(String(p[2] || '0').replace(',', '.')) || 0),
       tetap: Math.max(0, Math.round(Number(String(p[3] || '0').replace(/[^\d]/g, '')) || 0)),
-      grup: /^VIRTUAL_ACCOUNT/.test(kode) ? 'Virtual Account' : /^QRIS|^EMONEY/.test(kode) ? 'QRIS & e-wallet' : /^ONLINE_TO_OFFLINE/.test(kode) ? 'Gerai retail' : 'Lainnya' });
+      grup: /^VIRTUAL_ACCOUNT|_VA$|^ECHANNEL$/.test(kode) ? 'Virtual Account' : /^QRIS|^EMONEY|_QRIS$|^GOPAY$|^SHOPEEPAY$/.test(kode) ? 'QRIS & e-wallet'
+        : /^ONLINE_TO_OFFLINE|^INDOMARET$|^ALFAMART$/.test(kode) ? 'Gerai retail' : 'Lainnya' });
   });
   return out;
 }
@@ -414,10 +461,11 @@ function gwHitungTotal_(pokok, m) {
 function gwCatatAdminBayar_(x, jumlah, kanal, sumber) {
   if (!(jumlah > 0)) return '';
   rfKategori_('ADP', 'Biaya Admin dari Pembayar', 'Pemasukan');
-  return rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), sumber || 'Swadaya'), {
+  var nmG = gwNamaOrder_(x);
+  return rfTrx_(kalGabung_(gwBarisDasar_(absHariIni_(), sumber || 'Swadaya', nmG), {
     'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': 'ADP', 'WARGA BELAJAR': x['ID WB'] || '', 'PIHAK TERKAIT': x['NAMA'], 'JUMLAH': Math.round(jumlah),
     'URAIAN': ('Biaya admin pembayaran online ' + (kanal || x['METODE'] || '') + ' dibayar ' + (x['NAMA'] || '') + ' (invoice ' + x['INVOICE'] + ')').slice(0, 300),
-    'CATATAN KEPUTUSAN': 'Dibebankan ke pembayar; menutup biaya layanan DOKU (ADM) dengan invoice yang sama'
+    'CATATAN KEPUTUSAN': 'Dibebankan ke pembayar; menutup biaya layanan ' + nmG + ' (ADM) dengan invoice yang sama'
   }));
 }
 
@@ -469,5 +517,96 @@ function waAdminRefGatewayTes(token, d) {
   h.webhook = '';
   try { h.webhook = ScriptApp.getService().getUrl(); } catch (eU) {}
   try { catat_(p.peran, '', p.nama, 'Tes koneksi gateway', h.penyedia + ' ' + mode + ': ' + (h.ok ? 'OK' : h.pesan), h.ok ? 'OK' : 'GAGAL'); } catch (eL) {}
+  return h;
+}
+
+// ============================================================================
+// MIDTRANS SNAP (v1.89.0) - pembayaran online pendaftaran, tagihan WB, dan VA custom lewat Midtrans.
+// - Order: POST /snap/v1/transactions (Basic auth Server Key) -> redirect_url = halaman bayar Midtrans.
+// - Notifikasi (Payment Notification URL = alamat /exec): tanda tangan SHA-512 diperiksa di refWebhook_, lalu status
+//   SELALU dikonfirmasi ke Midtrans (GET /v2/{order_id}/status) sebelum dicatat lunas.
+// - Order yang masih menunggu juga diperiksa tiap jam (pemicuGatewayDoku) dan saat daftar order dibuka.
+// ============================================================================
+function gwMtBase_(d, snap) {
+  if (snap) return d.produksi ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com';
+  return d.produksi ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+}
+function gwMtPanggil_(d, metode, url, isi) {
+  var opsi = { method: metode, muteHttpExceptions: true,
+    headers: { Authorization: 'Basic ' + Utilities.base64Encode(d.serverKey + ':'), Accept: 'application/json' } };
+  if (isi) { opsi.contentType = 'application/json'; opsi.payload = JSON.stringify(isi); }
+  var res = UrlFetchApp.fetch(url, opsi), j = {};
+  try { j = JSON.parse(res.getContentText() || '{}'); } catch (e) {}
+  return { kode: res.getResponseCode(), json: j || {}, teks: String(res.getContentText() || '').slice(0, 300) };
+}
+// Membuat transaksi Snap; hasil = URL halaman bayar. h: {pokok, biaya, total}; m: metode katalog; o: data order.
+function gwMtBuat_(d, invoice, h, m, o) {
+  var items = [{ id: 'POKOK', price: h.pokok, quantity: 1, name: String(o.uraian || o.jenis || 'Pembayaran').slice(0, 50) }];
+  if (h.biaya > 0) items.push({ id: 'ADMIN', price: h.biaya, quantity: 1, name: ('Biaya admin ' + m.nama).slice(0, 50) });
+  var isi = {
+    transaction_details: { order_id: invoice, gross_amount: h.total },
+    item_details: items,
+    customer_details: { first_name: String(o.nama || 'Peserta').slice(0, 50) },
+    enabled_payments: [String(m.kode).toLowerCase()],
+    expiry: { unit: 'minute', duration: d.masa }
+  };
+  if (o.email && /@/.test(o.email)) isi.customer_details.email = String(o.email).slice(0, 100);
+  if (o.hp) isi.customer_details.phone = String(o.hp).replace(/[^\d]/g, '').slice(0, 16);
+  var r = gwMtPanggil_(d, 'post', gwMtBase_(d, true) + '/snap/v1/transactions', isi);
+  if (r.kode >= 300 || !r.json.redirect_url) {
+    try { catat_('Sistem', '', o.oleh || 'Sistem', 'Midtrans order GAGAL', invoice + ' HTTP ' + r.kode + ' ' + r.teks, 'GAGAL'); } catch (e) {}
+    var pesan = '';
+    try { pesan = [].concat(r.json.error_messages || r.json.status_message || []).join(' ').slice(0, 160); } catch (eM) {}
+    throw new Error('Gagal membuat pembayaran Midtrans (HTTP ' + r.kode + (pesan ? ': ' + pesan : '') + '). Periksa Server Key, mode sandbox/produksi, atau metode ' + m.kode + ' yang aktif di dasbor Midtrans.');
+  }
+  return r.json.redirect_url;
+}
+// Kode kanal dari jawaban status Midtrans, disamakan dengan kode katalog (untuk biaya layanan).
+function gwMtKanal_(j) {
+  var t = String(j.payment_type || '').toLowerCase();
+  if (t === 'bank_transfer') {
+    if (j.permata_va_number) return 'PERMATA_VA';
+    var va = (j.va_numbers || [])[0];
+    return va && va.bank ? String(va.bank).toUpperCase() + '_VA' : 'OTHER_VA';
+  }
+  if (t === 'echannel') return 'ECHANNEL';
+  if (t === 'qris') return 'OTHER_QRIS';
+  if (t === 'cstore') return String(j.store || 'CSTORE').toUpperCase();
+  return t.toUpperCase();
+}
+// Periksa status order Midtrans dan selesaikan bila lunas. Mode (sandbox/produksi) mengikuti order itu.
+function gwMtPeriksa_(x) {
+  var inv = x['INVOICE'], d = gwMidtrans_(!/sandbox/i.test(String(x['PENYEDIA'] || '')));
+  if (!d.serverKey) return { status: x['STATUS'] };
+  var r = gwMtPanggil_(d, 'get', gwMtBase_(d, false) + '/v2/' + encodeURIComponent(inv) + '/status', null);
+  var j = r.json || {}, sc = String(j.status_code || r.kode), st = String(j.transaction_status || '').toLowerCase();
+  var lunas = st === 'settlement' || (st === 'capture' && String(j.fraud_status || 'accept').toLowerCase() === 'accept');
+  var ket = 'Cek status Midtrans ' + rfWaktu_() + ': HTTP ' + r.kode + ', kode ' + sc + (st ? ', status ' + st : '') + (lunas ? '' : ' ' + String(j.status_message || '').slice(0, 160));
+  if (!lunas) { try { gwUbah_(x._baris, { 'CATATAN': ket }); } catch (eK) {} }
+  if (lunas && String(j.order_id || inv) === String(inv)) {
+    var bayar = Math.round(Number(j.gross_amount) || Number(x['JUMLAH']) || 0);
+    return gwSelesai_(x, bayar, gwMtKanal_(j));
+  }
+  if (st === 'expire') { gwUbah_(x._baris, { 'STATUS': 'Kedaluwarsa', 'CATATAN': 'Status Midtrans expire' }); return { status: 'Kedaluwarsa' }; }
+  if (st === 'cancel' || st === 'deny' || st === 'failure') { gwUbah_(x._baris, { 'STATUS': 'Gagal', 'CATATAN': 'Status Midtrans ' + st }); return { status: 'Gagal' }; }
+  if (r.kode >= 300 && r.kode !== 404 && sc !== '404') return { status: x['STATUS'], galat: ket };
+  // belum ada transaksi (pembeli belum memilih bayar) atau pending: kedaluwarsa bila sudah jauh lewat batas
+  if (st !== 'pending' && x['KADALUARSA'] && new Date(String(x['KADALUARSA']).replace(' ', 'T') + ':00+07:00').getTime() < Date.now() - 6 * 3600000) {
+    gwUbah_(x._baris, { 'STATUS': 'Kedaluwarsa' });
+    return { status: 'Kedaluwarsa' };
+  }
+  return { status: 'Menunggu', galat: ket };
+}
+// Notifikasi Midtrans untuk order di GATEWAY ORDER (tanda tangan sudah diperiksa di refWebhook_).
+// Notifikasi bisa tiba sebelum status settlement terbaca: cek ulang sampai 3 kali dengan jeda.
+function gwMtNotif_(body) {
+  var inv = String((body || {}).order_id || '');
+  if (!inv || !gwCari_(inv)) return { ok: false };
+  var h = gwPeriksa_(inv), st = String((body || {}).transaction_status || '').toLowerCase();
+  var sukses = st === 'settlement' || st === 'capture';
+  for (var i = 0; i < 3 && sukses && h.status === 'Menunggu'; i++) {
+    Utilities.sleep(3000 + i * 2000);
+    h = gwPeriksa_(inv);
+  }
   return h;
 }

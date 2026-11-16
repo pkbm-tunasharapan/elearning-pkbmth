@@ -561,7 +561,7 @@ class _LembarBayarState extends State<_LembarBayar> {
       kabar(context, 'Pembayaran lunas dan sudah tercatat.');
       Navigator.pop(context, true);
     } else {
-      kabar(context, 'Status pembayaran: ${teks(r.data!['status'], 'Menunggu')}. Selesaikan pembayaran di halaman DOKU.');
+      kabar(context, 'Status pembayaran: ${teks(r.data!['status'], 'Menunggu')}. Selesaikan pembayaran di halaman pembayaran.');
     }
   }
 
@@ -633,7 +633,7 @@ class _LembarBayarState extends State<_LembarBayar> {
                 _QrisStatis(dataUrl: teks(at['qris'])),
             ],
             if (_metode == 'Online') ...[
-              const Text('Bayar lewat DOKU: Virtual Account, QRIS, e-wallet, atau gerai retail. Biaya admin sesuai metode ditanggung pembayar. Status lunas tercatat otomatis; tidak perlu unggah bukti.'),
+              const Text('Bayar online: Virtual Account, QRIS, e-wallet, atau gerai retail. Biaya admin sesuai metode ditanggung pembayar. Status lunas tercatat otomatis; tidak perlu unggah bukti.'),
               if (_urlOnline.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 OutlinedButton.icon(onPressed: _cekOnline, icon: const Icon(Icons.refresh_rounded), label: const Text('Saya sudah bayar — cek status')),
@@ -659,7 +659,7 @@ class _LembarBayarState extends State<_LembarBayar> {
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                 onPressed: _kirim,
                 child: Text(_metode == 'Online'
-                    ? (_urlOnline.isEmpty ? 'Bayar sekarang (DOKU)' : 'Buka lagi halaman pembayaran')
+                    ? (_urlOnline.isEmpty ? 'Bayar sekarang' : 'Buka lagi halaman pembayaran')
                     : _metode == 'Sekretariat' ? 'Saya akan bayar di sekretariat' : (_metode == 'QRIS' && at['qrisDinamis'] == true ? 'Buat QRIS' : 'Kirim bukti pembayaran')),
               ),
           ]),

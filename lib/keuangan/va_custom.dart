@@ -57,7 +57,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
 
   Future<void> _bayar(Map<String, dynamic> x) async {
     if (_d['online'] != true) {
-      kabar(context, 'Pembayaran online DOKU belum diaktifkan Admin.', galat: true);
+      kabar(context, 'Pembayaran online belum diaktifkan Admin.', galat: true);
       return;
     }
     final metode = daftar(_d['metode']).map(peta).toList();
@@ -190,7 +190,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
             if (d['online'] != true)
               Card(
                 color: Theme.of(context).colorScheme.errorContainer,
-                child: const Padding(padding: EdgeInsets.all(12), child: Text('Pembayaran online DOKU belum diaktifkan Admin. VA untuk siswa tetap bisa dibayar lewat transfer di Tagihan Saya.')),
+                child: const Padding(padding: EdgeInsets.all(12), child: Text('Pembayaran online belum diaktifkan Admin. VA untuk siswa tetap bisa dibayar lewat transfer di Tagihan Saya.')),
               ),
             const SizedBox(height: 8),
             TextField(

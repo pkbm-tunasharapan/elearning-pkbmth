@@ -3831,7 +3831,7 @@ function keuTagCari_(id) {
 function waStafTagihanRinci(token, id) {
   var p = stafDariToken_(token), r = keuWajib_(p, 'lihat');
   var tag = keuTagCari_(id), rows = keuRinci_(tag, keuWbSemua_(), keuBayarPeta_());
-  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }), onlineAktif: gwDoku_().aktif, metode: gwDoku_().aktif ? gwMetode_() : [] };
+  return { tagihan: tag, wb: rows, catat: r.catat, akun: kalAkun_().filter(function(a) { return a.aktif !== false; }), onlineAktif: gwAktif_().aktif, metode: gwAktif_().aktif ? gwMetode_() : [] };
 }
 // d: {idTagihan, idWb, jumlah, tanggal, catatan, bukti?}
 function waStafTagihanBayar(token, d) {
