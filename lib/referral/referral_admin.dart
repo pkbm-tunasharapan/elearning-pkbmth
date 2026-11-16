@@ -538,7 +538,7 @@ class _PengaturanReferralState extends State<_PengaturanReferral> {
         if (i > 0) TextButton(onPressed: () => setState(() { _qrisBaru = null; _hapusQris = true; }), child: const Text('Hapus')),
       ]),
       const JudulBagian('Payment gateway (pembayaran online)'),
-      Text('Pembayaran online pendaftaran, tagihan warga belajar, dan VA custom lewat Midtrans atau DOKU (lunas tercatat otomatis). '
+      Text('Pembayaran online pendaftaran, tagihan warga belajar, dan Custom Transaction lewat Midtrans atau DOKU (lunas tercatat otomatis). '
           'Uji dulu dengan mode sandbox sebelum memakai mode produksi.',
           style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
       SegmentedButton<String>(

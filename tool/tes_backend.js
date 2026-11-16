@@ -2555,5 +2555,28 @@ tes('Midtrans Core API: aplikasi baru dapat info bayar per metode, aplikasi lama
   } finally { Object.assign(g, asli); }
 });
 
+// v1.90.1: Custom Transaction hanya VA dan QRIS
+tes('Custom Transaction: metode bayar hanya Virtual Account dan QRIS, metode lain ditolak', () => {
+  const asli = ['rfAturan_', 'gwAktif_', 'stafDariToken_', 'vcCari_', 'gwBuatOrder_'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  try {
+    const gw = { aktif: true, penyedia: 'midtrans', serverKey: 'SB-x' };
+    g.rfAturan_ = () => ({ gateway: gw });
+    g.gwAktif_ = () => ({ aktif: true, g: gw, nama: 'Midtrans' });
+    const m = g.vcMetode_(gw);
+    sama(m.map((x) => x.kode), ['BCA_VA', 'BNI_VA', 'BRI_VA', 'ECHANNEL', 'PERMATA_VA', 'OTHER_VA', 'OTHER_QRIS'], 'daftar metode');
+    sama(m.filter((x) => x.kode === 'OTHER_QRIS')[0].grup, 'QRIS', 'grup QRIS');
+    g.stafDariToken_ = () => ({ nama: 'Fia', peran: 'Front Office' });
+    g.vcCari_ = () => ({ t: {}, x: { id: 'VAC-1', status: 'Menunggu', pembayar: 'Budi', keterangan: 'Pembayaran X', pokok: 1000 } });
+    let dibuat = 0;
+    g.gwBuatOrder_ = () => { dibuat++; throw new Error('lanjut'); };
+    let galat = '';
+    try { g.waStafVaCustomBayar('T', { id: 'VAC-1', metode: 'GOPAY' }); } catch (e) { galat = e.message; }
+    sama([galat, dibuat], ['Pilih metode Virtual Account atau QRIS.', 0], 'gopay ditolak');
+    try { g.waStafVaCustomBayar('T', { id: 'VAC-1', metode: 'other_qris' }); } catch (e) { galat = e.message; }
+    sama([galat, dibuat], ['lanjut', 1], 'qris diterima');
+  } finally { Object.assign(g, asli); }
+});
+
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

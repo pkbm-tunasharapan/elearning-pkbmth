@@ -10,6 +10,7 @@
 // - Pembayar UMUM (orang tua, calon siswa, pihak lain): order DOKU jenis "Custom". Petugas menampilkan QR halaman bayar di
 //   layar / menyimpan gambar instruksi bayar; link WA hanya cadangan. Lunas -> pemasukan dengan kode transaksi terpilih.
 // ============================================================================
+// v1.90.1: tampil sebagai "Custom Transaction"; metode bayar dibatasi Virtual Account dan QRIS (vcMetode_).
 var VC = {
   TAB: 'VA CUSTOM',
   HDR: ['ID VA', 'DIBUAT PADA', 'KATEGORI', 'PEMBAYAR', 'ID WB', 'HP', 'POKOK', 'KETERANGAN', 'CATATAN', 'ID TAGIHAN', 'INVOICE', 'STATUS',
@@ -19,7 +20,12 @@ var VC = {
 };
 
 function vcWajibPeran_(p) {
-  if (VC.PERAN.indexOf(String(p && p.peran || '')) < 0) throw new Error('VA custom untuk Admin, Kepala Sekolah, Front Office, dan Bendahara.');
+  if (VC.PERAN.indexOf(String(p && p.peran || '')) < 0) throw new Error('Custom Transaction untuk Admin, Kepala Sekolah, Front Office, dan Bendahara.');
+}
+// v1.90.1: hanya Virtual Account dan QRIS (e-wallet & gerai tidak ditawarkan di Custom Transaction).
+function vcMetode_(g) {
+  return gwMetode_(g).filter(function(m) { return m.grup === 'Virtual Account' || /QRIS/.test(m.kode); })
+    .map(function(m) { return m.grup === 'Virtual Account' ? m : Object.assign({}, m, { grup: 'QRIS' }); });
 }
 function vcBaca_() {
   var t = absBaca_(VC.TAB, VC.HDR), out = [];
@@ -36,7 +42,7 @@ function vcBaca_() {
 }
 function vcCari_(id) {
   var r = vcBaca_(), x = r.data.filter(function(v) { return v.id === String(id || ''); })[0];
-  if (!x) throw new Error('VA custom tidak ditemukan.');
+  if (!x) throw new Error('Custom Transaction tidak ditemukan.');
   return { t: r.t, x: x };
 }
 function vcUbah_(t, baris, isi) {
@@ -90,7 +96,7 @@ function waStafVaCustomDaftar(token) {
     kategori: kat.map(function(k) { return { kode: k.kode, nama: k.nama }; }), data: data,
     wb: wbs.filter(function(w) { return w.aktif; }).map(function(w) { return { id: w.id, nama: w.nama, rombel: w.namaRombel || '-' }; })
       .sort(function(a, b) { return a.nama.localeCompare(b.nama); }),
-    online: d.aktif, metode: d.aktif ? gwMetode_(d.g) : [], lembaga: nilLembaga_().nama, peran: p.peran
+    online: d.aktif, metode: d.aktif ? vcMetode_(d.g) : [], lembaga: nilLembaga_().nama, peran: p.peran
   };
 }
 
@@ -120,7 +126,7 @@ function waStafVaCustomBuat(token, d) {
     var t = absBaca_(KEU.TAB_TAG, KEU.HDR_TAG);
     idTag = 'TAG-' + absId_().toUpperCase();
     t.sh.appendRow(absBaris_(t, { 'ID TAGIHAN': idTag, 'NAMA': ket.slice(0, 120), 'KATEGORI': kat.kode, 'JUMLAH': pokok, 'SASARAN': 'Siswa', 'NILAI SASARAN': w.id,
-      'JATUH TEMPO': d.jatuhTempo ? absTglSah_(d.jatuhTempo) : '', 'KETERANGAN': ('VA custom ' + id + ' oleh ' + p.nama).slice(0, 300),
+      'JATUH TEMPO': d.jatuhTempo ? absTglSah_(d.jatuhTempo) : '', 'KETERANGAN': ('Custom Transaction ' + id + ' oleh ' + p.nama).slice(0, 300),
       'TAHUN PELAJARAN': absSim_().tahun, 'AKTIF': true, 'DIBUAT OLEH': p.nama, 'DIBUAT PADA': absWaktu_() }));
   }
   var tv = absBaca_(VC.TAB, VC.HDR);
@@ -137,16 +143,18 @@ function waStafVaCustomBayar(token, d) {
   vcWajibPeran_(p);
   d = d || {};
   var c = vcCari_(d.id), x = c.x, o;
+  var kodeM = String(d.metode || '').toUpperCase();
+  if (!vcMetode_(gwAktif_().g).some(function(m) { return m.kode === kodeM; })) throw new Error('Pilih metode Virtual Account atau QRIS.');
   if (x.idTagihan) {
     var tag = keuTagCari_(x.idTagihan), w = keuWbSemua_().filter(function(v) { return v.id === x.idWb; })[0];
-    if (!w || !tag.aktif) throw new Error('VA custom ini sudah dibatalkan.');
+    if (!w || !tag.aktif) throw new Error('Transaksi ini sudah dibatalkan.');
     var row = keuRinci_(tag, [w], keuBayarPeta_())[0];
-    if (!row || row.sisa <= 0) throw new Error('VA custom ini sudah lunas.');
+    if (!row || row.sisa <= 0) throw new Error('Transaksi ini sudah lunas.');
     var kontak = gwHpWb_(w.id);
     o = gwBuatOrder_({ jenis: 'Tagihan', ref: tag.id, idWb: w.id, nama: w.nama, judul: tag.nama, uraian: tag.nama, pokok: row.sisa, metode: d.metode,
       hp: kontak.hp, email: kontak.email, oleh: p.nama });
   } else {
-    if (x.status !== 'Menunggu') throw new Error('VA custom ini berstatus ' + x.status + '.');
+    if (x.status !== 'Menunggu') throw new Error('Transaksi ini berstatus ' + x.status + '.');
     o = gwBuatOrder_({ jenis: VC.JENIS_GW, ref: x.id, idWb: '', nama: x.pembayar, judul: x.keterangan, uraian: x.keterangan, pokok: x.pokok, metode: d.metode,
       hp: x.hp, oleh: p.nama });
   }
@@ -175,13 +183,13 @@ function waStafVaCustomBatal(token, id) {
       if (tag) {
         var w = keuWbSemua_().filter(function(v) { return v.id === x.idWb; })[0];
         var row = w ? keuRinci_(tag, [w], keuBayarPeta_())[0] : null;
-        if (row && row.dibayar > 0) throw new Error('Sudah ada pembayaran ' + honRp_(row.dibayar) + '; VA tidak bisa dibatalkan.');
+        if (row && row.dibayar > 0) throw new Error('Sudah ada pembayaran ' + honRp_(row.dibayar) + '; transaksi tidak bisa dibatalkan.');
         var col = absCol_(r.t, 'AKTIF');
         if (col >= 0) r.t.sh.getRange(tag.baris, col + 1).setValue(false);
       }
     } else {
-      if (x.status === 'Lunas') throw new Error('VA custom ini sudah lunas.');
-      if (x.invoice) { try { if (gwPeriksa_(x.invoice).status === 'Lunas') throw new Error('Pembayaran baru saja masuk; VA tidak dibatalkan.'); } catch (e) { if (/baru saja/.test(e.message)) throw e; } }
+      if (x.status === 'Lunas') throw new Error('Transaksi ini sudah lunas.');
+      if (x.invoice) { try { if (gwPeriksa_(x.invoice).status === 'Lunas') throw new Error('Pembayaran baru saja masuk; transaksi tidak dibatalkan.'); } catch (e) { if (/baru saja/.test(e.message)) throw e; } }
     }
     vcUbah_(c.t, x.baris, { 'STATUS': 'Dibatalkan' });
     catat_(p.peran, '-', p.nama, 'VA custom dibatalkan', x.id + ' ' + x.keterangan, 'OK');
@@ -202,12 +210,12 @@ function vcCatat_(x, pokok, kanal, fee, total, adminBayar) {
   t.sh.appendRow(absBaris_(t, kalGabung_(gwBarisDasar_(absHariIni_(), sumber, nmG), {
     'ID TRANSAKSI': id, 'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': v.kategori, 'JUMLAH': pokok, 'PIHAK TERKAIT': v.pembayar,
     'URAIAN': (v.keterangan + ' (' + nmG + ' ' + kanal + ', invoice ' + x['INVOICE'] + ', ' + v.id + ')').slice(0, 300),
-    'CATATAN KEPUTUSAN': 'VA custom dibayar online; dicatat sebesar pokok, biaya admin dari pembayar dicatat terpisah'
+    'CATATAN KEPUTUSAN': 'Custom Transaction dibayar online; dicatat sebesar pokok, biaya admin dari pembayar dicatat terpisah'
   })));
   var a = adminBayar > 0 ? gwCatatAdminBayar_(x, adminBayar, kanal, sumber) : '';
   var b = gwCatatBiaya_(x, total, kanal, fee, sumber);
   vcUbah_(c.t, v.baris, { 'STATUS': 'Lunas', 'ID TRANSAKSI': id, 'DIBAYAR PADA': rfWaktu_(), 'INVOICE': x['INVOICE'] });
   try { catat_('Sistem', '', 'Gateway otomatis', 'VA custom lunas', v.id + ' ' + v.keterangan + ' ' + pokok, 'OK'); } catch (e2) {}
-  npKirim_('va_custom_lunas', { judul: 'VA custom dibayar ' + honRp_(pokok), isi: v.keterangan + ' (' + gwNamaKanal_(x, kanal) + ').', aksi: 'va_custom', ref: 'gw|' + x['INVOICE'] });
+  npKirim_('va_custom_lunas', { judul: 'Custom Transaction dibayar ' + honRp_(pokok), isi: v.keterangan + ' (' + gwNamaKanal_(x, kanal) + ').', aksi: 'va_custom', ref: 'gw|' + x['INVOICE'] });
   return [id, a, b].filter(String).join(',');
 }

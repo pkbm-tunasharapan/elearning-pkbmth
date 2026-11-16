@@ -70,7 +70,7 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
     case 'keuangan':
       if (!siswa) layar = _bungkus('Keuangan', const KeuanganScreen());
     case 'va_custom':
-      if (!siswa) layar = _bungkus('VA Custom', const VaCustomScreen());
+      if (!siswa) layar = _bungkus('Custom Transaction', const VaCustomScreen());
     case 'transfer':
       if (!siswa) layar = const TransferTagihanScreen();
     case 'referral_admin':

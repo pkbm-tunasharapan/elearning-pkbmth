@@ -53,7 +53,7 @@ var NP = {
     // v1.67.0: Front Office melaporkan pembayaran aktivasi QR diterima
     { kode: 'aqr_lapor', nama: 'Pembayaran aktivasi QR diterima FO (perlu diaktifkan)', grup: 'Warga Belajar', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'], fitur: 'aktivasiQr' },
     // v1.68.0: VA custom dibayar online
-    { kode: 'va_custom_lunas', nama: 'VA custom dibayar', grup: 'Keuangan', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], fitur: 'vaCustom' },
+    { kode: 'va_custom_lunas', nama: 'Custom Transaction dibayar', grup: 'Keuangan', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], fitur: 'vaCustom' },
     // v1.70.0: kelayakan ujian. v1.76.1: Admin & KS selalu menerima semua (wajib); peran lain hanya sesuai konteksnya
     // (batas: akademik -> Koordinator Kurikulum, keuangan -> Bendahara), walau Pengaturan Notifikasi diubah.
     { kode: 'kl_aju_akademik', nama: 'Permohonan kelayakan ujian (akademik)', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Admin', 'Kepala Sekolah'], fitur: 'kelayakanUjian',

@@ -26,6 +26,7 @@ Color _warna(BuildContext c, String s) => switch (s) {
       _ => Theme.of(c).colorScheme.outline,
     };
 
+/// v1.90.1: tampil sebagai "Custom Transaction", metode bayar Virtual Account atau QRIS.
 /// v1.68.0: VA custom = tagihan sekali bayar dengan nominal bebas dan kode transaksi yang sudah ada.
 /// Pembayar siswa: tampil di Tagihan Saya. Pembayar umum: QR halaman bayar di layar / gambar instruksi; link WA hanya cadangan.
 class VaCustomScreen extends StatefulWidget {
@@ -48,7 +49,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
     if (r == null || !mounted) return;
     _segar();
     if (r['siswa'] == true) {
-      kabar(context, 'VA custom dibuat dan tampil di Tagihan Saya siswa.');
+      kabar(context, 'Transaksi dibuat dan tampil di Tagihan Saya siswa.');
     } else if (_d['online'] == true) {
       await _bayar({'id': r['id'], 'siswa': false, 'pokok': r['pokok'], 'sisa': r['pokok'], 'keterangan': r['keterangan']});
       _segar();
@@ -62,7 +63,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
     }
     final metode = daftar(_d['metode']).map(peta).toList();
     final pokok = _nilai(x['siswa'] == true ? x['sisa'] : x['pokok']);
-    final kode = await pilihMetodeBayar(context, pokok: pokok, metode: metode, judul: 'Metode yang dipilih pembayar');
+    final kode = await pilihMetodeBayar(context, pokok: pokok, metode: metode, judul: 'Pilih VA atau QRIS');
     if (kode == null || !mounted) return;
     final h = await jalankan(context, () async => peta(await Api.instance('waStafVaCustomBayar', [_t, {'id': teks(x['id']), 'metode': kode}], const Duration(minutes: 2))),
         teksProses: 'Menyiapkan pembayaran...');
@@ -71,14 +72,14 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
   }
 
   Future<void> _batal(Map<String, dynamic> x) async {
-    if (!await konfirmasi(context, 'Batalkan VA?', '${teks(x['keterangan'])}\n\n${x['siswa'] == true ? 'Tagihan ini akan hilang dari Tagihan Saya siswa.' : 'Halaman bayar tidak lagi dicatat sebagai VA custom ini.'}',
+    if (!await konfirmasi(context, 'Batalkan transaksi?', '${teks(x['keterangan'])}\n\n${x['siswa'] == true ? 'Tagihan ini akan hilang dari Tagihan Saya siswa.' : 'Pembayaran tidak lagi dicatat sebagai transaksi ini.'}',
         ya: 'Batalkan')) {
       return;
     }
     if (!mounted) return;
     final h = await jalankan(context, () => Api.instance('waStafVaCustomBatal', [_t, teks(x['id'])]));
     if (h.ok && mounted) {
-      kabar(context, 'VA custom dibatalkan.');
+      kabar(context, 'Transaksi dibatalkan.');
       _segar();
     }
   }
@@ -135,7 +136,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
                 _bayar(x).then((_) { if (mounted) _segar(); });
               },
               icon: const Icon(Icons.qr_code_2_rounded),
-              label: Text(siswa ? 'Tampilkan QR bayar di layar' : 'Tampilkan QR bayar'),
+              label: const Text('Bayar via VA / QRIS'),
             ),
           if (belum && !siswa && teks(x['invoice']).isNotEmpty)
             OutlinedButton.icon(
@@ -153,7 +154,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
                 _batal(x);
               },
               icon: const Icon(Icons.cancel_outlined),
-              label: const Text('Batalkan VA'),
+              label: const Text('Batalkan transaksi'),
             ),
         ]),
       ),
@@ -163,7 +164,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(onPressed: _d.isEmpty ? null : _buat, icon: const Icon(Icons.add_rounded), label: const Text('Buat VA')),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _d.isEmpty ? null : _buat, icon: const Icon(Icons.add_rounded), label: const Text('Buat transaksi')),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey(_v),
         muat: () async => peta(await Api.instance('waStafVaCustomDaftar', [_t], const Duration(seconds: 120))),
@@ -183,14 +184,14 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
               color: Theme.of(context).colorScheme.primaryContainer,
               child: const Padding(
                 padding: EdgeInsets.all(14),
-                child: Text('Tagihan sekali bayar dengan nominal bebas. Pilih kode transaksi yang sudah ada; biaya admin metode bayar ditanggung pembayar '
-                    'dan lembaga menerima nominal utuh.\n\nSiswa membayar dari Tagihan Saya. Pembayar umum memindai QR di layar atau menerima gambar instruksi bayar.'),
+                child: Text('Transaksi sekali bayar dengan nominal bebas, dibayar lewat Virtual Account atau QRIS. Pilih kode transaksi yang sudah ada; biaya admin '
+                    'ditanggung pembayar dan lembaga menerima nominal utuh.\n\nSiswa membayar dari Tagihan Saya. Pembayar umum menerima nomor VA atau QRIS di layar / gambar instruksi bayar.'),
               ),
             ),
             if (d['online'] != true)
               Card(
                 color: Theme.of(context).colorScheme.errorContainer,
-                child: const Padding(padding: EdgeInsets.all(12), child: Text('Pembayaran online belum diaktifkan Admin. VA untuk siswa tetap bisa dibayar lewat transfer di Tagihan Saya.')),
+                child: const Padding(padding: EdgeInsets.all(12), child: Text('Pembayaran online belum diaktifkan Admin. Transaksi untuk siswa tetap bisa dibayar lewat transfer di Tagihan Saya.')),
               ),
             const SizedBox(height: 8),
             TextField(
@@ -210,7 +211,7 @@ class _VaCustomScreenState extends State<VaCustomScreen> {
                 onSelectionChanged: (v) => setState(() => _tab = v.first),
               ),
             ),
-            if (tampil.isEmpty) const Kosong(pesan: 'Belum ada VA custom di sini.', ikon: Icons.request_quote_outlined),
+            if (tampil.isEmpty) const Kosong(pesan: 'Belum ada transaksi di sini.', ikon: Icons.request_quote_outlined),
             for (final x in tampil)
               Card(
                 child: ListTile(
@@ -352,8 +353,8 @@ class _FormVaCustomState extends State<FormVaCustom> {
       kabar(context, 'Nominal minimal Rp1.000.', galat: true);
       return;
     }
-    if (!await konfirmasi(context, 'Buat VA ${rp(pokok)}?',
-        '$_keterangan\n\n${_siswa ? 'Tagihan akan tampil di Tagihan Saya siswa dan siswa menerima notifikasi.' : 'Setelah dibuat, pilih metode yang diinginkan pembayar lalu tunjukkan QR bayar.'}\nBiaya admin metode bayar ditanggung pembayar.',
+    if (!await konfirmasi(context, 'Buat transaksi ${rp(pokok)}?',
+        '$_keterangan\n\n${_siswa ? 'Tagihan akan tampil di Tagihan Saya siswa dan siswa menerima notifikasi.' : 'Setelah dibuat, pilih VA atau QRIS sesuai keinginan pembayar.'}\nBiaya admin metode bayar ditanggung pembayar.',
         ya: 'Buat')) {
       return;
     }
@@ -361,7 +362,7 @@ class _FormVaCustomState extends State<FormVaCustom> {
     final h = await jalankan(context, () async => peta(await Api.instance('waStafVaCustomBuat', [
           _t,
           {'kategori': _kategori, if (_siswa) 'idWb': teks(_wb!['id']) else ...{'nama': _namaPembayar, 'hp': _hp.text.trim()}, 'pokok': pokok, 'catatan': _catatan.text.trim()}
-        ])), teksProses: 'Membuat VA...');
+        ])), teksProses: 'Membuat transaksi...');
     if (h.ok && mounted) Navigator.pop(context, {...h.data!, 'pokok': pokok});
   }
 
@@ -369,7 +370,7 @@ class _FormVaCustomState extends State<FormVaCustom> {
   Widget build(BuildContext context) {
     final kat = daftar(widget.data['kategori']).map(peta).toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('Buat VA custom')),
+      appBar: AppBar(title: const Text('Buat Custom Transaction')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         DropdownButtonFormField<String>(
           isExpanded: true,
@@ -403,7 +404,7 @@ class _FormVaCustomState extends State<FormVaCustom> {
         TextField(
           controller: _pokok,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp ', helperText: 'Biaya admin ditambahkan sesuai metode yang dipilih pembayar'),
+          decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp ', helperText: 'Biaya admin ditambahkan sesuai VA / QRIS yang dipilih pembayar'),
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
@@ -419,7 +420,7 @@ class _FormVaCustomState extends State<FormVaCustom> {
           ),
         ],
         const SizedBox(height: 16),
-        FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)), onPressed: _simpan, child: const Text('Buat VA')),
+        FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)), onPressed: _simpan, child: const Text('Buat transaksi')),
       ]),
     );
   }
