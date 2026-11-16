@@ -330,9 +330,9 @@ function waRefBayar(token, id, metode, bukti) {
   if (metode === 'QRIS' && at.gateway.aktif && at.gateway.serverKey && String(at.gateway.penyedia || 'midtrans') === 'midtrans' && !bukti) return rfQrisDinamis_(x, at);
   if (metode === 'Online') {   // v1.48.0: DOKU Checkout
     var o = gwBuatOrder_({ jenis: 'Pendaftaran', ref: x['ID'], nama: x['NAMA'], judul: 'Biaya pendaftaran', uraian: 'Biaya pendaftaran ' + x['NAMA'], pokok: at.biaya, metode: bukti, hp: x['HP'], oleh: m.a.nama });   // v1.49.0: argumen ke-4 = kode metode
-    var nmG = gwAktif_().nama;   // v1.89.0
-    rfUbah_('DAFTAR', x._baris, { 'METODE BAYAR': nmG, 'ORDER GATEWAY': o.invoice, 'DIPERBARUI': rfWaktu_() });
-    return { sukses: true, url: o.url, invoice: o.invoice, jumlah: o.jumlah, pokok: o.pokok, biaya: o.biaya, metode: o.metode, kadaluarsa: o.kadaluarsa, judul: o.judul, nama: o.nama, pesan: 'Selesaikan pembayaran di halaman ' + nmG + '. Status lunas tercatat otomatis.' };
+    // v1.89.2: tanpa nama penyedia (nama penyedia hanya di pencatatan keuangan)
+    rfUbah_('DAFTAR', x._baris, { 'METODE BAYAR': 'Online', 'ORDER GATEWAY': o.invoice, 'DIPERBARUI': rfWaktu_() });
+    return { sukses: true, url: o.url, invoice: o.invoice, jumlah: o.jumlah, pokok: o.pokok, biaya: o.biaya, metode: o.metode, kadaluarsa: o.kadaluarsa, judul: o.judul, nama: o.nama, pesan: 'Selesaikan pembayaran di halaman pembayaran. Status lunas tercatat otomatis.' };
   }
   if (metode !== 'Transfer' && metode !== 'QRIS') throw new Error('Metode pembayaran tidak dikenal.');
   if (!bukti) throw new Error('Unggah bukti pembayaran.');

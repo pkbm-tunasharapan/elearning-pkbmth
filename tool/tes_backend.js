@@ -2479,5 +2479,19 @@ tes('Midtrans: notifikasi - tanda tangan salah ditolak, order gateway diteruskan
   } finally { m.pulihkan(); }
 });
 
+// v1.89.2: tampilan pengguna tanpa nama penyedia
+tes('gwNamaKanal_ & pesan aktif: nama kanal ramah, tanpa DOKU/Midtrans', () => {
+  const asli = g.rfAturan_;
+  try {
+    g.rfAturan_ = () => ({ gateway: { aktif: false, penyedia: 'midtrans', serverKey: '' } });
+    sama([g.gwNamaKanal_({ 'PENYEDIA': 'Midtrans (sandbox)' }, 'OTHER_QRIS'), g.gwNamaKanal_({ 'PENYEDIA': 'Midtrans' }, 'ECHANNEL'),
+      g.gwNamaKanal_({ 'PENYEDIA': 'DOKU' }, 'VIRTUAL_ACCOUNT_BRI'), g.gwNamaKanal_({ 'PENYEDIA': 'Midtrans' }, 'XYZ_ABC'), g.gwNamaKanal_({ 'PENYEDIA': 'DOKU' }, '')],
+      ['QRIS', 'VA Mandiri', 'VA BRI', 'XYZ ABC', 'online']);
+    let pesan = '';
+    try { g.gwWajibAktif_(); } catch (e) { pesan = e.message; }
+    sama([/belum diaktifkan/.test(pesan), /DOKU|Midtrans/.test(pesan)], [true, false], 'pesan tanpa nama penyedia');
+  } finally { g.rfAturan_ = asli; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

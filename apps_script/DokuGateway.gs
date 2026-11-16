@@ -81,9 +81,18 @@ function gwCfgOrder_(x) {
   g.penyedia = gwOrderMidtrans_(x) ? 'midtrans' : 'doku';
   return g;
 }
+// v1.89.2: nama kanal untuk tampilan pengguna (notifikasi, status), tanpa nama penyedia: "QRIS", "VA BRI", "GoPay".
+// Nama penyedia (DOKU/Midtrans) hanya ada di pencatatan keuangan lembaga.
+function gwNamaKanal_(x, kanal) {
+  var m = null;
+  try { m = gwMetodeCari_(kanal || (x && x['METODE']), gwCfgOrder_(x)); } catch (e) {}
+  if (m && m.nama) return String(m.nama).replace(/\s*\(.*\)\s*$/, '');
+  var k = String(kanal || '').trim();
+  return k ? k.replace(/_/g, ' ') : 'online';
+}
 function gwWajibAktif_() {
   var d = gwAktif_();
-  if (!d.aktif) throw new Error('Pembayaran online ' + d.nama + ' belum diaktifkan Admin (Pengaturan Referral → Payment gateway).');
+  if (!d.aktif) throw new Error('Pembayaran online belum diaktifkan Admin (Pengaturan Referral → Payment gateway).');
   return d;
 }
 function gwWaktuUtc_() { return Utilities.formatDate(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ss'Z'"); }
@@ -159,7 +168,8 @@ function gwBuatOrder_(o) {
     try { catat_('Sistem', '', o.oleh || 'Sistem', 'DOKU order GAGAL', invoice + ' HTTP ' + r.kode + ' ' + r.teks, 'GAGAL'); } catch (e) {}
     var pesanDoku = '';
     try { pesanDoku = [].concat((r.json || {}).message || (r.json || {}).error || []).join(' ').slice(0, 160); } catch (eM) {}
-    throw new Error('Gagal membuat pembayaran DOKU (HTTP ' + r.kode + (pesanDoku ? ': ' + pesanDoku : '') + '). Periksa kunci, mode sandbox/produksi, atau kode metode ' + m.kode + ' di pengaturan.');
+    void pesanDoku;   // v1.89.2: rincian (termasuk pesan penyedia) tercatat di Log Aktivitas
+    throw new Error('Gagal membuat pembayaran online (HTTP ' + r.kode + '). Coba lagi beberapa saat atau pilih metode lain; bila tetap gagal, hubungi admin (rincian di Log Aktivitas).');
   }
   }
   var kd = '';
@@ -207,7 +217,7 @@ function gwSelesai_(x, bayar, kanal) {
       gwUbah_(x._baris, { 'STATUS': 'Lunas', 'DIBAYAR PADA': x['DIBAYAR PADA'] || rfWaktu_(), 'KANAL': kanal || x['KANAL'], 'ID TRANSAKSI': sudah, 'CATATAN': 'Sudah tercatat sebelumnya (tidak dicatat ulang)' });
       return { status: 'Lunas', idTransaksi: sudah };
     }
-    var g = gwCfgOrder_(x), nmG = gwNamaOrder_(x), fee = gwBiaya_(bayar, kanal || x['METODE'], g), ids = '', catatan = '';   // v1.89.0
+    var g = gwCfgOrder_(x), nmG = gwNamaOrder_(x), nmK = gwNamaKanal_(x, kanal), fee = gwBiaya_(bayar, kanal || x['METODE'], g), ids = '', catatan = '';   // v1.89.0
     var pokok = Math.round(Number(x['POKOK']) || bayar), adminBayar = Math.max(0, bayar - pokok);   // v1.49.0
     if (x['JENIS'] === 'Pendaftaran') {
       var rf = rfCari_(x['REF']);
@@ -215,14 +225,14 @@ function gwSelesai_(x, bayar, kanal) {
         catatan = 'Pendaftaran sudah berstatus ' + rf['STATUS BAYAR'] + ' saat pembayaran ' + nmG + ' masuk; periksa kemungkinan bayar ganda.';
         ids = gwCatatLain_(x, bayar, kanal, fee, catatan);
       } else {
-        rfUbah_('DAFTAR', rf._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': pokok, 'METODE BAYAR': nmG + ' ' + kanal, 'ORDER GATEWAY': x['INVOICE'],
+        rfUbah_('DAFTAR', rf._baris, { 'STATUS BAYAR': 'Lunas', 'JUMLAH BAYAR': pokok, 'METODE BAYAR': 'Online ' + nmK, 'ORDER GATEWAY': x['INVOICE'],
           'VERIF BAYAR OLEH': 'Gateway otomatis', 'VERIF BAYAR PADA': rfWaktu_(), 'DIPERBARUI': rfWaktu_() });
         var oto = { nama: 'Gateway otomatis', peran: 'Sistem', biayaGw: fee };
         ids = rfCatatBayarAman_(rfCari_(x['REF']), oto, true);
         if (adminBayar > 0) ids = [ids, gwCatatAdminBayar_(x, adminBayar, kanal, 'Swadaya')].filter(String).join(',');
         rfSelesaikan_(rfCari_(x['REF']), oto);
-        rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online lewat ' + nmG + ' (' + kanal + ').');
-        npKirim_('bayar_online_masuk', { judul: 'Biaya pendaftaran dibayar online ' + honRp_(pokok), isi: rf['NAMA'] + ' (' + (kanal || nmG) + ').', aksi: 'referral_admin', ref: 'gw|' + x['INVOICE'] });   // v1.50.0: notifikasi
+        rfNotif_(rf['PROMOTOR KUNCI'], 'Pembayaran lunas: ' + rf['NAMA'], 'Dibayar online (' + nmK + ').');
+        npKirim_('bayar_online_masuk', { judul: 'Biaya pendaftaran dibayar online ' + honRp_(pokok), isi: rf['NAMA'] + ' (' + nmK + ').', aksi: 'referral_admin', ref: 'gw|' + x['INVOICE'] });   // v1.50.0: notifikasi
       }
     } else if (x['JENIS'] === 'Custom') {
       ids = vcCatat_(x, pokok, kanal, fee, bayar, adminBayar);   // v1.68.0: VA custom pembayar umum
@@ -270,7 +280,7 @@ function gwCatatBiaya_(x, bayar, kanal, fee, sumber) {
 }
 function gwCatatTagihan_(x, bayar, kanal, fee, total, adminBayar) {
   total = total || bayar;
-  var tag = keuTagCari_(x['REF']), sumber = KEU.SUMBER_KAT[tag.kategori] || 'Swadaya', nmG = gwNamaOrder_(x);
+  var tag = keuTagCari_(x['REF']), sumber = KEU.SUMBER_KAT[tag.kategori] || 'Swadaya', nmG = gwNamaOrder_(x), nmK = gwNamaKanal_(x, kanal);
   var t = keuTrxTab_(), id = 'TRX-' + absId_().toUpperCase();
   t.sh.appendRow(absBaris_(t, kalGabung_(gwBarisDasar_(absHariIni_(), sumber, nmG), {
     'ID TRANSAKSI': id, 'JENIS': 'Pemasukan', 'KATEGORI KEUANGAN': tag.kategori, 'WARGA BELAJAR': x['ID WB'], 'TAGIHAN': tag.id, 'JUMLAH': bayar,
@@ -280,9 +290,9 @@ function gwCatatTagihan_(x, bayar, kanal, fee, total, adminBayar) {
   var a = adminBayar > 0 ? gwCatatAdminBayar_(x, adminBayar, kanal, sumber) : '';
   var b = gwCatatBiaya_(x, total, kanal, fee, sumber);
   try { catat_('Sistem', '', 'Gateway otomatis', 'Bayar tagihan online', tag.nama + ' ' + x['NAMA'] + ' ' + bayar + (adminBayar ? ' + admin ' + adminBayar : ''), 'OK'); } catch (e) {}
-  npBayarDiterima_(x['ID WB'], tag.nama, bayar, 'online ' + (kanal || ''));   // v1.50.0: notifikasi
-  aqrSetelahBayar_(tag.id, x['ID WB'], 'VA / online ' + (kanal || nmG), id);   // v1.67.0: aktivasi QR otomatis bila lunas
-  npKirim_('bayar_online_masuk', { judul: 'Pembayaran online masuk ' + honRp_(bayar), isi: tag.nama + ' - ' + x['NAMA'] + ' (' + (kanal || nmG) + ').', aksi: 'keuangan', ref: 'gw|' + x['INVOICE'] });
+  npBayarDiterima_(x['ID WB'], tag.nama, bayar, 'online ' + nmK);   // v1.50.0: notifikasi
+  aqrSetelahBayar_(tag.id, x['ID WB'], 'Online ' + nmK, id);   // v1.67.0: aktivasi QR otomatis bila lunas
+  npKirim_('bayar_online_masuk', { judul: 'Pembayaran online masuk ' + honRp_(bayar), isi: tag.nama + ' - ' + x['NAMA'] + ' (' + nmK + ').', aksi: 'keuangan', ref: 'gw|' + x['INVOICE'] });
   return [id, a, b].filter(String).join(',');
 }
 // Uang masuk yang tidak cocok dengan apa pun (mis. bayar ganda): tetap dicatat agar kas sesuai, ditandai untuk diperiksa.
@@ -371,7 +381,7 @@ function waStafTagihanOrder(token, q) {
 // ---------- promotor: cek status pembayaran online ----------
 function waRefCekBayar(token, id) {
   var m = rfMilik_(token, id), x = m.x;
-  if (!x['ORDER GATEWAY'] || !/^(DOKU|Midtrans)/.test(String(x['METODE BAYAR']))) return { status: x['STATUS BAYAR'] || 'Belum' };
+  if (!x['ORDER GATEWAY'] || !/^(DOKU|Midtrans|Online)/.test(String(x['METODE BAYAR']))) return { status: x['STATUS BAYAR'] || 'Belum' };
   var h = gwPeriksa_(x['ORDER GATEWAY']);
   return { status: h.status, statusBayar: rfCari_(id)['STATUS BAYAR'] };
 }
@@ -556,7 +566,8 @@ function gwMtBuat_(d, invoice, h, m, o) {
     try { catat_('Sistem', '', o.oleh || 'Sistem', 'Midtrans order GAGAL', invoice + ' HTTP ' + r.kode + ' ' + r.teks, 'GAGAL'); } catch (e) {}
     var pesan = '';
     try { pesan = [].concat(r.json.error_messages || r.json.status_message || []).join(' ').slice(0, 160); } catch (eM) {}
-    throw new Error('Gagal membuat pembayaran Midtrans (HTTP ' + r.kode + (pesan ? ': ' + pesan : '') + '). Periksa Server Key, mode sandbox/produksi, atau metode ' + m.kode + ' yang aktif di dasbor Midtrans.');
+    void pesan;   // v1.89.2: rincian (termasuk pesan penyedia) tercatat di Log Aktivitas
+    throw new Error('Gagal membuat pembayaran online (HTTP ' + r.kode + '). Coba lagi beberapa saat atau pilih metode lain; bila tetap gagal, hubungi admin (rincian di Log Aktivitas).');
   }
   return r.json.redirect_url;
 }

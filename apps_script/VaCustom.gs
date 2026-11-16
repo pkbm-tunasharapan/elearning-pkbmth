@@ -208,6 +208,6 @@ function vcCatat_(x, pokok, kanal, fee, total, adminBayar) {
   var b = gwCatatBiaya_(x, total, kanal, fee, sumber);
   vcUbah_(c.t, v.baris, { 'STATUS': 'Lunas', 'ID TRANSAKSI': id, 'DIBAYAR PADA': rfWaktu_(), 'INVOICE': x['INVOICE'] });
   try { catat_('Sistem', '', 'Gateway otomatis', 'VA custom lunas', v.id + ' ' + v.keterangan + ' ' + pokok, 'OK'); } catch (e2) {}
-  npKirim_('va_custom_lunas', { judul: 'VA custom dibayar ' + honRp_(pokok), isi: v.keterangan + ' (' + (kanal || nmG) + ').', aksi: 'va_custom', ref: 'gw|' + x['INVOICE'] });
+  npKirim_('va_custom_lunas', { judul: 'VA custom dibayar ' + honRp_(pokok), isi: v.keterangan + ' (' + gwNamaKanal_(x, kanal) + ').', aksi: 'va_custom', ref: 'gw|' + x['INVOICE'] });
   return [id, a, b].filter(String).join(',');
 }

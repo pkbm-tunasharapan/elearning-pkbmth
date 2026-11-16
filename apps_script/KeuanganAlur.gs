@@ -267,7 +267,7 @@ function kalAkunBawaan_(metode) {
     var a = kalAkun_().filter(function(x) { return x.jenis === jenis && x.aktif !== false; })[0];
     return a ? a.kode : '';
   };
-  if (/gateway|otomatis|midtrans|doku/.test(m)) return pilih('Gateway', 'PG');
+  if (/gateway|otomatis|midtrans|doku|^online/.test(m)) return pilih('Gateway', 'PG');   // v1.89.2: "Online ..." = gateway
   if (/tunai|cash|sekretariat/.test(m)) return pilih('Tunai', 'TUNAI');
   if (!m) return '';
   return pilih('Bank', 'BANK');
