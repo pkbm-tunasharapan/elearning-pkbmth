@@ -6,6 +6,7 @@ import '../api.dart';
 import '../honor/honor.dart' show rp;
 import '../keuangan/bayar_online.dart';
 import '../keuangan/kwitansi.dart';
+import '../theme.dart';
 import '../widgets.dart';
 import 'sesi_siswa.dart';
 
@@ -121,34 +122,62 @@ class _TagihanSiswaScreenState extends State<TagihanSiswaScreen> {
           return RefreshIndicator(
             onRefresh: segarkan,
             child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 32), children: [
-              Card(
-                color: total > 0 ? cs.errorContainer : cs.primaryContainer,
-                child: ListTile(
-                  leading: Icon(total > 0 ? Icons.request_quote_rounded : Icons.verified_rounded),
-                  title: Text(total > 0 ? 'Total yang harus dibayar ${rp(total)}' : 'Tidak ada tagihan yang belum dibayar', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text('${teks(peta(d['wb'])['nama'])} · ${teks(peta(d['wb'])['rombel'])}'),
+              // v1.92.0 (desain ulang): ringkasan datar, nominal besar; tagihan berupa kartu bergaris tipis
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                decoration: BoxDecoration(
+                  color: total > 0 ? cs.error.withValues(alpha: 0.07) : Colors.green.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(Gaya.radius),
                 ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(total > 0 ? 'Total yang harus dibayar' : 'Semua tagihan lunas', style: TextStyle(color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  Text(total > 0 ? rp(total) : 'Tidak ada tunggakan',
+                      style: TextStyle(fontSize: total > 0 ? 28 : 20, fontWeight: FontWeight.w800, color: total > 0 ? cs.error : Colors.green.shade700)),
+                  const SizedBox(height: 4),
+                  Text('${teks(peta(d['wb'])['nama'])} · ${teks(peta(d['wb'])['rombel'])}', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                ]),
               ),
               const JudulBagian('Tagihan'),
               if (tg.isEmpty) const Kosong(pesan: 'Belum ada tagihan.', ikon: Icons.request_quote_outlined),
               for (final t in tg)
-                Card(
-                  child: ListTile(
-                    onTap: angka(t['sisa']) > 0 ? () => _pilihBayar(d, t) : null,
-                    title: Text(teks(t['nama']), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: Text([
-                      '${teks(t['kategori'])} · ${rp(t['jumlah'])}',
-                      if (teks(t['jatuhTempo']).isNotEmpty) 'Jatuh tempo ${tglIndo(teks(t['jatuhTempo']))}',
-                      if (angka(t['dibayar']) > 0) 'Sudah dibayar ${rp(t['dibayar'])}',
-                      if (angka(t['keringanan']) > 0) 'Keringanan ${rp(t['keringanan'])}',
-                      if (angka(t['transferDiperiksa']) > 0) 'Transfer ${rp(t['transferDiperiksa'])} sedang diperiksa',
-                    ].join('\n')),
-                    isThreeLine: true,
-                    trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Lencana(teks(t['status']) == 'Lunas' ? 'Lunas' : rp(t['sisa']), warna: _warna(context, teks(t['status']))),
-                      if (angka(t['sisa']) > 0) const Padding(padding: EdgeInsets.only(top: 4), child: Text('Bayar ›', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-                    ]),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(Gaya.radius),
+                    border: Border.all(color: Gaya.garis(context)),
                   ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(child: Text(teks(t['nama']), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5))),
+                      const SizedBox(width: 8),
+                      Lencana(teks(t['status']) == 'Lunas' ? 'Lunas' : rp(t['sisa']), warna: _warna(context, teks(t['status']))),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text(
+                      [
+                        '${teks(t['kategori'])} · ${rp(t['jumlah'])}',
+                        if (teks(t['jatuhTempo']).isNotEmpty) 'Jatuh tempo ${tglIndo(teks(t['jatuhTempo']))}',
+                        if (angka(t['dibayar']) > 0) 'Sudah dibayar ${rp(t['dibayar'])}',
+                        if (angka(t['keringanan']) > 0) 'Keringanan ${rp(t['keringanan'])}',
+                        if (angka(t['transferDiperiksa']) > 0) 'Transfer ${rp(t['transferDiperiksa'])} sedang diperiksa',
+                      ].join('\n'),
+                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, height: 1.4),
+                    ),
+                    if (angka(t['sisa']) > 0) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => _pilihBayar(d, t),
+                          icon: const Icon(Icons.payments_outlined),
+                          label: Text('Bayar ${rp(t['sisa'])}'),
+                        ),
+                      ),
+                    ],
+                  ]),
                 ),
               if (tf.isNotEmpty) ...[
                 const JudulBagian('Bukti transfer'),

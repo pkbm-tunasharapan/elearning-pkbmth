@@ -1011,11 +1011,11 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
               else if (selesai || d['nilaiTotal'] != null)
                 Container(
                   padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
+                  decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(Gaya.radius)),
                   child: Column(children: [
-                    const Text('Nilai Anda', style: TextStyle(color: Colors.white70)),
-                    Text('${d['nilaiTotal'] ?? '-'}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 40)),
-                    Text('dari ${d['nilaiMaks'] ?? 100}', style: const TextStyle(color: Colors.white70)),
+                    Text('Nilai Anda', style: TextStyle(color: cs.onSurfaceVariant)),
+                    Text('${d['nilaiTotal'] ?? '-'}', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800, fontSize: 40)),
+                    Text('dari ${d['nilaiMaks'] ?? 100}', style: TextStyle(color: cs.onSurfaceVariant)),
                   ]),
                 ),
               if (info.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Text(info, textAlign: TextAlign.center)),

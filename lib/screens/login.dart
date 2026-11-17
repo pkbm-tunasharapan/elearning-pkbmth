@@ -106,10 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
         body: Container(
           decoration: const BoxDecoration(gradient: Gaya.gradasi),
           child: Stack(children: [
-            // Lingkaran dekoratif lembut
-            const Positioned(top: -70, right: -50, child: _Gelembung(200, 0.12)),
-            const Positioned(top: 140, left: -60, child: _Gelembung(140, 0.08)),
-            const Positioned(bottom: -90, right: -40, child: _Gelembung(240, 0.10)),
+            // v1.92.0 (desain ulang): latar polos tanpa lingkaran dekoratif
             SafeArea(
               child: LayoutBuilder(builder: (context, batas) {
                 final lebar = batas.maxWidth >= 860;
@@ -392,18 +389,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _Gelembung extends StatelessWidget {
-  const _Gelembung(this.ukuran, this.alfa);
-  final double ukuran;
-  final double alfa;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: ukuran,
-        height: ukuran,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: alfa)),
-      );
-}
 
 class _TombolGoogle extends StatelessWidget {
   const _TombolGoogle({required this.onPressed});
