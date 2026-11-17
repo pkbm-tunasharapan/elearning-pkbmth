@@ -10,7 +10,11 @@ const String kNamaAplikasi = 'TH.E-Course';
 const String kNamaSekolah = 'PKBM Tunas Harapan';
 
 /// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
-const String kVersi = '1.91.0';
+const String kVersi = '1.92.0';
+
+/// v1.92.0: Supabase (migrasi bertahap). Kunci publishable memang publik; akses dibatasi RLS & fungsi di server.
+const String kSupabaseUrl = 'https://illiooqaguxfrsvtzntd.supabase.co';
+const String kSupabaseKunciPublik = 'sb_publishable__A_AfEI_sfx1WNPsuOmfrA_K4RT0zfc';
 
 /// Client ID OAuth jenis "Web application" (proyek Google Cloud Master Classroom Control).
 /// Dipakai sebagai serverClientId agar Google memberi ID token yang dapat diperiksa server.

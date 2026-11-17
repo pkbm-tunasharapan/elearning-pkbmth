@@ -1,9 +1,26 @@
 // Tes logika aplikasi (dijalankan `flutter test` di GitHub Actions sebelum build).
 import 'package:elearning_staf/nilai/opsi_rapor.dart';
 import 'package:elearning_staf/pemeliharaan/sistem.dart';
+import 'package:elearning_staf/penanda.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('takAdaBaru (penanda Supabase, v1.92.0)', () {
+    test('semua penanda lebih lama dari titik sejak -> lewati server', () {
+      expect(takAdaBaru({'chat': 100, 'nv': 50, 'rf': 90}, {'chat': 200, 'nv': 60, 'rf': 200}), isTrue);
+    });
+    test('ada penanda sama/lebih baru -> tetap tanya server', () {
+      expect(takAdaBaru({'chat': 200, 'nv': 50}, {'chat': 200, 'nv': 60}), isFalse);
+      expect(takAdaBaru({'chat': 100, 'nv': 70}, {'chat': 200, 'nv': 60}), isFalse);
+    });
+    test('penanda atau titik sejak belum dikenal -> tetap tanya server', () {
+      expect(takAdaBaru({'chat': 0, 'nv': 50}, {'chat': 200, 'nv': 60}), isFalse);
+      expect(takAdaBaru({'nv': 50}, {'chat': 200, 'nv': 60}), isFalse);
+      expect(takAdaBaru({'chat': 100, 'nv': 50}, {'chat': 0, 'nv': 60}), isFalse);
+      expect(takAdaBaru({'chat': 100}, {}), isFalse);
+    });
+  });
+
   group('bandingVersi', () {
     test('versi lebih baru', () {
       expect(bandingVersi('1.38.5', '1.38.4') > 0, isTrue);

@@ -13,7 +13,9 @@
 var KCP = { AWALAN: 'kcp|', TTL: 21600, TTL_BELUM: 300 };
 
 function kcpTanda_(jenis, ms) {
-  try { CacheService.getScriptCache().put(KCP.AWALAN + jenis, String(ms || new Date().getTime()), KCP.TTL); } catch (e) {}
+  ms = ms || new Date().getTime();
+  try { CacheService.getScriptCache().put(KCP.AWALAN + jenis, String(ms), KCP.TTL); } catch (e) {}
+  if (jenis === 'chat' || jenis === 'nv') pndKirim_(jenis, ms);   // v1.92.0: penanda Supabase (Penanda.gs)
 }
 function kcpAkhir_(jenis) {
   try { return Number(CacheService.getScriptCache().get(KCP.AWALAN + jenis)) || 0; } catch (e) { return 0; }

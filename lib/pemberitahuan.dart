@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'config.dart';
+import 'penanda.dart';
 import 'pengguna/lihat_sebagai.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
@@ -140,7 +141,21 @@ class Pemberitahuan {
         await mulai();
         return;
       }
+      // v1.92.0: lewati waNotifCek bila penanda broadcast & notifikasi peran tidak berubah sejak pemeriksaan
+      // lengkap terakhir; pemeriksaan lengkap tetap dilakukan minimal 30 menit sekali (pengingat PIN, masa berlaku).
+      final sejakBc = sp.getInt('bc_sejak_ms') ?? 0, lengkapMs = sp.getInt('bc_lengkap_ms') ?? 0;
+      if (sejakBc > 0 &&
+          DateTime.now().millisecondsSinceEpoch - lengkapMs < const Duration(minutes: 30).inMilliseconds &&
+          await Penanda.instance.segarkan() &&
+          takAdaBaru(Penanda.instance.semua, {'bc': sejakBc, 'np': sejakBc})) {
+        return;
+      }
       final h = peta(await Api.instance('waNotifCek', [kunci]));
+      final kiniBc = angka(h['sekarangMs']);
+      if (kiniBc > 0) {
+        await sp.setInt('bc_sejak_ms', kiniBc - 5000);
+        await sp.setInt('bc_lengkap_ms', DateTime.now().millisecondsSinceEpoch);
+      }
       if (h['sah'] == false) {
         // kunci tidak dikenal server lagi: daftar ulang pada pemeriksaan berikutnya
         await sp.remove('bc_kunci');

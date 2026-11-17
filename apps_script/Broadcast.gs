@@ -62,7 +62,7 @@ function bcAktif_() {
   try { c.put(BC.CACHE, JSON.stringify(a), BC.CACHE_DETIK); } catch (e2) {}
   return a;
 }
-function bcLupakan_() { try { CacheService.getScriptCache().remove(BC.CACHE); } catch (e) {} }
+function bcLupakan_() { try { CacheService.getScriptCache().remove(BC.CACHE); } catch (e) {} pndKirim_('bc', Date.now()); }   // v1.92.0: penanda Supabase
 
 function bcCocok_(b, a) {
   var s = b.sasaran || {};

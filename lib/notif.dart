@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'pemberitahuan.dart';
 import 'pemeliharaan/sistem.dart';
+import 'penanda.dart';
 import 'referral/referral.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
@@ -146,6 +147,12 @@ class Notif with WidgetsBindingObserver {
       final sejakNilai = sp.getInt(kNilai) ?? 0;
       final siswa = id.startsWith('siswa|');
       if (!siswa && Sesi.instance.isDinas) return;
+      // v1.92.0: tanya Supabase dulu; bila pasti tidak ada chat/nilai/referral baru, Apps Script tidak dipanggil.
+      if (sejak > 0 && sejakNilai > 0 && await Penanda.instance.segarkan() &&
+          takAdaBaru(Penanda.instance.semua, {'chat': sejak, 'nv': sejakNilai, 'rf': sejak})) {
+        _kosong++;
+        return;
+      }
       // Pemeriksaan pertama hanya menandai titik awal (server tidak mengembalikan apa pun bila sejak = 0).
       final h = peta(siswa
           ? await Api.instance('waRuangCek', [SesiSiswa.instance.nama, SesiSiswa.instance.idRombel, sejak, sejakNilai])

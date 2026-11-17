@@ -145,6 +145,7 @@ function npKirim_(jenis, o) {
       String(o.judul || j.nama).slice(0, 120), String(o.isi || '').slice(0, 500), String(o.aksi || ''),
       (o.siswa || []).join(','), (o.tutor || []).join(','), (o.staf || []).join(','), String(o.ref || '')]);
     try { CacheService.getScriptCache().remove(NP.CACHE); } catch (e1) {}
+    pndKirim_('np', ms);   // v1.92.0: penanda Supabase
     try { npPastikanPemicu_(false); } catch (e2) {}
     return id;
   } catch (e) { return ''; }

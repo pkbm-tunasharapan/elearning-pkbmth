@@ -208,6 +208,7 @@ function rfNotif_(kunci, judul, pesan) {
   var ms = Date.now();
   try { rfTambah_('NOTIF', { 'WAKTU MS': String(ms), 'KUNCI': kunci, 'JUDUL': judul, 'PESAN': pesan }); } catch (e) {}
   try { CacheService.getScriptCache().put('rfn|' + kunci, String(ms), 21600); } catch (e2) {}
+  pndKirim_('rf', ms);   // v1.92.0: penanda Supabase
 }
 function rfKunciDariToken_(token) {
   var c = CacheService.getScriptCache(), ck = 'rft|' + String(token).slice(0, 200);
