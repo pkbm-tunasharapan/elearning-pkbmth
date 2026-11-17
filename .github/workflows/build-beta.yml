@@ -4,8 +4,10 @@ name: Build APK Beta (pengembangan, tidak dirilis)
 # - hanya dari cabang beta/** atau dijalankan manual; tidak pernah dari main
 # - package id.pkbmtunasharapan.elearning_staf.beta + nama "TH.E-Course Beta" -> terpasang berdampingan
 # - versi TH_VERSI berbeda dari rilis resmi/uji -> tidak dihitung pemakai rilis uji, tidak ditawari pembaruan
-# - hasil hanya berupa artifact Actions: TIDAK membuat GitHub Release (pengambil APK otomatis backend
-#   membaca releases/latest) dan TIDAK menerbitkan GitHub Pages
+# - hasil APK hanya berupa artifact Actions: TIDAK membuat GitHub Release (pengambil APK otomatis backend
+#   membaca releases/latest) dan TIDAK menerbitkan GitHub Pages (Pages repo ini milik web produksi)
+# - web beta diterbitkan ke Cloudflare Pages (proyek th-ecourse-beta, alamat terpisah) bila secret
+#   CLOUDFLARE_API_TOKEN & CLOUDFLARE_ACCOUNT_ID sudah diisi; tanpa secret langkah web dilewati
 on:
   push:
     branches: ['beta/**']
@@ -44,7 +46,7 @@ jobs:
           KUNCI_RILIS_SANDI: ${{ secrets.KUNCI_RILIS_SANDI }}
           KUNCI_RILIS_ALIAS: ${{ secrets.KUNCI_RILIS_ALIAS }}
         run: |
-          flutter create --platforms=android --org id.pkbmtunasharapan --project-name elearning_staf .
+          flutter create --platforms=android,web --org id.pkbmtunasharapan --project-name elearning_staf .
           python3 tool/siapkan_platform.py
 
       - name: Unduh paket
@@ -70,3 +72,20 @@ jobs:
           name: th-ecourse-beta-apk-${{ env.TH_VERSI_BETA }}-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 14
+
+      - name: Build web beta
+        run: >
+          flutter build web --release --base-href /
+          --dart-define=TH_BETA=true --dart-define=TH_VERSI=${{ env.TH_VERSI_BETA }}
+
+      - name: Terbitkan web beta ke Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Secret Cloudflare belum diisi: web beta tidak diterbitkan."
+            exit 0
+          fi
+          npx --yes wrangler@3 pages project create th-ecourse-beta --production-branch=beta 2>/dev/null || true
+          npx --yes wrangler@3 pages deploy build/web --project-name=th-ecourse-beta --branch=beta --commit-dirty=true

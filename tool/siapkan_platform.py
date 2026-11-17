@@ -36,12 +36,12 @@ man.write_text(s)
 idx = akar / 'web/index.html'
 if idx.exists():
     h = idx.read_text()
-    h = re.sub(r'<title>.*?</title>', '<title>TH.E-Course</title>', h, flags=re.S)
+    h = re.sub(r'<title>.*?</title>', f'<title>{NAMA}</title>', h, flags=re.S)
     idx.write_text(h)
 mf = akar / 'web/manifest.json'
 if mf.exists():
     d = json.loads(mf.read_text())
-    d.update({'name': 'TH.E-Course', 'short_name': NAMA, 'background_color': '#4B2FD0', 'theme_color': '#4B2FD0'})
+    d.update({'name': NAMA, 'short_name': NAMA, 'background_color': '#4B2FD0', 'theme_color': '#4B2FD0'})
     mf.write_text(json.dumps(d, indent=2))
 
 # test bawaan `flutter create` merujuk MyApp yang tidak ada di proyek ini; tes milik proyek (test/logika_test.dart) dipertahankan
