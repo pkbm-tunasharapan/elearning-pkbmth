@@ -30,6 +30,7 @@ function ssmBaca_() {
   return s;
 }
 function ssmSimpan_(s) {
+  if (typeof bljKotor_ === 'function') bljKotor_();   // v1.92.0
   PropertiesService.getScriptProperties().setProperty(SSM.PROP, JSON.stringify(s));
   SSM_MEMO_.cfg = s;
 }

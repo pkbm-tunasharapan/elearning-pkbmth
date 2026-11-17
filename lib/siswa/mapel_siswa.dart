@@ -108,7 +108,7 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
         muat: () => Future.wait([
           // v1.92.0: snapshot Supabase dulu (cepat); bila belum ada/basi -> Apps Script
           ambilMateriSiswa(widget.idMapel, () => Api.instance('waGetMateri', [widget.idMapel])),
-          Api.instance('waGetRiwayatJawaban', [widget.idMapel, _s.nama]),
+          ambilRiwayatSiswa(widget.idMapel, teks(_s.data['tandaBelajar']), () => Api.instance('waGetRiwayatJawaban', [widget.idMapel, _s.nama])),
         ]),
         bangun: (context, d, _) {
           final items = daftar(d[0]).map(peta).toList();
@@ -469,6 +469,7 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
     }
     setState(() => _sibuk = true);
     try {
+      RiwayatBelajar.instance.catatTulis();   // v1.92.0: riwayat sesudah ini dari jalur lama
       final d = peta(await Api.instance('waSubmitJawaban', [{..._dasar, 'jawaban': _gabung(uraian, tautan)}]));
       if (!mounted) return;
       if (d['sukses'] == true) {
@@ -712,6 +713,7 @@ class _AbsensiSiswaScreenState extends State<AbsensiSiswaScreen> {
   Future<void> _isi() async {
     final ok = await konfirmasi(context, 'Catat kehadiran Anda sekarang?', 'Setelah dikirim, absensi tidak dapat diubah.', ya: 'Ya, saya hadir');
     if (!ok || !mounted) return;
+    RiwayatBelajar.instance.catatTulis();   // v1.92.0: riwayat sesudah ini dari jalur lama
     final r = await jalankan(context, () => Api.instance('waAbsenIsi', [
           {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'nama': _s.nama, 'idMateri': teks(widget.item['id'])}
         ]), teksProses: 'Mencatat kehadiran...');
@@ -1216,6 +1218,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     _jam?.cancel();
     final pd = await UjianAman.perangkat();
     if (!mounted) return;
+    RiwayatBelajar.instance.catatTulis();   // v1.92.0: riwayat sesudah ini dari jalur lama
     final r = await jalankan(context, () => Api.instance('waSubmitUjian', [
           {
             'perangkat': pd,

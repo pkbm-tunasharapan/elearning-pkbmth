@@ -136,6 +136,7 @@ function perfGantiVersi_() {
   var v = Date.now();
   try { CacheService.getScriptCache().put('data_versi', String(v), 21600); } catch (eV) {}
   pndKirim_('dv', v);   // v1.92.0: snapshot materi di Supabase ikut basi (Penanda.gs)
+  bljKotor_();          // v1.92.0: salinan riwayat belajar di Supabase disinkron ulang (Belajar.gs)
 }
 function perfHapusCache_() {
   perfGantiVersi_();

@@ -389,6 +389,7 @@ function waStafBukaSesi(token, idMapel, nama, namaSesi, alasan) {
       generateId_('BKS-'), taWaktuTeks_(now), ctx.m.idRombel, siswa, String(idMapel), p.smt, p.n,
       alasanBersih, ctx.p.nama, taWaktuTeks_(berlaku), ''
     ]);
+    if (typeof bljKotor_ === 'function') bljKotor_();   // v1.92.0
     kmCatat_(ctx.p, idMapel, 'Buka sesi siswa', siswa + ' · ' + info.nama + ' · ' + alasanBersih, 'OK');
     return { riwayat: taRingkasBuka_(idMapel, now), berlaku: taWaktuTeks_(berlaku) };
   } finally {
@@ -407,6 +408,7 @@ function waStafBukaSesiCabut(token, idMapel, idBuka) {
       if (b.id !== String(idBuka)) continue;
       if (b.idMapel !== String(idMapel)) throw new Error('Catatan ini bukan milik mapel yang dipilih.');
       taSheetBuka_().getRange(b.baris, TA.HEADERS_BUKA.length).setValue('Dicabut ' + taWaktuTeks_(new Date().getTime()) + ' oleh ' + ctx.p.nama);
+      if (typeof bljKotor_ === 'function') bljKotor_();   // v1.92.0
       kmCatat_(ctx.p, idMapel, 'Cabut buka sesi', b.nama + ' · ' + b.sesi, 'OK');
       return { riwayat: taRingkasBuka_(idMapel, new Date().getTime()) };
     }

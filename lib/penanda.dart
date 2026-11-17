@@ -71,6 +71,40 @@ class SnapshotMateri {
 Future<dynamic> ambilMateriSiswa(String idMapel, Future<dynamic> Function() jalurLama) async =>
     (await SnapshotMateri.instance.ambil(idMapel)) ?? await jalurLama();
 
+/// v1.92.0 (F2): riwayat jawaban siswa dibaca langsung dari Supabase (fungsi riwayat_baca) dengan
+/// "tanda belajar" dari respons login. Sesudah siswa sendiri mengirim jawaban/absensi/ujian, jalur lama
+/// (Apps Script) dipakai selama 5 menit karena salinan di Supabase baru disinkron dalam hitungan menit.
+class RiwayatBelajar {
+  RiwayatBelajar._();
+  static final RiwayatBelajar instance = RiwayatBelajar._();
+
+  DateTime? _tulisTerakhir;
+  void catatTulis() => _tulisTerakhir = DateTime.now();
+
+  Future<Map<String, dynamic>?> ambil(String idMapel, String tanda) async {
+    if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty || idMapel.isEmpty || tanda.isEmpty) return null;
+    final t = _tulisTerakhir;
+    if (t != null && DateTime.now().difference(t) < const Duration(minutes: 5)) return null;
+    try {
+      final r = await http
+          .post(Uri.parse('$kSupabaseUrl/rest/v1/rpc/riwayat_baca'),
+              headers: {'apikey': kSupabaseKunciPublik, 'Content-Type': 'application/json'},
+              body: jsonEncode({'p_id_mapel': idMapel, 'p_tanda': tanda}))
+          .timeout(const Duration(seconds: 8));
+      if (r.statusCode != 200) return null;
+      final j = jsonDecode(r.body);
+      if (j is! Map || j['sah'] != true || j['data'] is! Map) return null;
+      return Map<String, dynamic>.from(j['data'] as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+/// Riwayat jawaban siswa satu mapel: Supabase bila sah, selain itu Apps Script (jalur lama).
+Future<dynamic> ambilRiwayatSiswa(String idMapel, String tanda, Future<dynamic> Function() jalurLama) async =>
+    (await RiwayatBelajar.instance.ambil(idMapel, tanda)) ?? await jalurLama();
+
 /// True bila PASTI tidak ada yang baru: setiap penanda dikenal (> 0), titik sejak dikenal (> 0),
 /// dan penanda lebih lama dari titik sejaknya (sama dengan jalur cepat server kcpTakAdaBaru_).
 bool takAdaBaru(Map<String, int> penanda, Map<String, int> syarat) {

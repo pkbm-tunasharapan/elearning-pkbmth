@@ -197,6 +197,7 @@ function pinMasuk_(nama, pin) {
   res.pin = { ada: true, perlu: false, wajib: false };
   catat_('Siswa', res.idRombel, res.nama, 'Masuk', 'PIN', 'OK');
   try { res.sesi = ssBuat_(res); } catch (e) {}
+  if (typeof bljTanda_ === 'function') res.tandaBelajar = bljTanda_(res.nama);   // v1.92.0 (Belajar.gs)
   return res;
 }
 

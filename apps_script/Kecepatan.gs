@@ -16,6 +16,7 @@ function kcpTanda_(jenis, ms) {
   ms = ms || new Date().getTime();
   try { CacheService.getScriptCache().put(KCP.AWALAN + jenis, String(ms), KCP.TTL); } catch (e) {}
   if (jenis === 'chat' || jenis === 'nv') pndKirim_(jenis, ms);   // v1.92.0: penanda Supabase (Penanda.gs)
+  if (jenis === 'jwb' && typeof bljKotor_ === 'function') bljKotor_();   // v1.92.0: riwayat belajar (Belajar.gs)
 }
 function kcpAkhir_(jenis) {
   try { return Number(CacheService.getScriptCache().get(KCP.AWALAN + jenis)) || 0; } catch (e) { return 0; }

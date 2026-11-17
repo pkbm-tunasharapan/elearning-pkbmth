@@ -109,6 +109,7 @@ function riwayatKunci_(idMapel, nama) {
 }
 function riwayatLupakan_(nama) {
   try { if (nama) CacheService.getScriptCache().put('rwyT|' + normNama_(nama), String(Date.now()), 21600); } catch (e) {}
+  if (typeof bljKotor_ === 'function') bljKotor_();   // v1.92.0: salinan riwayat di Supabase disinkron ulang
 }
 function riwayatCache_(idMapel, nama) {
   var kunci = null, c = null;

@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TH_VERSI_BETA: '1.91.93'
+  TH_VERSI_BETA: '1.91.94'
 
 jobs:
   build-beta:
