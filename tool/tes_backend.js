@@ -2498,9 +2498,9 @@ tes('Midtrans Core API: aplikasi baru dapat info bayar per metode, aplikasi lama
   const tabel = [], panggil = [];
   const asli = ['rfAturan_', 'gwBaca_', 'gwTambah_', 'gwUbah_', 'gwCari_', 'catat_', 'UrlFetchApp', '__API_V'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
   const jawab = {
-    bank_transfer: (b) => ({ status_code: '201', payment_type: 'bank_transfer', expiry_time: '2026-11-17 17:00:00',
+    bank_transfer: (b) => ({ status_code: '201', payment_type: 'bank_transfer', expiry_time: '2099-12-31 17:00:00',
       ...(b.bank_transfer.bank === 'permata' ? { permata_va_number: '8562000001' } : { va_numbers: [{ bank: b.bank_transfer.bank, va_number: '12345' + b.bank_transfer.bank }] }) }),
-    echannel: () => ({ status_code: '201', payment_type: 'echannel', biller_code: '70012', bill_key: '990011', expiry_time: '2026-11-17 17:00:00' }),
+    echannel: () => ({ status_code: '201', payment_type: 'echannel', biller_code: '70012', bill_key: '990011', expiry_time: '2099-12-31 17:00:00' }),
     qris: () => ({ status_code: '201', payment_type: 'qris', qr_string: '00020101021226...', actions: [{ name: 'generate-qr-code', url: 'https://api.sandbox.midtrans.com/v2/qris/x/qr-code' }] }),
     gopay: () => ({ status_code: '201', payment_type: 'gopay', actions: [{ name: 'generate-qr-code', url: 'https://q' }, { name: 'deeplink-redirect', url: 'gojek://gopay/x' }] }),
     shopeepay: () => ({ status_code: '201', payment_type: 'shopeepay', actions: [{ name: 'deeplink-redirect', url: 'https://wsa.wallet.airpay.co.id/x' }] }),
@@ -2530,7 +2530,7 @@ tes('Midtrans Core API: aplikasi baru dapat info bayar per metode, aplikasi lama
     const pc = panggil[panggil.length - 1];
     sama([/api\.sandbox\.midtrans\.com\/v2\/charge$/.test(pc[0]), pc[1].payment_type, pc[1].bank_transfer.bank, pc[1].transaction_details.gross_amount, pc[1].custom_expiry],
       [true, 'bank_transfer', 'bca', 104000, { expiry_duration: 60, unit: 'minute' }], 'isi charge VA');
-    sama([va.url, va.info.jenis, va.info.bank, va.info.nomor, va.info.total, va.kadaluarsa], ['', 'va', 'BCA', '12345bca', 104000, '2026-11-17 17:00'], 'info VA');
+    sama([va.url, va.info.jenis, va.info.bank, va.info.nomor, va.info.total, va.kadaluarsa], ['', 'va', 'BCA', '12345bca', 104000, '2099-12-31 17:00'], 'info VA');
     sama(JSON.parse(tabel[tabel.length - 1]['INFO BAYAR']).nomor, '12345bca', 'info tersimpan');
     const n = panggil.length;
     const ulang = buat('BCA_VA');
