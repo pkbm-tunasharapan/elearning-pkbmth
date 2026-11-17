@@ -83,6 +83,7 @@ function waGetMateri(idMapel) {
   daftar.forEach(function(x) { if (x.judul) x.judul = bersihCite_(x.judul); if (x.konten) x.konten = bersihCite_(x.konten); });
   daftar = (typeof ujTandaiMateri_ === 'function') ? ujTandaiMateri_(daftar) : daftar;
   try { if (typeof abSisipItem_ === 'function') daftar = abSisipItem_(idMapel, daftar); } catch (e) {}
+  pndSnapshotMateri_(idMapel, daftar);   // v1.92.0: snapshot Supabase (Penanda.gs)
   return daftar;
 }
 

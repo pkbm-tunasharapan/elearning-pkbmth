@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../alarm_ujian.dart';
 import '../api.dart';
+import '../penanda.dart';
 import '../theme.dart';
 import '../ujian_aman.dart';
 import '../widgets.dart';
@@ -105,7 +106,8 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
       body: Muatan<List<dynamic>>(
         key: ValueKey(_versi),
         muat: () => Future.wait([
-          Api.instance('waGetMateri', [widget.idMapel]),
+          // v1.92.0: snapshot Supabase dulu (cepat); bila belum ada/basi -> Apps Script
+          ambilMateriSiswa(widget.idMapel, () => Api.instance('waGetMateri', [widget.idMapel])),
           Api.instance('waGetRiwayatJawaban', [widget.idMapel, _s.nama]),
         ]),
         bangun: (context, d, _) {

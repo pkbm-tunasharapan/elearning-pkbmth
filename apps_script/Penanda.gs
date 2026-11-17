@@ -14,7 +14,7 @@ var PND = {
   URL: 'https://illiooqaguxfrsvtzntd.supabase.co',
   KUNCI_PUBLIK: 'sb_publishable__A_AfEI_sfx1WNPsuOmfrA_K4RT0zfc',
   PROP: 'PENANDA_RAHASIA',
-  JENIS: { chat: 1, nv: 1, bc: 1, np: 1, rf: 1 }
+  JENIS: { chat: 1, nv: 1, bc: 1, np: 1, rf: 1, dv: 1 }
 };
 
 function pndRahasia_() {
@@ -33,6 +33,31 @@ function pndKirim_(jenis, ms) {
       payload: JSON.stringify({ p_jenis: jenis, p_ms: Math.round(Number(ms) || Date.now()), p_rahasia: rahasia })
     });
     return res.getResponseCode();
+  } catch (e) { return 0; }
+}
+
+// v1.92.0 (Modul 2a): simpan hasil waGetMateri per mapel sebagai snapshot di Supabase. Aplikasi membacanya
+// langsung (tanpa Apps Script) selama versi data server (penanda 'dv') belum berubah, maks. 1 jam / sampai
+// tengah malam WIB. Hasil waGetMateri sama untuk semua siswa satu mapel dan tidak memuat kunci jawaban.
+function pndSnapshotMateri_(idMapel, daftar) {
+  try {
+    var rahasia = pndRahasia_();
+    if (!rahasia || !idMapel || !Array.isArray(daftar)) return 0;
+    var versi = Number(perfVersiData_()) || 0;
+    if (!versi) return 0;
+    var c = CacheService.getScriptCache(), k = 'snapm|' + String(idMapel).slice(0, 100) + '|' + versi;
+    if (c.get(k)) return 0;
+    var now = Date.now();
+    var besok = new Date(Utilities.formatDate(new Date(now + 86400000), 'Asia/Jakarta', "yyyy-MM-dd'T'00:00:00") + '+07:00').getTime();
+    var berlaku = Math.min(now + 3600000, besok);
+    var res = UrlFetchApp.fetch(PND.URL + '/rest/v1/rpc/materi_snapshot_set', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { apikey: PND.KUNCI_PUBLIK },
+      payload: JSON.stringify({ p_id_mapel: String(idMapel), p_versi: versi, p_berlaku_ms: berlaku, p_data: daftar, p_rahasia: rahasia })
+    });
+    var kode = res.getResponseCode();
+    if (kode === 200) c.put(k, '1', 3000);
+    return kode;
   } catch (e) { return 0; }
 }
 

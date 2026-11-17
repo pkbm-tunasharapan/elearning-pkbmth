@@ -133,7 +133,9 @@ function perfCacheBesar_(nama, detik, hitung) {
 
 function perfGantiVersi_() {
   PERF_DATA_MEMO_ = {};
-  try { CacheService.getScriptCache().put('data_versi', String(Date.now()), 21600); } catch (eV) {}
+  var v = Date.now();
+  try { CacheService.getScriptCache().put('data_versi', String(v), 21600); } catch (eV) {}
+  pndKirim_('dv', v);   // v1.92.0: snapshot materi di Supabase ikut basi (Penanda.gs)
 }
 function perfHapusCache_() {
   perfGantiVersi_();
