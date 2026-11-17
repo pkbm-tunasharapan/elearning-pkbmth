@@ -120,57 +120,86 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
           final sesi = grup.keys.toList();
           final selesai = items.where((x) => riwayat[teks(x['id'])] != null).length;
           final tugas = items.where((x) => teks(x['jenis']) != 'Materi').length;
+          // v1.92.0 (desain ulang): progres datar, sesi berjalan terbuka, sesi lain dilipat; isi & logika sama.
+          Widget baris(Map<String, dynamic> x) {
+            final j = teks(x['jenis']);
+            final rw = riwayat[teks(x['id'])] == null ? null : peta(riwayat[teks(x['id'])]);
+            final nilai = rw == null ? '' : teks(rw['nilai']);
+            final dibuka = peta(riwayat['__buka'])[teks(x['sesiKey'])] != null;
+            final tutup = x['terkunciSesi'] == true && !dibuka;
+            Widget belum;
+            if (j == 'Materi') {
+              belum = Icon(Icons.chevron_right_rounded, color: cs.outline);
+            } else if (j == 'Absensi') {
+              belum = (absBerjalan(x) || dibuka) ? const Lencana('Isi sekarang', warna: Color(0xFFB4651A)) : Lencana('Tidak terisi', warna: cs.error);
+            } else if (tutup) {
+              belum = Lencana('Ditutup', warna: cs.error);
+            } else {
+              belum = const Lencana('Belum', warna: Color(0xFFB4651A));
+            }
+            return ListTile(
+              onTap: () => _buka(x, riwayat),
+              leading: IkonBulat(_ikon(j), warna: cs.primary, ukuran: 40, sudut: 12),
+              title: Text(teks(x['judul']), maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text([j, if (teks(x['batasWaktu']).isNotEmpty) 'batas ${teks(x['batasWaktu'])}'].join(' · ')),
+              trailing: rw == null
+                  ? belum
+                  : (nilai.isNotEmpty ? Lencana('Nilai $nilai', warna: Colors.green) : const Lencana('Selesai', warna: Colors.green)),
+            );
+          }
+
+          final persen = tugas == 0 ? 0.0 : (selesai / tugas).clamp(0.0, 1.0);
           return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [
             if (items.isNotEmpty)
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.circular(Gaya.radius)),
-                child: Row(children: [
-                  const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 34),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Progres belajar', style: TextStyle(color: Colors.white70)),
-                      Text('$selesai dari $tugas tugas selesai', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
-                    ]),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(Gaya.radius)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text('$selesai/$tugas', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800, fontSize: 26, height: 1)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text('tugas selesai', style: TextStyle(color: cs.onSurfaceVariant))),
+                  ]),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(value: persen, minHeight: 6, backgroundColor: cs.primary.withValues(alpha: 0.12)),
                   ),
                 ]),
               ),
             if (items.isEmpty) const Kosong(pesan: 'Belum ada materi untuk mata pelajaran ini.', ikon: Icons.menu_book_outlined),
-            for (final sn in sesi) ...[
-              JudulBagian(sn),
-              Card(
-                child: Column(children: [
-                  for (final x in grup[sn]!)
-                    Builder(builder: (context) {
-                      final j = teks(x['jenis']);
-                      final rw = riwayat[teks(x['id'])] == null ? null : peta(riwayat[teks(x['id'])]);
-                      final nilai = rw == null ? '' : teks(rw['nilai']);
-                      final dibuka = peta(riwayat['__buka'])[teks(x['sesiKey'])] != null;
-                      final tutup = x['terkunciSesi'] == true && !dibuka;
-                      Widget belum;
-                      if (j == 'Materi') {
-                        belum = const Icon(Icons.chevron_right_rounded);
-                      } else if (j == 'Absensi') {
-                        belum = (absBerjalan(x) || dibuka) ? const Lencana('Isi sekarang', warna: Color(0xFFE0789B)) : Lencana('Tidak terisi', warna: cs.error);
-                      } else if (tutup) {
-                        belum = Lencana('Ditutup', warna: cs.error);
-                      } else {
-                        belum = Lencana('Belum', warna: cs.outline);
-                      }
-                      return ListTile(
-                        onTap: () => _buka(x, riwayat),
-                        leading: IkonBulat(_ikon(j), warna: _warna(j), ukuran: 42, sudut: 14),
-                        title: Text(teks(x['judul']), maxLines: 2, overflow: TextOverflow.ellipsis),
-                        subtitle: Text([j, if (teks(x['batasWaktu']).isNotEmpty) 'batas ${teks(x['batasWaktu'])}'].join(' · ')),
-                        trailing: rw == null
-                            ? belum
-                            : (nilai.isNotEmpty ? Lencana('Nilai $nilai', warna: Colors.green) : const Lencana('Selesai', warna: Colors.green)),
-                      );
-                    }),
-                ]),
-              ),
-            ],
+            for (final sn in sesi)
+              Builder(builder: (context) {
+                final isi = grup[sn]!;
+                final jumlahTugas = isi.where((x) => teks(x['jenis']) != 'Materi').length;
+                final jumlahSelesai = isi.where((x) => teks(x['jenis']) != 'Materi' && riwayat[teks(x['id'])] != null).length;
+                final berjalan = sn.contains('berjalan');
+                return Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(Gaya.radius),
+                    border: Border.all(color: Gaya.garis(context)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      initiallyExpanded: berjalan || sesi.length == 1,
+                      shape: const RoundedRectangleBorder(),
+                      collapsedShape: const RoundedRectangleBorder(),
+                      title: Text(sn, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: jumlahTugas == 0 ? null : Text('$jumlahSelesai dari $jumlahTugas tugas selesai', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+                      children: [
+                        for (var i = 0; i < isi.length; i++) ...[
+                          if (i > 0) Divider(height: 1, indent: 72, color: Gaya.garis(context)),
+                          baris(isi[i]),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
           ]);
         },
       ),

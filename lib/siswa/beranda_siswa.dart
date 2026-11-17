@@ -52,7 +52,8 @@ IconData ikonMapel(String nama) {
   return Icons.menu_book_rounded;
 }
 
-/// Beranda siswa: sapaan, kelas, dan daftar mata pelajaran.
+/// Beranda siswa. v1.92.0 (desain ulang "rapi & tenang"): kepala polos, aksi cepat ringkas,
+/// agenda sebagai kartu "Hari ini", mata pelajaran berupa daftar. Isi & fungsi sama dengan versi lama.
 class _BerandaIsi extends StatelessWidget {
   const _BerandaIsi({this.onProfil});
   final VoidCallback? onProfil;
@@ -64,8 +65,17 @@ class _BerandaIsi extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final atas = MediaQuery.of(context).padding.top;
     final mapel = s.mapel;
+    final gelap = Theme.of(context).brightness == Brightness.dark;
+    final aksi = <_AksiCepat>[
+      _AksiCepat(ikon: Icons.request_quote_outlined, judul: 'Tagihan', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TagihanSiswaScreen()))),
+      _AksiCepat(ikon: Icons.fact_check_outlined, judul: 'Kelayakan', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KelayakanSiswaScreen()))),
+      _AksiCepat(ikon: Icons.checklist_rounded, judul: 'Kisi-kisi', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KisiSiswaScreen()))),
+      _AksiCepat(ikon: Icons.workspace_premium_outlined, judul: 'Pencapaian', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen()))),
+      _AksiCepat(ikon: Icons.calendar_month_outlined, judul: 'Kalender', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama)))),
+      _AksiCepat(ikon: Icons.forum_outlined, judul: 'Chatroom', onTap: () => bukaChatSiswa(Navigator.of(context), 'ROMBEL')),
+    ];
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: gelap ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
         body: RefreshIndicator(
           edgeOffset: atas,
@@ -74,123 +84,51 @@ class _BerandaIsi extends StatelessWidget {
             await s.muat();
             await ProfilAkun.instance.pastikan(paksa: true);
           },
-          child: ListView(padding: EdgeInsets.zero, children: [
-            Container(
-              padding: EdgeInsets.fromLTRB(20, atas + 12, 8, 28),
-              decoration: const BoxDecoration(gradient: Gaya.gradasi, borderRadius: BorderRadius.vertical(bottom: Radius.circular(32))),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Image.asset('assets/logo.png', width: 36, height: 36),
-                  const SizedBox(width: 10),
-                  const Text('TH.E-Course', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                  const Spacer(),
-                  const LoncengNotif(warna: Colors.white),
-                  IconButton(
-                    tooltip: 'Kartu siswa (QR)',
-                    onPressed: () => bukaKartuSiswa(context),
-                    icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 28),
-                  ),
-                ]),
-                const SizedBox(height: 18),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2)),
-                    child: AvatarAkun(radius: 26, onTap: onProfil),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      TeksSapaan(style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
-                      Text(s.nama, maxLines: 2, overflow: TextOverflow.ellipsis, style: tt.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
-                    ]),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(99)),
-                  child: Text('${s.namaRombel} · ${mapel.length} mata pelajaran', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12.5)),
+          child: ListView(padding: EdgeInsets.fromLTRB(0, atas + 8, 0, 0), children: [
+            // kepala: sapaan, nama, rombel; lonceng & kartu QR
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 4, 12),
+              child: Row(children: [
+                AvatarAkun(radius: 24, onTap: onProfil, terang: false),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    TeksSapaan(style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                    Text(s.nama, maxLines: 1, overflow: TextOverflow.ellipsis, style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    Text('${s.namaRombel} · ${mapel.length} mata pelajaran', maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                  ]),
                 ),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Gaya.ungu, minimumSize: const Size.fromHeight(44)),
+                LoncengNotif(warna: cs.onSurfaceVariant),
+                IconButton(
+                  tooltip: 'Kartu siswa (QR)',
                   onPressed: () => bukaKartuSiswa(context),
-                  icon: const Icon(Icons.qr_code_2_rounded),
-                  label: const Text('Tampilkan Kartu Siswa (QR)', style: TextStyle(fontWeight: FontWeight.w800)),
+                  icon: Icon(Icons.qr_code_2_rounded, color: cs.onSurfaceVariant, size: 26),
                 ),
               ]),
             ),
             const SpandukPin(),
-            const KartuUlangTahun(padding: EdgeInsets.fromLTRB(16, 16, 16, 0)),
+            const KartuUlangTahun(padding: EdgeInsets.fromLTRB(16, 8, 16, 0)),
+            // aksi cepat
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Row(children: [
-                Expanded(
-                  child: _Pintasan(
-                    ikon: Icons.forum_rounded,
-                    warna: const Color(0xFF2F9E8F),
-                    judul: 'Chatroom',
-                    sub: 'Teman satu rombel',
-                    onTap: () => bukaChatSiswa(Navigator.of(context), 'ROMBEL'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _Pintasan(
-                    ikon: Icons.calendar_month_rounded,
-                    warna: const Color(0xFF7C3AED),
-                    judul: 'Kalender',
-                    sub: 'Jadwal sesi & ujian',
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama))),
-                  ),
-                ),
-              ]),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: LayoutBuilder(builder: (context, c) {
+                final kolom = c.maxWidth >= 560 ? 6 : 3;
+                return GridView.count(
+                  crossAxisCount: kolom,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1.25,
+                  children: aksi,
+                );
+              }),
             ),
+            // agenda: ujian & batas waktu tugas (sumber sama: waSiswaBeranda)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _Pintasan(
-                ikon: Icons.workspace_premium_rounded,
-                warna: const Color(0xFFE9A23B),
-                judul: 'Kartu Pencapaian Studi',
-                sub: 'Nilai semester ini & semester sebelumnya',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen())),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _Pintasan(
-                ikon: Icons.request_quote_rounded,
-                warna: const Color(0xFFE5484D),
-                judul: 'Tagihan Saya',
-                sub: 'Lihat & bayar tagihan (online / transfer)',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TagihanSiswaScreen())),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _Pintasan(
-                ikon: Icons.fact_check_rounded,
-                warna: const Color(0xFF2E7D32),
-                judul: 'Kelayakan Ujian',
-                sub: 'Status UTS, UAS & UPK serta permohonan',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KelayakanSiswaScreen())),
-              ),
-            ),
-            // v1.85.0: kisi-kisi ujian sesuai konteks (UTS / UAS / UPK, per semester)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _Pintasan(
-                ikon: Icons.checklist_rounded,
-                warna: const Color(0xFF1D4ED8),
-                judul: 'Kisi-kisi Ujian',
-                sub: 'Materi yang diujikan per mata pelajaran',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KisiSiswaScreen())),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-              child: Text('Agenda & informasi', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Text('Hari ini & mendatang', style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -203,48 +141,42 @@ class _BerandaIsi extends StatelessWidget {
                 bolehMenu: const {'kalender'},
               ),
             ),
+            // mata pelajaran: daftar baris
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Text('Mata pelajaran', style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              child: Text('Mata pelajaran', style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
             ),
             if (mapel.isEmpty) const Kosong(pesan: 'Belum ada mata pelajaran aktif untuk kelas Anda.'),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: LayoutBuilder(builder: (context, c) {
-                final kolom = c.maxWidth >= 700 ? 3 : 2;
-                return GridView.count(
-                  crossAxisCount: kolom,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.05,
-                  children: [
-                    for (final m in mapel)
+            if (mapel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(Gaya.radius),
+                    border: Border.all(color: Gaya.garis(context)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(children: [
+                    for (var i = 0; i < mapel.length; i++) ...[
+                      if (i > 0) Divider(height: 1, indent: 64, color: Gaya.garis(context)),
                       Material(
                         color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(Gaya.radius),
+                        child: ListTile(
+                          shape: const RoundedRectangleBorder(),
+                          leading: IkonBulat(ikonMapel(teks(mapel[i]['nama'])), warna: cs.primary, ukuran: 40, sudut: 12),
+                          title: Text(teks(mapel[i]['nama']), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: teks(mapel[i]['tutor']).isEmpty ? null : Text('Tutor: ${teks(mapel[i]['tutor'])}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                          trailing: Icon(Icons.chevron_right_rounded, color: cs.outline),
                           onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => MapelSiswaScreen(idMapel: teks(m['id']), namaMapel: teks(m['nama']), tutor: teks(m['tutor'])),
+                            builder: (_) => MapelSiswaScreen(idMapel: teks(mapel[i]['id']), namaMapel: teks(mapel[i]['nama']), tutor: teks(mapel[i]['tutor'])),
                           )),
-                          child: Ink(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(color: cs.surfaceContainerLowest, borderRadius: BorderRadius.circular(Gaya.radius), boxShadow: Gaya.bayangan(context)),
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              IkonBulat(ikonMapel(teks(m['nama'])), warna: Gaya.warnaMenu(teks(m['nama'])), ukuran: 48, sudut: 16),
-                              const Spacer(),
-                              Text(teks(m['nama']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.2)),
-                              if (teks(m['tutor']).isNotEmpty)
-                                Text(teks(m['tutor']), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
-                            ]),
-                          ),
                         ),
                       ),
-                  ],
-                );
-              }),
-            ),
+                    ],
+                  ]),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(20),
               child: Center(child: Text('Versi $kVersi', style: tt.bodySmall?.copyWith(color: cs.outline))),
@@ -256,12 +188,11 @@ class _BerandaIsi extends StatelessWidget {
   }
 }
 
-class _Pintasan extends StatelessWidget {
-  const _Pintasan({required this.ikon, required this.warna, required this.judul, required this.sub, required this.onTap});
+/// Ubin aksi cepat beranda: ikon satu warna (warna utama) + label pendek.
+class _AksiCepat extends StatelessWidget {
+  const _AksiCepat({required this.ikon, required this.judul, required this.onTap});
   final IconData ikon;
-  final Color warna;
   final String judul;
-  final String sub;
   final VoidCallback onTap;
 
   @override
@@ -273,17 +204,15 @@ class _Pintasan extends StatelessWidget {
         borderRadius: BorderRadius.circular(Gaya.radius),
         onTap: onTap,
         child: Ink(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: cs.surfaceContainerLowest, borderRadius: BorderRadius.circular(Gaya.radius), boxShadow: Gaya.bayangan(context)),
-          child: Row(children: [
-            IkonBulat(ikon, warna: warna, ukuran: 40, sudut: 12),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(judul, style: const TextStyle(fontWeight: FontWeight.w800)),
-                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: cs.onSurfaceVariant)),
-              ]),
-            ),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(Gaya.radius),
+            border: Border.all(color: Gaya.garis(context)),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(ikon, color: cs.primary, size: 26),
+            const SizedBox(height: 6),
+            Text(judul, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           ]),
         ),
       ),

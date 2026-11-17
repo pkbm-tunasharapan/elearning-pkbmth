@@ -1,27 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Warna & gaya "modern-lembut" TH.E-Course.
+/// Warna & gaya TH.E-Course. v1.92.0 (desain ulang): "rapi & tenang" - satu warna utama ungu lembaga,
+/// permukaan datar tanpa bayangan, garis tipis, huruf sedikit lebih besar.
 class Gaya {
   static const benih = Color(0xFF6C4CE0);
   static const ungu = Color(0xFF6C4CE0);
   static const ungu2 = Color(0xFF9B7BFF);
-  static const latarTerang = Color(0xFFF5F3FB);
+  static const latarTerang = Color(0xFFF7F7FA);
   static const latarGelap = Color(0xFF121019);
 
-  static const radius = 20.0;
+  static const radius = 16.0;
 
-  /// Gradasi khas aplikasi (header beranda, login).
+  /// Latar aksen (dulu gradasi mencolok); kini nyaris satu warna agar tenang.
   static const gradasi = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF5B3FD6), Color(0xFF8C6CFF), Color(0xFFB59BFF)],
+    colors: [Color(0xFF5A45CF), Color(0xFF6C4CE0)],
   );
 
+  /// Warna garis tipis pemisah/kartu.
+  static Color garis(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? Colors.white12 : const Color(0xFFE6E4EE);
+
   /// Bayangan halus untuk kartu.
-  static List<BoxShadow> bayangan(BuildContext context) => Theme.of(context).brightness == Brightness.dark
-      ? const []
-      : [BoxShadow(color: const Color(0xFF5B3FD6).withValues(alpha: 0.07), blurRadius: 18, offset: const Offset(0, 6))];
+  /// v1.92.0: desain datar - tidak ada bayangan; kartu dibedakan dengan garis tipis.
+  static List<BoxShadow> bayangan(BuildContext context) => const [];
 
   /// Palet pastel per menu: [warna ikon, warna latar ikon].
   static const _palet = <Color>[
@@ -66,7 +70,10 @@ class Gaya {
     );
     final kartu = gelap ? const Color(0xFF1C1928) : Colors.white;
     final dasar = ThemeData(useMaterial3: true, colorScheme: cs, brightness: b);
-    final huruf = GoogleFonts.plusJakartaSansTextTheme(dasar.textTheme);
+    final huruf = GoogleFonts.plusJakartaSansTextTheme(dasar.textTheme).copyWith(
+      bodyMedium: GoogleFonts.plusJakartaSans(textStyle: dasar.textTheme.bodyMedium?.copyWith(fontSize: 15, height: 1.45)),
+      bodyLarge: GoogleFonts.plusJakartaSans(textStyle: dasar.textTheme.bodyLarge?.copyWith(fontSize: 16, height: 1.45)),
+    );
     final bentukTombol = RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
     const isiTombol = EdgeInsets.symmetric(horizontal: 18, vertical: 14);
 
@@ -79,7 +86,7 @@ class Gaya {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: huruf.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: cs.onSurface),
+        titleTextStyle: huruf.titleLarge?.copyWith(fontWeight: FontWeight.w700, fontSize: 19, color: cs.onSurface),
       ),
       cardTheme: CardThemeData(
         color: kartu,
@@ -88,7 +95,7 @@ class Gaya {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radius),
-          side: BorderSide(color: gelap ? Colors.white10 : const Color(0xFFECE8F7)),
+          side: BorderSide(color: gelap ? Colors.white12 : const Color(0xFFE6E4EE)),
         ),
         clipBehavior: Clip.antiAlias,
       ),
@@ -163,7 +170,7 @@ class Gaya {
         unselectedLabelColor: cs.onSurfaceVariant,
         splashBorderRadius: BorderRadius.circular(12),
       ),
-      dividerTheme: DividerThemeData(color: gelap ? Colors.white10 : const Color(0xFFEDEAF6), space: 1),
+      dividerTheme: DividerThemeData(color: gelap ? Colors.white12 : const Color(0xFFE6E4EE), space: 1),
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
         TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
       }),
