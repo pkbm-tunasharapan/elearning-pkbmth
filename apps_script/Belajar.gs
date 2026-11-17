@@ -148,9 +148,12 @@ function bljPemicu() {
   try { kotor = Number(CacheService.getScriptCache().get(BLJ.KOTOR) || 0); } catch (e2) {}
   var berkala = now - akhir >= BLJ.BERKALA_MS;
   if (!berkala && (kotor < akhir || now - akhir < BLJ.JEDA_MS)) return;
-  var kunci = LockService.getScriptLock();
-  if (!kunci.tryLock(1000)) return;
-  try { bljSinkronPenuh_(); } finally { kunci.releaseLock(); }
+  // Sengaja TIDAK memakai LockService.getScriptLock(): kunci itu dipakai juga saat pengguna menyimpan data,
+  // sehingga sinkron (beberapa detik) bisa menahan simpanan siswa/staf. Cukup penanda cache agar tidak dobel.
+  var c = CacheService.getScriptCache();
+  if (c.get('blj_jalan')) return;
+  c.put('blj_jalan', '1', 300);
+  try { bljSinkronPenuh_(); } finally { c.remove('blj_jalan'); }
 }
 
 // Jalankan SEKALI dari editor: membuat kunci tanda belajar, mengirimnya ke Supabase, memasang pemicu
