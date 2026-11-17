@@ -6,11 +6,16 @@ const String kApiUrl =
 /// Halaman staf versi web (dipakai untuk menu yang belum dibuat native).
 const String kWebUrl = kApiUrl;
 
-const String kNamaAplikasi = 'TH.E-Course';
+const String kNamaAplikasi = kBeta ? 'TH.E-Course Beta' : 'TH.E-Course';
 const String kNamaSekolah = 'PKBM Tunas Harapan';
 
 /// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
-const String kVersi = '1.92.0';
+/// Versi bisa ditimpa saat build (--dart-define=TH_VERSI=...). APK beta memakai nomor berbeda (mis. 1.91.90)
+/// agar tidak terhitung sebagai pemakai rilis uji resmi dan tidak memicu tawaran pembaruan.
+const String kVersi = String.fromEnvironment('TH_VERSI', defaultValue: '1.92.0');
+
+/// APK beta pengembangan (package terpisah, terpasang berdampingan dengan aplikasi produksi).
+const bool kBeta = bool.fromEnvironment('TH_BETA');
 
 /// v1.92.0: Supabase (migrasi bertahap). Kunci publishable memang publik; akses dibatasi RLS & fungsi di server.
 const String kSupabaseUrl = 'https://illiooqaguxfrsvtzntd.supabase.co';

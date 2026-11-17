@@ -1,8 +1,11 @@
 """Dijalankan di GitHub Actions setelah `flutter create`: izin internet Android, nama aplikasi, judul web."""
-import json, pathlib, re, shutil
+import json, os, pathlib, re, shutil
 
 akar = pathlib.Path(__file__).resolve().parent.parent
-NAMA = 'TH.E-Course'
+# TH_BETA=1 (workflow build-beta.yml): APK beta pengembangan dengan package & nama terpisah,
+# terpasang berdampingan dengan aplikasi produksi tanpa menimpanya.
+BETA = os.environ.get('TH_BETA', '') == '1'
+NAMA = 'TH.E-Course Beta' if BETA else 'TH.E-Course'
 
 man = akar / 'android/app/src/main/AndroidManifest.xml'
 s = man.read_text()
@@ -16,7 +19,7 @@ if 'PemberitahuanJob' not in s:
     s = s.replace('</application>',
                   '    <service android:name=".PemberitahuanJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>\n    </application>', 1)
 s = re.sub(r'android:label="[^"]*"', f'android:label="{NAMA}"', s, count=1)
-if 'android:scheme="bmstaf"' not in s:
+if not BETA and 'android:scheme="bmstaf"' not in s:   # beta tidak merebut tautan login Google aplikasi produksi
     filt = (
         '\n            <intent-filter>\n'
         '                <action android:name="android.intent.action.VIEW"/>\n'
@@ -147,3 +150,14 @@ if tmpl.exists():
         tujuan_kt.write_text(tmpl.read_text().replace('PAKET_APLIKASI', paket))
         print('MainActivity (alarm ujian) dipasang: ' + paket)
 print('Platform siap.')
+
+# APK beta: applicationId berakhiran ".beta" sehingga Android menganggapnya aplikasi lain.
+if BETA:
+    for gp in (akar / 'android/app/build.gradle.kts', akar / 'android/app/build.gradle'):
+        if gp.exists():
+            g = gp.read_text()
+            g2 = re.sub(r'(applicationId\s*=?\s*")([^"]+)(")', lambda m: m.group(1) + (m.group(2) if m.group(2).endswith('.beta') else m.group(2) + '.beta') + m.group(3), g, count=1)
+            if g2 == g:
+                raise SystemExit('applicationId tidak ditemukan untuk build beta')
+            gp.write_text(g2)
+            print('APK beta: applicationId diberi akhiran .beta')
