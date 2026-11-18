@@ -95,3 +95,30 @@ List<BarisPengawas> gabungBarisPengawas(List<Map<String, String>> baris, Map<Str
   }
   return peta.values.toList();
 }
+
+/// v1.91.2: rowspan untuk sel bernilai sama yang berurutan. Hasil per indeks: jumlah baris yang digabung,
+/// atau 0 bila sel itu sudah tertutup oleh sel di atasnya. Contoh: [a, a, b] -> [2, 0, 1].
+List<int> rentangSama(List<String> nilai) {
+  final out = List<int>.filled(nilai.length, 0);
+  var i = 0;
+  while (i < nilai.length) {
+    var n = 1;
+    while (i + n < nilai.length && nilai[i + n] == nilai[i]) {
+      n++;
+    }
+    out[i] = n;
+    i += n;
+  }
+  return out;
+}
+
+/// v1.91.2: urutkan baris satu tanggal menurut jam, lalu nama pengawas (yang belum ditentukan di akhir),
+/// supaya baris dengan pengawas sama berdekatan dan bisa digabung.
+void urutBarisPengawas(List<BarisPengawas> l) {
+  l.sort((a, b) {
+    final w = '${a.jam}|${a.selesai}'.compareTo('${b.jam}|${b.selesai}');
+    if (w != 0) return w;
+    if (a.pengawas.isEmpty != b.pengawas.isEmpty) return a.pengawas.isEmpty ? 1 : -1;
+    return a.pengawas.compareTo(b.pengawas);
+  });
+}

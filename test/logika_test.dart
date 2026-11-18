@@ -62,4 +62,19 @@ void main() {
       expect(hasil[1].rombelRingkas, 'C10');
     });
   });
+
+  group('gabung sel jadwal pengawas', () {
+    test('rentangSama menggabung nilai berurutan', () {
+      expect(rentangSama(['a', 'a', 'b', 'a']), [2, 0, 1, 1]);
+      expect(rentangSama([]), <int>[]);
+    });
+    test('pengawas sama dalam satu jam diurutkan berdekatan, yang belum ditentukan di akhir', () {
+      BarisPengawas b(String jam, String pw, String mapel) =>
+          BarisPengawas(tanggal: '2026-12-07', jam: jam, selesai: '', mapel: mapel, mode: '', ruang: '', pengawas: pw);
+      final l = [b('08:00', 'Budi', 'IPA'), b('08:00', '', 'IPS'), b('08:00', 'Ani', 'Mat'), b('08:00', 'Budi', 'PAI'), b('10:00', 'Ani', 'BIng')];
+      urutBarisPengawas(l);
+      expect(l.map((x) => '${x.jam} ${x.pengawas}').toList(), ['08:00 Ani', '08:00 Budi', '08:00 Budi', '08:00 ', '10:00 Ani']);
+      expect(rentangSama(l.map((x) => x.pengawas).toList()), [1, 2, 0, 1, 1]);
+    });
+  });
 }
