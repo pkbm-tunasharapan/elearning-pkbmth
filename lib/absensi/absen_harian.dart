@@ -180,6 +180,12 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
                   jml[st.isEmpty ? 'Belum' : st] = (jml[st.isEmpty ? 'Belum' : st] ?? 0) + 1;
                   if (teks(s['pulang']).isNotEmpty) jml['Pulang'] = jml['Pulang']! + 1;
                 }
+                // v1.92.4: kategori ketepatan dari server
+                final jmlKt = <String, int>{
+                  'Tepat waktu': semua.where((s) => teks(s['kategori']) == 'Tepat waktu').length,
+                  'Terlambat': semua.where((s) => teks(s['kategori']) == 'Terlambat').length,
+                  'Tanpa pulang': semua.where((s) => s['tanpaPulang'] == true).length,
+                };
                 return Stack(children: [
                   RefreshIndicator(
                     onRefresh: segarkan,
@@ -192,6 +198,13 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
                             Text('${semua.length} warga belajar aktif', style: const TextStyle(fontWeight: FontWeight.w800)),
                             const SizedBox(height: 6),
                             RingkasStatus(jumlah: jml),
+                            if (jmlKt.values.any((v) => v > 0)) ...[
+                              const SizedBox(height: 6),
+                              RingkasStatus(jumlah: jmlKt),
+                              const SizedBox(height: 4),
+                              Text('Acuan datang: jam sesi tatap muka pertama rombel hari itu (tanpa jadwal: jam buka), toleransi ${teks(d['toleransi'], '15')} menit.',
+                                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+                            ],
                           ]),
                         ),
                       ),
@@ -233,6 +246,9 @@ class _AbsenHarianScreenState extends State<AbsenHarianScreen> {
                                   teks(s['rombel']),
                                   if (teks(s['status']).isEmpty) 'Belum diabsen',
                                   if (teks(s['status']) == 'Hadir') 'Datang ${teks(s['datang'], '-')}${teks(s['pulang']).isEmpty ? '' : ' · pulang ${teks(s['pulang'])}'}',
+                                  if (teks(s['kategori']) == 'Terlambat') 'Terlambat ${teks(s['telat'])} mnt (mulai ${teks(s['acuan'])})',
+                                  if (teks(s['kategori']) == 'Tepat waktu') 'Tepat waktu',
+                                  if (s['tanpaPulang'] == true) 'Tidak absen pulang',
                                   if (teks(s['status']).isNotEmpty && teks(s['status']) != 'Hadir') teks(s['status']),
                                   if (teks(s['ket']).isNotEmpty) teks(s['ket']),
                                 ].join(' · '),

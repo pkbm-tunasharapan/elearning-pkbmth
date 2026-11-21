@@ -21,10 +21,10 @@ String tglIndo(String iso) {
 }
 
 Color warnaStatusHadir(BuildContext c, String s) => switch (s) {
-      'Hadir' || 'Diterima' || 'Disetujui' => Colors.green,
+      'Hadir' || 'Diterima' || 'Disetujui' || 'Tepat waktu' => Colors.green,
       'Izin' || 'Dinas' => const Color(0xFF3B82F6),
-      'Sakit' || 'Menunggu' || 'Perlu dicek' => const Color(0xFFE9A23B),
-      'Alpa' || 'Ditolak' => Theme.of(c).colorScheme.error,
+      'Sakit' || 'Menunggu' || 'Perlu dicek' || 'Terlambat' => const Color(0xFFE9A23B),
+      'Alpa' || 'Ditolak' || 'Tanpa pulang' => Theme.of(c).colorScheme.error,
       _ => Theme.of(c).colorScheme.outline,
     };
 
