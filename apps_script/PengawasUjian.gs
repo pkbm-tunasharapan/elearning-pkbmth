@@ -272,6 +272,11 @@ function pwRuang_(cx) {
   var kunciDetak = peserta.map(function(x) { return 'pw_d_' + pwKunciSiswa_(x.idUjian, x.idRombel, x.nama); });
   var detak = {};
   try { for (var i = 0; i < kunciDetak.length; i += 100) { var g = CacheService.getScriptCache().getAll(kunciDetak.slice(i, i + 100)); Object.keys(g).forEach(function(k) { detak[k] = Number(g[k]); }); } } catch (e) {}
+  // E1: aplikasi 1.92.8+ mengirim detak ke Supabase; ambil yang lebih baru
+  if (typeof bljRpc_ === 'function' && peserta.length) {
+    var rd = bljRpc_('uj_detak_baca', { p_kunci: peserta.map(function(x) { return pwKunciSiswa_(x.idUjian, x.idRombel, x.nama); }) });
+    if (rd.kode === 200 && rd.data) Object.keys(rd.data).forEach(function(k) { var v = Number(rd.data[k]) || 0; if (v > (detak['pw_d_' + k] || 0)) detak['pw_d_' + k] = v; });
+  }
   var siswa = peserta.map(function(x) {
     var k = pwKunciSiswa_(x.idUjian, x.idRombel, x.nama), se = sesi[k], tw = pwTambah_(x.idUjian, x.idRombel, x.nama);
     var st = se ? String(se.row[se.c.status - 1]) : '', terkunci = !!(se && se.row[se.c.terkunci - 1] === true);
@@ -358,6 +363,7 @@ function waStafPengawasTambahWaktu(token, idSlot, idRombelSim, idUjian, idRombel
   pwTab_(PW.TAB_TW, PW.HDR_TW).appendRow([pwTeks_(pwWaktu_()), pwTeks_(x.idUjian), pwTeks_(x.idRombel), pwTeks_(x.nama), n, pwTeks_(a), pwTeks_(p.nama)]);
   try { CacheService.getScriptCache().remove('pw_tw'); } catch (e) {}
   PW_TW_ = null;
+  if (typeof ujAwasKirim_ === 'function') ujAwasKirim_(null, [{ u: String(x.idUjian), r: String(x.idRombel), k: ujNormNama_(x.nama), menit: sudah + n }]);   // E1
   pwCatat_(x.idUjian, x.idRombel, x.nama, 'Tambah waktu ' + n + ' menit', a, p.nama);
   catat_(p.peran, p.id, p.nama, 'Pengawas tambah waktu ujian', x.nama + ' +' + n + ' menit (ujian ' + x.idUjian + '): ' + a, 'OK');
   return { sukses: true, tambahMenit: sudah + n };
@@ -436,6 +442,7 @@ function pwPerangkat_(j, idRombel, nama, perangkat, daftar) {
     if (!daftar) return '';
     pwTab_(PW.TAB_PD, PW.HDR_PD).appendRow([pwTeks_(pwWaktu_()), pwTeks_(j.idUjian), pwTeks_(idRombel), pwTeks_(nama), pwTeks_(u.sidik), pwTeks_(u.model), 'Aktif']);
     try { CacheService.getScriptCache().put('pw_pd_' + k, u.sidik + '|' + u.model, 1800); } catch (e) {}
+    if (typeof ujAwasKirim_ === 'function') ujAwasKirim_([{ u: String(j.idUjian), r: String(idRombel), k: ujNormNama_(nama), sidik: u.sidik, model: u.model }], null);   // E1
     return '';
   }
   if (ada.sidik === u.sidik) return '';
@@ -456,6 +463,7 @@ function waStafPengawasIzinPerangkat(token, idSlot, idRombelSim, idUjian, idRomb
     if (r['STATUS'] === 'Aktif' && pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']) === k) { sh.getRange(r._baris, kol).setValue('Direset'); n++; }
   });
   try { CacheService.getScriptCache().remove('pw_pd_' + k); } catch (e) {}
+  if (typeof ujAwasKirim_ === 'function') ujAwasKirim_([{ u: String(x.idUjian), r: String(x.idRombel), k: ujNormNama_(x.nama), sidik: '' }], null);   // E1
   pwCatat_(x.idUjian, x.idRombel, x.nama, 'Perangkat baru diizinkan pengawas', a, p.nama);
   catat_(p.peran, p.id, p.nama, 'Pengawas izinkan perangkat baru', x.nama + ' (ujian ' + x.idUjian + '): ' + a, 'OK');
   return { sukses: true, direset: n };

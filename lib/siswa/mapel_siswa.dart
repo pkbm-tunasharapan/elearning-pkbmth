@@ -1123,7 +1123,14 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     if (_kirim) return;
     try {
       final pd = await UjianAman.perangkat();
-      final d = peta(await Api.instance('waUjianDetak', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, pd], const Duration(seconds: 25)));
+      // v1.92.8 (E1): detak langsung ke Supabase; Apps Script bila tidak tersedia
+      final sb = await rpcBelajar('uj_detak', {
+        'p_tanda': teks(SesiSiswa.instance.data['tandaBelajar']),
+        'p_nama': SesiSiswa.instance.nama,
+        'p_id_ujian': widget.idUjian,
+        'p_perangkat': pd,
+      });
+      final d = sb ?? peta(await Api.instance('waUjianDetak', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, pd], const Duration(seconds: 25)));
       if (!mounted || _kirim) return;
       if (d['perangkatLain'] == true) {
         _kirim = true;

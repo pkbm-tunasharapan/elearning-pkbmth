@@ -303,6 +303,7 @@ function bljSinkron_(penuh) {
   // tanpa baris izin, aplikasi memakai jalur Apps Script yang memeriksa izin secara lengkap.
   var spI = PropertiesService.getScriptProperties(), izin = null;
   if (penuh) { try { izin = bljIzin_(); } catch (eI) { izin = null; } }
+  if (penuh) { try { ujAwasPenuh_(); } catch (eU) {} }   // E1: perangkat & tambahan waktu ujian
   var kode = bljRpc_('bl_sinkron', { p_acuan: kirimAcuan ? acuan : null, p_pasang: hasil.baris.concat(hapus), p_penuh: penuh, p_ms: mulai, p_izin: izin }).kode;
   if (kode === 200 && izin) { try { spI.setProperty('BLJ_IZIN_MS', String(mulai)); } catch (eS) {} }
   bljWaktu_((penuh ? 'kirim penuh ' : 'kirim inkremental ') + (hasil.baris.length + hapus.length) + ' pasang (HTTP ' + kode + ')');
@@ -363,6 +364,7 @@ function bljAntreanProses_() {
         if (x.jenis === 'jawaban') bljSalinJawaban_(x.data);
         else if (x.jenis === 'absensi') bljSalinAbsensi_(x.data);
         else if (x.jenis === 'nilai') bljSalinNilai_(x.data);
+        else if (x.jenis === 'pelanggaran') pwCatat_(x.data.idUjian, x.data.idRombel, x.data.nama, x.data.jenis, x.data.detail, x.data.oleh);
         selesai.push(x.id);
       } catch (e) {
         try { pmlCatatGalat_('pemicu', 'waSbAntrean', String(e && e.message || e), e && e.stack, '', ''); } catch (e2) {}
@@ -407,6 +409,24 @@ function bljSalinAbsensi_(d) {
   } finally { kunci.releaseLock(); }
   try { catat_('Siswa', d.idRombel, d.nama, 'Absensi', 'mapel ' + d.idMapel + ', ' + (d.sesi || '') + ' (Supabase)', 'OK'); } catch (e) {}
   if (typeof riwayatLupakan_ === 'function') riwayatLupakan_(d.nama);
+}
+
+// E1: perangkat ujian terdaftar & tambahan waktu -> Supabase (detak ujian dibaca di sana). Tidak pernah melempar galat.
+// perangkat: [{u, r, k, sidik, model}] (sidik '' = direset); tambah: [{u, r, k, menit}]
+function ujAwasKirim_(perangkat, tambah, penuh) {
+  try { return bljRpc_('uj_awasan_set', { p_perangkat: perangkat, p_tambah: tambah, p_penuh: !!penuh }).kode; } catch (e) { return 0; }
+}
+function ujAwasPenuh_() {
+  var pd = {}, tw = [];
+  try {
+    pwBaca_(PW.TAB_PD, PW.HDR_PD).forEach(function(r) {
+      if (r['STATUS'] !== 'Aktif') return;
+      pd[pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA'])] = { u: String(r['ID UJIAN']), r: String(r['ID ROMBEL']), k: ujNormNama_(r['NAMA SISWA']), sidik: r['SIDIK'], model: r['MODEL'] };
+    });
+    var peta = pwTwPeta_();
+    Object.keys(peta).forEach(function(k) { var b = k.split('|'); tw.push({ u: b[0], r: b[1], k: b.slice(2).join('|'), menit: peta[k] }); });
+  } catch (e) { return 0; }
+  return ujAwasKirim_(Object.keys(pd).map(function(k) { return pd[k]; }), tw, true);
 }
 
 // Nilai diskusi yang disimpan tutor lewat Supabase -> tab Jawaban, log Penilaian Diskusi, notifikasi nilai untuk siswa.
