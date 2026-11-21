@@ -299,9 +299,10 @@ function bljSinkron_(penuh) {
   var acuan = bljAcuan_(mulai), sidikAcuan = bljSidik_({ d: acuan });
   bljWaktu_('acuan');
   var kirimAcuan = penuh || !lama || lama.ac !== sidikAcuan;
-  // izin staf: pada sinkron penuh dan paling jarang tiap 30 menit
-  var spI = PropertiesService.getScriptProperties(), izinAkhir = Number(spI.getProperty('BLJ_IZIN_MS') || 0), izin = null;
-  if (penuh || mulai - izinAkhir >= BLJ.BERKALA_MS) { try { izin = bljIzin_(); } catch (eI) { izin = null; } }
+  // izin staf: hanya pada sinkron penuh (malam hari; +-90 dtk). Izin yang berubah di siang hari tetap aman:
+  // tanpa baris izin, aplikasi memakai jalur Apps Script yang memeriksa izin secara lengkap.
+  var spI = PropertiesService.getScriptProperties(), izin = null;
+  if (penuh) { try { izin = bljIzin_(); } catch (eI) { izin = null; } }
   var kode = bljRpc_('bl_sinkron', { p_acuan: kirimAcuan ? acuan : null, p_pasang: hasil.baris.concat(hapus), p_penuh: penuh, p_ms: mulai, p_izin: izin }).kode;
   if (kode === 200 && izin) { try { spI.setProperty('BLJ_IZIN_MS', String(mulai)); } catch (eS) {} }
   bljWaktu_((penuh ? 'kirim penuh ' : 'kirim inkremental ') + (hasil.baris.length + hapus.length) + ' pasang (HTTP ' + kode + ')');
