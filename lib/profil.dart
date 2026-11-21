@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'api.dart';
 import 'config.dart';
+import 'penanda.dart';
 import 'session.dart';
 import 'siswa/kartu_siswa.dart';
 import 'siswa/sesi_siswa.dart';
@@ -91,8 +92,10 @@ class ProfilAkun extends ChangeNotifier {
     }
     if (!paksa && id == _milik) return;   // v1.78.1: sudah dimuat (atau sesi habis) untuk token ini
     try {
+      // v1.92.8: profil siswa dari Supabase (salinan Apps Script); bila belum ada -> Apps Script
       final r = siswa
-          ? await Api.instance('waProfilSiswa', [SesiSiswa.instance.token])
+          ? (await rpcBelajar('br_profil_baca', {'p_tanda': teks(SesiSiswa.instance.data['tandaBelajar']), 'p_nama': SesiSiswa.instance.nama}) ??
+              await Api.instance('waProfilSiswa', [SesiSiswa.instance.token]))
           : await Api.instance('waStafProfilAkun', [Sesi.instance.token]);
       if (id != _identitas) return;
       final d = peta(r);

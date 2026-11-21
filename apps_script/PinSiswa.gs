@@ -75,6 +75,7 @@ function pinTulis_(kunci, d) {
     pinHapusCache_(kunci);
     try { CacheService.getScriptCache().remove(PIN.CK_STATUS + pinCacheId_(normNama_(r.nama) + '|' + r.idRombel)); } catch (eC) {}
   } finally { lock.releaseLock(); }
+  if (typeof brsKotor_ === 'function' && r && r.nama) brsKotor_(r.idRombel, r.nama);   // pembuka aplikasi di Supabase: status PIN
 }
 
 function pinHash_(pin, garam) { return sha256_(pepper_() + ':pin:' + garam + ':' + String(pin)); }

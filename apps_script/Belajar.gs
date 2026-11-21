@@ -580,7 +580,7 @@ function brsSiswaSemua_() {
 var BRS_MEMO_FN = ['keuWbSemua_', 'keuTagSemua_', 'keuBayarPeta_', 'keuSemua_', 'nilPeriode_', 'nilAturan_', 'nilKelasRapor_', 'nilPetaBm_',
   'nilSiswaBm_', 'absWbRombel_', 'honNamaMapel_', 'honProgramRombel_', 'absBaca_', 'muSemua_', 'nilAsSemua_', 'taBaca_', 'sbDisSemua_', 'sbTag_',
   'mapelAktifSemua_', 'ujtPetaMapel_', 'ubPetaSiswa_', 'mgSesiTutup_', 'absSim_', 'sbMasaBayar_', 'brdMapelBm_', 'nilDisBaca_', 'ksWb_', 'sbWbSiswa_',
-  'getSheetData', 'absHariIni_', 'ujJadwalSemua_', 'munSemua_'];
+  'getSheetData', 'absHariIni_', 'ujJadwalSemua_', 'munSemua_', 'getMapelAktifUntukRombel_', 'getNamaRombel_'];
 function brsMemoPasang_() {
   var asli = {};
   BRS_MEMO_FN.forEach(function(n) {
@@ -619,7 +619,13 @@ function brsHitung_(daftar, batasMs) {
       var sw = daftar[i];
       try {
         var d = brdSiswa_({ nama: sw.nama, idRombel: sw.r }, true);
-        if (d && d.kartu) baris.push({ r: sw.r, k: sw.k, tanggal: tgl, data: d });
+        if (d && d.kartu) {
+          // pembuka aplikasi: data waPulihSesiSiswa (tanpa token) & profil
+          var ses = null, prof = null;
+          try { ses = { namaRombel: getNamaRombel_(sw.r), daftarMapel: getMapelAktifUntukRombel_(sw.r), pin: pinStatus_(sw.nama, sw.r, false) }; } catch (eP) {}
+          try { prof = profilSiswaData_({ nama: sw.nama, idRombel: sw.r }); } catch (eF) {}
+          baris.push({ r: sw.r, k: sw.k, tanggal: tgl, data: d, sesi: ses, profil: prof });
+        }
       } catch (eS) {}
     }
   } finally { lepas(); SHEET_MEMO_ = memo[0]; MATERI_MEMO_ = memo[1]; UJS_MEMO_ = memo[2]; }
@@ -627,10 +633,20 @@ function brsHitung_(daftar, batasMs) {
 }
 
 function brsKirim_(baris, ms) {
-  var n = 0;
-  for (var p = 0; p < baris.length; p += 40) {
-    var r = bljRpc_('br_set', { p_baris: baris.slice(p, p + 40), p_ms: ms });
+  var n = 0, prof = [];
+  var inti = baris.map(function(b) {
+    if (b.profil) prof.push({ r: b.r, k: b.k, data: b.profil, sidik: Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify(b.profil), Utilities.Charset.UTF_8)).slice(0, 16) });
+    return { r: b.r, k: b.k, tanggal: b.tanggal, data: b.data, sesi: b.sesi };
+  });
+  for (var p = 0; p < inti.length; p += 40) {
+    var r = bljRpc_('br_set', { p_baris: inti.slice(p, p + 40), p_ms: ms });
     if (r.kode === 200) n += Number(r.data) || 0;
+  }
+  // profil: hanya yang berubah
+  if (prof.length) {
+    var ada = bljRpc_('br_profil_sidik', {}), lama = ada.kode === 200 && ada.data ? ada.data : {};
+    prof = prof.filter(function(x) { return lama[x.r + '|' + x.k] !== x.sidik; });
+    for (var q = 0; q < prof.length; q += 20) bljRpc_('br_profil_set', { p_baris: prof.slice(q, q + 20) });
   }
   return n;
 }

@@ -151,6 +151,10 @@ function waProfilSiswa(token) {
     if (String(e && e.message) === 'SESI_HABIS') return { jenis: 'Siswa', sesiHabis: true, nama: '', email: '', hp: '', foto: '' };
     throw e;
   }
+  return profilSiswaData_(s);
+}
+// v1.92.8: isi profil siswa s {nama, idRombel}; dipakai juga salinan profil ke Supabase (brsHitung_).
+function profilSiswaData_(s) {
   var p = profilCari_(profilKunciSiswa_(s)) || {};
   var baris = profilBarisSiswa_(s);
   var utama = baris.filter(function(x) { return sTeks_(x.r[3]).trim(); })[0] || baris[0];
@@ -175,6 +179,7 @@ function waProfilSiswaSimpan(token, data) {
     profilBarisSiswa_(s).forEach(function(x) { sh.getRange(x.baris, 5).setNumberFormat('@').setValue(kontak); });
   }
   try { catat_('Siswa', s.idRombel, s.nama, 'Ubah profil', '', 'OK'); } catch (e) {}
+  if (typeof brsKotor_ === 'function') brsKotor_(s.idRombel, s.nama);   // profil di Supabase disalin ulang
   return { sukses: true, email: h.email, hp: h.hp, foto: h.foto };
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api.dart';
+import '../penanda.dart';
 import '../pengguna/lihat_sebagai.dart';
 
 /// Sesi siswa (login nama + kata sandi TH-ddmmyyyy). Terpisah dari sesi staf.
@@ -70,10 +71,22 @@ class SesiSiswa extends ChangeNotifier {
     try {
       final sp = await SharedPreferences.getInstance();
       final kunci = sp.getString('bc_kunci') ?? '';
+      // v1.92.8: data sesi dari Supabase; token Apps Script tetap diperpanjang lewat waPulihSesiSiswa tiap 4 jam
+      final kiniMs = kini.millisecondsSinceEpoch, apsMs = sp.getInt('siswaPulihAps') ?? 0;
+      if (!paksa && kiniMs - apsMs < 4 * 3600000) {
+        final sb = await rpcBelajar('br_sesi_pulih', {'p_tanda': teks(data['tandaBelajar']), 'p_nama': nama});
+        if (sb != null && sb['sukses'] == true) {
+          data = {...data, ...sb};
+          await sp.setString(_kunci, jsonEncode(data));
+          notifyListeners();
+          return;
+        }
+      }
       final r = peta(await Api.instance('waPulihSesiSiswa', [token, kunci]));
       if (r['sukses'] == true && teks(r['nama']).isNotEmpty) {
         data = r;
         await sp.setString(_kunci, jsonEncode(r));
+        await sp.setInt('siswaPulihAps', kiniMs);
         notifyListeners();
       }
     } catch (_) {}
@@ -93,6 +106,7 @@ class SesiSiswa extends ChangeNotifier {
     data = r;
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kunci, jsonEncode(r));
+    await sp.setInt('siswaPulihAps', DateTime.now().millisecondsSinceEpoch);   // token baru: perpanjangan berikutnya 4 jam lagi
     notifyListeners();
     return null;
   }
