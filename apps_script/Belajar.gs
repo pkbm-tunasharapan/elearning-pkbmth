@@ -334,6 +334,7 @@ function bljPemicu() {
   try { ujsPemicu_(now, jam); } catch (eU) {}   // E2: status ujian siswa di Supabase
   try { brsPemicu_(now, jam); } catch (eR) {}   // R1: beranda siswa di Supabase
   try { bstPemicu_(now, jam); } catch (eT) {}   // beranda staf di Supabase
+  try { bljBacaSalin_(); } catch (eB) {}   // tanda baca materi dari Supabase -> tab Baca Materi
   var penuh = now - akhirPenuh > 20 * 3600000 && jam >= 1 && jam <= 4;
   var inkremental = (kotor >= akhir && now - akhir >= BLJ.JEDA_MS) || now - akhir >= BLJ.BERKALA_MS;
   if (!penuh && !inkremental) return;
@@ -684,6 +685,35 @@ function berandaSiapkan() {
   PropertiesService.getScriptProperties().setProperty(BRS.PROP_TGL, '');
   brsPemicu_(now, jam);
   Logger.log('beranda: ' + (Date.now() - t0) + ' ms, kursor ' + PropertiesService.getScriptProperties().getProperty(BRS.PROP_KURSOR));
+}
+
+// ---------------------------------------------------------------- baca materi (waTandaiBaca) di Supabase
+// Aplikasi 1.92.8+ menandai materi dibuka di Supabase (bl_baca_tandai). Di sini tampungan diambil & digabung ke tab
+// "Baca Materi" sekaligus: baris ada -> terakhir dibuka & jumlah ditambah; baris baru -> ditambahkan.
+function bljBacaSalin_() {
+  var r = bljRpc_('bl_baca_ambil', { p_maks: 1000 });
+  if (r.kode !== 200 || !Array.isArray(r.data) || !r.data.length) return 0;
+  var rows = r.data;
+  var kunci = LockService.getScriptLock();
+  try {
+    kunci.waitLock(20000);
+    try {
+      var sh = bacaSheet_(), last = sh.getLastRow(), v = last >= 2 ? sh.getRange(2, 1, last - 1, 7).getValues() : [], idx = {}, baru = [], ubah = false;
+      v.forEach(function(x, i) { idx[String(x[0]).trim() + '|' + String(x[2]).trim() + '|' + normNama_(x[3])] = i; });
+      rows.forEach(function(x) {
+        var k = x.r + '|' + x.i + '|' + x.k, i = idx[k];
+        if (i !== undefined) { v[i][5] = x.t; v[i][6] = (Number(v[i][6]) || 0) + Number(x.j || 1); ubah = true; }
+        else { idx[k] = -1; baru.push([x.r, x.m, x.i, x.n, x.p, x.t, Number(x.j || 1)]); }
+      });
+      if (ubah) sh.getRange(2, 1, v.length, 7).setValues(v);
+      if (baru.length) sh.getRange(sh.getLastRow() + 1, 1, baru.length, 7).setValues(baru);
+    } finally { kunci.releaseLock(); }
+  } catch (e) {
+    bljRpc_('bl_baca_kembali', { p_baris: rows });
+    return 0;
+  }
+  bljWaktu_('baca materi ' + rows.length);
+  return rows.length;
 }
 
 // ---------------------------------------------------------------- beranda staf di Supabase

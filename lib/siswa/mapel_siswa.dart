@@ -225,7 +225,10 @@ class _MateriSiswaScreenState extends State<MateriSiswaScreen> {
   void initState() {
     super.initState();
     // Catat bahwa siswa membuka materi (untuk laporan "siapa yang sudah membaca").
-    Api.instance('waTandaiBaca', [_s.idRombel, widget.idMapel, _s.nama, teks(widget.item['id'])]).catchError((_) => null);
+    // v1.92.8: tanda dibuka ke Supabase (disalin ke tab Baca Materi tiap 10 menit); Apps Script bila gagal
+    rpcBelajar('bl_baca_tandai', {'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_mapel': widget.idMapel, 'p_id_materi': teks(widget.item['id'])})
+        .then<dynamic>((sb) => sb ?? Api.instance('waTandaiBaca', [_s.idRombel, widget.idMapel, _s.nama, teks(widget.item['id'])]))
+        .catchError((_) => null);
   }
 
   @override
