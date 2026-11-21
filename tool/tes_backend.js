@@ -2710,5 +2710,31 @@ tes('TTM selesai setelah UAS; kelas akhir mengikuti UAS/UPK yang lebih akhir; ma
   } finally { Object.assign(g, asli); g.MG_LIBUR_ = null; g.MG_AKHIR_ = null; }
 });
 
+tes('absensi harian: acuan sesi pertama, Tepat waktu / Terlambat (toleransi), Tidak absen pulang', () => {
+  const peta = { R1: [{ mulai: '09:00', unit: '' }, { mulai: '08:00', unit: 'U-L' }, { mulai: '10:00', unit: '' }] };
+  // sesi khusus unit lain diabaikan; tanpa unit siswa semua sesi dihitung
+  sama(g.ahAcuanSiswa_(peta, 'R1', 'U-S', '07:00'), { jam: '09:00', dari: 'jadwal' });
+  sama(g.ahAcuanSiswa_(peta, 'R1', 'U-L', '07:00').jam, '08:00');
+  sama(g.ahAcuanSiswa_(peta, 'R2', 'U-S', '07:00'), { jam: '07:00', dari: 'jam buka' });   // tanpa jadwal -> jam buka
+  sama(g.ahAcuanSiswa_(peta, 'R2', 'U-S', ''), null);
+  const kini = { tanggal: '2026-11-21', jam: '12:00' }, ac = { jam: '09:00' };
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:15', pulang: '' }, ac, '2026-11-21', kini, '16:00'), { kategori: 'Tepat waktu', telat: 0, acuan: '09:00', tanpaPulang: false });
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:16', pulang: '' }, ac, '2026-11-21', kini, '16:00').telat, 16);
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:16', pulang: '' }, ac, '2026-11-21', kini, '16:00').kategori, 'Terlambat');
+  sama(g.ahKategori_({ status: 'Hadir', datang: '08:00', pulang: '' }, ac, '2026-11-21', kini, '16:00').kategori, 'Tepat waktu');
+  // tidak absen pulang: hari sudah lewat, atau hari ini setelah jam tutup
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:00', pulang: '' }, ac, '2026-11-20', kini, '16:00').tanpaPulang, true);
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:00', pulang: '' }, ac, '2026-11-21', { tanggal: '2026-11-21', jam: '16:01' }, '16:00').tanpaPulang, true);
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:00', pulang: '' }, ac, '2026-11-21', kini, '').tanpaPulang, false);
+  sama(g.ahKategori_({ status: 'Hadir', datang: '09:00', pulang: '13:00' }, ac, '2026-11-20', kini, '16:00').tanpaPulang, false);
+  // bukan Hadir / tanpa acuan
+  sama(g.ahKategori_({ status: 'Izin', datang: '', pulang: '' }, ac, '2026-11-20', kini, '16:00'), { kategori: '', telat: 0, acuan: '', tanpaPulang: false });
+  sama(g.ahKategori_({ status: 'Hadir', datang: '10:00', pulang: '' }, null, '2026-11-21', kini, '16:00').kategori, '');
+  // pesan pindai datang
+  const h = g.ahPesanKategori_({ aksi: 'datang', jam: '09:40', pesan: 'Ani (B7) datang 09:40' }, { id: 'W1', rombel: 'R1' }, '2026-11-21', { peta: peta, lab: { W1: { unit: 'U-S' } }, jamBuka: '07:00' });
+  sama(h.pesan, 'Ani (B7) datang 09:40 · terlambat 40 menit (mulai 09:00)');
+  sama(g.ahPesanKategori_({ aksi: 'pulang', jam: '13:00', pesan: 'x' }, { id: 'W1', rombel: 'R1' }, '2026-11-21', { peta: peta, lab: {}, jamBuka: '' }).pesan, 'x');
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
