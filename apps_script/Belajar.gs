@@ -4,8 +4,8 @@
 // Aplikasi 1.92+ membaca riwayat jawaban siswa (hasil yang sama dengan waGetRiwayatJawaban) langsung
 // dari Supabase (fungsi riwayat_baca), tidak lewat Apps Script. Sumber kebenaran tetap tab Jawaban,
 // Absensi, Buka Sesi & susulan massal; di sini isinya disalin ke Supabase:
-//   - pemicu bljPemicu tiap 5 menit: sinkron INKREMENTAL (hanya pasang siswa-mapel yang berubah) bila ada tanda
-//     "kotor", dan tetap tiap 30 menit; sinkron PENUH sekali sehari pukul 01-04 WIB.
+//   - pemicu bljPemicu tiap 10 menit: sinkron INKREMENTAL (hanya pasang siswa-mapel yang berubah) bila ada tanda
+//     "kotor", dan tetap tiap 2 jam; sinkron PENUH sekali sehari pukul 01-04 WIB.
 //     Pemicu dipasang otomatis oleh pemicu tiap jam yang sudah ada (bljPastikanPemicu_).
 //   - tanda "kotor" dipasang saat data belajar berubah (riwayatLupakan_, versi data, jawaban, buka sesi,
 //     susulan massal). Tidak ada panggilan Supabase di jalur permintaan pengguna (produksi tidak melambat).
@@ -21,9 +21,9 @@ var BLJ = {
   PROP_PENUH: 'BLJ_SINKRON_PENUH',
   KOTOR: 'blj_kotor',
   HARI_TANDA: 7,
-  PEMICU_MENIT: 5,          // pemicu bljPemicu tiap 5 menit
+  PEMICU_MENIT: 10,         // pemicu bljPemicu tiap 10 menit (kuota pemicu 90 mnt/hari; antrean dibangunkan Supabase seketika)
   JEDA_MS: 60000,          // jarak minimum antar-sinkron inkremental
-  BERKALA_MS: 30 * 60000    // dan paling jarang tiap 30 menit
+  BERKALA_MS: 120 * 60000   // dan paling jarang tiap 2 jam (perubahan sheet menandai kotor)
 };
 
 function bljHex_(bytes) {
@@ -551,7 +551,7 @@ function ujsSinkron_() {
 // ---------------------------------------------------------------- R1: beranda siswa di Supabase
 // Beranda tiap siswa dihitung dengan brdSiswa_ (kode yang sama dengan waSiswaBeranda) secara massal: seluruh siswa
 // tiap 2 jam 05-21 WIB dan saat ganti hari (bertahap bila waktu habis), siswa "kotor" (ada jawaban/absensi/nilai/ujian
-// baru) tiap 5 menit. br_beranda di Supabase menyajikannya.
+// baru) tiap 10 menit. br_beranda di Supabase menyajikannya.
 var BRS = { SELANG_MS: 120 * 60000, BATAS_MS: 200000, KOTOR: 'brs_kotor', PROP_AKHIR: 'BRS_AKHIR', PROP_TGL: 'BRS_TGL', PROP_KURSOR: 'BRS_KURSOR' };
 
 function brsKotor_(idRombel, nama) {
@@ -649,7 +649,7 @@ function brsPemicu_(now, jam) {
     bljWaktu_('beranda siswa kotor ' + hk.baris.length);
   }
   // 2) seluruh siswa: ganti hari, atau tiap 2 jam 05-21 WIB (dilanjutkan dari kursor bila belum selesai)
-  var tgl = absHariIni_(), kursor = Number(sp.getProperty(BRS.PROP_KURSOR) || 0);
+  var tgl = Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'yyyy-MM-dd'), kursor = Number(sp.getProperty(BRS.PROP_KURSOR) || 0);
   var perlu = kursor > 0 || sp.getProperty(BRS.PROP_TGL) !== tgl || (jam >= 5 && jam <= 21 && now - Number(sp.getProperty(BRS.PROP_AKHIR) || 0) >= BRS.SELANG_MS);
   if (!perlu || Date.now() > batas - 20000) return;
   var semua = brsSiswaSemua_(), mulai = Date.now();
@@ -671,9 +671,9 @@ function berandaSiapkan() {
 }
 
 // ---------------------------------------------------------------- beranda staf di Supabase
-// brdStaf_ (inti waStafBeranda) dihitung massal untuk semua staf aktif: tiap 30 menit 06-21 WIB (dan ganti hari),
-// staf yang baru menyimpan sesuatu (doPost) tiap 5 menit. Token sintetis 'bst:<id>' dikenali stafDariToken_ tiruan.
-var BST = { SELANG_MS: 30 * 60000, KOTOR: 'bst_kotor', PROP_AKHIR: 'BST_AKHIR', PROP_TGL: 'BST_TGL' };
+// brdStaf_ (inti waStafBeranda) dihitung massal untuk semua staf aktif: tiap jam 06-21 WIB (dan ganti hari),
+// staf yang baru menyimpan sesuatu (doPost) tiap 10 menit. Token sintetis 'bst:<id>' dikenali stafDariToken_ tiruan.
+var BST = { SELANG_MS: 60 * 60000, KOTOR: 'bst_kotor', PROP_AKHIR: 'BST_AKHIR', PROP_TGL: 'BST_TGL' };
 
 function bstKotor_(id) {
   if (!id) return;
@@ -720,7 +720,7 @@ function bstHitung_(daftar, batasMs) {
 function bstPemicu_(now, jam) {
   var sp = PropertiesService.getScriptProperties(), c = CacheService.getScriptCache(), kotor = [];
   try { kotor = JSON.parse(c.get(BST.KOTOR) || '[]'); } catch (e) {}
-  var tgl = absHariIni_();
+  var tgl = Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'yyyy-MM-dd');
   var penuh = sp.getProperty(BST.PROP_TGL) !== tgl || (jam >= 6 && jam <= 21 && now - Number(sp.getProperty(BST.PROP_AKHIR) || 0) >= BST.SELANG_MS);
   if (!penuh && !kotor.length) return;
   if (kotor.length) c.remove(BST.KOTOR);
@@ -990,7 +990,7 @@ function bljPastikanPemicu_() {
 }
 
 // Jalankan SEKALI dari editor: membuat kunci tanda belajar, mengirimnya ke Supabase, memasang pemicu
-// tiap 5 menit, lalu sinkron penuh pertama. Aman dijalankan ulang (kunci lama dipakai, pemicu tidak dobel).
+// tiap 10 menit, lalu sinkron penuh pertama. Aman dijalankan ulang (kunci lama dipakai, pemicu tidak dobel).
 function belajarSiapkan() {
   var sp = PropertiesService.getScriptProperties();
   var k = sp.getProperty(BLJ.PROP_KUNCI);
