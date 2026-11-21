@@ -59,7 +59,7 @@ var IZN = {
     // v1.74.2: penilaian diskusi (lihat tanggapan, nilai AI, simpan nilai, catatan) mengikuti izin penilaian ini, bukan izin
     // "Mata Pelajaran" (menyusun konten), supaya membatasi konten tidak ikut memblokir Tutor Online menilai.
     ['nilai', 'Belum Dinilai & Penilaian Diskusi', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'],
-      /^wa(Staf(BelumDinilai|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai)|AdminTugasNilaiOtomatis)$/],
+      /^wa(Staf(BelumDinilai|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai|TandaBelajar)|AdminTugasNilaiOtomatis)$/],
     ['otoNilai', 'Penilaian Otomatis', 'Nilai & Ujian', ['Admin', 'Superadmin'], /^waAdminOtoNilai\w*$/],
     ['aturNilai', 'Aturan Nilai', 'Nilai & Ujian', ['Admin'], /^waAdminNilaiAturanSimpan$/],
     ['rpp', 'Dokumen RPP', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'], /^waStafRpp\w*$/],

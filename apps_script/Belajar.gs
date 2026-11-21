@@ -46,6 +46,23 @@ function bljTanda_(nama, idRombel) {
   } catch (e) { return ''; }
 }
 
+// Tanda staf: st1.<exp_ms>.<hex id pengguna>.<hmac-sha256 hex> (penilaian diskusi di Supabase).
+function bljTandaStaf_(idPengguna) {
+  try {
+    var k = bljKunci_();
+    if (!k || !idPengguna) return '';
+    var pesan = 'st1.' + (Date.now() + BLJ.HARI_TANDA * 86400000) + '.' + bljHex_(Utilities.newBlob(String(idPengguna)).getBytes());
+    return pesan + '.' + bljHex_(Utilities.computeHmacSha256Signature(pesan, k, Utilities.Charset.UTF_8));
+  } catch (e) { return ''; }
+}
+
+// Aplikasi staf mengambil tanda sekali per sesi (B3). Sesi lihat/intip tidak mendapat tanda.
+function waStafTandaBelajar(token) {
+  var p = stafDariToken_(token);
+  if (globalThis.__INTIP) return { tanda: '' };
+  return { tanda: bljTandaStaf_(p.id) };
+}
+
 // Tandai data belajar berubah: sinkron penuh berikutnya akan berjalan (bljPemicu).
 function bljKotor_() {
   try { CacheService.getScriptCache().put(BLJ.KOTOR, String(Date.now()), 21600); } catch (e) {}
@@ -150,7 +167,46 @@ function bljAcuan_(now) {
     sesi.push({ smt: x.smt, n: x.n, nama: x.nama, mulai: x.mulaiMs, selesai: x.selesaiMs, mi: x.mulaiIso, si: x.selesaiIso, w: abSesiWajib_(cfg, x.smt, x.n) });
   });
   try { Object.keys(mgSesiTutup_()).forEach(function(k) { var b = k.split('|'); tutup.push({ m: b[0], smt: Number(b[1]), n: Number(b[2]) }); }); } catch (e) {}
-  return { materi: materi, mapel: mapel, sesi: sesi, tutup: tutup };
+  var siswa = [], ada = {};
+  getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
+    if (i === 0 || !String(r[1]).trim()) return;
+    var rb = sTeks_(r[0]).trim(), nm = sTeks_(r[1]).trim(), k = normNama_(nm);
+    if (!rb || ada[rb + '|' + k]) return;
+    ada[rb + '|' + k] = 1;
+    siswa.push({ r: rb, k: k, nama: nm });
+  });
+  return { materi: materi, mapel: mapel, sesi: sesi, tutup: tutup, siswa: siswa };
+}
+
+// Izin staf per mapel untuk Supabase: lihat (wajibMapel_), nilai (ndBolehNilai_), saring siswa unit (pgoSaringSiswaBm_).
+// Hanya baris yang PASTI diizinkan; selebihnya aplikasi memakai jalur Apps Script (pemeriksaan lengkap).
+function bljIzin_() {
+  var staf = [], izin = [], mapel = mapelAktifSemua_(), peta = ndPetaPengampu_(), enr = {};
+  bacaEnrollment_().forEach(function(e) { enr[e.idPengguna + '|' + e.idMapel] = true; });
+  var roster = {};
+  bacaPengguna_().forEach(function(u) {
+    if (u.status !== 'Aktif' || !u.peran || u.peran === 'Dinas Pendidikan') return;
+    staf.push({ id: u.id, nama: u.nama, peran: u.peran });
+    var semua = false;
+    try { semua = (typeof pgoPenyusun_ === 'function' ? pgoPenyusun_(u) : u.peran === 'Admin') || pimpinanBolehBaca_(u); } catch (e) {}
+    mapel.forEach(function(m) {
+      try {
+        var lihat = semua || enr[u.id + '|' + m.idMapel] || (typeof pgoBolehLihat_ === 'function' && pgoBolehLihat_(u, m.idMapel));
+        if (!lihat) return;
+        var nilai = ndBolehNilai_(u, m.idMapel, peta), saring = null;
+        if (nilai && typeof pgoSaringSiswaBm_ === 'function') {
+          var sr = pgoSaringSiswaBm_(u, m);
+          if (sr) {
+            if (!roster[m.idRombel]) roster[m.idRombel] = bacaRoster_(m.idRombel);
+            saring = roster[m.idRombel].filter(function(s) { return sr(s.nama); }).map(function(s) { return s.k; });
+          }
+        }
+        izin.push({ p: u.id, m: m.idMapel, n: !!nilai, s: saring });
+      } catch (e) {}
+    });
+  });
+  bljWaktu_('izin staf (' + izin.length + ')');
+  return { staf: staf, izin: izin };
 }
 
 function bljRpc_(fn, isi) {
@@ -243,7 +299,11 @@ function bljSinkron_(penuh) {
   var acuan = bljAcuan_(mulai), sidikAcuan = bljSidik_({ d: acuan });
   bljWaktu_('acuan');
   var kirimAcuan = penuh || !lama || lama.ac !== sidikAcuan;
-  var kode = bljRpc_('bl_sinkron', { p_acuan: kirimAcuan ? acuan : null, p_pasang: hasil.baris.concat(hapus), p_penuh: penuh, p_ms: mulai }).kode;
+  // izin staf: pada sinkron penuh dan paling jarang tiap 30 menit
+  var spI = PropertiesService.getScriptProperties(), izinAkhir = Number(spI.getProperty('BLJ_IZIN_MS') || 0), izin = null;
+  if (penuh || mulai - izinAkhir >= BLJ.BERKALA_MS) { try { izin = bljIzin_(); } catch (eI) { izin = null; } }
+  var kode = bljRpc_('bl_sinkron', { p_acuan: kirimAcuan ? acuan : null, p_pasang: hasil.baris.concat(hapus), p_penuh: penuh, p_ms: mulai, p_izin: izin }).kode;
+  if (kode === 200 && izin) { try { spI.setProperty('BLJ_IZIN_MS', String(mulai)); } catch (eS) {} }
   bljWaktu_((penuh ? 'kirim penuh ' : 'kirim inkremental ') + (hasil.baris.length + hapus.length) + ' pasang (HTTP ' + kode + ')');
   if (kode === 200) {
     bljStatusTulis_(sidik, hasil.tahan, sidikAcuan);
@@ -301,6 +361,7 @@ function bljAntreanProses_() {
       try {
         if (x.jenis === 'jawaban') bljSalinJawaban_(x.data);
         else if (x.jenis === 'absensi') bljSalinAbsensi_(x.data);
+        else if (x.jenis === 'nilai') bljSalinNilai_(x.data);
         selesai.push(x.id);
       } catch (e) {
         try { pmlCatatGalat_('pemicu', 'waSbAntrean', String(e && e.message || e), e && e.stack, '', ''); } catch (e2) {}
@@ -345,6 +406,36 @@ function bljSalinAbsensi_(d) {
   } finally { kunci.releaseLock(); }
   try { catat_('Siswa', d.idRombel, d.nama, 'Absensi', 'mapel ' + d.idMapel + ', ' + (d.sesi || '') + ' (Supabase)', 'OK'); } catch (e) {}
   if (typeof riwayatLupakan_ === 'function') riwayatLupakan_(d.nama);
+}
+
+// Nilai diskusi yang disimpan tutor lewat Supabase -> tab Jawaban, log Penilaian Diskusi, notifikasi nilai untuk siswa.
+function bljSalinNilai_(d) {
+  var kabar = [];
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    ndPastikanKolom_(getSheet(CONFIG.SHEETS.JAWABAN));
+    var data = ndDaftarJawaban_(d.idMapel, d.idMateri), peta = {};
+    data.baris.forEach(function(b) { peta[b.siswa.toLowerCase()] = b; });
+    var log = ndSheetLog_();
+    (d.daftar || []).forEach(function(x) {
+      var b = peta[String(x.siswa || '').trim().toLowerCase()];
+      if (!b) return;
+      var skor = Number(x.nilai);
+      data.sh.getRange(b.baris, data.k.nilai + 1).setValue(skor);
+      if (data.k.komentar >= 0 && x.ubahKomentar) {
+        var sel = data.sh.getRange(b.baris, data.k.komentar + 1);
+        try { sel.setNumberFormat('@'); } catch (e) {}
+        sel.setValue(String(x.komentar || ''));
+      }
+      if (data.k.penilai >= 0) data.sh.getRange(b.baris, data.k.penilai + 1).setValue(d.oleh);
+      if (data.k.waktuNilai >= 0) data.sh.getRange(b.baris, data.k.waktuNilai + 1).setValue(new Date());
+      log.appendRow([d.waktu, String(d.idMapel), String(d.idMateri), b.siswa, x.skorAi === '' ? '' : Number(x.skorAi), skor, String(x.alasanAi || ''), d.oleh]);
+      kabar.push({ rombel: b.rombel, idMapel: String(d.idMapel), mapel: d.mapel, idMateri: String(d.idMateri), judul: d.judul, siswa: b.siswa, nilai: skor, oleh: d.oleh });
+    });
+  } finally { kunci.releaseLock(); }
+  nvTulis_('NILAI', kabar);
+  try { catat_(d.peran || 'Tutor', d.idMapel, d.oleh, 'Simpan nilai diskusi', d.idMateri + ' · ' + kabar.length + ' nilai (disetujui tutor, Supabase)', 'OK'); } catch (e) {}
 }
 
 // Dipanggil pemicu tiap jam yang sudah ada (pemicuRilisApk, pemicuGatewayDoku): memasang bljPemicu bila

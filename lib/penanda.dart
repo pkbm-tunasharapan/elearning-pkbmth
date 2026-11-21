@@ -115,6 +115,23 @@ Future<dynamic> tulisBelajar(String fn, Map<String, dynamic> args, Future<dynami
   return jalurLama();
 }
 
+/// v1.92.7 (B3): tanda staf untuk penilaian diskusi di Supabase, diambil sekali per token sesi staf.
+class TandaStaf {
+  static String _token = '', _tanda = '';
+  static Future<String> ambil(String token) async {
+    if (token.isEmpty) return '';
+    if (token == _token && _tanda.isNotEmpty) return _tanda;
+    try {
+      final r = peta(await Api.instance('waStafTandaBelajar', [token]));
+      _token = token;
+      _tanda = teks(r['tanda']);
+    } catch (_) {
+      _tanda = '';
+    }
+    return _tanda;
+  }
+}
+
 /// Baca dari Supabase (mis. draf); null bila gagal atau `{lama: true}`.
 Future<Map<String, dynamic>?> rpcBelajar(String fn, Map<String, dynamic> args) async {
   if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty || teks(args['p_tanda']).isEmpty) return null;

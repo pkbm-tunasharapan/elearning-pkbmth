@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
+import '../penanda.dart';
 import '../session.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -688,7 +689,11 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
   Future<void> _muat() async {
     setState(() => _galat = null);
     try {
-      final d = peta(await Api.instance('waStafSesiDiskusi', [_t, widget.idMapel, _idMateri]));
+      // v1.92.7 (B3): jawaban diskusi dari Supabase (pertanyaan dari daftar materi staf); jalur lama bila tidak tersedia
+      final sb = await rpcBelajar('bl_staf_diskusi', {'p_tanda': await TandaStaf.ambil(_t), 'p_id_mapel': widget.idMapel, 'p_id_materi': _idMateri});
+      final d = sb != null
+          ? <String, dynamic>{...sb, 'pertanyaan': teks(widget.item['konten'])}
+          : peta(await Api.instance('waStafSesiDiskusi', [_t, widget.idMapel, _idMateri]));
       for (final j in daftar(d['jawaban']).map(peta)) {
         final s = teks(j['siswa']);
         _skor[s] ??= TextEditingController(text: teks(j['nilai']));
@@ -752,7 +757,13 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
       kabar(context, 'Belum ada nilai yang diisi.', galat: true);
       return;
     }
-    final r = await jalankan(context, () => Api.instance('waStafDiskusiSimpanNilai', [_t, widget.idMapel, _idMateri, daftarNilai, _setuju]), teksProses: 'Menyimpan nilai...');
+    final r = await jalankan(
+        context,
+        () async => tulisBelajar(
+            'bl_staf_nilai_simpan',
+            {'p_tanda': await TandaStaf.ambil(_t), 'p_id_mapel': widget.idMapel, 'p_id_materi': _idMateri, 'p_daftar': daftarNilai, 'p_setuju': _setuju},
+            () => Api.instance('waStafDiskusiSimpanNilai', [_t, widget.idMapel, _idMateri, daftarNilai, _setuju])),
+        teksProses: 'Menyimpan nilai...');
     if (r.ok && mounted) {
       kabar(context, '${angka(peta(r.data)['tersimpan'])} nilai tersimpan.');
       _muat();
