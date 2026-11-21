@@ -19,7 +19,7 @@ var IZN = {
   BAWAAN: ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor', 'Front Office', 'Bendahara', 'Koordinator Unit', 'Dinas Pendidikan'],
   CK: 'izn_v1', TINGKAT: ['tidak', 'lihat', 'ubah'],
   // fungsi untuk semua staf (profil, beranda, notifikasi, cetak, kalender, ...): tidak diatur per peran
-  UMUM: /^waStaf(Login|MasukGoogle|MasukSso|Keluar|Profil|ProfilAkun|ProfilAkunSimpan|ProfilAsliDt|VersiApp|Beranda|Dasbor|UlangTahun|UcapkanUlangTahun|LaporGalat|Hangatkan|HtmlPdf|RuangCek|RuangPoll|Kartu|UjianKotak|Kalender|KalenderDaftar|NilaiAturan|SesiDaftar|Kerangka|Promosi|GantiMode)$/,
+  UMUM: /^waStaf(Login|MasukGoogle|MasukSso|Keluar|Profil|ProfilAkun|ProfilAkunSimpan|ProfilAsliDt|VersiApp|Beranda|Dasbor|UlangTahun|UcapkanUlangTahun|LaporGalat|Hangatkan|HtmlPdf|RuangCek|RuangPoll|Kartu|UjianKotak|Kalender|KalenderDaftar|NilaiAturan|SesiDaftar|Kerangka|Promosi|GantiMode|TandaBelajar)$/,
   // fungsi BACA (cukup izin "lihat"); selain ini dianggap UBAH
   BACA: /(Daftar\w*|Baca\w*|Konteks|Info|Lengkap|Rekap|Laporan\w*|Leger|Kelas|Rapor|Cari|Pratinjau|Format|Pdf|Peta|Isi|Tab|Log|Berkas|Hari|Aturan|Data|Naskah|Rinci|Aktif|Saya|Tunggakan\w*|Prompt\w*|BiodataRombel|Jawaban|Terkunci|Qr|Performa|Semua|Bacaan|Soal|Status|SesiDiskusi|CatatanNilai|KinerjaTutor|BelumDinilai|^waStaf(Nilai|Absensi|Siswa|Materi|RombelSiswa|LaporanHadir)$)$/,
   TULIS_PAKSA: { waStafMateriStatus: true, waAdminCekDataJadwal: true, waAdminSusulanAkhiri: true },
@@ -59,7 +59,7 @@ var IZN = {
     // v1.74.2: penilaian diskusi (lihat tanggapan, nilai AI, simpan nilai, catatan) mengikuti izin penilaian ini, bukan izin
     // "Mata Pelajaran" (menyusun konten), supaya membatasi konten tidak ikut memblokir Tutor Online menilai.
     ['nilai', 'Belum Dinilai & Penilaian Diskusi', 'Nilai & Ujian', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'],
-      /^wa(Staf(BelumDinilai|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai|TandaBelajar)|AdminTugasNilaiOtomatis)$/],
+      /^wa(Staf(BelumDinilai|SesiDiskusi|DiskusiJawaban|DiskusiNilaiAi|DiskusiSimpanNilai|CatatanNilai)|AdminTugasNilaiOtomatis)$/],
     ['otoNilai', 'Penilaian Otomatis', 'Nilai & Ujian', ['Admin', 'Superadmin'], /^waAdminOtoNilai\w*$/],
     ['aturNilai', 'Aturan Nilai', 'Nilai & Ujian', ['Admin'], /^waAdminNilaiAturanSimpan$/],
     ['rpp', 'Dokumen RPP', 'Akademik', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Superadmin', 'Dinas Pendidikan'], /^waStafRpp\w*$/],

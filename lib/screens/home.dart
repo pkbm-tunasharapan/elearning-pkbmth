@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../penanda.dart';
 import '../agenda.dart';
 
 import '../api.dart';
@@ -422,7 +423,16 @@ class Beranda extends StatelessWidget {
                 const SizedBox(height: 10),
                 AgendaBeranda(
                   kunci: 'staf-${s.peran}',
-                  muat: (paksa) => Api.instance('waStafBeranda', [s.token, paksa], const Duration(minutes: 2)),
+                  // v1.92.8: beranda staf dari Supabase (dihitung massal Apps Script); tarik-segarkan / tidak tersedia -> Apps Script
+                  muat: (paksa) async {
+                    final tulis = Api.terakhirTulis;
+                    if (!paksa && (tulis == null || DateTime.now().difference(tulis) > const Duration(minutes: 6))) {
+                      final tanda = await TandaStaf.ambil(s.token);
+                      final sb = tanda.isEmpty ? null : await rpcBelajar('br_staf_beranda', {'p_tanda': tanda, 'p_peran': s.peran});
+                      if (sb != null) return sb;
+                    }
+                    return Api.instance('waStafBeranda', [s.token, paksa], const Duration(minutes: 2));
+                  },
                   onPilih: onPilih,
                   bolehMenu: {for (final m in menu) m.id},
                 ),

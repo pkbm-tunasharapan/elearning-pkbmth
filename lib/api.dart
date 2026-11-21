@@ -151,6 +151,9 @@ class Api {
 
   bool bolehCache(String fn) => !_tulis.hasMatch(fn) && !_hidup.hasMatch(fn);
 
+  /// Waktu penyimpanan terakhir lewat Apps Script (beranda staf dari Supabase dilewati ±6 menit sesudahnya).
+  static DateTime? terakhirTulis;
+
   Future<File?> _berkasCache() async {
     if (kIsWeb) return null;
     try {
@@ -300,6 +303,7 @@ class Api {
         _taruhCache(kunciCache, data['data']);
       } else if (_tulis.hasMatch(fn)) {
         bersihkanCache();
+        if (!RegExp(r'(Login|Masuk|Keluar|Hangatkan|Detak|Token|Pulih|Ucapkan|Sso|Google)').hasMatch(fn)) terakhirTulis = DateTime.now();
       }
       return data['data'];
     }

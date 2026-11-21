@@ -56,6 +56,8 @@ function doPost(e) {
       if (typeof rlsCatatPakai_ === 'function' && !globalThis.__INTIP) rlsCatatPakai_(fn, args, body);   // pemakaian rilis uji oleh penguji
       if (typeof rfSisipNotif_ === 'function') hasilFn = rfSisipNotif_(fn, args, hasilFn);
       out = { ok: true, data: hasilFn };
+      // beranda staf di Supabase: staf yang baru menyimpan sesuatu dihitung ulang
+      if (/^waStaf/.test(fn) && !memoBolehFn_(fn) && globalThis.__STAF_P && !globalThis.__INTIP && typeof bstKotor_ === 'function') bstKotor_(globalThis.__STAF_P.id);
     }
   } catch (err) {
     var pesanGalat = String((err && err.message) || err);
@@ -4147,7 +4149,11 @@ function brdIzinKsMenunggu_() {
 
 // ---------- staf ----------
 function waStafBeranda(token, paksa) {
-  var p = stafDariToken_(token), q = absPeran_(p), k = [];
+  return brdStaf_(stafDariToken_(token), token, paksa);
+}
+// v1.92.8: inti beranda staf; dipakai juga hitungan massal untuk Supabase (bstSinkron_).
+function brdStaf_(p, token, paksa) {
+  var q = absPeran_(p), k = [];
   var ckB = 'brd_' + p.id, cB = CacheService.getScriptCache(), tandaB = brdTanda_(String(kcpAkhir_('jwb')));
   if (!paksa) { var lamaB = brdCacheBaca_(cB, ckB, tandaB); if (lamaB) return lamaB; }
   var saya = q.tutor ? absTutorSaya_(p) : null;

@@ -333,6 +333,7 @@ function bljPemicu() {
   var jam = Number(Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'H'));
   try { ujsPemicu_(now, jam); } catch (eU) {}   // E2: status ujian siswa di Supabase
   try { brsPemicu_(now, jam); } catch (eR) {}   // R1: beranda siswa di Supabase
+  try { bstPemicu_(now, jam); } catch (eT) {}   // beranda staf di Supabase
   var penuh = now - akhirPenuh > 20 * 3600000 && jam >= 1 && jam <= 4;
   var inkremental = (kotor >= akhir && now - akhir >= BLJ.JEDA_MS) || now - akhir >= BLJ.BERKALA_MS;
   if (!penuh && !inkremental) return;
@@ -667,6 +668,94 @@ function berandaSiapkan() {
   PropertiesService.getScriptProperties().setProperty(BRS.PROP_TGL, '');
   brsPemicu_(now, jam);
   Logger.log('beranda: ' + (Date.now() - t0) + ' ms, kursor ' + PropertiesService.getScriptProperties().getProperty(BRS.PROP_KURSOR));
+}
+
+// ---------------------------------------------------------------- beranda staf di Supabase
+// brdStaf_ (inti waStafBeranda) dihitung massal untuk semua staf aktif: tiap 30 menit 06-21 WIB (dan ganti hari),
+// staf yang baru menyimpan sesuatu (doPost) tiap 5 menit. Token sintetis 'bst:<id>' dikenali stafDariToken_ tiruan.
+var BST = { SELANG_MS: 30 * 60000, KOTOR: 'bst_kotor', PROP_AKHIR: 'BST_AKHIR', PROP_TGL: 'BST_TGL' };
+
+function bstKotor_(id) {
+  if (!id) return;
+  try {
+    var c = CacheService.getScriptCache(), a = JSON.parse(c.get(BST.KOTOR) || '[]');
+    if (a.indexOf(String(id)) >= 0) return;
+    a.push(String(id));
+    c.put(BST.KOTOR, JSON.stringify(a.slice(-200)), 21600);
+  } catch (e) {}
+}
+
+function bstStafSemua_() {
+  return bacaPengguna_().filter(function(u) { return u.status === 'Aktif' && u.peran && u.peran !== 'Dinas Pendidikan'; });
+}
+
+function bstHitung_(daftar, batasMs) {
+  var baris = [], tgl = absHariIni_(), peta = {};
+  daftar.forEach(function(u) { peta['bst:' + u.id] = u; });
+  var memo = [SHEET_MEMO_, MATERI_MEMO_, UJS_MEMO_], asliToken = stafDariToken_;
+  if (!SHEET_MEMO_) SHEET_MEMO_ = {};
+  if (!MATERI_MEMO_) MATERI_MEMO_ = {};
+  if (!UJS_MEMO_) UJS_MEMO_ = {};
+  var lepas = brsMemoPasang_();
+  globalThis.stafDariToken_ = function(token) {
+    var u = peta[token];
+    if (!u) return asliToken(token);
+    var h = typeof izPeriksa_ === 'function' ? (izPeriksa_(u) || u) : u;
+    globalThis.__STAF_P = h;
+    return h;
+  };
+  try {
+    for (var i = 0; i < daftar.length; i++) {
+      if (Date.now() > batasMs) break;
+      var u = daftar[i], tok = 'bst:' + u.id;
+      try {
+        var p = globalThis.stafDariToken_(tok), d = brdStaf_(p, tok, true);
+        if (d && d.kartu) baris.push({ id: u.id, peran: p.peran, tanggal: tgl, data: d });
+      } catch (eS) {}
+    }
+  } finally { globalThis.stafDariToken_ = asliToken; globalThis.__STAF_P = null; lepas(); SHEET_MEMO_ = memo[0]; MATERI_MEMO_ = memo[1]; UJS_MEMO_ = memo[2]; }
+  return baris;
+}
+
+function bstPemicu_(now, jam) {
+  var sp = PropertiesService.getScriptProperties(), c = CacheService.getScriptCache(), kotor = [];
+  try { kotor = JSON.parse(c.get(BST.KOTOR) || '[]'); } catch (e) {}
+  var tgl = absHariIni_();
+  var penuh = sp.getProperty(BST.PROP_TGL) !== tgl || (jam >= 6 && jam <= 21 && now - Number(sp.getProperty(BST.PROP_AKHIR) || 0) >= BST.SELANG_MS);
+  if (!penuh && !kotor.length) return;
+  if (kotor.length) c.remove(BST.KOTOR);
+  var semua = bstStafSemua_(), set = {};
+  kotor.forEach(function(id) { set[id] = 1; });
+  var daftar = penuh ? semua : semua.filter(function(u) { return set[u.id]; });
+  var mulai = Date.now(), baris = bstHitung_(daftar, now + 300000), n = 0;
+  for (var p = 0; p < baris.length; p += 20) {
+    var r = bljRpc_('br_staf_set', { p_baris: baris.slice(p, p + 20), p_ms: mulai });
+    if (r.kode === 200) n += Number(r.data) || 0;
+  }
+  if (penuh && baris.length === daftar.length) { sp.setProperty(BST.PROP_AKHIR, String(mulai)); sp.setProperty(BST.PROP_TGL, tgl); }
+  bljWaktu_('beranda staf ' + n + '/' + daftar.length + (penuh ? ' (penuh)' : ''));
+}
+
+// Editor: bandingkan beranda staf dihitung biasa (brdStaf_ per staf) vs massal + waktu; lalu kirim.
+function berandaStafSiapkan() {
+  var semua = bstStafSemua_(), t0 = Date.now(), beda = [];
+  var t1 = Date.now(), baris = bstHitung_(semua, Date.now() + 300000), t2 = Date.now();
+  // pembanding: 4 staf pertama dihitung biasa (tanpa memo massal)
+  var bersih = function(d) { var x = JSON.parse(JSON.stringify(d)); delete x.waktu; return JSON.stringify(x); };
+  var asliToken = stafDariToken_, peta = {};
+  semua.forEach(function(u) { peta['bst:' + u.id] = u; });
+  globalThis.stafDariToken_ = function(token) { var u = peta[token]; if (!u) return asliToken(token); var h = izPeriksa_(u) || u; globalThis.__STAF_P = h; return h; };
+  try {
+    baris.slice(0, 4).forEach(function(b) {
+      SHEET_MEMO_ = null; MATERI_MEMO_ = null;
+      var tok = 'bst:' + b.id, d = brdStaf_(globalThis.stafDariToken_(tok), tok, true);
+      if (bersih(d) !== bersih(b.data)) beda.push(b.id + ' (' + b.peran + ')');
+    });
+  } finally { globalThis.stafDariToken_ = asliToken; }
+  var r = bljRpc_('br_staf_set', { p_baris: baris, p_ms: t1 });
+  PropertiesService.getScriptProperties().setProperty(BST.PROP_AKHIR, String(t1));
+  PropertiesService.getScriptProperties().setProperty(BST.PROP_TGL, absHariIni_());
+  Logger.log('beranda staf: ' + baris.length + '/' + semua.length + ' staf, ' + (t2 - t1) + ' ms, kirim HTTP ' + r.kode + ' (' + r.data + '); beda: ' + (beda.length ? beda.join(', ') : 'tidak ada'));
 }
 
 // ---------------------------------------------------------------- E3a: mulai & kirim ujian di Supabase
