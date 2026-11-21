@@ -424,7 +424,7 @@ function waStafBukaKunci(token, idMapel, idUjian, nama) {
   } finally {
     kunci.releaseLock();
   }
-  try { ujsBasi_(idUjian, ctx.m.idRombel, nama); } catch (eS) {}   // E2
+  try { ujsBuka_(idUjian, ctx.m.idRombel, nama); } catch (eS) {}   // E3c
   catat_(ctx.p.peran, ctx.p.id, ctx.p.nama, 'Buka kunci ujian siswa', nama + ' (ujian ' + idUjian + ')', 'OK');
   return true;
 }

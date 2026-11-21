@@ -455,6 +455,14 @@ function ujsBasi_(idUjian, idRombel, nama, paksa) {
   bljRpc_('uj_status_basi', { p_kunci: [k] });
 }
 
+// E3c: kunci ujian dibuka staf -> status di Supabase diperbarui langsung (siswa dapat melanjutkan lewat Supabase).
+// Bila baris tidak segar / gagal, tandai basi (aplikasi memakai Apps Script).
+function ujsBuka_(idUjian, idRombel, nama) {
+  if (!idUjian || !bljKunci_()) return;
+  var r = bljRpc_('uj_status_buka', { p_kunci: String(idUjian) + '|' + String(idRombel) + '|' + normNama_(nama) });
+  if (!(r.kode === 200 && r.data === true)) ujsBasi_(idUjian, idRombel, nama, true);
+}
+
 // Dipanggil ujTambah_/ujUbah_. Tab per siswa -> basi siswa itu; jadwal/permohonan -> basi seluruh ujian.
 function ujsBerubah_(kunci, o, baris) {
   if (UJS_MEMO_) delete UJS_MEMO_['uj_' + kunci];

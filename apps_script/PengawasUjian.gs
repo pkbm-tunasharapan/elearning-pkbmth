@@ -350,7 +350,7 @@ function waStafPengawasBukaKunci(token, idSlot, idRombelSim, idUjian, idRombel, 
     b.sheet.getRange(b.rowIndex, b.cols.terkunci).setValue(false);
     b.sheet.getRange(b.rowIndex, b.cols.percobaan).setValue(0);
   } finally { kunci.releaseLock(); }
-  try { ujsBasi_(x.idUjian, x.idRombel, x.nama); } catch (eS) {}   // E2
+  try { ujsBuka_(x.idUjian, x.idRombel, x.nama); } catch (eS) {}   // E3c
   pwCatat_(x.idUjian, x.idRombel, x.nama, 'Kunci dibuka pengawas', a, p.nama);
   catat_(p.peran, p.id, p.nama, 'Pengawas buka kunci ujian', x.nama + ' (ujian ' + x.idUjian + '): ' + a, 'OK');
   return { sukses: true };

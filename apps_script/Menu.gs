@@ -93,7 +93,7 @@ function bukaKunciUjianBaris(inputs) {
   var cols = sesiCols_();
   sheet.getRange(rowIndex, cols.terkunci).setValue(false);
   sheet.getRange(rowIndex, cols.percobaan).setValue(0);
-  try { var rw = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0]; ujsBasi_(rw[cols.idUjian - 1], rw[cols.idRombel - 1], rw[cols.nama - 1]); } catch (eS) {}   // E2
+  try { var rw = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0]; ujsBuka_(rw[cols.idUjian - 1], rw[cols.idRombel - 1], rw[cols.nama - 1]); } catch (eS) {}   // E3c
   return { tone: 'success', icon: '✅', title: 'Kunci Dibuka', message: 'Ujian untuk siswa ini sudah dibuka lagi dan hitungan pindah tab direset ke 0.' };
 }
 
