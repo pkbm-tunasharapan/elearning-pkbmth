@@ -11,6 +11,8 @@ var API_FLUTTER = {
   VERSI: '1',
   POLA: /^wa(Staf|Admin)[A-Za-z0-9]+$/,
   TAMBAHAN: {
+    // antrean Supabase -> Spreadsheet, dibangunkan pg_net (Belajar.gs; tanpa data, antrean ditarik dengan rahasia)
+    waSbAntrean: true,
     // staf
     waUrlStaf: true, waPimpinanUjianPutusan: true,
     // pemberitahuan / broadcast (siswa & staf; Broadcast.gs)
