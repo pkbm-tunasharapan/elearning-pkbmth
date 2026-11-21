@@ -215,6 +215,7 @@ function rlsPastikanPemicu_(paksaCek) {
 // Pemicu tiap jam. Galat dicatat ke Log Galat, tidak menghentikan pemicu.
 function pemicuRilisApk() {
   try { rlsTarik_(false); } catch (e) { pmlCatatGalat_('pemicu', RLS.PEMICU, String(e && e.message || e), e && e.stack, '', ''); }
+  if (typeof bljPastikanPemicu_ === 'function') bljPastikanPemicu_();   // v1.92.x (Belajar.gs)
 }
 
 // Versi yang ditawarkan ke aplikasi: penguji -> rilis uji (tidak wajib); lainnya -> rilis resmi (wajib).

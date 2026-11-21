@@ -401,6 +401,7 @@ function waRefCekBayar(token, id) {
 // ---------- pemicu tiap jam (dipasang saat DOKU diaktifkan) ----------
 function pemicuGatewayDoku() {
   try { gwRekonsiliasi_(); } catch (e) { try { pmlCatatGalat_('pemicu', 'pemicuGatewayDoku', String(e && e.message || e), e && e.stack, '', ''); } catch (e2) {} }
+  if (typeof bljPastikanPemicu_ === 'function') bljPastikanPemicu_();   // v1.92.x (Belajar.gs)
 }
 function gwPastikanPemicu_() {
   var ada = ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'pemicuGatewayDoku'; });
