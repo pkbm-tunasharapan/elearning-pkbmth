@@ -4,8 +4,8 @@
 // Aplikasi 1.92+ membaca riwayat jawaban siswa (hasil yang sama dengan waGetRiwayatJawaban) langsung
 // dari Supabase (fungsi riwayat_baca), tidak lewat Apps Script. Sumber kebenaran tetap tab Jawaban,
 // Absensi, Buka Sesi & susulan massal; di sini isinya disalin ke Supabase:
-//   - pemicu bljPemicu tiap menit: sinkron INKREMENTAL (hanya pasang siswa-mapel yang berubah) bila ada tanda
-//     "kotor", paling sering tiap 2 menit & tetap tiap 30 menit; sinkron PENUH sekali sehari pukul 01-04 WIB.
+//   - pemicu bljPemicu tiap 5 menit: sinkron INKREMENTAL (hanya pasang siswa-mapel yang berubah) bila ada tanda
+//     "kotor", dan tetap tiap 30 menit; sinkron PENUH sekali sehari pukul 01-04 WIB.
 //     Pemicu dipasang otomatis oleh pemicu tiap jam yang sudah ada (bljPastikanPemicu_).
 //   - tanda "kotor" dipasang saat data belajar berubah (riwayatLupakan_, versi data, jawaban, buka sesi,
 //     susulan massal). Tidak ada panggilan Supabase di jalur permintaan pengguna (produksi tidak melambat).
@@ -21,7 +21,8 @@ var BLJ = {
   PROP_PENUH: 'BLJ_SINKRON_PENUH',
   KOTOR: 'blj_kotor',
   HARI_TANDA: 7,
-  JEDA_MS: 120000,          // sinkron penuh paling sering tiap 2 menit
+  PEMICU_MENIT: 5,          // pemicu bljPemicu tiap 5 menit
+  JEDA_MS: 60000,          // jarak minimum antar-sinkron inkremental
   BERKALA_MS: 30 * 60000    // dan paling jarang tiap 30 menit
 };
 
@@ -209,12 +210,13 @@ function bljSinkron_(penuh) {
 }
 function bljSinkronPenuh_() { return bljSinkron_(true); }
 
-// Pemicu waktu (tiap menit). Hampir selalu selesai seketika:
+// Pemicu waktu (tiap BLJ.PEMICU_MENIT menit). Bila tidak ada perubahan, selesai tanpa membaca tab:
 //   - sinkron PENUH sekali sehari pukul 01-04 WIB (atau bila status di cache hilang)
 //   - sinkron INKREMENTAL bila ada tanda "kotor" sejak sinkron terakhir (paling sering tiap BLJ.JEDA_MS),
 //     dan tetap tiap BLJ.BERKALA_MS (nilai tertahan yang mungkin sudah dilunasi)
 function bljPemicu() {
   if (!bljKunci_()) return;
+  if (PropertiesService.getScriptProperties().getProperty('BLJ_PEMICU_MENIT') !== String(BLJ.PEMICU_MENIT)) bljPastikanPemicu_();
   var sp = PropertiesService.getScriptProperties(), now = Date.now(), akhir = 0, akhirPenuh = 0, kotor = 0;
   try { akhir = Number(sp.getProperty(BLJ.PROP_AKHIR) || 0); akhirPenuh = Number(sp.getProperty(BLJ.PROP_PENUH) || 0); } catch (e) {}
   try { kotor = Number(CacheService.getScriptCache().get(BLJ.KOTOR) || 0); } catch (e2) {}
@@ -235,13 +237,18 @@ function bljPemicu() {
 function bljPastikanPemicu_() {
   try {
     if (!bljKunci_()) return;
-    var ada = ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'bljPemicu'; });
-    if (!ada) ScriptApp.newTrigger('bljPemicu').timeBased().everyMinutes(1).create();
+    // Tiap eksekusi Apps Script memuat seluruh proyek (+-2 dtk walau tidak ada kerja), jadi pemicu tiap 5 menit
+    // (+-12 menit kuota/hari), bukan tiap menit (+-48 menit/hari). Pemicu lama (tiap menit) diganti sekali.
+    var sp = PropertiesService.getScriptProperties(), pemicu = ScriptApp.getProjectTriggers().filter(function(t) { return t.getHandlerFunction() === 'bljPemicu'; });
+    if (pemicu.length && sp.getProperty('BLJ_PEMICU_MENIT') === String(BLJ.PEMICU_MENIT)) return;
+    pemicu.forEach(function(t) { ScriptApp.deleteTrigger(t); });
+    ScriptApp.newTrigger('bljPemicu').timeBased().everyMinutes(BLJ.PEMICU_MENIT).create();
+    sp.setProperty('BLJ_PEMICU_MENIT', String(BLJ.PEMICU_MENIT));
   } catch (e) {}
 }
 
 // Jalankan SEKALI dari editor: membuat kunci tanda belajar, mengirimnya ke Supabase, memasang pemicu
-// tiap menit, lalu sinkron penuh pertama. Aman dijalankan ulang (kunci lama dipakai, pemicu tidak dobel).
+// tiap 5 menit, lalu sinkron penuh pertama. Aman dijalankan ulang (kunci lama dipakai, pemicu tidak dobel).
 function belajarSiapkan() {
   var sp = PropertiesService.getScriptProperties();
   var k = sp.getProperty(BLJ.PROP_KUNCI);
@@ -255,9 +262,8 @@ function belajarSiapkan() {
     payload: JSON.stringify({ p_kunci: k, p_rahasia: pndRahasia_() })
   });
   Logger.log('kunci_sesi_set: HTTP ' + res.getResponseCode());
-  var ada = ScriptApp.getProjectTriggers().some(function(t) { return t.getHandlerFunction() === 'bljPemicu'; });
-  if (!ada) ScriptApp.newTrigger('bljPemicu').timeBased().everyMinutes(1).create();
-  Logger.log('pemicu bljPemicu: ' + (ada ? 'sudah ada' : 'dipasang'));
+  bljPastikanPemicu_();
+  Logger.log('pemicu bljPemicu: tiap ' + BLJ.PEMICU_MENIT + ' menit');
   Logger.log('sinkron penuh: HTTP ' + bljSinkronPenuh_());
 }
 
