@@ -2128,7 +2128,23 @@ function waStafJadwalCetak(token) {
   var d = waStafPemetaanDaftar(token), p = stafDariToken_(token), kop = {}, unit = [];
   try { kop = kwKop_(); } catch (e) {}
   try { unit = ubUnit_().filter(function(u) { return u.aktif; }).map(function(u) { return { id: u.id, nama: u.nama }; }); } catch (e1) {}
+  try { jadTandaiTiada_(d.pemetaan); } catch (e2) {}
   return { pemetaan: d.pemetaan, aturan: d.aturan, unit: unit, kop: kop, dibuat: absWaktu_(), oleh: p.nama, tutorSaja: !!d.tutorSaya };
+}
+// v1.92.1: tanggal pertemuan yang ditiadakan (agenda lembaga yang disahkan atau hari ujian masa) selama 6 bulan
+// sejak awal bulan ini -> x.tiada = { 'yyyy-MM-dd': alasan }. Cetak jadwal bulanan tidak menampilkan tanggal itu.
+function jadTandaiTiada_(pemetaan) {
+  var awal = new Date(absHariIni_().slice(0, 7) + '-01T00:00:00+07:00'), tgl = [];
+  for (var i = 0; i < 186; i++) tgl.push(Utilities.formatDate(new Date(awal.getTime() + i * 86400000), absTz_(), 'yyyy-MM-dd'));
+  (pemetaan || []).forEach(function(x) {
+    var t = {};
+    tgl.forEach(function(iso) {
+      if (!jadBerlakuDasar_(x, iso)) return;
+      var a = agLiburPm_(x, iso);
+      if (a) t[iso] = String(a.nama || 'Libur');
+    });
+    x.tiada = t;
+  });
 }
 // d: {id?, idRombel, kodeMapel, idTutor, hari, slot | (mulai, selesai), dari, sampai}
 function waStafPemetaanSimpan(token, d) {

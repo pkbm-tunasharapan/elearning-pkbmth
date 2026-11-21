@@ -2652,5 +2652,18 @@ tes('nilNamaTtd_: pengampu utama dari tutor bawaan kelas, koordinator unit dari 
   } finally { Object.assign(g, asli); }
 });
 
+// v1.92.1: cetak jadwal bulanan tidak menampilkan pertemuan yang ditiadakan (agenda / hari ujian masa)
+tes('jadTandaiTiada_: tanggal pertemuan yang ditiadakan diberi alasan, yang lain tidak', () => {
+  const asli = ['absHariIni_', 'jadBerlakuDasar_', 'agLiburPm_'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  try {
+    g.absHariIni_ = () => '2026-11-21';
+    g.jadBerlakuDasar_ = (x, iso) => new Date(iso + 'T00:00:00Z').getUTCDay() === 4;   // setiap Kamis
+    g.agLiburPm_ = (x, iso) => (iso === '2026-12-10' ? { nama: 'diganti ujian UAS Semester 1' } : iso === '2026-12-24' ? { nama: 'Libur Natal' } : null);
+    const pm = [{ id: 'P1' }];
+    g.jadTandaiTiada_(pm);
+    sama(pm[0].tiada, { '2026-12-10': 'diganti ujian UAS Semester 1', '2026-12-24': 'Libur Natal' });
+  } finally { Object.assign(g, asli); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
