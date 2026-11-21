@@ -197,7 +197,7 @@ function mgLiburData_() {
           wb = wb || keuWbSemua_();
           wb.forEach(function(w) { if (ids[w.id]) rombel[String(w.idRombel)] = true; });
         }
-        out.push({ id: m.id, nama: m.nama, tempat: muTeksTempat_(m, true), slot: sl, rombel: rombel, unit: unit });
+        out.push({ id: m.id, nama: m.nama, jenis: m.jenis, tempat: muTeksTempat_(m, true), slot: sl, rombel: rombel, unit: unit });
       });
     }
   } catch (e) {}
@@ -216,4 +216,52 @@ function mgLiburPm_(x, tanggal) {
     }
   }
   return null;
+}
+
+// ---------- 2) v1.92.3: TTM selesai setelah UAS ----------
+// Setelah hari UAS terakhir rombel itu tidak ada tatap muka lagi sampai akhir semester (Jan–Jun / Jul–Des).
+// Kelas akhir: batasnya UAS atau UPK, mana yang lebih akhir (UPK setelah UAS -> tatap muka tetap ada sampai UPK;
+// UPK sebelum UAS -> selesai setelah UAS). Tanggal ujian dari masa ujian serentak yang ditetapkan (mengikuti slot,
+// rombel, dan unit pesertanya) dan dari jadwal ujian kalender akademik yang bukan milik masa.
+var MG_AKHIR_ = null;
+function mgSmtKunci_(iso) { iso = String(iso || ''); return iso.slice(0, 4) + (iso.slice(5, 7) <= '06' ? '-1' : '-2'); }
+// {idRombelSim: {smtKunci: {tanggal, jenis}}} dari jadwal ujian kalender akademik (UAS/UPK, bukan masa)
+function mgAkhirKalender_() {
+  if (MG_AKHIR_) return MG_AKHIR_;
+  var c = null, kc = '';
+  try { c = CacheService.getScriptCache(); kc = 'mgAkhir|' + (typeof perfVersiData_ === 'function' ? perfVersiData_() : ''); var ada = c.get(kc); if (ada) return (MG_AKHIR_ = JSON.parse(ada)); } catch (e0) { c = null; }
+  var out = {};
+  try {
+    var jad = ujJadwalSemua_().filter(function(j) { return !j.masa && (j.jenis === 'UAS' || j.jenis === 'UPK') && j.tanggal; });
+    if (jad.length) {
+      var peta = nilPetaBm_(), ke = {};
+      Object.keys(peta.kelas || {}).forEach(function(k) { (peta.kelas[k] || []).forEach(function(b) { ke[String(b.idMapel)] = k.split('|')[0]; }); });
+      jad.forEach(function(j) {
+        var r = ke[String(j.idMapel)];
+        if (!r) return;
+        var o = out[r] = out[r] || {}, s = mgSmtKunci_(j.tanggal);
+        if (!o[s] || j.tanggal > o[s].tanggal) o[s] = { tanggal: j.tanggal, jenis: j.jenis };
+      });
+    }
+  } catch (e) {}
+  try { if (c) c.put(kc, JSON.stringify(out), 600); } catch (e1) {}
+  return (MG_AKHIR_ = out);
+}
+// Hari ujian terakhir (UAS/UPK) yang berlaku untuk pemetaan x pada semester tanggal itu: {tanggal, jenis} atau null.
+function mgBatasTtm_(x, tanggal) {
+  var s = mgSmtKunci_(tanggal), r = String(x.idRombel), b = (mgAkhirKalender_()[r] || {})[s] || null;
+  mgLiburData_().forEach(function(a) {
+    if (a.jenis !== 'UAS' && a.jenis !== 'UPK') return;
+    if (a.rombel && !a.rombel[r]) return;
+    if (a.unit && x.unit && !String(x.unit).split(',').some(function(u) { return a.unit.indexOf(u.trim()) >= 0; })) return;
+    a.slot.forEach(function(sl) {
+      if (mgSmtKunci_(sl.tanggal) !== s || !muSlotKena_(sl, r)) return;
+      if (!b || sl.tanggal > b.tanggal) b = { tanggal: sl.tanggal, jenis: a.jenis };
+    });
+  });
+  return b;
+}
+function mgSelesaiPm_(x, tanggal) {
+  var b = mgBatasTtm_(x, tanggal);
+  return b && tanggal > b.tanggal ? { nama: 'pembelajaran selesai setelah ' + b.jenis, selesai: b.tanggal } : null;
 }

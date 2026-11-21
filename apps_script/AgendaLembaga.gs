@@ -78,10 +78,11 @@ var AG_PROG_ = null;
 function agLiburPm_(x, tanggal) {
   var d = agSah_();
   // v1.87.0: hari ujian masa ujian juga meniadakan tatap muka peserta
-  if (!d.length) return typeof mgLiburPm_ === 'function' ? mgLiburPm_(x, tanggal) : null;
+  // v1.92.3: setelah UAS (kelas akhir: UAS/UPK yang lebih akhir) tatap muka selesai sampai akhir semester
+  var mg = function() { return typeof mgLiburPm_ === 'function' ? (mgLiburPm_(x, tanggal) || mgSelesaiPm_(x, tanggal)) : null; };
+  if (!d.length) return mg();
   if (!AG_PROG_) { AG_PROG_ = {}; try { var rb = honProgramRombel_(); Object.keys(rb).forEach(function(k) { AG_PROG_[k] = rb[k].program; }); } catch (e) {} }
-  return agJadwalLibur_(d, tanggal, x.idRombel, AG_PROG_[x.idRombel] || x.paket || '', x.unit || '') ||
-    (typeof mgLiburPm_ === 'function' ? mgLiburPm_(x, tanggal) : null);
+  return agJadwalLibur_(d, tanggal, x.idRombel, AG_PROG_[x.idRombel] || x.paket || '', x.unit || '') || mg();
 }
 // Siswa (ID WB) sasaran & bukan sasaran.
 function agPenerima_(a) {
