@@ -48,6 +48,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       final iso = '$ym-${d.toString().padLeft(2, '0')}';
       if (dari.isNotEmpty && iso.compareTo(dari) < 0) continue;
       if (sampai.isNotEmpty && iso.compareTo(sampai) > 0) continue;
+      if (peta(x['tiada']).containsKey(iso)) continue;   // v1.92.1: ditiadakan agenda lembaga / hari ujian masa
       out.add(d);
     }
     return out;
@@ -65,6 +66,24 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
     return m != null ? 'Paket ${m.group(1)!.toUpperCase()}' : teks(x['paket'], teks(x['namaRombel']));
   }
 
+  /// v1.92.1: ruang tanpa nama unit di dalam kurung bila unitnya sudah ditulis, mis. "Lab. Komputer (Unit X)" -> "Lab. Komputer".
+  static String _lokasi(Map<String, dynamic> x) {
+    final l = teks(x['teksLokasi']), u = teks(x['namaUnit']);
+    return u.isNotEmpty && l.endsWith(' ($u)') ? l.substring(0, l.length - u.length - 3) : l;
+  }
+
+  /// v1.92.1: pertemuan yang ditiadakan pada bulan [ym] (untuk catatan di bawah tabel), urut tanggal.
+  List<(String, String)> _tiadaBulan(List<Map<String, dynamic>> semua, String ym) {
+    final out = <String, Set<String>>{};
+    for (final x in semua) {
+      peta(x['tiada']).forEach((iso, alasan) {
+        if (iso.startsWith(ym)) out.putIfAbsent(iso, () => <String>{}).add(teks(alasan));
+      });
+    }
+    final k = out.keys.toList()..sort();
+    return [for (final iso in k) (iso, out[iso]!.join('; '))];
+  }
+
   String _kolomId(Map<String, dynamic> x) => _perPaket ? _paket(x) : teks(x['idRombel']);
   String _kolomNama(Map<String, dynamic> x) => _perPaket ? _paket(x) : teks(x['namaRombel']);
 
@@ -74,11 +93,15 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
     return xs.where((x) => ada.add(kunci(x))).toList();
   }
 
+  bool _cocokUnit(Map<String, dynamic> x) {
+    if (_unit.isEmpty) return true;
+    final u = teks(x['unit']);
+    return u.isEmpty || u.split(',').contains(_unit);   // jadwal tanpa unit = semua siswa rombel
+  }
+
   List<Map<String, dynamic>> _jadwal(Map<String, dynamic> d) => daftar(d['pemetaan']).map(peta).where((x) {
         if (_bulan.isNotEmpty && _tanggal(x, _bulan).isEmpty) return false;   // v1.79.0: tidak ada pertemuan di bulan itu
-        if (_unit.isEmpty) return true;
-        final u = teks(x['unit']);
-        return u.isEmpty || u.split(',').contains(_unit);   // jadwal tanpa unit = semua siswa rombel
+        return _cocokUnit(x);
       }).toList();
 
   static int _urutHari(String h) => hariMinggu.indexOf(h) < 0 ? 9 : hariMinggu.indexOf(h);
@@ -137,12 +160,13 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
         // v1.79.0: bulanan -> satu baris per tanggal pertemuan × sesi (tanggal di kolom Sesi)
         final tglHari = _bulan.isEmpty ? <int>[0] : ({for (final x in jh) ..._tanggal(x, _bulan)}.toList()..sort());
         final bln = _bulan.isNotEmpty;   // v1.79.4: bulanan -> kolom Tanggal digabung (rowspan) untuk semua sesi tanggal itu
-        b.write('<table class="grid hari"><tr><th class="hr" colspan="${kolom.length + (bln ? 2 : 1)}">${escHtml(h.toUpperCase())}</th></tr>');
+        // v1.92.1: tabel bulanan panjang boleh berlanjut ke halaman berikutnya (per baris), kepala tabel diulang
+        b.write('<table class="grid hari${bln ? ' panjang' : ''}"><thead><tr><th class="hr" colspan="${kolom.length + (bln ? 2 : 1)}">${escHtml(h.toUpperCase())}</th></tr>');
         b.write('<tr>${bln ? '<th style="width:22mm">Tanggal</th>' : ''}<th style="width:24mm">Sesi</th>');
         for (final r in kolom) {
           b.write('<th>${escHtml(rombel[r]!.$2)}</th>');
         }
-        b.write('</tr>');
+        b.write('</tr></thead><tbody>');
         for (final tg in tglHari) {
         final berlaku = tg == 0 ? jh : jh.where((x) => _tanggal(x, _bulan).contains(tg)).toList();
         final jam = {for (final x in berlaku) '${teks(x['mulai'])}|${teks(x['selesai'])}'}.toList()..sort();
@@ -165,7 +189,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
               b.write('<div class="mp">${escHtml(teks(x['namaMapel']))} ${_keteranganWaktu(x)}</div>'
                   '<div class="tt">${escHtml(teks(x['namaTutor']))}</div>'
                   '${teks(x['namaUnit']).isEmpty ? '' : '<div class="un">${escHtml(teks(x['namaUnit']))}</div>'}'
-                  '${teks(x['teksLokasi']).isEmpty ? '' : '<div class="un">Ruang: ${escHtml(teks(x['teksLokasi']))}</div>'}');
+                  '${_lokasi(x).isEmpty ? '' : '<div class="un">Ruang: ${escHtml(_lokasi(x))}</div>'}');
             }
             if (sel.isEmpty) b.write('<span class="kosong">–</span>');
             b.write('</td>');
@@ -173,7 +197,16 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
           b.write('</tr>');
         }
         }
-        b.write('</table>');
+        b.write('</tbody></table>');
+      }
+      // v1.92.1: catatan pertemuan yang ditiadakan (libur / diganti ujian masa)
+      if (_bulan.isNotEmpty) {
+        final td = _tiadaBulan(daftar(d['pemetaan']).map(peta).where(_cocokUnit).toList(), _bulan);
+        if (td.isNotEmpty) {
+          b.write('<p class="catatan"><b>Tatap muka ditiadakan:</b> ');
+          b.write(td.map((e) => '${escHtml(_tglLabel(hariMinggu[DateTime.parse(e.$1).weekday - 1], int.parse(e.$1.substring(8))))} (${escHtml(e.$2)})').join('; '));
+          b.write('</p>');
+        }
       }
     }
 
@@ -210,7 +243,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
           }
           b.write('<tr>$selTgl<td>$sesi</td>'
               '<td>${escHtml(_kolomNama(x))}</td><td>${escHtml(teks(x['namaMapel']))}</td><td>${escHtml(teks(x['namaUnit'], 'Semua siswa'))}</td>'
-              '<td>${escHtml(teks(x['teksLokasi'], '–'))}</td>'
+              '<td>${escHtml(_lokasi(x).isEmpty ? '–' : _lokasi(x))}</td>'
               '${tg == 0 ? '<td>${teks(x['minggu']).isEmpty ? 'Setiap minggu' : _lencana(teks(x['minggu']))}</td>' : ''}</tr>');
         }
         b.write('</table>');
@@ -227,7 +260,8 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
       'h2{text-align:center;font-size:13pt;margin:4px 0 2px}h3{font-size:11pt;margin:10px 0 4px}h3.baru{page-break-before:always}'
       '.sub{text-align:center;font-size:9pt;margin:0 0 6px}.kaki{font-size:8pt;color:#555;margin-top:10px;text-align:right}'
       '.tg{display:inline-block;font-size:8pt;font-weight:bold;color:#1d4ed8}'
-      'table.grid{border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid}'
+      'table.grid{border-collapse:collapse;width:100%;margin-bottom:8px;page-break-inside:avoid}table.grid.panjang{page-break-inside:auto}'
+      '.grid tr{page-break-inside:avoid}thead{display:table-header-group}.catatan{font-size:8.5pt;margin:2px 0 8px}'
       '.grid th,.grid td{border:1px solid #555;padding:3px 4px;font-size:8.5pt;vertical-align:top}.grid th{font-weight:bold}'
       '.grid th.hr{color:#5B21B6;border-bottom:2px solid #5B21B6;text-align:left;font-size:10pt;letter-spacing:.5pt}'
       '.sesi{white-space:nowrap;font-weight:bold}.tgl{white-space:nowrap;vertical-align:middle;font-weight:bold}.mp{font-weight:bold}.tt{color:#222}.un{font-size:7.5pt;color:#555}'
