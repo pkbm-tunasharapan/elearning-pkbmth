@@ -1692,7 +1692,7 @@ String bukuPajakHtml(Map<String, dynamic> d) {
     }
     b.write('<tr><th colspan="6">PPN dibayar (pembelian)</th><th class="r">${rp(ppn['masukan'])}</th></tr></table>');
   }
-  b.write('<table class="ttd"><tr><td>Mengetahui,<br>Kepala Satuan Pendidikan<br><br><br><br>(..............................)</td><td>${tanggalIni()}<br>Bendahara<br><br><br><br>(..............................)</td></tr></table>');
+  b.write('<table class="ttd"><tr><td>Mengetahui,<br>Kepala Satuan Pendidikan<br><br><br><br>${teks(peta(d['lembaga'])['kepala']).isEmpty ? '(..............................)' : '<b><u>${escHtml(teks(peta(d['lembaga'])['kepala']))}</u></b>'}</td><td>${tanggalIni()}<br>Bendahara<br><br><br><br>(..............................)</td></tr></table>');
   return dokumenA4(b.toString(), _cssKeu, lanskap: true);
 }
 

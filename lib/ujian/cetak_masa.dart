@@ -4,6 +4,7 @@ import '../api.dart';
 import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'ringkas_jadwal.dart';
 
 /// v1.83.0: cetak Jadwal Ujian (untuk siswa / papan pengumuman) dan Jadwal Pengawasan satu masa ujian.
 /// PDF F4 berkop; watermark logo ditambahkan otomatis oleh htmlKePdf.
@@ -35,7 +36,7 @@ const _css = '.kopisi{text-align:center}.yy{font-size:10pt;font-weight:bold;lett
     'h2{text-align:center;font-size:13pt;margin:4px 0 2px}h3{font-size:11pt;margin:12px 0 4px}'
     '.sub{text-align:center;font-size:9.5pt;margin:0 0 8px}.kaki{font-size:8pt;color:#555;margin-top:10px;text-align:right}'
     'table.g{border-collapse:collapse;width:100%}.g th,.g td{border:1px solid #555;padding:4px 5px;font-size:9pt;vertical-align:top}'
-    '.g th{font-weight:bold}.tgl{font-weight:bold;vertical-align:middle;white-space:nowrap}.jam{white-space:nowrap}'
+    '.g th{font-weight:bold}.tgl,.pw{font-weight:bold;vertical-align:middle}.tgl{white-space:nowrap}.jam{white-space:nowrap}'
     '.mp{font-weight:bold}.kecil2{font-size:8pt;color:#444}.paraf{width:70px}ol{margin:4px 0 0 18px;padding:0}li{font-size:9.5pt;margin:2px 0}'
     '.ttd{width:100%;margin-top:18px}.ttd td{border:none;font-size:10pt;text-align:center;width:50%}';
 
@@ -98,32 +99,45 @@ Future<void> cetakJadwalPengawas(BuildContext context, String idMasa) async {
   b.write('<h2>JADWAL PENGAWAS ${escHtml(teks(m['namaJenis']).toUpperCase())}</h2>');
   b.write('<p class="sub">${escHtml(teks(m['nama']))} · ${escHtml(_tglPanjang(teks(m['dari'])))} s.d. ${escHtml(_tglPanjang(teks(m['sampai'])))} · Peserta: ${escHtml(teks(m['peserta']))}</p>');
   b.write('<table class="g"><tr><th style="width:120px">Hari, tanggal</th><th style="width:80px">Waktu</th><th>Mata pelajaran</th><th>Rombel</th><th>Ruang</th><th>Pengawas</th><th class="paraf">Paraf</th></tr>');
-  final perTgl = <String, List<List<dynamic>>>{};
-  final rekap = <String, List<String>>{};
-  var kosong = 0;
+  // v1.91.1: baris bernilai sama digabung; rombel satu paket yang lengkap ditulis "Paket B" (ringkas_jadwal.dart)
+  final datar = <Map<String, String>>[];
   for (final s in slot) {
     final ruang = daftar(s['ruang']).map(peta).toList();
     for (final r in ruang.isEmpty ? [<String, dynamic>{}] : ruang) {
-      perTgl.putIfAbsent(teks(s['tanggal']), () => []).add([s, r]);
-      final pw = teks(r['pengawas']);
-      if (pw.isEmpty) {
-        kosong++;
-      } else {
-        rekap.putIfAbsent(pw, () => []).add('${_tglPanjang(teks(s['tanggal']))} ${teks(s['jam'])} · ${teks(s['mapel'])} · ${teks(r['rombel'])}${teks(r['ruang']).isEmpty ? '' : ' (${teks(r['ruang'])})'}');
-      }
+      datar.add({'tanggal': teks(s['tanggal']), 'jam': teks(s['jam']), 'selesai': teks(s['selesai']), 'mapel': teks(s['mapel']), 'mode': teks(s['mode']),
+        'rombel': teks(r['rombel']), 'ruang': teks(r['ruang']), 'pengawas': teks(r['pengawas'])});
     }
   }
+  final baris = gabungBarisPengawas(datar, anggotaPaket(datar.map((x) => x['rombel'] ?? '')));
+  final perTgl = <String, List<BarisPengawas>>{};
+  final rekap = <String, List<String>>{};
+  var kosong = 0;
+  for (final x in baris) {
+    perTgl.putIfAbsent(x.tanggal, () => []).add(x);
+    if (x.pengawas.isEmpty) {
+      kosong++;
+    } else {
+      rekap.putIfAbsent(x.pengawas, () => []).add('${_tglPanjang(x.tanggal)} ${x.jam} · ${x.mapel} · ${x.rombelRingkas}${x.ruang.isEmpty ? '' : ' (${x.ruang})'}');
+    }
+  }
+  String rs(int n) => n > 1 ? ' rowspan="$n"' : '';
   perTgl.forEach((tgl, l) {
+    urutBarisPengawas(l);   // v1.91.2: pengawas yang sama berdekatan
+    final rJam = rentangSama([for (final x in l) '${x.jam}|${x.selesai}']);
+    final rPw = rentangSama([for (final x in l) x.pengawas.isEmpty ? '#${x.mapel}|${x.rombelRingkas}' : x.pengawas]);   // "belum ditentukan" tidak digabung
     for (var i = 0; i < l.length; i++) {
-      final s = l[i][0] as Map<String, dynamic>, r = l[i][1] as Map<String, dynamic>;
+      final x = l[i];
       b.write('<tr>');
       if (i == 0) b.write('<td class="tgl" rowspan="${l.length}">${escHtml(_tglPanjang(tgl))}</td>');
-      b.write('<td class="jam">${escHtml(teks(s['jam']))}–${escHtml(teks(s['selesai']))}</td><td class="mp">${escHtml(teks(s['mapel']))}<br><span class="kecil2">${escHtml(teks(s['mode']))}</span></td>'
-          '<td>${escHtml(teks(r['rombel'], '-'))}</td><td>${escHtml(teks(r['ruang'], '-'))}</td><td>${escHtml(teks(r['pengawas'], 'belum ditentukan'))}</td><td></td></tr>');
+      if (rJam[i] > 0) b.write('<td class="jam"${rs(rJam[i])}>${escHtml(x.jam)}–${escHtml(x.selesai)}</td>');
+      b.write('<td class="mp">${escHtml(x.mapel)}<br><span class="kecil2">${escHtml(x.mode)}</span></td>'
+          '<td>${escHtml(x.rombelRingkas.isEmpty ? '-' : x.rombelRingkas)}</td><td>${escHtml(x.ruang.isEmpty ? '-' : x.ruang)}</td>');
+      if (rPw[i] > 0) b.write('<td class="pw"${rs(rPw[i])}>${escHtml(x.pengawas.isEmpty ? 'belum ditentukan' : x.pengawas)}</td><td${rs(rPw[i])}></td>');
+      b.write('</tr>');
     }
   });
   b.write('</table>');
-  if (kosong > 0) b.write('<p class="kecil2">Catatan: $kosong ruang belum memiliki pengawas.</p>');
+  if (kosong > 0) b.write('<p class="kecil2">Catatan: $kosong baris jadwal belum memiliki pengawas.</p>');
   if (rekap.isNotEmpty) {
     b.write('<h3>Rekap tugas per pengawas</h3><table class="g"><tr><th style="width:170px">Pengawas</th><th style="width:55px">Jumlah</th><th>Rincian</th></tr>');
     for (final e in (rekap.entries.toList()..sort((a, c) => a.key.compareTo(c.key)))) {
@@ -132,7 +146,7 @@ Future<void> cetakJadwalPengawas(BuildContext context, String idMasa) async {
     b.write('</table>');
   }
   b.write('<table class="ttd"><tr><td></td><td>${escHtml(teks(kop['kota']))}${teks(kop['kota']).isEmpty ? '' : ', '}......................<br>Kepala ${escHtml(teks(kop['nama'], 'PKBM'))}'
-      '<br><br><br><br>(.....................................)</td></tr></table>');
+      '<br><br><br><br>${teks(kop['kepala']).isEmpty ? '(.....................................)' : '<b><u>${escHtml(teks(kop['kepala']))}</u></b>'}</td></tr></table>');
   b.write('<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>');
   await htmlKePdf(context, nama: _namaBerkas('Jadwal_Pengawas', m), args: [_t, dokumenA4(b.toString(), _css, lanskap: true)]);
 }

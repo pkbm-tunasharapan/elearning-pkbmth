@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../absensi/umum.dart';
 import '../api.dart';
@@ -189,11 +190,38 @@ class _RekapNilaiScreenState extends State<RekapNilaiScreen> {
     if (d == null) return kabar(context, 'Tunggu data selesai dimuat.');
     final k = widget.kelas;
     final nama = 'Leger_${teks(k['namaMapel'])}_${teks(k['namaRombel'])}'.replaceAll(RegExp(r'[^A-Za-z0-9_]+'), '_');
+    final pilihan = await _pilihTtd(d);
+    if (pilihan == null || !mounted) return;
     if (excel) {
-      await bagikanExcel(context, legerMapelHtml(d, excel: true), '$nama.xls');
+      await bagikanExcel(context, legerMapelHtml(d, excel: true, ttd: pilihan), '$nama.xls');
     } else {
-      await htmlKePdf(context, nama: '$nama.pdf', args: [_t, legerMapelHtml(d)]);
+      await htmlKePdf(context, nama: '$nama.pdf', args: [_t, legerMapelHtml(d, ttd: pilihan)]);
     }
+  }
+
+  /// v1.92.0: nama yang dicetak: pengampu utama (bawaan) atau koordinator unit (bila leger dicetak per unit).
+  /// Pilihan terakhir diingat di perangkat ini.
+  Future<String?> _pilihTtd(Map<String, dynamic> d) async {
+    if (teks(d['koordinatorUnit']).isEmpty) return 'utama';
+    var awal = 'utama';
+    try { awal = (await SharedPreferences.getInstance()).getString('legerTtd') ?? 'utama'; } catch (_) {}
+    if (!mounted) return null;
+    final p = await showDialog<String>(
+      context: context,
+      builder: (c) => SimpleDialog(title: const Text('Nama yang dicetak'), children: [
+        for (final o in [('utama', 'Pengampu utama', teks(d['pengampuUtama'], teks(peta(d['kelas'])['namaTutor'], '-'))), ('koordinator', 'Koordinator unit', teks(d['koordinatorUnit']))])
+          ListTile(
+            leading: Icon(o.$1 == awal ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded),
+            title: Text(o.$2),
+            subtitle: Text(o.$3),
+            onTap: () => Navigator.pop(c, o.$1),
+          ),
+      ]),
+    );
+    if (p != null) {
+      try { await (await SharedPreferences.getInstance()).setString('legerTtd', p); } catch (_) {}
+    }
+    return p;
   }
 
   Future<void> _input(Map<String, dynamic> d, String jenis) async {
@@ -755,9 +783,17 @@ String legerHtml(Map<String, dynamic> d, {bool excel = false}) {
   return dokumenA4(b.toString(), _cssDok, lanskap: true);
 }
 
-/// Leger satu mapel (untuk tutor pengampu): komponen nilai tiap warga belajar.
-String legerMapelHtml(Map<String, dynamic> d, {bool excel = false}) {
+/// v1.92.0: nama & jabatan penanda tangan leger. [ttd] 'utama' = pengampu utama (bawaan), 'koordinator' = koordinator unit.
+({String nama, String jabatan}) namaTtdLeger(Map<String, dynamic> d, String ttd) {
   final k = peta(d['kelas']);
+  if (ttd == 'koordinator' && teks(d['koordinatorUnit']).isNotEmpty) return (nama: teks(d['koordinatorUnit']), jabatan: 'Koordinator Unit');
+  return (nama: teks(d['pengampuUtama'], teks(k['namaTutor'])), jabatan: 'Tutor Mata Pelajaran');
+}
+
+/// Leger satu mapel (untuk tutor pengampu): komponen nilai tiap warga belajar.
+String legerMapelHtml(Map<String, dynamic> d, {bool excel = false, String ttd = 'utama'}) {
+  final k = peta(d['kelas']);
+  final pt = namaTtdLeger(d, ttd);
   final per = peta(d['periode']);
   final at = peta(d['aturan']);
   final bb = peta(at['bobot']);
@@ -765,7 +801,7 @@ String legerMapelHtml(Map<String, dynamic> d, {bool excel = false}) {
   final b = StringBuffer();
   if (!excel) b.write('<h2>LEGER NILAI ${escHtml(teks(k['namaMapel']).toUpperCase())}</h2>');
   b.write('<p>Rombel ${escHtml(teks(k['namaRombel']))}${teks(d['namaUnit']).isEmpty ? '' : ' · Unit ${escHtml(teks(d['namaUnit']))}'} · ${escHtml(namaProgram(teks(k['program'])))} · ${escHtml(_periodeTeks(per))}<br>'
-      'Tutor: ${escHtml(teks(k['namaTutor'], '-'))} · Bobot Diskusi ${nilT(bb['diskusi'])}%, UTS ${nilT(bb['uts'])}%, UAS ${nilT(bb['uas'])}% · KKM ${nilT(at['kkm'])}</p>');
+      'Tutor: ${escHtml(teks(d['pengampuUtama'], teks(k['namaTutor'], '-')))} · Bobot Diskusi ${nilT(bb['diskusi'])}%, UTS ${nilT(bb['uts'])}%, UAS ${nilT(bb['uas'])}% · KKM ${nilT(at['kkm'])}</p>');
   b.write('<table><tr><th>No</th><th>NISN</th><th>Nama</th><th>Hadir</th><th>Diskusi</th><th>UTS</th><th>UAS</th><th>Nilai Akhir</th><th>Predikat</th><th>Keterangan</th></tr>');
   var i = 0;
   for (final w in wb) {
@@ -777,7 +813,7 @@ String legerMapelHtml(Map<String, dynamic> d, {bool excel = false}) {
   }
   b.write('</table>');
   if (excel) return '<html><head><meta charset="utf-8"></head><body>$b</body></html>';
-  b.write('<table class="ttd"><tr><td></td><td>${tanggalIni()}<br>Tutor Mata Pelajaran<br><br><br><br><b><u>${escHtml(teks(k['namaTutor'], '..............................'))}</u></b></td></tr></table>');
+  b.write('<table class="ttd"><tr><td></td><td>${tanggalIni()}<br>${pt.jabatan}<br><br><br><br><b><u>${escHtml(pt.nama.isEmpty ? '..............................' : pt.nama)}</u></b></td></tr></table>');
   return dokumenA4(b.toString(), _cssDok);
 }
 

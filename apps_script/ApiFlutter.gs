@@ -2442,8 +2442,20 @@ function nilLembaga_() {
   var d = sh.getRange(1, 1, 2, sh.getLastColumn()).getDisplayValues(), h = {};
   d[0].forEach(function(x, i) { h[String(x).trim().toUpperCase()] = i; });
   var g = function(n) { return h[n] === undefined ? '' : String(d[1][h[n]] || '').trim(); };
-  out.nama = g('NAMA LEMBAGA'); out.npsn = g('NPSN'); out.alamat = g('ALAMAT'); out.kepala = g('KEPALA PKBM');
+  out.nama = g('NAMA LEMBAGA'); out.npsn = g('NPSN'); out.alamat = g('ALAMAT'); out.kepala = ksNamaCetak_(g('KEPALA PKBM'));
   return out;
+}
+// v1.92.0: nama Kepala Sekolah di semua berkas cetak = akun aktif berperan Kepala Sekolah (Kelola Pengguna).
+// Lebih dari satu akun aktif -> yang namanya sama dengan isian KEPALA PKBM, bila tidak ada -> akun pertama.
+// Tidak ada akun aktif -> isian KEPALA PKBM (cadangan).
+function ksAkunAktif_() {
+  try { return bacaPengguna_().filter(function(u) { return u.status === 'Aktif' && u.peran === 'Kepala Sekolah' && !u.peranKustom; }); } catch (e) { return []; }
+}
+function ksNamaCetak_(cadangan) {
+  var ks = ksAkunAktif_(), c = String(cadangan || '').trim();
+  if (!ks.length) return c;
+  var sama = ks.filter(function(u) { return normNama_(u.nama) === normNama_(c); })[0];
+  return (sama || ks[0]).nama;
 }
 
 // ---------- peran ----------
@@ -2902,11 +2914,37 @@ function waStafNilaiRekap(token, q) {
       }
     }
   } catch (eU) {}
+  var ttd = nilNamaTtd_(kelas.idRombel + '|' + kelas.kodeMapel, q.unit ? [String(q.unit)] : String(kunciU || '').split(',').filter(String));   // v1.92.0
   return {
     kelas: kelas, periode: per, aturan: k.at, wb: wbRekap, dispensasi: dis, unitPilihan: unitPil, namaUnit: namaUnit,
+    pengampuUtama: ttd.pengampuUtama, koordinatorUnit: ttd.koordinatorUnit,
     terhubungElearning: (k.peta.kelas[kelas.idRombel + '|' + kelas.kodeMapel] || []).length > 0,
     bolehInput: r.input, bolehDispensasi: r.dispensasi
   };
+}
+// v1.92.0: nama penanda tangan leger. Pengampu utama = tutor bawaan kelas (semua unit; bila tidak ada, unit utama / pertama).
+// Koordinator unit = koordinator efektif unit yang dicetak (unit utama tanpa koordinator -> Kepala Sekolah aktif).
+function nilNamaTtd_(key, unitIds) {
+  var out = { pengampuUtama: '', koordinatorUnit: '' };
+  try {
+    var o = pgoPeta_()[key], utama = '';
+    try { utama = ubUtama_(); } catch (e0) {}
+    var id = o ? (o.semua || (utama && o.unit[utama]) || pgoSemuaTutor_(key)[0] || '') : '';
+    var pt = absPetaTutor_();
+    out.pengampuUtama = id ? (pt[id] ? pt[id].nama : id) : '';
+  } catch (e1) {}
+  try {
+    if (unitIds && unitIds.length) {
+      var pu = ubPetaUnit_(), nama = {}, hasil = [];
+      bacaPengguna_().forEach(function(u) { nama[u.id] = u.nama; });
+      unitIds.forEach(function(uid) {
+        if (!pu[uid]) return;
+        ubKoordEf_(pu[uid]).forEach(function(k) { var n = nama[k] || k; if (n && hasil.indexOf(n) < 0) hasil.push(n); });
+      });
+      out.koordinatorUnit = hasil.join(', ');
+    }
+  } catch (e2) {}
+  return out;
 }
 // d: {idRombel, kodeMapel, jenis:'UTS'|'UAS', nilai:[{idWb, nilai ('' = hapus), ket}]}
 function waStafNilaiInput(token, d) {
