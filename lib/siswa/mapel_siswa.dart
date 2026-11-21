@@ -985,7 +985,10 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
         appBar: AppBar(title: Text(teks(widget.item['judul']), overflow: TextOverflow.ellipsis)),
         body: Muatan<Map<String, dynamic>>(
           key: ValueKey(_versi),
-          muat: () async => peta(await Api.instance('waStatusUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama])),
+          // v1.92.8 (E2): status dari Supabase bila sudah dihitung & masih segar; selain itu Apps Script
+          muat: () async =>
+              await rpcBelajar('uj_status', {'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_ujian': _idUjian, 'p_id_mapel': widget.idMapel}) ??
+              peta(await Api.instance('waStatusUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama])),
           bangun: (context, d, _) {
             final uj = peta(d['uj']);
             _perluToken = uj['perluToken'] == true;

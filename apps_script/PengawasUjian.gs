@@ -349,6 +349,7 @@ function waStafPengawasBukaKunci(token, idSlot, idRombelSim, idUjian, idRombel, 
     b.sheet.getRange(b.rowIndex, b.cols.terkunci).setValue(false);
     b.sheet.getRange(b.rowIndex, b.cols.percobaan).setValue(0);
   } finally { kunci.releaseLock(); }
+  try { ujsBasi_(x.idUjian, x.idRombel, x.nama); } catch (eS) {}   // E2
   pwCatat_(x.idUjian, x.idRombel, x.nama, 'Kunci dibuka pengawas', a, p.nama);
   catat_(p.peran, p.id, p.nama, 'Pengawas buka kunci ujian', x.nama + ' (ujian ' + x.idUjian + '): ' + a, 'OK');
   return { sukses: true };
@@ -630,6 +631,7 @@ function waStafMasaTinjauPutus(token, idUjian, idRombel, nama, keputusan, catata
       teks = 'nilai tetap';
     } else throw new Error('Pilih keputusan.');
   } finally { kunci.releaseLock(); }
+  try { ujsBasi_(idUjian, idRombel, nama); } catch (eS) {}   // E2
   pwCatat_(idUjian, idRombel, nama, PW.J_PUTUS + ': ' + teks, a, p.nama);
   try { CacheService.getScriptCache().remove('pw_berat_' + pwKunciSiswa_(idUjian, idRombel, nama)); } catch (e2) {}
   catat_(p.peran, p.id, p.nama, 'Keputusan pelanggaran berat ujian', nama + ' (ujian ' + idUjian + '): ' + teks + ' - ' + a, 'OK');

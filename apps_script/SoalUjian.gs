@@ -84,7 +84,8 @@ function getSoalUntukUjian_(idUjian) {
 // menilai submission (lihat SesiUjian.gs). JANGAN PERNAH dikirim ke klien.
 function getSoalLengkapUntukUjian_(idUjian) {
   var sheet = getSheet(CONFIG.SHEETS.SOAL_UJIAN);
-  var values = sheet.getDataRange().getValues();
+  var values = (UJS_MEMO_ && UJS_MEMO_.soal) || sheet.getDataRange().getValues();   // E2
+  if (UJS_MEMO_) UJS_MEMO_.soal = values;
   var cols = soalCols_();
   var out = [];
   for (var i = 1; i < values.length; i++) {

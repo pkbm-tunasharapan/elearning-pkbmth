@@ -53,6 +53,7 @@ function ujTabel_(kunci) {
 }
 
 function ujBaca_(kunci) {
+  if (UJS_MEMO_ && UJS_MEMO_['uj_' + kunci]) return UJS_MEMO_['uj_' + kunci];   // E2: hitung status massal
   var sh = ujTabel_(kunci), head = UJ.H[kunci], v = sh.getDataRange().getValues(), out = [];
   for (var i = 1; i < v.length; i++) {
     if (!sTeks_(v[i][0]).trim()) continue;
@@ -60,6 +61,7 @@ function ujBaca_(kunci) {
     head.forEach(function (h, j) { o[h] = sTeks_(v[i][j]); });
     out.push(o);
   }
+  if (UJS_MEMO_) UJS_MEMO_['uj_' + kunci] = out;
   return out;
 }
 
@@ -69,6 +71,7 @@ function ujTambah_(kunci, o) {
   var r = sh.getLastRow() + 1;
   sh.getRange(r, 1, 1, head.length).setNumberFormat('@');
   sh.getRange(r, 1, 1, head.length).setValues([baris]);
+  try { ujsBerubah_(kunci, o, 0); } catch (eS) {}   // E2: status ujian di Supabase basi
   return r;
 }
 
@@ -78,6 +81,7 @@ function ujUbah_(kunci, baris, o) {
     var j = head.indexOf(k);
     if (j >= 0) sh.getRange(baris, j + 1).setValue(o[k]);
   });
+  try { ujsBerubah_(kunci, null, baris); } catch (eS) {}   // E2
 }
 
 // ---------------- waktu ----------------
@@ -308,6 +312,8 @@ function ujAkhiriKadaluarsa_(j, idRombel, nama, sesi) {
   sh.getRange(sesi.rowIndex, cols.waktuSelesai).setValue(new Date());
   ujCatatHasil_(j, idRombel, nama, 0, 100, 0, 0);
   ujTulisJawaban_(j, idRombel, nama, 'Waktu pengerjaan habis, jawaban tidak terkirim', 0);
+  if (UJS_MEMO_) delete UJS_MEMO_.sesi;
+  try { ujsBasi_(j.idUjian, idRombel, nama); } catch (eS) {}   // E2
 }
 
 function ujTulisJawaban_(j, idRombel, nama, ringkasan, nilai) {
@@ -410,6 +416,17 @@ function ujStatus_(j, idRombel, nama) {
   var th = null;   // v1.57.0: nilai ditahan sampai biaya ujian lunas
   try { th = sbTertahan_(j, idRombel, nama); } catch (eTh) {}
   if (th) { out.nilai = null; out.lulus = false; out.nilaiTertahan = th; if (String(out.tombol).indexOf('remedial') === 0) out.tombol = ''; }
+  if (UJS_MEMO_) {   // E2: masukan bergantung waktu untuk uj_status (Supabase menghitung ulang fase/boleh mulai/akses/tombol)
+    out._bahan = {
+      st: st, wm: sesi ? (ujMsSel_(sesi.row[sesi.cols.waktuMulai - 1]) || 0) : 0, terkunci: terkunci, hasilAda: hasil.ada,
+      persen: hasil.terbaik ? hasil.terbaik.persen : null, pernahSusulan: hasil.pernahSusulan, ajuTerbuka: ajuTerbuka,
+      akses: ujAksesSiswa_(j.idUjian, idRombel, nama).filter(function (a) { return a['Status'] === 'Terbuka'; }).map(function (a) {
+        return { jenis: a['Jenis'], mulaiMs: ujMsTeks_(a['Mulai']), selesaiMs: ujMsTeks_(a['Selesai']), mulai: a['Mulai'], selesai: a['Selesai'] };
+      }).filter(function (a) { return !isNaN(a.mulaiMs) && !isNaN(a.selesaiMs); }),
+      mulaiMs: j.mulaiMs, masukSampaiMs: j.masukSampaiMs, durasi: j.durasi, kkm: j.kkm, mode: j.mode, slot: j.slot || '',
+      tambah: out.tambahMenit || 0, tertahan: !!th
+    };
+  }
   return out;
 }
 
@@ -431,6 +448,10 @@ function waStatusUjian(idUjian, idRombel, idMapel, nama) {
 }
 
 function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat) {
+  try { return waMulaiUjianInti_(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat); }
+  finally { try { ujsBasi_(idUjian, idRombel, nama, true); } catch (eS) {} }   // E2
+}
+function waMulaiUjianInti_(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat) {
   // v1.39.0: WB yang sudah punya PIN wajib memasukkan PIN sebelum ujian dimulai
   try {
     if (pinPunya_(nama, idRombel)) {
@@ -537,6 +558,10 @@ function ujGerbangMulai_(j, idMapel, idRombel, nama, kodeAkses, tokenUjian) {
 }
 
 function waSubmitUjian(payload) {
+  try { return waSubmitUjianInti_(payload); }
+  finally { try { if (payload) ujsBasi_(payload.idUjian, payload.idRombel, payload.nama, true); } catch (eS) {} }   // E2
+}
+function waSubmitUjianInti_(payload) {
   var j = payload ? ujJadwalSiswa_(ujJadwalDariUjian_(payload.idUjian), payload.idRombel, payload.nama) : null;   // v1.83.0
   if (!j) return waSubmitUjianLama_(payload);
   var otomatisBerat = false;

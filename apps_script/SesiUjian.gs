@@ -31,7 +31,8 @@ function sesiCols_() {
 
 function cariBarisSesiUjian_(idUjian, idRombel, nama) {
   var sheet = getSheet(CONFIG.SHEETS.PERCOBAAN_UJIAN);
-  var values = sheet.getDataRange().getValues();
+  var values = (UJS_MEMO_ && UJS_MEMO_.sesi) || sheet.getDataRange().getValues();   // E2: hitung status massal
+  if (UJS_MEMO_) UJS_MEMO_.sesi = values;
   var cols = sesiCols_();
   for (var i = 1; i < values.length; i++) {
     var row = values[i];

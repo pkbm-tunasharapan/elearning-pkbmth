@@ -331,6 +331,7 @@ function bljPemicu() {
   try { akhir = Number(sp.getProperty(BLJ.PROP_AKHIR) || 0); akhirPenuh = Number(sp.getProperty(BLJ.PROP_PENUH) || 0); } catch (e) {}
   try { kotor = Number(CacheService.getScriptCache().get(BLJ.KOTOR) || 0); } catch (e2) {}
   var jam = Number(Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'H'));
+  try { ujsPemicu_(now, jam); } catch (eU) {}   // E2: status ujian siswa di Supabase
   var penuh = now - akhirPenuh > 20 * 3600000 && jam >= 1 && jam <= 4;
   var inkremental = (kotor >= akhir && now - akhir >= BLJ.JEDA_MS) || now - akhir >= BLJ.BERKALA_MS;
   if (!penuh && !inkremental) return;
@@ -427,6 +428,103 @@ function ujAwasPenuh_() {
     Object.keys(peta).forEach(function(k) { var b = k.split('|'); tw.push({ u: b[0], r: b[1], k: b.slice(2).join('|'), menit: peta[k] }); });
   } catch (e) { return 0; }
   return ujAwasKirim_(Object.keys(pd).map(function(k) { return pd[k]; }), tw, true);
+}
+
+// ---------------------------------------------------------------- E2: status ujian siswa di Supabase
+// Status lengkap (waStatusUjian) tiap siswa untuk ujian terjadwal yang dekat dihitung di sini tiap ~25 menit (05-21 WIB)
+// lalu dikirim ke uj_status; Supabase menghitung ulang bagian yang bergantung waktu. Setiap perubahan data ujian
+// menandai status siswa itu basi (ujsBasi_) sehingga aplikasi kembali ke Apps Script sampai dihitung ulang.
+var UJS_MEMO_ = null, UJS_BASI_ = {};
+var UJS = { SELANG_MS: 25 * 60000, JENDELA_LALU_MS: 36 * 3600000, JENDELA_DEPAN_MS: 48 * 3600000, BATAS_MS: 240000, PROP: 'UJS_AKHIR' };
+
+// paksa = true: selalu kirim (pembungkus mulai/kirim/pindah tab, sesudah SEMUA penulisan selesai)
+function ujsBasi_(idUjian, idRombel, nama, paksa) {
+  if (!idUjian || !bljKunci_()) return;
+  var k = String(idUjian) + '|' + (idRombel == null ? '*' : String(idRombel)) + '|' + (nama == null ? '*' : normNama_(nama));
+  if (UJS_BASI_[k] && !paksa) return;
+  UJS_BASI_[k] = 1;
+  bljRpc_('uj_status_basi', { p_kunci: [k] });
+}
+
+// Dipanggil ujTambah_/ujUbah_. Tab per siswa -> basi siswa itu; jadwal/permohonan -> basi seluruh ujian.
+function ujsBerubah_(kunci, o, baris) {
+  if (UJS_MEMO_) delete UJS_MEMO_['uj_' + kunci];
+  var perSiswa = kunci === 'AKSES' || kunci === 'AJU' || kunci === 'HASIL';
+  if (!perSiswa && kunci !== 'JADWAL' && kunci !== 'PERM') return;
+  if (!o) {
+    var head = UJ.H[kunci], v = ujTabel_(kunci).getRange(baris, 1, 1, head.length).getValues()[0];
+    o = {};
+    head.forEach(function(h, i) { o[h] = sTeks_(v[i]); });
+  }
+  if (perSiswa) ujsBasi_(o['ID Ujian'], o['ID Rombel'], o['Nama Siswa']);
+  else ujsBasi_(o['ID Ujian'], null, null);
+}
+
+function ujsPemicu_(now, jam) {
+  if (jam < 5 || jam > 21) return;
+  var sp = PropertiesService.getScriptProperties();
+  if (now - Number(sp.getProperty(UJS.PROP) || 0) < UJS.SELANG_MS) return;
+  sp.setProperty(UJS.PROP, String(now));
+  ujsSinkron_();
+}
+
+// Hitung & kirim status semua siswa untuk ujian dekat (+ siswa yang punya akses personal dekat).
+function ujsSinkron_() {
+  var mulai = Date.now(), dalam = function(ms) { return ms >= mulai - UJS.JENDELA_LALU_MS && ms <= mulai + UJS.JENDELA_DEPAN_MS; };
+  var sasaran = {}, jumlah = 0, baris = [], kirim = 0;
+  UJS_MEMO_ = {};
+  var memoLama = SHEET_MEMO_, memoMateri = MATERI_MEMO_;
+  if (!SHEET_MEMO_) SHEET_MEMO_ = {};
+  if (!MATERI_MEMO_) MATERI_MEMO_ = {};
+  try {
+    var jad = {};
+    ujJadwalSemua_().forEach(function(j) { if (j.idUjian) { jad[String(j.idUjian)] = j; if (dalam(j.mulaiMs)) sasaran[String(j.idUjian)] = null; } });
+    munSemua_().forEach(function(w) { if (w.idUjian && jad[w.idUjian] && dalam(ujMs_(w.tanggal, w.jam))) sasaran[w.idUjian] = null; });
+    var pribadi = {};
+    ujBaca_('AKSES').forEach(function(a) {
+      var u = String(a['ID Ujian']);
+      if (a['Status'] !== 'Terbuka' || !jad[u] || sasaran[u] === null) return;
+      var m = ujMsTeks_(a['Mulai']), s = ujMsTeks_(a['Selesai']);
+      if (isNaN(m) || isNaN(s) || s < mulai || m > mulai + UJS.JENDELA_DEPAN_MS) return;
+      (pribadi[u] = pribadi[u] || []).push({ r: String(a['ID Rombel']), nama: a['Nama Siswa'] });
+    });
+    Object.keys(pribadi).forEach(function(u) { sasaran[u] = pribadi[u]; });
+    var ujianIds = Object.keys(sasaran);
+    if (!ujianIds.length) { bljWaktu_('status ujian: tidak ada ujian dekat'); return 0; }
+    var rombelMapel = {}, roster = {};
+    mapelAktifSemua_().forEach(function(m) { rombelMapel[String(m.idMapel)] = String(m.idRombel); });
+    for (var x = 0; x < ujianIds.length; x++) {
+      var u = ujianIds[x], j = jad[u], idMapel = String(j.idMapel), idRombel = rombelMapel[idMapel];
+      if (!idRombel) continue;
+      var daftar = sasaran[u] || (roster[idRombel] = roster[idRombel] || bacaRoster_(idRombel)).map(function(s) { return { r: idRombel, nama: s.nama }; });
+      for (var i = 0; i < daftar.length; i++) {
+        if (Date.now() - mulai > UJS.BATAS_MS) break;
+        var sw = daftar[i];
+        try {
+          var r = waStatusUjian(u, sw.r, idMapel, sw.nama);
+          if (!r || !r.sukses || !r.uj || !r.uj._bahan) continue;
+          var bahan = r.uj._bahan;
+          delete r.uj._bahan;
+          baris.push({ u: u, r: sw.r, k: normNama_(sw.nama), m: idMapel, data: r, bahan: bahan });
+          jumlah++;
+        } catch (eS) {}
+      }
+    }
+  } finally { UJS_MEMO_ = null; SHEET_MEMO_ = memoLama; MATERI_MEMO_ = memoMateri; }
+  bljWaktu_('status ujian dihitung (' + jumlah + ')');
+  for (var p = 0; p < baris.length; p += 150) {
+    var res = bljRpc_('uj_status_set', { p_baris: baris.slice(p, p + 150), p_ms: mulai });
+    if (res.kode === 200) kirim += Number(res.data) || 0;
+  }
+  bljWaktu_('status ujian terkirim ' + kirim + '/' + jumlah);
+  return kirim;
+}
+
+// Editor: hitung status ujian sekarang (uji/pemanasan sebelum ujian).
+function ujianStatusSiapkan() {
+  var t0 = Date.now(), n = ujsSinkron_();
+  Logger.log('status ujian terkirim: ' + n + ' (' + (Date.now() - t0) + ' ms)');
+  return n;
 }
 
 // Nilai diskusi yang disimpan tutor lewat Supabase -> tab Jawaban, log Penilaian Diskusi, notifikasi nilai untuk siswa.

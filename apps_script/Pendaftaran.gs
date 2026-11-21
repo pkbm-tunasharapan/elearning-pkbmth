@@ -500,6 +500,10 @@ function waMulaiUjianLama_(idUjian, idRombel, idMapel, nama, kodeAkses) {
 }
 
 function waLaporPindahTab(idUjian, idRombel, nama, kodeAkses, jenis) {
+  try { return waLaporPindahTabInti_(idUjian, idRombel, nama, kodeAkses, jenis); }
+  finally { try { ujsBasi_(idUjian, idRombel, nama, true); } catch (eS) {} }   // E2
+}
+function waLaporPindahTabInti_(idUjian, idRombel, nama, kodeAkses, jenis) {
   // Laporan hanya dihitung bila kode akses siswa benar (mencegah orang lain menambah pelanggaran siswa lain).
   if (!cekKodeAksesSiswa_(idRombel, nama, kodeAkses)) {
     try { catat_('Siswa', idRombel, nama, 'Laporan pindah tab ditolak', 'kode akses tidak valid, ujian ' + idUjian, 'GAGAL'); } catch (e) {}
