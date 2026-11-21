@@ -922,7 +922,14 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
     if (kode == null || !mounted) return;
     final pd = await UjianAman.perangkat();   // v1.54.0: satu perangkat per siswa per ujian
     if (!mounted) return;
-    final r = await jalankan(context, () => Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin, _token, pd]), teksProses: 'Menyiapkan soal...');
+    // v1.92.8 (E3a): mulai lewat Supabase bila paket siswa siap; selain itu (atau bila ditolak) Apps Script
+    final r = await jalankan(context, () async {
+      final sb = await rpcBelajar('uj_mulai', {
+        'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_ujian': _idUjian, 'p_id_mapel': widget.idMapel,
+        'p_kode': kode, 'p_pin': _pin, 'p_token': _token, 'p_perangkat': pd,
+      });
+      return sb ?? await Api.instance('waMulaiUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama, kode, _pin, _token, pd]);
+    }, teksProses: 'Menyiapkan soal...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     if (d['sukses'] != true) {
@@ -1245,7 +1252,11 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     final pd = await UjianAman.perangkat();
     if (!mounted) return;
     RiwayatBelajar.instance.catatTulis();   // v1.92.0: riwayat sesudah ini dari jalur lama
-    final r = await jalankan(context, () => Api.instance('waSubmitUjian', [
+    // v1.92.8 (E3a): kirim lewat Supabase bila sesi dimulai/tersedia di sana; selain itu (atau bila ditolak) Apps Script
+    final r = await jalankan(context, () async => await rpcBelajar('uj_kirim', {
+          'p_tanda': teks(SesiSiswa.instance.data['tandaBelajar']), 'p_nama': SesiSiswa.instance.nama, 'p_id_ujian': widget.idUjian,
+          'p_id_mapel': widget.idMapel, 'p_kode': widget.kode, 'p_jawaban': _jawab, 'p_perangkat': pd, 'p_paksa': paksa,
+        }) ?? await Api.instance('waSubmitUjian', [
           {
             'perangkat': pd,
             if (paksa) 'paksa': true,

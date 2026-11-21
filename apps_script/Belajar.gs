@@ -366,6 +366,14 @@ function bljAntreanProses_() {
         else if (x.jenis === 'absensi') bljSalinAbsensi_(x.data);
         else if (x.jenis === 'nilai') bljSalinNilai_(x.data);
         else if (x.jenis === 'pelanggaran') pwCatat_(x.data.idUjian, x.data.idRombel, x.data.nama, x.data.jenis, x.data.detail, x.data.oleh);
+        else if (x.jenis.indexOf('ujian_') === 0) {   // E3a: status di Supabase sudah benar -> jangan tandai basi
+          UJS_DIAM_ = true;
+          try {
+            if (x.jenis === 'ujian_mulai') ujsCerminMulai_(x.data);
+            else if (x.jenis === 'ujian_kirim') ujsCerminKirim_(x.data);
+            else if (x.jenis === 'ujian_perangkat') ujsCerminPerangkat_(x.data);
+          } finally { UJS_DIAM_ = false; }
+        }
         selesai.push(x.id);
       } catch (e) {
         try { pmlCatatGalat_('pemicu', 'waSbAntrean', String(e && e.message || e), e && e.stack, '', ''); } catch (e2) {}
@@ -439,7 +447,7 @@ var UJS = { SELANG_MS: 25 * 60000, JENDELA_LALU_MS: 36 * 3600000, JENDELA_DEPAN_
 
 // paksa = true: selalu kirim (pembungkus mulai/kirim/pindah tab, sesudah SEMUA penulisan selesai)
 function ujsBasi_(idUjian, idRombel, nama, paksa) {
-  if (!idUjian || !bljKunci_()) return;
+  if (!idUjian || UJS_DIAM_ || !bljKunci_()) return;
   var k = String(idUjian) + '|' + (idRombel == null ? '*' : String(idRombel)) + '|' + (nama == null ? '*' : normNama_(nama));
   if (UJS_BASI_[k] && !paksa) return;
   UJS_BASI_[k] = 1;
@@ -471,7 +479,7 @@ function ujsPemicu_(now, jam) {
 // Hitung & kirim status semua siswa untuk ujian dekat (+ siswa yang punya akses personal dekat).
 function ujsSinkron_() {
   var mulai = Date.now(), dalam = function(ms) { return ms >= mulai - UJS.JENDELA_LALU_MS && ms <= mulai + UJS.JENDELA_DEPAN_MS; };
-  var sasaran = {}, jumlah = 0, baris = [], kirim = 0;
+  var sasaran = {}, jumlah = 0, baris = [], kirim = 0, paket = [];
   UJS_MEMO_ = {};
   var memoLama = SHEET_MEMO_, memoMateri = MATERI_MEMO_;
   if (!SHEET_MEMO_) SHEET_MEMO_ = {};
@@ -505,19 +513,177 @@ function ujsSinkron_() {
           if (!r || !r.sukses || !r.uj || !r.uj._bahan) continue;
           var bahan = r.uj._bahan;
           delete r.uj._bahan;
+          try { ujsBahanMulai_(bahan, j, sw.r, sw.nama, paket); } catch (eM) { bahan.gerbang = 'galat'; }   // E3a
           baris.push({ u: u, r: sw.r, k: normNama_(sw.nama), m: idMapel, data: r, bahan: bahan });
           jumlah++;
         } catch (eS) {}
       }
     }
   } finally { UJS_MEMO_ = null; SHEET_MEMO_ = memoLama; MATERI_MEMO_ = memoMateri; }
-  bljWaktu_('status ujian dihitung (' + jumlah + ')');
+  bljWaktu_('status ujian dihitung (' + jumlah + ', paket ' + paket.length + ')');
+  ujsTokenKirim_();
+  // paket soal: hanya yang berubah (sidik)
+  var ada = bljRpc_('uj_paket_sidik', { p_ujian: Object.keys(sasaran) }), lama = ada.kode === 200 && ada.data ? ada.data : {}, nPaket = 0;
+  paket = paket.filter(function(x) { return lama[x.u + '|' + x.r + '|' + x.k + '|' + x.ronde] !== x.sidik; });
+  for (var q = 0; q < paket.length; q += 20) {
+    var rp = bljRpc_('uj_paket_set', { p_baris: paket.slice(q, q + 20) });
+    if (rp.kode === 200) nPaket += Number(rp.data) || 0;
+  }
   for (var p = 0; p < baris.length; p += 150) {
     var res = bljRpc_('uj_status_set', { p_baris: baris.slice(p, p + 150), p_ms: mulai });
     if (res.kode === 200) kirim += Number(res.data) || 0;
   }
-  bljWaktu_('status ujian terkirim ' + kirim + '/' + jumlah);
+  bljWaktu_('status ujian terkirim ' + kirim + '/' + jumlah + ', paket baru ' + nPaket);
   return kirim;
+}
+
+// ---------------------------------------------------------------- E3a: mulai & kirim ujian di Supabase
+// Bahan tambahan untuk uj_mulai/uj_kirim + paket soal (hasil undian yang sama dengan ujSoalSiswa_).
+// jDasar = jadwal dasar (dipakai undian), jadwal khusus unit dipakai untuk gerbang.
+var UJS_DIAM_ = false;   // true saat menyalin kiriman Supabase ke Spreadsheet: tidak menandai basi
+function ujsBahanMulai_(bahan, jDasar, idRombel, nama, paket) {
+  var m = UJS_MEMO_, js = ujJadwalSiswa_(jDasar, idRombel, nama);
+  if (!m.kode) {
+    m.kode = {};
+    getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
+      var k = String(r[0]) + '|' + r[1], kode = String(r[3] || '').trim().toUpperCase();
+      if (i > 0 && kode && !m.kode.hasOwnProperty(k)) m.kode[k] = kode;
+    });
+    m.lamaJ = {};
+    getSheetData(CONFIG.SHEETS.JAWABAN).forEach(function(r, i) {
+      var k = String(r[3]) + '|' + r[6];
+      if (i > 0 && !m.lamaJ.hasOwnProperty(k)) { var n = parseFloat(r[8]); m.lamaJ[k] = isNaN(n) ? null : n; }
+    });
+  }
+  var kode = m.kode[String(idRombel) + '|' + nama];
+  bahan.kodeHash = kode ? sha256_(kode) : '';
+  bahan.pinHash = ''; bahan.pinGaram = '';
+  var pr = pinPeta_()[pinKunci_(nama, pinTglSiswa_(idRombel, nama))];
+  if (pr && pr.status === 'Aktif' && pr.hash) { bahan.pinHash = pr.hash; bahan.pinGaram = pr.garam; }
+  var g = '';
+  if (js.mode === 'Kertas') g = 'kertas';
+  if (!g) g = muGerbang_(js, idRombel, nama) || '';
+  if (!g) {
+    try { g = klGerbang_(js, idRombel, nama) || ''; }
+    catch (eKl) {
+      try { g = nilGerbangUjian_(js, idRombel, nama) || ''; } catch (eNil) {}
+      if (!g) { try { g = sbGerbang_(js, idRombel, nama) || ''; } catch (eBy) {} }
+    }
+  }
+  bahan.gerbang = g;
+  bahan.ronde = ujRonde_(jDasar.idUjian, idRombel, nama);
+  bahan.jenisSitting = ujJenisSitting_(jDasar.idUjian, idRombel, nama);
+  var kl = String(jDasar.idUjian) + '|' + nama;
+  bahan.nilaiLama = m.lamaJ.hasOwnProperty(kl) ? m.lamaJ[kl] : null;
+  bahan.masa = !!js.masa;
+  if (js.mode === 'Kertas') return;
+  var ronde = [bahan.ronde];
+  if (bahan.akses && bahan.akses.length) ronde.push(bahan.ronde + 1);
+  ronde.forEach(function(rd) {
+    var pk = ujsPaket_(jDasar, idRombel, nama, rd);
+    if (pk) paket.push(pk);
+  });
+}
+
+// Sama dengan ujSoalSiswa_ tetapi untuk ronde tertentu; soal (tampilan) + kunci [[id, huruf]].
+function ujsPaket_(j, idRombel, nama, ronde) {
+  var m = UJS_MEMO_, kp = j.idMapel + '|' + j.smt + '|' + j.jenisPool;
+  m.pool = m.pool || {}; m.opsi = m.opsi || {};
+  var pool = m.pool[kp] || (m.pool[kp] = ujPool_(j.idMapel, j.smt, j.jenisPool));
+  if (!pool.sesi.length) return null;
+  if (!m.opsi.hasOwnProperty(idRombel)) m.opsi[idRombel] = kurPaket_(getNamaRombel_(idRombel)) === 'A' ? 4 : 5;
+  var benih = [j.idUjian, idRombel, ujNormNama_(nama), ronde].join('|');
+  var daftar = ujUndi_(pool.sesi, j.komposisi, m.opsi[idRombel], benih);
+  if (!daftar.length) return null;
+  var poin = 100 / daftar.length;
+  var soal = daftar.map(function(s) { return { id: s.id, pertanyaan: s.pertanyaan, opsi: s.opsi, poin: poin }; });
+  var kunci = daftar.map(function(s) { return [s.id, String(s.kunci || '').trim().toUpperCase()]; });
+  var sidik = Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, JSON.stringify([soal, kunci]), Utilities.Charset.UTF_8)).slice(0, 16);
+  return { u: String(j.idUjian), r: String(idRombel), k: normNama_(nama), ronde: ronde, soal: soal, kunci: kunci, sidik: sidik };
+}
+
+// Token semua slot pengawas -> Supabase (dipanggil hitungan berkala & saat token diganti).
+function ujsTokenKirim_() {
+  try {
+    var o = {};
+    pwBaca_(MU.TAB_SLOT, MU.HDR_SLOT).map(muSlotObj_).forEach(function(s) { if (s.id) o[s.id] = String(s.token || '').toUpperCase(); });
+    return bljRpc_('uj_token_set', { p_token: o, p_penuh: true }).kode;
+  } catch (e) { return 0; }
+}
+
+// Salinan mulai ujian dari Supabase -> Percobaan Ujian, Akses (dipakai), Perangkat, log.
+function ujsCerminMulai_(d) {
+  var j = ujJadwalSiswa_(ujJadwalDariUjian_(d.idUjian), d.idRombel, d.nama);
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    var sesi = cariBarisSesiUjian_(d.idUjian, d.idRombel, d.nama), wkt = new Date(Number(d.waktuMs));
+    if (d.akses) {
+      if (sesi && String(sesi.row[sesi.cols.status - 1]) === 'Selesai') {
+        sesi.sheet.getRange(sesi.rowIndex, sesi.cols.percobaan).setValue(0);
+        sesi.sheet.getRange(sesi.rowIndex, sesi.cols.nilaiTotal).setValue('');
+        sesi.sheet.getRange(sesi.rowIndex, sesi.cols.waktuSelesai).setValue('');
+      }
+      var ak = ujAksesSiswa_(d.idUjian, d.idRombel, d.nama).filter(function(a) {
+        return a['Status'] === 'Terbuka' && ujMsTeks_(a['Mulai']) === Number(d.akses.mulaiMs) && ujMsTeks_(a['Selesai']) === Number(d.akses.selesaiMs);
+      })[0];
+      if (ak) ujUbah_('AKSES', ak._baris, { 'Status': 'Dipakai', 'Ronde': d.ronde });
+    }
+    if (sesi) {
+      sesi.sheet.getRange(sesi.rowIndex, sesi.cols.status).setValue('Berlangsung');
+      sesi.sheet.getRange(sesi.rowIndex, sesi.cols.waktuMulai).setValue(wkt);
+    } else {
+      getSheet(CONFIG.SHEETS.PERCOBAAN_UJIAN).appendRow([d.idUjian, d.idRombel, d.nama, 'Berlangsung', 0, false, '', wkt, '']);
+    }
+    if (d.perangkat) ujsCerminPerangkat_({ idUjian: d.idUjian, idRombel: d.idRombel, nama: d.nama, sidik: d.perangkat.sidik, model: d.perangkat.model });
+  } finally { kunci.releaseLock(); }
+  try { catat_('Siswa', d.idRombel, d.nama, 'Mulai ujian', 'ujian ' + d.idUjian + ' (' + d.jenis + ', Supabase)', 'OK'); } catch (e) {}
+}
+
+function ujsCerminPerangkat_(d) {
+  var k = pwKunciSiswa_(d.idUjian, d.idRombel, d.nama);
+  if (pwPerangkatCari_(k)) return;
+  pwTab_(PW.TAB_PD, PW.HDR_PD).appendRow([pwTeks_(pwWaktu_()), pwTeks_(d.idUjian), pwTeks_(d.idRombel), pwTeks_(d.nama), pwTeks_(d.sidik), pwTeks_(d.model), 'Aktif']);
+  try { CacheService.getScriptCache().put('pw_pd_' + k, d.sidik + '|' + d.model, 1800); } catch (e) {}
+}
+
+// Salinan kiriman ujian dari Supabase -> Percobaan Ujian, Jawaban, Hasil Ujian (nilai terbaik), log. Nilai dicek ulang.
+function ujsCerminKirim_(d) {
+  var j = ujJadwalSiswa_(ujJadwalDariUjian_(d.idUjian), d.idRombel, d.nama);
+  if (!j) return;
+  var selisih = '';
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    var sesi = cariBarisSesiUjian_(d.idUjian, d.idRombel, d.nama), wkt = new Date(Number(d.waktuMs));
+    if (sesi) {
+      sesi.sheet.getRange(sesi.rowIndex, sesi.cols.status).setValue('Selesai');
+      sesi.sheet.getRange(sesi.rowIndex, sesi.cols.nilaiTotal).setValue(d.nilai);
+      sesi.sheet.getRange(sesi.rowIndex, sesi.cols.waktuSelesai).setValue(wkt);
+    } else {
+      getSheet(CONFIG.SHEETS.PERCOBAAN_UJIAN).appendRow([d.idUjian, d.idRombel, d.nama, 'Selesai', 0, false, d.nilai, wkt, wkt]);
+    }
+    var lama = ujNilaiJawabanLama_(d.idUjian, d.nama);
+    ujTulisJawaban_(j, d.idRombel, d.nama, d.benar + ' dari ' + d.total + ' soal benar', d.nilai);
+    ujCatatHasil_(j, d.idRombel, d.nama, d.nilai, d.maks, d.benar, d.total);
+    if (Number(d.ronde) > 0 && lama !== null && lama > d.nilai) {
+      ujTulisJawaban_(j, d.idRombel, d.nama, 'Nilai terbaik dipertahankan (ujian ulang: ' + d.benar + ' dari ' + d.total + ' soal benar)', lama);
+    }
+    try {   // pemeriksaan ulang dengan undian & kunci dari bank soal
+      var sl = ujSoalSiswa_(d.idUjian, d.idRombel, d.nama, true), tot = 0, bn = 0, jw = d.jawaban || {};
+      sl.forEach(function(s) { var p = String(jw[s.id] || '').trim().toUpperCase(); if (p && p === s.kunci) { tot += s.poin; bn++; } });
+      if (ujBulat2_(tot) !== Number(d.nilai) || bn !== Number(d.benar)) selisih = 'Apps Script ' + ujBulat2_(tot) + ' (' + bn + ' benar) vs Supabase ' + d.nilai;
+    } catch (eC) { selisih = 'cek gagal: ' + eC.message; }
+  } finally { kunci.releaseLock(); }
+  try { brdLupakanSiswa_(d.idRombel, d.nama); } catch (eB) {}
+  try { riwayatLupakan_(d.nama); } catch (eR) {}
+  try { catat_('Siswa', d.idRombel, d.nama, 'Kirim ujian', 'ujian ' + d.idUjian + ' · nilai ' + d.nilai + ' (Supabase)', 'OK'); } catch (e) {}
+  if (selisih) { try { catat_('Sistem', d.idRombel, d.nama, 'Selisih nilai ujian Supabase', 'ujian ' + d.idUjian + ': ' + selisih, 'GAGAL'); } catch (e2) {} }
+}
+
+// Editor (hanya bila disetujui pemilik): salin PEPPER ke Supabase agar siswa ber-PIN dapat memulai ujian lewat Supabase.
+function ujianPinSiapkan() {
+  Logger.log('uj_pepper_set: HTTP ' + bljRpc_('uj_pepper_set', { p_pepper: pepper_() }).kode);
 }
 
 // Editor: hitung status ujian sekarang (uji/pemanasan sebelum ujian).

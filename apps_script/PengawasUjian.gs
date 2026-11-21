@@ -319,6 +319,7 @@ function waStafPengawasToken(token, idSlot, idRombelSim) {
   var p = stafDariToken_(token);
   var cx = pwKonteks_(p, idSlot, idRombelSim), t = muTokenBaru_();
   pwTab_(MU.TAB_SLOT, MU.HDR_SLOT).getRange(cx.s.baris, MU.HDR_SLOT.indexOf('TOKEN') + 1).setNumberFormat('@').setValue(t);
+  if (typeof ujsTokenKirim_ === 'function') ujsTokenKirim_();   // E3a
   catat_(p.peran, '', p.nama, 'Ganti token ujian', cx.s.id + ' ' + cx.s.namaMapel, 'OK');
   return { token: t };
 }

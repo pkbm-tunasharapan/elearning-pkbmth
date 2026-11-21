@@ -356,6 +356,7 @@ function waStafMasaTetapkan(token, id) {
       sh.getRange(m.baris, MU.HDR.indexOf('DITETAPKAN PADA') + 1).setValue(ujNow_());
       var shS = muTab_(MU.TAB_SLOT, MU.HDR_SLOT), kT = MU.HDR_SLOT.indexOf('TOKEN') + 1;
       slot.forEach(function(s) { if (!s.token) shS.getRange(s.baris, kT).setNumberFormat('@').setValue(muTokenBaru_()); });
+      if (typeof ujsTokenKirim_ === 'function') ujsTokenKirim_();   // E3a
       if (diganti) info.push(diganti + ' ujian ' + m.jenis + ' dari kalender akademik dinonaktifkan karena sudah terpenuhi masa ini; nilai rapor memakai hasil ujian masa.');
       // v1.87.0: sesi materi yang berbenturan dengan ujian online dinonaktifkan; kehadirannya dari ikut ujian masa
       var rs = mgSesiRencana_(m, slot, kelas, cfg, now), tutup = mgSesiNonaktifkan_(m, rs.target);
