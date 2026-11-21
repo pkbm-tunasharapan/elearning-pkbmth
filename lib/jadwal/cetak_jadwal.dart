@@ -72,17 +72,28 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
     return u.isNotEmpty && l.endsWith(' ($u)') ? l.substring(0, l.length - u.length - 3) : l;
   }
 
-  /// v1.92.1: pertemuan yang ditiadakan pada bulan [ym] (untuk catatan di bawah tabel), urut tanggal.
-  List<(String, String)> _tiadaBulan(List<Map<String, dynamic>> semua, String ym) {
+  /// v1.92.1: pertemuan yang ditiadakan pada bulan [ym] (untuk catatan di bawah tabel).
+  /// v1.92.3: dikelompokkan per alasan (mis. "pembelajaran selesai setelah UAS" cukup ditulis sekali), tanggal urut.
+  static List<(String, List<String>)> _tiadaBulan(List<Map<String, dynamic>> semua, String ym) {
     final out = <String, Set<String>>{};
     for (final x in semua) {
       peta(x['tiada']).forEach((iso, alasan) {
-        if (iso.startsWith(ym)) out.putIfAbsent(iso, () => <String>{}).add(teks(alasan));
+        if (iso.startsWith(ym)) out.putIfAbsent(teks(alasan), () => <String>{}).add(iso);
       });
     }
-    final k = out.keys.toList()..sort();
-    return [for (final iso in k) (iso, out[iso]!.join('; '))];
+    final l = [for (final e in out.entries) (e.key, e.value.toList()..sort())];
+    l.sort((a, c) => a.$2.first.compareTo(c.$2.first));
+    return l;
   }
+
+  String _catatanTiada(List<Map<String, dynamic>> semua) {
+    final td = _tiadaBulan(semua.where(_cocokUnit).toList(), _bulan);
+    if (td.isEmpty) return '';
+    final isi = td.map((e) => '${escHtml(_kapital(e.$1))}: ${e.$2.map((iso) => escHtml(_tglLabel(hariMinggu[DateTime.parse(iso).weekday - 1], int.parse(iso.substring(8))))).join(', ')}').join('; ');
+    return '<p class="catatan"><b>Tatap muka ditiadakan:</b> $isi.</p>';
+  }
+
+  static String _kapital(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   String _kolomId(Map<String, dynamic> x) => _perPaket ? _paket(x) : teks(x['idRombel']);
   String _kolomNama(Map<String, dynamic> x) => _perPaket ? _paket(x) : teks(x['namaRombel']);
@@ -141,7 +152,9 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
     b.write('<p class="sub">Unit: <b>${escHtml(namaUnit)}</b></p>');
     final kaki = '<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>';
     if (js.isEmpty) {
-      b.write('<p>Belum ada jadwal tatap muka${_bulan.isEmpty ? '' : ' pada ${_teksBulan(_bulan)}'}.</p>$kaki');
+      b.write('<p>Belum ada jadwal tatap muka${_bulan.isEmpty ? '' : ' pada ${_teksBulan(_bulan)}'}.</p>');
+      if (_bulan.isNotEmpty) b.write(_catatanTiada(daftar(d['pemetaan']).map(peta).toList()));   // v1.92.3: mis. semua pertemuan sudah selesai setelah UAS
+      b.write(kaki);
       return excel ? b.toString() : dokumenA4(b.toString(), _css, lanskap: true);
     }
     final hariAda = {for (final x in js) teks(x['hari'])}.toList()..sort((a, c) => _urutHari(a).compareTo(_urutHari(c)));
@@ -200,14 +213,7 @@ class _CetakJadwalScreenState extends State<CetakJadwalScreen> {
         b.write('</tbody></table>');
       }
       // v1.92.1: catatan pertemuan yang ditiadakan (libur / diganti ujian masa)
-      if (_bulan.isNotEmpty) {
-        final td = _tiadaBulan(daftar(d['pemetaan']).map(peta).where(_cocokUnit).toList(), _bulan);
-        if (td.isNotEmpty) {
-          b.write('<p class="catatan"><b>Tatap muka ditiadakan:</b> ');
-          b.write(td.map((e) => '${escHtml(_tglLabel(hariMinggu[DateTime.parse(e.$1).weekday - 1], int.parse(e.$1.substring(8))))} (${escHtml(e.$2)})').join('; '));
-          b.write('</p>');
-        }
-      }
+      if (_bulan.isNotEmpty) b.write(_catatanTiada(daftar(d['pemetaan']).map(peta).toList()));
     }
 
     if (_perTutor) {

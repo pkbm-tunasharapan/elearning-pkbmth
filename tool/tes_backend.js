@@ -2665,5 +2665,50 @@ tes('jadTandaiTiada_: tanggal pertemuan yang ditiadakan diberi alasan, yang lain
   } finally { Object.assign(g, asli); }
 });
 
+tes('TTM selesai setelah UAS; kelas akhir mengikuti UAS/UPK yang lebih akhir; masa serentak & kalender akademik', () => {
+  const asli = { ujJadwalSemua_: g.ujJadwalSemua_, nilPetaBm_: g.nilPetaBm_ };
+  try {
+    g.MG_AKHIR_ = null;
+    g.MG_LIBUR_ = [
+      { id: 'MU-1', nama: 'UAS Ganjil', jenis: 'UAS', slot: [{ tanggal: '2026-12-01', rombel: [] }, { tanggal: '2026-12-03', rombel: ['R12'] }], rombel: null, unit: null },
+      { id: 'MU-2', nama: 'UPK', jenis: 'UPK', slot: [{ tanggal: '2026-12-10', rombel: [] }], rombel: { R12: true }, unit: null },
+      { id: 'MU-3', nama: 'UTS', jenis: 'UTS', slot: [{ tanggal: '2026-10-01', rombel: [] }], rombel: null, unit: null },
+      { id: 'MU-4', nama: 'UAS Unit S', jenis: 'UAS', slot: [{ tanggal: '2026-11-20', rombel: [] }], rombel: { R5: true }, unit: ['U-S'] }
+    ];
+    g.MG_AKHIR_ = { R7: { '2027-1': { tanggal: '2027-06-05', jenis: 'UAS' } } };   // UAS kalender akademik (bukan masa)
+    // rombel biasa: setelah hari UAS terakhir yang berlaku untuknya
+    sama(g.mgSelesaiPm_({ idRombel: 'R1', unit: '' }, '2026-12-01'), null);
+    sama(g.mgSelesaiPm_({ idRombel: 'R1', unit: '' }, '2026-12-02').nama, 'pembelajaran selesai setelah UAS');
+    sama(g.mgSelesaiPm_({ idRombel: 'R1', unit: '' }, '2026-11-30'), null);
+    // UTS tidak menghentikan pembelajaran
+    sama(g.mgSelesaiPm_({ idRombel: 'R1', unit: '' }, '2026-10-02'), null);
+    // semester berikutnya mulai lagi
+    sama(g.mgSelesaiPm_({ idRombel: 'R1', unit: '' }, '2027-01-04'), null);
+    // kelas akhir: UPK setelah UAS -> tatap muka tetap ada sampai UPK
+    sama(g.mgSelesaiPm_({ idRombel: 'R12', unit: '' }, '2026-12-08'), null);
+    sama(g.mgSelesaiPm_({ idRombel: 'R12', unit: '' }, '2026-12-11').nama, 'pembelajaran selesai setelah UPK');
+    // UPK sebelum UAS -> selesai setelah UAS
+    g.MG_LIBUR_[1].slot = [{ tanggal: '2026-11-15', rombel: [] }];
+    sama(g.mgSelesaiPm_({ idRombel: 'R12', unit: '' }, '2026-12-02'), null);   // slot UAS R12 terakhir 3 Des
+    sama(g.mgSelesaiPm_({ idRombel: 'R12', unit: '' }, '2026-12-04').nama, 'pembelajaran selesai setelah UAS');
+    // masa per unit: pemetaan unit lain tidak terkena, unit peserta mengikuti tanggal masa unitnya
+    sama(g.mgSelesaiPm_({ idRombel: 'R5', unit: 'U-S' }, '2026-12-02').selesai, '2026-12-01');   // masa semua rombel lebih akhir
+    g.MG_LIBUR_[0].rombel = { R1: true };
+    sama(g.mgSelesaiPm_({ idRombel: 'R5', unit: 'U-S' }, '2026-11-23').selesai, '2026-11-20');
+    sama(g.mgSelesaiPm_({ idRombel: 'R5', unit: 'U-L' }, '2026-11-23'), null);
+    // kalender akademik
+    sama(g.mgSelesaiPm_({ idRombel: 'R7', unit: '' }, '2027-06-05'), null);
+    sama(g.mgSelesaiPm_({ idRombel: 'R7', unit: '' }, '2027-06-08').selesai, '2027-06-05');
+    // peta kalender akademik dari tab Jadwal ujian: hanya UAS/UPK bukan masa, per rombel SIM, tanggal terakhir
+    g.MG_AKHIR_ = null;
+    g.ujJadwalSemua_ = () => [
+      { idMapel: 'M1', jenis: 'UAS', tanggal: '2027-06-01', masa: '' }, { idMapel: 'M2', jenis: 'UAS', tanggal: '2027-06-04', masa: '' },
+      { idMapel: 'M1', jenis: 'UTS', tanggal: '2027-06-20', masa: '' }, { idMapel: 'M2', jenis: 'UAS', tanggal: '2027-06-25', masa: 'MU-9' },
+      { idMapel: 'M1', jenis: 'UAS (diganti masa)', tanggal: '2027-06-28', masa: '' }];
+    g.nilPetaBm_ = () => ({ kelas: { 'R7|MTK': [{ idMapel: 'M1' }], 'R7|IPA': [{ idMapel: 'M2' }] } });
+    sama(g.mgAkhirKalender_(), { R7: { '2027-1': { tanggal: '2027-06-04', jenis: 'UAS' } } });
+  } finally { Object.assign(g, asli); g.MG_LIBUR_ = null; g.MG_AKHIR_ = null; }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
