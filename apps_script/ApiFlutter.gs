@@ -4557,8 +4557,8 @@ function waStafIndukSimpan(token, k, d) {
       if (absCol_(t, 'DIAJUKAN OLEH') >= 0) isi['DIAJUKAN OLEH'] = p.nama;
       t.sh.appendRow(absBaris_(t, isi));
       catat_(p.peran, '-', p.nama, 'Data induk baru', s.judul + ' ' + id + ' ' + (isi[s.label] || ''), 'OK');
-      indSegarkan_(s.tab);
-      return { sukses: true, id: id };
+      var segar = indSegarkan_(s.tab);
+      return { sukses: true, id: id, siswaElearning: segar.siswa || 0 };
     }
     var i2 = cari(d._id);
     if (i2 < 0) throw new Error('Data tidak ditemukan.');
@@ -4567,8 +4567,8 @@ function waStafIndukSimpan(token, k, d) {
     Object.keys(isi).forEach(function(h) { var c = absCol_(t, h); if (c >= 0) row[c] = isi[h]; });
     t.sh.getRange(i2 + 1, 1, 1, row.length).setValues([row]);
     catat_(p.peran, '-', p.nama, 'Ubah data induk', s.judul + ' ' + d._id, 'OK');
-    indSegarkan_(s.tab);
-    return { sukses: true, id: String(d._id) };
+    var segar2 = indSegarkan_(s.tab);
+    return { sukses: true, id: String(d._id), siswaElearning: segar2.siswa || 0 };
   } finally { lock.releaseLock(); }
 }
 function waStafIndukNonaktif(token, k, id) {
@@ -4584,9 +4584,18 @@ function waStafIndukNonaktif(token, k, id) {
   }
   throw new Error('Data tidak ditemukan.');
 }
+var IND_TUNDA_SISWA_ = false;   // v1.92.5: simpan massal -> salin ke tab Siswa sekali di akhir
 function indSegarkan_(tab) {
+  var out = { siswa: 0 };
   try { CacheService.getScriptCache().removeAll(['abs_kelas3_*', 'abs_kelas2_*', 'abs_kelas_*']); } catch (e) {}
   // v1.78.0: Enroll Mapel / Rombel berubah -> e-learning langsung mengikuti
   if (tab === 'ENROLL MAPEL' || tab === 'ROMBEL') { try { ditSelaraskan_(); } catch (e2) {} }
+  // v1.92.5: warga belajar baru / dibetulkan (nama, tanggal lahir, rombel) langsung masuk tab Siswa e-learning,
+  // jadi bisa login tanpa menunggu Sinkron Data Induk. Baris yang sudah ada tidak diubah.
+  if (tab === 'WARGA BELAJAR' && !IND_TUNDA_SISWA_) {
+    try { SpreadsheetApp.flush(); } catch (eF) {}
+    try { out.siswa = siswaTambahBaru_(); } catch (e3) {}
+  }
+  return out;
 }
 

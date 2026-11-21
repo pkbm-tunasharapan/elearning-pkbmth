@@ -518,7 +518,9 @@ class _FormIndukState extends State<FormInduk> {
     }
     final r = await jalankan(context, () => Api.instance('waStafIndukSimpan', [_t, teks(widget.data['tabel']), d]), teksProses: 'Menyimpan...');
     if (!r.ok || !mounted) return;
-    kabar(context, 'Tersimpan.');
+    // v1.92.5: warga belajar baru langsung disalin ke data login e-learning
+    final nSiswa = int.tryParse(teks(peta(r.data)['siswaElearning'])) ?? 0;
+    kabar(context, nSiswa > 0 ? 'Tersimpan. Warga belajar sudah bisa login (kata sandi TH-tanggal lahir).' : 'Tersimpan.');
     if (!widget.tertanam) Navigator.pop(context, true);
   }
 

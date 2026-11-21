@@ -1103,6 +1103,19 @@ function ssoSelarasEnroll_(email, u) {
 }
 
 
+// v1.92.5: warga belajar Data Induk yang belum ada di tab Siswa e-learning (login) ditambahkan. Hasil: jumlah baris baru.
+// Dipakai sinkron (manual/otomatis) dan langsung setelah Data Induk Warga Belajar disimpan (indSegarkan_).
+function siswaTambahBaru_() {
+  var rs = siswaRencana_();
+  if (!rs.baru.length) return 0;
+  var shS = getSheet(CONFIG.SHEETS.SISWA);
+  var barisS = rs.baru.map(function(x) { return [x.idRombel, x.nama, x.tgl, '', '', '']; });
+  var awalS = shS.getLastRow() + 1;
+  shS.getRange(awalS, 1, barisS.length, 6).setNumberFormat('@');
+  shS.getRange(awalS, 1, barisS.length, 6).setValues(barisS);
+  return barisS.length;
+}
+
 // ===== Sinkron otomatis SIM SETARA -> Belajar Mandiri (dijalankan pemicu waktu) =====
 function sinkronSimSetara() { jalankanSinkron_(false); }
 
@@ -1141,15 +1154,8 @@ function jalankanSinkron_(manual) {
       shM.getRange(awalM, 1, barisM.length, 5).setValues(barisM);
       ringkas.push(r.mapelBaru.length + ' mapel baru');
     }
-    var rs = siswaRencana_();
-    if (rs.baru.length) {
-      var shS = getSheet(CONFIG.SHEETS.SISWA);
-      var barisS = rs.baru.map(function(x) { return [x.idRombel, x.nama, x.tgl, '', '', '']; });
-      var awalS = shS.getLastRow() + 1;
-      shS.getRange(awalS, 1, barisS.length, 6).setNumberFormat('@');
-      shS.getRange(awalS, 1, barisS.length, 6).setValues(barisS);
-      ringkas.push(barisS.length + ' siswa baru');
-    }
+    var nSiswa = siswaTambahBaru_();
+    if (nSiswa) ringkas.push(nSiswa + ' siswa baru');
     // v1.78.0: rombel & mapel e-learning mengikuti Data Induk (status aktif, mapel baru)
     try {
       var dt = ditSelaraskan_();

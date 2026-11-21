@@ -14,13 +14,17 @@ function ikmDaftar_(daftar) {
 // daftar: [{_id, KOLOM: nilai, ...}] (baris lengkap seperti form satuan)
 function waStafIndukSimpanBanyak(token, tabel, daftar) {
   ikmDaftar_(daftar);
-  var ok = 0, gagal = [];
-  daftar.forEach(function(d) {
-    try { waStafIndukSimpan(token, tabel, d); ok++; }
-    catch (e) { gagal.push({ id: String((d && d._id) || ''), pesan: String((e && e.message) || e) }); }
-  });
+  var ok = 0, gagal = [], siswa = 0;
+  IND_TUNDA_SISWA_ = true;   // v1.92.5: salin ke tab Siswa sekali saja di akhir
+  try {
+    daftar.forEach(function(d) {
+      try { waStafIndukSimpan(token, tabel, d); ok++; }
+      catch (e) { gagal.push({ id: String((d && d._id) || ''), pesan: String((e && e.message) || e) }); }
+    });
+  } finally { IND_TUNDA_SISWA_ = false; }
+  if (ok) siswa = indSegarkan_(indSkema_(tabel).tab).siswa || 0;
   try { absLupakan_(); } catch (e2) {}
-  return { ok: ok, gagal: gagal };
+  return { ok: ok, gagal: gagal, siswaElearning: siswa };
 }
 
 // ids: ['_id', ...]

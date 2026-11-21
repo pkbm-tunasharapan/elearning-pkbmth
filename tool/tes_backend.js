@@ -2736,5 +2736,23 @@ tes('absensi harian: acuan sesi pertama, Tepat waktu / Terlambat (toleransi), Ti
   sama(g.ahPesanKategori_({ aksi: 'pulang', jam: '13:00', pesan: 'x' }, { id: 'W1', rombel: 'R1' }, '2026-11-21', { peta: peta, lab: {}, jamBuka: '' }).pesan, 'x');
 });
 
+tes('data induk: warga belajar disimpan -> langsung masuk tab Siswa (login); simpan massal cukup sekali', () => {
+  const asli = { siswaTambahBaru_: g.siswaTambahBaru_, ditSelaraskan_: g.ditSelaraskan_, waStafIndukSimpan: g.waStafIndukSimpan, absLupakan_: g.absLupakan_, indSkema_: g.indSkema_ };
+  let n = 0;
+  g.siswaTambahBaru_ = () => { n++; return 1; };
+  g.ditSelaraskan_ = () => ({});
+  try {
+    sama(g.indSegarkan_('WARGA BELAJAR').siswa, 1);
+    sama(g.indSegarkan_('ROMBEL').siswa, 0);
+    sama(n, 1);
+    n = 0;
+    g.indSkema_ = () => ({ tab: 'WARGA BELAJAR' });
+    g.absLupakan_ = () => {};
+    g.waStafIndukSimpan = () => { g.indSegarkan_('WARGA BELAJAR'); return { sukses: true }; };
+    const h = g.waStafIndukSimpanBanyak('t', 'wb', [{ _id: 'a' }, { _id: 'b' }, { _id: 'c' }]);
+    sama([h.ok, h.siswaElearning, n, g.IND_TUNDA_SISWA_], [3, 1, 1, false]);
+  } finally { Object.assign(g, asli); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);
