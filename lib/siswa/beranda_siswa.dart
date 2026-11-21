@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../agenda.dart';
 import '../api.dart';
 import '../config.dart';
+import '../penanda.dart';
 import '../kalender.dart';
 import '../profil.dart';
 import '../referral/referral.dart';
@@ -134,7 +135,10 @@ class _BerandaIsi extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: AgendaBeranda(
                 kunci: 'siswa-${s.idRombel}-${s.nama}',
-                muat: (paksa) => Api.instance('waSiswaBeranda', [s.token, paksa], const Duration(minutes: 2)),
+                // v1.92.8 (R3): beranda dari Supabase (dihitung massal oleh Apps Script); tarik-segarkan / tidak tersedia -> Apps Script
+                muat: (paksa) async =>
+                    (paksa ? null : await rpcBelajar('br_beranda', {'p_tanda': teks(s.data['tandaBelajar']), 'p_nama': s.nama})) ??
+                    await Api.instance('waSiswaBeranda', [s.token, paksa], const Duration(minutes: 2)),
                 onPilih: (m) {
                   if (m == 'kalender') Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama)));
                 },

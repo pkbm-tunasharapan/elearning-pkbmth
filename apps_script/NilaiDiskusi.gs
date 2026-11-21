@@ -280,6 +280,7 @@ function nvTulis_(tipe, daftar) {
   if (!daftar || !daftar.length) return;
   kcpTanda_('nv');                         // v1.42.0: penanda untuk jalur cepat pemeriksaan
   if (tipe === 'NILAI') kcpTanda_('jwb');  // nilai jawaban berubah -> cache "Belum dinilai" basi
+  if (tipe === 'NILAI' && typeof brsKotor_ === 'function') daftar.forEach(function(x) { brsKotor_(x.rombel, x.siswa); });   // R1
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName(NV.SHEET);

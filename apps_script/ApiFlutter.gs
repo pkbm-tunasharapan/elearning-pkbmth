@@ -4239,7 +4239,11 @@ function tglIndoBrd_(iso) { return brdTglPendek_(iso); }
 
 // ---------- siswa ----------
 function waSiswaBeranda(token, paksa) {
-  var s = siswaDariSesi_(token), k = [], h0 = absHariIni_(), nn = normNama_(s.nama);
+  return brdSiswa_(siswaDariSesi_(token), paksa);
+}
+// v1.92.8 (R1): inti beranda siswa; dipakai juga hitungan massal untuk Supabase (brsSinkron_). s: {nama, idRombel}
+function brdSiswa_(s, paksa) {
+  var k = [], h0 = absHariIni_(), nn = normNama_(s.nama);
   var ckS = brdKunciSiswa_(s.idRombel, s.nama), cS = CacheService.getScriptCache(), tandaS = brdTanda_('');
   if (!paksa) { var lamaS = brdCacheBaca_(cS, ckS, tandaS); if (lamaS) return lamaS; }
   var mp = brdMapelBm_();
@@ -4270,11 +4274,11 @@ function waSiswaBeranda(token, paksa) {
         if (!mapelKu[idm] || jn === 'Materi' || jn === 'Ujian' || (cSt >= 0 && sTeks_(r[cSt]).trim() && sTeks_(r[cSt]).trim() !== 'Aktif')) continue;
         var bt = cB >= 0 ? absTgl_(r[cB]) : '';
         if (!bt || bt < h0 || bt > h1 || sudah[sTeks_(r[cId]).trim()]) continue;
-        tugas.push({ tgl: bt, t: 'Batas ' + jn.toLowerCase() + ': ' + sTeks_(r[cJd]), s: mapelKu[idm].nama + ' · belum dikerjakan' });
+        tugas.push({ tgl: bt, t: 'Batas ' + jn.toLowerCase() + ': ' + sTeks_(r[cJd]), s: mapelKu[idm].nama + ' · belum dikerjakan', idm: sTeks_(r[cId]).trim() });
       }
     }
     tugas.sort(function(a, b) { return a.tgl.localeCompare(b.tgl); });
-    tugas.slice(0, 5).forEach(function(x) { item.push({ t: x.t, s: x.s, n: brdTglPendek_(x.tgl), w: x.tgl <= h3 ? 'merah' : 'kuning' }); });
+    tugas.slice(0, 5).forEach(function(x) { item.push({ t: x.t, s: x.s, n: brdTglPendek_(x.tgl), w: x.tgl <= h3 ? 'merah' : 'kuning', idm: x.idm }); });
     return { judul: 'Agenda terdekat', ikon: 'agenda', menu: 'kalender', item: item, kosong: 'Tidak ada ujian atau tenggat tugas dalam waktu dekat.' };
   });
   // 2. nilai tugas/diskusi terbaru
@@ -4426,6 +4430,7 @@ function brdCacheTulis_(c, k, tanda, data, detik) {
 // Dipanggil sesudah siswa mengirim jawaban/ujian: beranda siswa itu dihitung ulang (agenda "belum dikerjakan", nilai).
 function brdLupakanSiswa_(idRombel, nama) {
   try { if (idRombel && nama) CacheService.getScriptCache().remove(brdKunciSiswa_(idRombel, nama)); } catch (e) {}
+  if (typeof brsKotor_ === 'function') brsKotor_(idRombel, nama);   // R1: beranda di Supabase dihitung ulang
   if (typeof riwayatLupakan_ === 'function') riwayatLupakan_(nama);   // v1.90.2: riwayat jawaban siswa ini dihitung ulang
 }
 

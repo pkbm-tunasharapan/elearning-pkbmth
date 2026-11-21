@@ -332,6 +332,7 @@ function bljPemicu() {
   try { kotor = Number(CacheService.getScriptCache().get(BLJ.KOTOR) || 0); } catch (e2) {}
   var jam = Number(Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'H'));
   try { ujsPemicu_(now, jam); } catch (eU) {}   // E2: status ujian siswa di Supabase
+  try { brsPemicu_(now, jam); } catch (eR) {}   // R1: beranda siswa di Supabase
   var penuh = now - akhirPenuh > 20 * 3600000 && jam >= 1 && jam <= 4;
   var inkremental = (kotor >= akhir && now - akhir >= BLJ.JEDA_MS) || now - akhir >= BLJ.BERKALA_MS;
   if (!penuh && !inkremental) return;
@@ -544,6 +545,128 @@ function ujsSinkron_() {
   }
   bljWaktu_('status ujian terkirim ' + kirim + '/' + jumlah + ', paket baru ' + nPaket);
   return kirim;
+}
+
+// ---------------------------------------------------------------- R1: beranda siswa di Supabase
+// Beranda tiap siswa dihitung dengan brdSiswa_ (kode yang sama dengan waSiswaBeranda) secara massal: seluruh siswa
+// tiap 2 jam 05-21 WIB dan saat ganti hari (bertahap bila waktu habis), siswa "kotor" (ada jawaban/absensi/nilai/ujian
+// baru) tiap 5 menit. br_beranda di Supabase menyajikannya.
+var BRS = { SELANG_MS: 120 * 60000, BATAS_MS: 200000, KOTOR: 'brs_kotor', PROP_AKHIR: 'BRS_AKHIR', PROP_TGL: 'BRS_TGL', PROP_KURSOR: 'BRS_KURSOR' };
+
+function brsKotor_(idRombel, nama) {
+  if (!nama) return;
+  try {
+    var c = CacheService.getScriptCache(), a = JSON.parse(c.get(BRS.KOTOR) || '[]'), k = normNama_(nama);
+    if (a.indexOf(k) >= 0) return;
+    a.push(k);
+    c.put(BRS.KOTOR, JSON.stringify(a.slice(-400)), 21600);
+  } catch (e) {}
+}
+
+function brsSiswaSemua_() {
+  var out = [], ada = {};
+  getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
+    if (i === 0 || !String(r[1]).trim()) return;
+    var rb = sTeks_(r[0]).trim(), nm = sTeks_(r[1]).trim(), k = normNama_(nm);
+    if (!rb || ada[rb + '|' + k]) return;
+    ada[rb + '|' + k] = 1;
+    out.push({ r: rb, nama: nm, k: k });
+  });
+  return out;
+}
+
+// Fungsi baca (tanpa efek samping) yang hasilnya sama untuk semua siswa: diingat selama hitungan massal.
+var BRS_MEMO_FN = ['keuWbSemua_', 'keuTagSemua_', 'keuBayarPeta_', 'keuSemua_', 'nilPeriode_', 'nilAturan_', 'nilKelasRapor_', 'nilPetaBm_',
+  'nilSiswaBm_', 'absWbRombel_', 'honNamaMapel_', 'honProgramRombel_', 'absBaca_', 'muSemua_', 'nilAsSemua_', 'taBaca_', 'sbDisSemua_', 'sbTag_',
+  'mapelAktifSemua_', 'ujtPetaMapel_', 'ubPetaSiswa_', 'mgSesiTutup_', 'absSim_', 'sbMasaBayar_', 'brdMapelBm_', 'nilDisBaca_', 'ksWb_', 'sbWbSiswa_',
+  'getSheetData', 'absHariIni_', 'ujJadwalSemua_', 'munSemua_'];
+function brsMemoPasang_() {
+  var asli = {};
+  BRS_MEMO_FN.forEach(function(n) {
+    var f = globalThis[n];
+    if (typeof f !== 'function') return;
+    asli[n] = f;
+    var m = {};
+    globalThis[n] = function() {
+      var k = JSON.stringify(Array.prototype.slice.call(arguments));
+      if (!m.hasOwnProperty(k)) m[k] = f.apply(this, arguments);
+      return m[k];
+    };
+  });
+  // taInfo_(cfg, smt, n, now): status sesi cukup dihitung sekali per (smt, n) selama hitungan massal
+  var ti = globalThis.taInfo_, mt = {};
+  if (typeof ti === 'function') {
+    asli.taInfo_ = ti;
+    globalThis.taInfo_ = function(cfg, smt, n, now) { var k = smt + '|' + n; return mt[k] || (mt[k] = ti(cfg, smt, n, now)); };
+  }
+  // cache beranda Apps Script tidak perlu ditulis untuk tiap siswa
+  if (typeof globalThis.brdCacheTulis_ === 'function') { asli.brdCacheTulis_ = globalThis.brdCacheTulis_; globalThis.brdCacheTulis_ = function() {}; }
+  return function() { Object.keys(asli).forEach(function(n) { globalThis[n] = asli[n]; }); };
+}
+
+// Hitung beranda daftar siswa sampai batas waktu. Mengembalikan {baris, selesai: jumlah yang diproses}.
+function brsHitung_(daftar, batasMs) {
+  var baris = [], i = 0, tgl = absHariIni_();
+  var memo = [SHEET_MEMO_, MATERI_MEMO_, UJS_MEMO_];
+  if (!SHEET_MEMO_) SHEET_MEMO_ = {};
+  if (!MATERI_MEMO_) MATERI_MEMO_ = {};
+  if (!UJS_MEMO_) UJS_MEMO_ = {};
+  var lepas = brsMemoPasang_();
+  try {
+    for (; i < daftar.length; i++) {
+      if (Date.now() > batasMs) break;
+      var sw = daftar[i];
+      try {
+        var d = brdSiswa_({ nama: sw.nama, idRombel: sw.r }, true);
+        if (d && d.kartu) baris.push({ r: sw.r, k: sw.k, tanggal: tgl, data: d });
+      } catch (eS) {}
+    }
+  } finally { lepas(); SHEET_MEMO_ = memo[0]; MATERI_MEMO_ = memo[1]; UJS_MEMO_ = memo[2]; }
+  return { baris: baris, selesai: i };
+}
+
+function brsKirim_(baris, ms) {
+  var n = 0;
+  for (var p = 0; p < baris.length; p += 40) {
+    var r = bljRpc_('br_set', { p_baris: baris.slice(p, p + 40), p_ms: ms });
+    if (r.kode === 200) n += Number(r.data) || 0;
+  }
+  return n;
+}
+
+function brsPemicu_(now, jam) {
+  var sp = PropertiesService.getScriptProperties(), batas = now + BRS.BATAS_MS;
+  // 1) siswa kotor
+  var c = CacheService.getScriptCache(), kotor = [];
+  try { kotor = JSON.parse(c.get(BRS.KOTOR) || '[]'); } catch (e) {}
+  if (kotor.length) {
+    c.remove(BRS.KOTOR);
+    var set = {};
+    kotor.forEach(function(k) { set[k] = 1; });
+    var mulaiK = Date.now(), hk = brsHitung_(brsSiswaSemua_().filter(function(s) { return set[s.k]; }), batas);
+    brsKirim_(hk.baris, mulaiK);
+    bljWaktu_('beranda siswa kotor ' + hk.baris.length);
+  }
+  // 2) seluruh siswa: ganti hari, atau tiap 2 jam 05-21 WIB (dilanjutkan dari kursor bila belum selesai)
+  var tgl = absHariIni_(), kursor = Number(sp.getProperty(BRS.PROP_KURSOR) || 0);
+  var perlu = kursor > 0 || sp.getProperty(BRS.PROP_TGL) !== tgl || (jam >= 5 && jam <= 21 && now - Number(sp.getProperty(BRS.PROP_AKHIR) || 0) >= BRS.SELANG_MS);
+  if (!perlu || Date.now() > batas - 20000) return;
+  var semua = brsSiswaSemua_(), mulai = Date.now();
+  if (kursor >= semua.length) kursor = 0;
+  var h = brsHitung_(semua.slice(kursor), batas);
+  var n = brsKirim_(h.baris, mulai);
+  kursor += h.selesai;
+  if (kursor >= semua.length) { sp.setProperty(BRS.PROP_KURSOR, '0'); sp.setProperty(BRS.PROP_AKHIR, String(mulai)); sp.setProperty(BRS.PROP_TGL, tgl); }
+  else sp.setProperty(BRS.PROP_KURSOR, String(kursor));
+  bljWaktu_('beranda siswa ' + n + ' terkirim, kursor ' + kursor + '/' + semua.length);
+}
+
+// Editor: hitung beranda semua siswa sekarang (uji waktu). Bertahap bila lebih dari batas.
+function berandaSiapkan() {
+  var t0 = Date.now(), now = Date.now(), jam = Number(Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'H'));
+  PropertiesService.getScriptProperties().setProperty(BRS.PROP_TGL, '');
+  brsPemicu_(now, jam);
+  Logger.log('beranda: ' + (Date.now() - t0) + ' ms, kursor ' + PropertiesService.getScriptProperties().getProperty(BRS.PROP_KURSOR));
 }
 
 // ---------------------------------------------------------------- E3a: mulai & kirim ujian di Supabase
@@ -819,4 +942,17 @@ function belajarSinkronSekarang() {
   Logger.log('sinkron penuh: HTTP ' + bljSinkron_(true) + ', total ' + (Date.now() - t) + ' ms');
   t = Date.now();
   Logger.log('sinkron inkremental: HTTP ' + bljSinkron_(false) + ', total ' + (Date.now() - t) + ' ms');
+}
+
+// Editor: bandingkan beranda 10 siswa dihitung biasa vs massal (memo) + waktu.
+function berandaProfil() {
+  var semua = brsSiswaSemua_().slice(0, 10), tunggal = [], beda = [];
+  SHEET_MEMO_ = {};
+  var t0 = Date.now();
+  semua.forEach(function(sw) { tunggal.push(brdSiswa_({ nama: sw.nama, idRombel: sw.r }, true)); });
+  SHEET_MEMO_ = null; MATERI_MEMO_ = null;
+  var t1 = Date.now(), h = brsHitung_(semua, Date.now() + 300000), t2 = Date.now();
+  var bersih = function(d) { var x = JSON.parse(JSON.stringify(d)); delete x.waktu; return JSON.stringify(x); };
+  h.baris.forEach(function(b, i) { if (bersih(b.data) !== bersih(tunggal[i])) beda.push(semua[i].nama); });
+  Logger.log('biasa ' + (t1 - t0) + ' ms, massal ' + (t2 - t1) + ' ms untuk ' + semua.length + ' siswa; beda: ' + (beda.length ? beda.join(', ') : 'tidak ada'));
 }
