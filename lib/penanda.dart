@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'api.dart';
 import 'config.dart';
 
 /// v1.92.0 (migrasi Modul 1): penanda "ada yang baru?" di Supabase.
@@ -98,6 +99,36 @@ class RiwayatBelajar {
     } catch (_) {
       return null;
     }
+  }
+}
+
+/// v1.92.6 (B2): tulis siswa di domain belajar (kirim diskusi, absensi, draf) langsung ke Supabase. Supabase menjawab
+/// `{lama: true}` untuk kasus yang masih ditangani Apps Script (mis. ujian, masa ujian), dan bila Supabase tidak
+/// terjangkau `jalurLama` dipakai. Sesudah tulis lewat Supabase, cache baca aplikasi dikosongkan (sama dengan jalur lama).
+Future<dynamic> tulisBelajar(String fn, Map<String, dynamic> args, Future<dynamic> Function() jalurLama) async {
+  final r = await rpcBelajar(fn, args);
+  if (r != null && r['lama'] != true) {
+    Api.instance.bersihkanCache();
+    return r;
+  }
+  RiwayatBelajar.instance.catatTulis();   // jalur lama: salinan di Supabase menyusul lewat sinkron
+  return jalurLama();
+}
+
+/// Baca dari Supabase (mis. draf); null bila gagal atau `{lama: true}`.
+Future<Map<String, dynamic>?> rpcBelajar(String fn, Map<String, dynamic> args) async {
+  if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty || teks(args['p_tanda']).isEmpty) return null;
+  try {
+    final r = await http
+        .post(Uri.parse('$kSupabaseUrl/rest/v1/rpc/$fn'),
+            headers: {'apikey': kSupabaseKunciPublik, 'Content-Type': 'application/json'}, body: jsonEncode(args))
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) return null;
+    final j = jsonDecode(r.body);
+    if (j is! Map || j['lama'] == true) return null;
+    return Map<String, dynamic>.from(j);
+  } catch (_) {
+    return null;
   }
 }
 

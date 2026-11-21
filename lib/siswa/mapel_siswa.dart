@@ -403,7 +403,10 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
       _isi(teks(widget.riwayat?['jawaban']));
     } else {
       _isi('');
-      Api.instance('waGetDraftDiskusi', [_s.idRombel, widget.idMapel, _idMateri, _s.nama]).then((r) {
+      // v1.92.6: draf di Supabase; bila tidak tersedia -> Apps Script
+      rpcBelajar('bl_draf_baca', {'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_materi': _idMateri})
+          .then((r) => r ?? Api.instance('waGetDraftDiskusi', [_s.idRombel, widget.idMapel, _idMateri, _s.nama]))
+          .then((r) {
         final d = peta(r);
         if (mounted && d['ada'] == true && _uraian.text.isEmpty) setState(() => _isi(teks(d['teks'])));
       }).catchError((_) {});
@@ -439,11 +442,16 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
       '$uraian\n\n$syaratDiskusiPenanda\n${[for (var i = 0; i < tautan.length; i++) '${i + 1}. ${tautan[i]}'].join('\n')}';
 
   Map<String, dynamic> get _dasar => {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'idMateri': _idMateri, 'nama': _s.nama};
+  Map<String, dynamic> get _argSb =>
+      {'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_mapel': widget.idMapel, 'p_id_materi': _idMateri};
 
   Future<void> _draft() async {
     final t = _ambilTautan();
     final teksDraft = t.isEmpty ? _uraian.text : _gabung(_uraian.text.trim(), t);
-    final r = await jalankan(context, () => Api.instance('waSimpanDraftDiskusi', [{..._dasar, 'teks': teksDraft}]), teksProses: 'Menyimpan draft...');
+    final r = await jalankan(
+        context,
+        () => tulisBelajar('bl_draf_simpan', {..._argSb, 'p_teks': teksDraft}, () => Api.instance('waSimpanDraftDiskusi', [{..._dasar, 'teks': teksDraft}])),
+        teksProses: 'Menyimpan draft...');
     if (r.ok && mounted) {
       final d = peta(r.data);
       kabar(context, d['sukses'] == true ? 'Draft tersimpan.' : teks(d['pesan']), galat: d['sukses'] != true);
@@ -469,8 +477,9 @@ class _DiskusiSiswaScreenState extends State<DiskusiSiswaScreen> {
     }
     setState(() => _sibuk = true);
     try {
-      RiwayatBelajar.instance.catatTulis();   // v1.92.0: riwayat sesudah ini dari jalur lama
-      final d = peta(await Api.instance('waSubmitJawaban', [{..._dasar, 'jawaban': _gabung(uraian, tautan)}]));
+      final isi = _gabung(uraian, tautan);
+      // v1.92.6: langsung ke Supabase (aturan sama dengan server); jalur lama bila Supabase tidak menanganinya
+      final d = peta(await tulisBelajar('bl_jawaban_kirim', {..._argSb, 'p_jawaban': isi}, () => Api.instance('waSubmitJawaban', [{..._dasar, 'jawaban': isi}])));
       if (!mounted) return;
       if (d['sukses'] == true) {
         kabar(context, teks(d['pesan'], 'Tanggapan terkirim.'));
@@ -713,10 +722,17 @@ class _AbsensiSiswaScreenState extends State<AbsensiSiswaScreen> {
   Future<void> _isi() async {
     final ok = await konfirmasi(context, 'Catat kehadiran Anda sekarang?', 'Setelah dikirim, absensi tidak dapat diubah.', ya: 'Ya, saya hadir');
     if (!ok || !mounted) return;
-    RiwayatBelajar.instance.catatTulis();   // v1.92.0: riwayat sesudah ini dari jalur lama
-    final r = await jalankan(context, () => Api.instance('waAbsenIsi', [
-          {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'nama': _s.nama, 'idMateri': teks(widget.item['id'])}
-        ]), teksProses: 'Mencatat kehadiran...');
+    final idItem = teks(widget.item['id']);
+    // v1.92.6: langsung ke Supabase; jalur lama bila Supabase tidak menanganinya (mis. sesi masa ujian)
+    final r = await jalankan(
+        context,
+        () => tulisBelajar(
+            'bl_absen_isi',
+            {'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_mapel': widget.idMapel, 'p_id_item': idItem},
+            () => Api.instance('waAbsenIsi', [
+                  {'idRombel': _s.idRombel, 'idMapel': widget.idMapel, 'nama': _s.nama, 'idMateri': idItem}
+                ])),
+        teksProses: 'Mencatat kehadiran...');
     if (!r.ok || !mounted) return;
     final d = peta(r.data);
     if (d['sukses'] == true) {

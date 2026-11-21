@@ -34,13 +34,14 @@ function bljKunci_() {
   try { return PropertiesService.getScriptProperties().getProperty(BLJ.PROP_KUNCI) || ''; } catch (e) { return ''; }
 }
 
-// Tanda belajar siswa: v1.<exp_ms>.<hex nama-normal>.<hmac-sha256 hex>. '' bila kunci belum disiapkan.
-function bljTanda_(nama) {
+// Tanda belajar siswa: v2.<exp_ms>.<hex nama-normal>.<hex id rombel>.<hmac-sha256 hex> (baca & tulis di Supabase).
+// '' bila kunci belum disiapkan.
+function bljTanda_(nama, idRombel) {
   try {
     var k = bljKunci_();
     if (!k || !nama) return '';
     var exp = Date.now() + BLJ.HARI_TANDA * 86400000;
-    var pesan = 'v1.' + exp + '.' + bljHex_(Utilities.newBlob(normNama_(nama)).getBytes());
+    var pesan = 'v2.' + exp + '.' + bljHex_(Utilities.newBlob(normNama_(nama)).getBytes()) + '.' + bljHex_(Utilities.newBlob(String(idRombel || '').trim()).getBytes());
     return pesan + '.' + bljHex_(Utilities.computeHmacSha256Signature(pesan, k, Utilities.Charset.UTF_8));
   } catch (e) { return ''; }
 }
@@ -72,7 +73,7 @@ function bljMentah_() {
   var per = {};
   function ambil(m, nama) {
     var k = m + '|' + normNama_(nama);
-    if (!per[k]) per[k] = { m: m, k: normNama_(nama), nama: String(nama), d: {} };
+    if (!per[k]) per[k] = { m: m, k: normNama_(nama), nama: String(nama), d: {}, j: {}, a: {}, t: [] };
     return per[k];
   }
   var v = getSheet(CONFIG.SHEETS.JAWABAN).getDataRange().getValues();
@@ -87,12 +88,21 @@ function bljMentah_() {
       item.penilai = kPen >= 0 ? riwayatPrim_(row[kPen]) : '';
       item.waktuNilai = kWkt >= 0 ? riwayatPrim_(row[kWkt]) : '';
     }
-    ambil(m, nama).d[String(row[3])] = item;
+    var e = ambil(m, nama);
+    e.d[String(row[3])] = item;
+    // baris mentah untuk tabel bl_jawaban (kunci ID Materi + nama persis; baris ganda: yang terakhir dipakai)
+    e.j[String(row[3]) + '|' + nama] = {
+      id: String(row[3]), nama: nama, r: sTeks_(row[0]).trim(), nm: sTeks_(row[2]), jd: sTeks_(row[4]), je: sTeks_(row[5]),
+      jw: String(riwayatPrim_(row[7])), nl: String(riwayatPrim_(row[8])), wm: (row[9] instanceof Date ? row[9].getTime() : 0),
+      ko: kKom >= 0 ? String(riwayatPrim_(row[kKom])) : '', pe: kPen >= 0 ? String(riwayatPrim_(row[kPen])) : '', wn: kWkt >= 0 ? String(riwayatPrim_(row[kWkt])) : ''
+    };
   }
   try {
     if (typeof abBaca_ === 'function') abBaca_(null).forEach(function(r) {
       if (!r.idMapel) return;
-      ambil(r.idMapel, r.nama).d[abIdItem_(r.smt, r.n)] = { jawaban: r.status, nilai: '', waktu: r.waktu, waktuMs: r.waktuMs, catatan: r.catatan };
+      var e = ambil(r.idMapel, r.nama);
+      e.d[abIdItem_(r.smt, r.n)] = { jawaban: r.status, nilai: '', waktu: r.waktu, waktuMs: r.waktuMs, catatan: r.catatan };
+      e.a[r.smt + '|' + r.n] = { smt: r.smt, n: r.n, nama: r.nama, r: r.idRombel, st: r.status, w: r.waktu, c: r.catatan };
     });
   } catch (eA) {}
   bljWaktu_('baca jawaban+absensi');
@@ -115,14 +125,47 @@ function bljSaring_(per, kunci) {
       Object.keys(e.d).forEach(function(id) {
         var it = e.d[id];
         if (id.indexOf('__') === 0 || !it || it.nilai === '' || it.nilai === undefined || !j[id]) return;
-        try { if (sbTertahan_(j[id], idR, e.nama)) { it.nilai = '**'; it.tertahan = true; ada = true; } } catch (eS) {}
+        try { if (sbTertahan_(j[id], idR, e.nama)) { it.nilai = '**'; it.tertahan = true; ada = true; e.t.push(id); } } catch (eS) {}
       });
       if (ada) tahan.push(k);
     }
-    return { m: e.m, k: e.k, d: e.d };
+    return { m: e.m, k: e.k, j: Object.keys(e.j).map(function(x) { return e.j[x]; }), a: Object.keys(e.a).map(function(x) { return e.a[x]; }), t: e.t };
   });
   bljWaktu_('syarat bayar (' + kunci.length + ' pasang)');
   return { baris: baris, tahan: tahan };
+}
+
+// Data acuan untuk aturan tulis di Supabase: materi (tanpa konten & kunci), mapel, rentang sesi, sesi tutup masa ujian.
+function bljAcuan_(now) {
+  var cfg = taBaca_(), c = materiCols_(), v = materiTanpaKonten_(), materi = [], mapel = [], sesi = [], tutup = [];
+  for (var i = 1; i < v.length; i++) {
+    var r = v[i], id = sTeks_(r[c.id - 1]).trim();
+    if (!id) continue;
+    var p = c.sesi ? taParse_(cfg, r[c.sesi - 1]) : null;
+    materi.push({ id: id, m: sTeks_(r[c.idMapel - 1]).trim(), j: sTeks_(r[c.jenis - 1]).trim(), s: sTeks_(r[c.status - 1]).trim(),
+      t: sTeks_(r[c.judul - 1]), smt: p ? p.smt : '', n: p ? p.n : '' });
+  }
+  mapelAktifSemua_(true).forEach(function(x) { mapel.push({ id: x.idMapel, r: x.idRombel, nm: x.namaMapel, a: x.statusMapel === 'Aktif' }); });
+  taDaftar_(cfg, now).forEach(function(x) {
+    sesi.push({ smt: x.smt, n: x.n, nama: x.nama, mulai: x.mulaiMs, selesai: x.selesaiMs, mi: x.mulaiIso, si: x.selesaiIso, w: abSesiWajib_(cfg, x.smt, x.n) });
+  });
+  try { Object.keys(mgSesiTutup_()).forEach(function(k) { var b = k.split('|'); tutup.push({ m: b[0], smt: Number(b[1]), n: Number(b[2]) }); }); } catch (e) {}
+  return { materi: materi, mapel: mapel, sesi: sesi, tutup: tutup };
+}
+
+function bljRpc_(fn, isi) {
+  try {
+    var rahasia = pndRahasia_();
+    if (!rahasia) return { kode: 0 };
+    isi.p_rahasia = rahasia;
+    var res = UrlFetchApp.fetch(PND.URL + '/rest/v1/rpc/' + fn, {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { apikey: PND.KUNCI_PUBLIK }, payload: JSON.stringify(isi)
+    });
+    var data = null;
+    try { data = JSON.parse(res.getContentText()); } catch (e) {}
+    return { kode: res.getResponseCode(), data: data };
+  } catch (e) { return { kode: 0 }; }
 }
 
 // Sidik ringkas isi mentah satu pasang (untuk mendeteksi perubahan antar-sinkron).
@@ -134,9 +177,9 @@ function bljSidik_(e) {
 function bljStatusBaca_() {
   try { var s = CacheService.getScriptCache().get('blj_status'); return s ? JSON.parse(s) : null; } catch (e) { return null; }
 }
-function bljStatusTulis_(sidik, tahan) {
+function bljStatusTulis_(sidik, tahan, sidikAcuan) {
   try {
-    var s = JSON.stringify({ s: sidik, t: tahan }), c = CacheService.getScriptCache();
+    var s = JSON.stringify({ s: sidik, t: tahan, ac: sidikAcuan }), c = CacheService.getScriptCache();
     if (s.length < 95000) c.put('blj_status', s, 21600); else c.remove('blj_status');
   } catch (e) {}
 }
@@ -185,21 +228,25 @@ function bljSinkron_(penuh) {
   var mulai = Date.now();
   bljWaktu_('');
   var per = bljMentah_(), lama = penuh ? null : bljStatusBaca_();
-  if (!lama) penuh = true;
+  if (!lama || !lama.ac) penuh = true;   // status versi lama (tanpa acuan/baris mentah) -> sinkron penuh
   var sidik = {}, kunci = [], hapus = [];
   Object.keys(per).forEach(function(k) {
     sidik[k] = bljSidik_(per[k]);
     if (penuh || lama.s[k] !== sidik[k] || lama.t.indexOf(k) >= 0) kunci.push(k);
   });
   if (!penuh) Object.keys(lama.s).forEach(function(k) {
-    if (!per[k]) { var i = k.indexOf('|'); hapus.push({ m: k.slice(0, i), k: k.slice(i + 1), d: {} }); }
+    if (!per[k]) { var i = k.indexOf('|'); hapus.push({ m: k.slice(0, i), k: k.slice(i + 1), j: [], a: [], t: [] }); }
   });
   var hasil = bljSaring_(per, kunci);
   var buka = bljBukaSemua_(mulai), massal = bljMassalSemua_(mulai);
-  var kode = bljKirim_(hasil.baris.concat(hapus), penuh, mulai, buka, massal);
+  bljKirim_([], false, mulai, buka, massal);   // sesi dibuka khusus / susulan massal (dibaca riwayat_baca & aturan tulis)
+  var acuan = bljAcuan_(mulai), sidikAcuan = bljSidik_({ d: acuan });
+  bljWaktu_('acuan');
+  var kirimAcuan = penuh || !lama || lama.ac !== sidikAcuan;
+  var kode = bljRpc_('bl_sinkron', { p_acuan: kirimAcuan ? acuan : null, p_pasang: hasil.baris.concat(hapus), p_penuh: penuh, p_ms: mulai }).kode;
   bljWaktu_((penuh ? 'kirim penuh ' : 'kirim inkremental ') + (hasil.baris.length + hapus.length) + ' pasang (HTTP ' + kode + ')');
   if (kode === 200) {
-    bljStatusTulis_(sidik, hasil.tahan);
+    bljStatusTulis_(sidik, hasil.tahan, sidikAcuan);
     var sp = PropertiesService.getScriptProperties();
     try {
       sp.setProperty(BLJ.PROP_AKHIR, String(mulai));
@@ -217,6 +264,7 @@ function bljSinkronPenuh_() { return bljSinkron_(true); }
 function bljPemicu() {
   if (!bljKunci_()) return;
   if (PropertiesService.getScriptProperties().getProperty('BLJ_PEMICU_MENIT') !== String(BLJ.PEMICU_MENIT)) bljPastikanPemicu_();
+  try { waSbAntrean(); } catch (eA) {}
   var sp = PropertiesService.getScriptProperties(), now = Date.now(), akhir = 0, akhirPenuh = 0, kotor = 0;
   try { akhir = Number(sp.getProperty(BLJ.PROP_AKHIR) || 0); akhirPenuh = Number(sp.getProperty(BLJ.PROP_PENUH) || 0); } catch (e) {}
   try { kotor = Number(CacheService.getScriptCache().get(BLJ.KOTOR) || 0); } catch (e2) {}
@@ -230,6 +278,73 @@ function bljPemicu() {
   if (c.get('blj_jalan')) return;
   c.put('blj_jalan', '1', 300);
   try { bljSinkron_(penuh); } finally { c.remove('blj_jalan'); }
+}
+
+// ---------------------------------------------------------------- antrean Supabase -> Spreadsheet
+// Kiriman siswa yang masuk lewat Supabase (jawaban diskusi, absensi) disalin ke tab Jawaban/Absensi supaya alat staf
+// tetap berjalan. Supabase "membangunkan" fungsi ini lewat pg_net sesaat setelah kiriman (tanpa data; antrean ditarik
+// dari sini dengan rahasia), dan bljPemicu memprosesnya juga sebagai cadangan. Penulisan idempoten (kunci baris sama).
+function waSbAntrean() {
+  var c = CacheService.getScriptCache();
+  if (c.get('blj_antrean')) return { jalan: true };
+  c.put('blj_antrean', '1', 120);
+  try { return { diproses: bljAntreanProses_() }; } finally { c.remove('blj_antrean'); }
+}
+
+function bljAntreanProses_() {
+  var total = 0;
+  for (var putaran = 0; putaran < 5; putaran++) {
+    var r = bljRpc_('bl_antrean_ambil', { p_maks: 50 });
+    if (r.kode !== 200 || !Array.isArray(r.data) || !r.data.length) break;
+    var selesai = [];
+    r.data.forEach(function(x) {
+      try {
+        if (x.jenis === 'jawaban') bljSalinJawaban_(x.data);
+        else if (x.jenis === 'absensi') bljSalinAbsensi_(x.data);
+        selesai.push(x.id);
+      } catch (e) {
+        try { pmlCatatGalat_('pemicu', 'waSbAntrean', String(e && e.message || e), e && e.stack, '', ''); } catch (e2) {}
+      }
+    });
+    if (selesai.length) bljRpc_('bl_antrean_selesai', { p_ids: selesai });
+    total += selesai.length;
+    if (r.data.length < 50) break;
+  }
+  return total;
+}
+
+function bljSalinJawaban_(d) {
+  var sh = getSheet(CONFIG.SHEETS.JAWABAN), waktu = new Date(Number(d.waktuMs) || Date.now());
+  var isi = [d.idRombel, d.idMapel, d.namaMapel, d.idMateri, d.judul, d.jenis, d.nama, d.jawaban, '', waktu];
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    var baris = jwbCariBaris_(sh, d.idMateri, d.nama);
+    if (baris) sh.getRange(baris, 1, 1, 10).setValues([isi]);
+    else sh.appendRow(isi);
+  } finally { kunci.releaseLock(); }
+  var p = { idRombel: d.idRombel, idMapel: d.idMapel, idMateri: d.idMateri, nama: d.nama, jawaban: d.jawaban };
+  if (d.baru) { try { nvCatatJawaban_(p); } catch (e) {} }
+  try { draftHapus_(d.idRombel, d.idMateri, d.nama); } catch (e) {}
+  kcpTanda_('jwb');
+  try { brdLupakanSiswa_(d.idRombel, d.nama); } catch (e) {}
+  try { catat_('Siswa', d.idRombel, d.nama, 'Kirim jawaban', 'materi ' + d.idMateri + ', mapel ' + d.idMapel + ' (Supabase)', 'OK'); } catch (e) {}
+}
+
+function bljSalinAbsensi_(d) {
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    var kn = normNama_(d.nama), smt = Number(d.smt), n = Number(d.n);
+    var sudah = abBaca_(String(d.idMapel)).some(function(r) { return r.smt === smt && r.n === n && r.kunciNama === kn; });
+    if (!sudah) {
+      var sh = abSheet_(), baris = sh.getLastRow() + 1;
+      try { sh.getRange(baris, 8).setNumberFormat('@'); } catch (e) {}
+      sh.getRange(baris, 1, 1, AB.HEADERS.length).setValues([[d.idRombel, d.idMapel, getNamaMapel_(d.idMapel), smt, n, d.nama, AB.HADIR, d.waktu, d.catatan || '']]);
+    }
+  } finally { kunci.releaseLock(); }
+  try { catat_('Siswa', d.idRombel, d.nama, 'Absensi', 'mapel ' + d.idMapel + ', ' + (d.sesi || '') + ' (Supabase)', 'OK'); } catch (e) {}
+  if (typeof riwayatLupakan_ === 'function') riwayatLupakan_(d.nama);
 }
 
 // Dipanggil pemicu tiap jam yang sudah ada (pemicuRilisApk, pemicuGatewayDoku): memasang bljPemicu bila

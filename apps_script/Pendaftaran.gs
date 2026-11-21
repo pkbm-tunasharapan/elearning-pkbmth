@@ -459,7 +459,7 @@ function waLogin(nama, kataSandi) {
   res.pin = stPin;
   catat_('Siswa', res.idRombel, res.nama, 'Masuk', '', 'OK');
   try { res.sesi = ssBuat_(res); } catch (e) {}
-  if (typeof bljTanda_ === 'function') res.tandaBelajar = bljTanda_(res.nama);   // v1.92.0 (Belajar.gs)
+  if (typeof bljTanda_ === 'function') res.tandaBelajar = bljTanda_(res.nama, res.idRombel);   // v1.92.0 (Belajar.gs)
   return res;
 }
 
@@ -567,7 +567,7 @@ function waPulihSesiSiswa(token, kunciPerangkat) {
   var stPin = { ada: false, perlu: false, wajib: false };
   try { stPin = pinStatus_(d.nama, d.idRombel, true); } catch (eP) {}
   return { sukses: true, idRombel: d.idRombel, namaRombel: getNamaRombel_(d.idRombel), nama: d.nama, daftarMapel: getMapelAktifUntukRombel_(d.idRombel), sesi: String(token), pin: stPin,
-    tandaBelajar: typeof bljTanda_ === 'function' ? bljTanda_(d.nama) : '' };   // v1.92.0 (Belajar.gs)
+    tandaBelajar: typeof bljTanda_ === 'function' ? bljTanda_(d.nama, d.idRombel) : '' };   // v1.92.0 (Belajar.gs)
 }
 
 function waKeluarSiswa(token) {
