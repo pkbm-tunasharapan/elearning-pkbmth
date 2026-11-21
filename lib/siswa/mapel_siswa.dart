@@ -1169,11 +1169,19 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     return baru;
   }
 
+  // v1.92.8 (E3b): laporan pelanggaran ke Supabase; Apps Script bila tidak tersedia / ditolak
+  Future<dynamic> _lapor(String? jenis) async =>
+      await rpcBelajar('uj_lapor', {
+        'p_tanda': teks(SesiSiswa.instance.data['tandaBelajar']), 'p_nama': SesiSiswa.instance.nama, 'p_id_ujian': widget.idUjian,
+        'p_id_mapel': widget.idMapel, 'p_kode': widget.kode, 'p_jenis': jenis ?? '',
+      }) ??
+      await Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, if (jenis != null) jenis]);
+
   void _laporPelanggaran(String jenis) {
     if (_baruDilapor()) return;
     AlarmUjian.mulai();
     Future<void>.delayed(const Duration(seconds: 1), AlarmUjian.henti);
-    Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode, jenis]).then((r) {
+    _lapor(jenis).then((r) {
       final d = peta(r);
       if (!mounted || _kirim) return;
       if (d['terkunci'] == true) {
@@ -1213,7 +1221,7 @@ class _KerjakanUjianScreenState extends State<KerjakanUjianScreen> with WidgetsB
     if (state == AppLifecycleState.paused && !_kirim) {
       if (_baruDilapor()) return;
       AlarmUjian.mulai();
-      Api.instance('waLaporPindahTab', [widget.idUjian, SesiSiswa.instance.idRombel, SesiSiswa.instance.nama, widget.kode]).then((r) {
+      _lapor(null).then((r) {
         final d = peta(r);
         if (!mounted) return;
         if (d['terkunci'] == true) {

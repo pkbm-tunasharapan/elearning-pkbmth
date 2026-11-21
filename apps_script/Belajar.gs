@@ -372,6 +372,7 @@ function bljAntreanProses_() {
             if (x.jenis === 'ujian_mulai') ujsCerminMulai_(x.data);
             else if (x.jenis === 'ujian_kirim') ujsCerminKirim_(x.data);
             else if (x.jenis === 'ujian_perangkat') ujsCerminPerangkat_(x.data);
+            else if (x.jenis === 'ujian_lapor') ujsCerminLapor_(x.data);
           } finally { UJS_DIAM_ = false; }
         }
         selesai.push(x.id);
@@ -576,6 +577,15 @@ function ujsBahanMulai_(bahan, jDasar, idRombel, nama, paket) {
   var kl = String(jDasar.idUjian) + '|' + nama;
   bahan.nilaiLama = m.lamaJ.hasOwnProperty(kl) ? m.lamaJ[kl] : null;
   bahan.masa = !!js.masa;
+  // E3b: sanksi bertingkat (pwRingkasSanksi_ dari log pelanggaran)
+  if (!m.log) {
+    m.log = {};
+    pwBaca_(PW.TAB_LG, PW.HDR_LG).forEach(function(r) { var k = pwKunciSiswa_(r['ID UJIAN'], r['ID ROMBEL'], r['NAMA SISWA']); (m.log[k] = m.log[k] || []).push(r); });
+    m.sanksi = pwSanksi_();
+  }
+  var rs = pwRingkasSanksi_(m.log[pwKunciSiswa_(jDasar.idUjian, idRombel, nama)] || []);
+  bahan.kunciLog = rs.kunci; bahan.berat = rs.berat; bahan.tryout = jDasar.jenis === 'TRYOUT';
+  bahan.sanksi = { batas: m.sanksi.batasKeluar, pimpinanMulai: m.sanksi.pimpinanMulai, beratMulai: m.sanksi.beratMulai };
   if (js.mode === 'Kertas') return;
   var ronde = [bahan.ronde];
   if (bahan.akses && bahan.akses.length) ronde.push(bahan.ronde + 1);
@@ -657,6 +667,7 @@ function ujsCerminKirim_(d) {
   try {
     var sesi = cariBarisSesiUjian_(d.idUjian, d.idRombel, d.nama), wkt = new Date(Number(d.waktuMs));
     if (sesi) {
+      if (d.berat) sesi.sheet.getRange(sesi.rowIndex, sesi.cols.terkunci).setValue(false);   // E3b: kirim otomatis pelanggaran berat
       sesi.sheet.getRange(sesi.rowIndex, sesi.cols.status).setValue('Selesai');
       sesi.sheet.getRange(sesi.rowIndex, sesi.cols.nilaiTotal).setValue(d.nilai);
       sesi.sheet.getRange(sesi.rowIndex, sesi.cols.waktuSelesai).setValue(wkt);
@@ -677,8 +688,28 @@ function ujsCerminKirim_(d) {
   } finally { kunci.releaseLock(); }
   try { brdLupakanSiswa_(d.idRombel, d.nama); } catch (eB) {}
   try { riwayatLupakan_(d.nama); } catch (eR) {}
+  if (d.berat) { try { pwCatat_(d.idUjian, d.idRombel, d.nama, 'Jawaban dikirim otomatis (pelanggaran berat)', 'Nilai sementara ' + d.nilai + ', menunggu tinjauan'); } catch (eW) {} }
   try { catat_('Siswa', d.idRombel, d.nama, 'Kirim ujian', 'ujian ' + d.idUjian + ' · nilai ' + d.nilai + ' (Supabase)', 'OK'); } catch (e) {}
   if (selisih) { try { catat_('Sistem', d.idRombel, d.nama, 'Selisih nilai ujian Supabase', 'ujian ' + d.idUjian + ': ' + selisih, 'GAGAL'); } catch (e2) {} }
+}
+
+// E3b: salinan laporan pindah tab dari Supabase -> Percobaan Ujian, log pelanggaran, sanksi (notifikasi pimpinan).
+function ujsCerminLapor_(d) {
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(20000);
+  try {
+    var sesi = cariBarisSesiUjian_(d.idUjian, d.idRombel, d.nama);
+    if (sesi) {
+      sesi.sheet.getRange(sesi.rowIndex, sesi.cols.percobaan).setValue(Number(d.percobaan));
+      if (d.terkunci) sesi.sheet.getRange(sesi.rowIndex, sesi.cols.terkunci).setValue(true);
+    } else {
+      getSheet(CONFIG.SHEETS.PERCOBAAN_UJIAN).appendRow([d.idUjian, d.idRombel, d.nama, 'Berlangsung', Number(d.percobaan), !!d.terkunci, '', new Date(Number(d.waktuMs)), '']);
+    }
+  } finally { kunci.releaseLock(); }
+  var jenis = d.jenis === 'layar_terbagi' ? 'Layar terbagi / jendela mengambang' : (d.jenis === 'jendela_lain' ? 'Jendela aplikasi lain di atas layar ujian' : 'Keluar aplikasi');
+  try { pwCatat_(d.idUjian, d.idRombel, d.nama, jenis + (d.terkunci ? ' - ujian terkunci' : ''), 'Pelanggaran ke-' + d.percobaan + ' dari batas ' + d.batas); } catch (ePw) {}
+  if (d.terkunci) { try { pwSetelahKunci_(d.idUjian, d.idRombel, d.nama); } catch (eSx) {} }
+  try { catat_('Siswa', d.idRombel, d.nama, 'Pindah tab saat ujian', 'ujian ' + d.idUjian + ' (Supabase)', 'GAGAL'); } catch (e) {}
 }
 
 // Editor (hanya bila disetujui pemilik): salin PEPPER ke Supabase agar siswa ber-PIN dapat memulai ujian lewat Supabase.

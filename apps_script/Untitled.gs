@@ -419,6 +419,7 @@ function ujStatus_(j, idRombel, nama) {
   if (UJS_MEMO_) {   // E2: masukan bergantung waktu untuk uj_status (Supabase menghitung ulang fase/boleh mulai/akses/tombol)
     out._bahan = {
       st: st, wm: sesi ? (ujMsSel_(sesi.row[sesi.cols.waktuMulai - 1]) || 0) : 0, terkunci: terkunci, hasilAda: hasil.ada,
+      percobaan: sesi ? (Number(sesi.row[sesi.cols.percobaan - 1]) || 0) : 0,
       persen: hasil.terbaik ? hasil.terbaik.persen : null, pernahSusulan: hasil.pernahSusulan, ajuTerbuka: ajuTerbuka,
       akses: ujAksesSiswa_(j.idUjian, idRombel, nama).filter(function (a) { return a['Status'] === 'Terbuka'; }).map(function (a) {
         return { jenis: a['Jenis'], mulaiMs: ujMsTeks_(a['Mulai']), selesaiMs: ujMsTeks_(a['Selesai']), mulai: a['Mulai'], selesai: a['Selesai'] };
