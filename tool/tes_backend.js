@@ -2623,5 +2623,34 @@ tes('waGetRiwayatJawaban: hasil berat di-cache per siswa per mapel; gugur saat s
   } finally { Object.assign(g, asli); }
 });
 
+// v1.92.0: nama Kepala Sekolah dari akun aktif; nama penanda tangan leger
+tes('ksNamaCetak_: akun Kepala Sekolah aktif dipakai, cadangan isian KEPALA PKBM', () => {
+  const asli = g.bacaPengguna_;
+  try {
+    const u = (nama, peran, status, kustom) => ({ id: nama, nama, peran, status: status || 'Aktif', peranKustom: kustom || '' });
+    g.bacaPengguna_ = () => [u('Budi', 'Tutor'), u('Siti Aminah', 'Kepala Sekolah'), u('Lama', 'Kepala Sekolah', 'Nonaktif')];
+    sama(g.ksNamaCetak_('Pak Lama'), 'Siti Aminah', 'satu akun aktif');
+    g.bacaPengguna_ = () => [u('Siti Aminah', 'Kepala Sekolah'), u('Rina', 'Kepala Sekolah')];
+    sama([g.ksNamaCetak_('rina'), g.ksNamaCetak_('Orang Lain')], ['Rina', 'Siti Aminah'], 'dua akun: yang sama dengan isian, lalu yang pertama');
+    g.bacaPengguna_ = () => [u('Dinas X', 'Kepala Sekolah', 'Aktif', 'Dinas'), u('Budi', 'Tutor')];
+    sama(g.ksNamaCetak_('Kepala Cadangan'), 'Kepala Cadangan', 'tanpa akun aktif -> cadangan');
+  } finally { g.bacaPengguna_ = asli; }
+});
+tes('nilNamaTtd_: pengampu utama dari tutor bawaan kelas, koordinator unit dari unit yang dicetak', () => {
+  const asli = ['pgoPeta_', 'pgoSemuaTutor_', 'ubUtama_', 'absPetaTutor_', 'ubPetaUnit_', 'bacaPengguna_', 'ubKoordEf_'].reduce((o, k) => { o[k] = g[k]; return o; }, {});
+  try {
+    g.pgoPeta_ = () => ({ 'R1|MTK': { semua: 'T1', unit: { U2: 'T2' } }, 'R1|IPA': { semua: '', unit: { U1: 'T2' } } });
+    g.pgoSemuaTutor_ = () => [];
+    g.ubUtama_ = () => 'U1';
+    g.absPetaTutor_ = () => ({ T1: { nama: 'Ani' }, T2: { nama: 'Budi' } });
+    g.ubPetaUnit_ = () => ({ U1: { id: 'U1', utama: true, koordinator: [] }, U2: { id: 'U2', utama: false, koordinator: ['P9'] } });
+    g.bacaPengguna_ = () => [{ id: 'P9', nama: 'Citra' }, { id: 'KS', nama: 'Siti' }];
+    g.ubKoordEf_ = (u) => (u.koordinator.length ? u.koordinator : ['KS']);
+    sama(g.nilNamaTtd_('R1|MTK', ['U2']), { pengampuUtama: 'Ani', koordinatorUnit: 'Citra' });
+    sama(g.nilNamaTtd_('R1|IPA', ['U1']), { pengampuUtama: 'Budi', koordinatorUnit: 'Siti' }, 'tutor unit utama; unit utama tanpa koordinator -> KS');
+    sama(g.nilNamaTtd_('R1|MTK', []), { pengampuUtama: 'Ani', koordinatorUnit: '' }, 'tanpa unit');
+  } finally { Object.assign(g, asli); }
+});
+
 console.log('\n' + lulus + ' lulus, ' + gagal + ' gagal');
 process.exit(gagal ? 1 : 0);

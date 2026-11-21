@@ -146,7 +146,7 @@ Future<void> cetakJadwalPengawas(BuildContext context, String idMasa) async {
     b.write('</table>');
   }
   b.write('<table class="ttd"><tr><td></td><td>${escHtml(teks(kop['kota']))}${teks(kop['kota']).isEmpty ? '' : ', '}......................<br>Kepala ${escHtml(teks(kop['nama'], 'PKBM'))}'
-      '<br><br><br><br>(.....................................)</td></tr></table>');
+      '<br><br><br><br>${teks(kop['kepala']).isEmpty ? '(.....................................)' : '<b><u>${escHtml(teks(kop['kepala']))}</u></b>'}</td></tr></table>');
   b.write('<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>');
   await htmlKePdf(context, nama: _namaBerkas('Jadwal_Pengawas', m), args: [_t, dokumenA4(b.toString(), _css, lanskap: true)]);
 }

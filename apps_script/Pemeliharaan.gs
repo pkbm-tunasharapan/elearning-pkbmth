@@ -152,6 +152,12 @@ function pmlCekData_() {
     }
     if (!nisn && cocok.nisn) tambah('NISN kosong di e-learning', nama, cocok.nisn, cocok.id, rbEl, rbSim, 'NISN ada di Data Induk.', kEl);
   });
+  // v1.92.0: nama Kepala Sekolah di berkas cetak diambil dari akun aktif; lebih dari satu akun -> perlu dirapikan
+  try {
+    var ks = ksAkunAktif_();
+    if (ks.length > 1) tambah('Kepala Sekolah lebih dari satu', ks.map(function(u) { return u.nama; }).join(', '), '', '', '', '',
+      'Berkas cetak memakai nama ' + nilLembaga_().kepala + '. Nonaktifkan akun Kepala Sekolah yang tidak dipakai.', 'ks');
+  } catch (eKs) {}
   return masalah;
 }
 

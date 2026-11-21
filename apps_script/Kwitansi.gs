@@ -153,9 +153,9 @@ function kwIsi_(x, o, ttd, kat, wb, akun, lembaga) {
 //   LOGO KOP      : (opsional) ID atau tautan berkas gambar di Google Drive; kosong = logo bawaan aplikasi
 //   KOTA TTD      : (opsional) kota di atas tanda tangan; kosong = diambil dari alamat (Kab./Kota ...)
 function kwKop_() {
-  var out = { yayasan: '', nama: '', baris: [], logo: '', kota: '' };
+  var out = { yayasan: '', nama: '', baris: [], logo: '', kota: '', kepala: '' };
   var sh = simTab_('PENGATURAN');
-  if (!sh || sh.getLastRow() < 2) return out;
+  if (!sh || sh.getLastRow() < 2) { out.kepala = ksNamaCetak_(''); return out; }
   var d = sh.getRange(1, 1, 2, sh.getLastColumn()).getDisplayValues(), h = {};
   d[0].forEach(function(x, i) { h[String(x).trim().toUpperCase()] = i; });
   var g = function(n) { return h[n] === undefined ? '' : String(d[1][h[n]] || '').trim(); };
@@ -165,6 +165,7 @@ function kwKop_() {
   if (!out.baris.length) out.baris = [g('ALAMAT'), g('NPSN') ? 'NPSN ' + g('NPSN') : ''].filter(String);
   var m = /(?:Kab(?:upaten)?\.?|Kota)\s+([A-Za-z ]+?)(?:\s+\d|,|$)/i.exec(g('ALAMAT'));
   out.kota = g('KOTA TTD') || (m ? m[1].trim() : '');
+  out.kepala = ksNamaCetak_(g('KEPALA PKBM'));   // v1.92.0
   var lg = g('LOGO KOP');
   if (lg) {
     try {

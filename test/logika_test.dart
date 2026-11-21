@@ -1,4 +1,5 @@
 // Tes logika aplikasi (dijalankan `flutter test` di GitHub Actions sebelum build).
+import 'package:elearning_staf/nilai/nilai.dart';
 import 'package:elearning_staf/nilai/opsi_rapor.dart';
 import 'package:elearning_staf/pemeliharaan/sistem.dart';
 import 'package:elearning_staf/ujian/ringkas_jadwal.dart';
@@ -75,6 +76,20 @@ void main() {
       urutBarisPengawas(l);
       expect(l.map((x) => '${x.jam} ${x.pengawas}').toList(), ['08:00 Ani', '08:00 Budi', '08:00 Budi', '08:00 ', '10:00 Ani']);
       expect(rentangSama(l.map((x) => x.pengawas).toList()), [1, 2, 0, 1, 1]);
+    });
+  });
+
+  group('penanda tangan leger', () {
+    final d = {'kelas': {'namaTutor': 'Tutor Online'}, 'pengampuUtama': 'Ani', 'koordinatorUnit': 'Citra'};
+    test('bawaan pengampu utama', () {
+      expect(namaTtdLeger(d, 'utama'), (nama: 'Ani', jabatan: 'Tutor Mata Pelajaran'));
+    });
+    test('koordinator unit bila dipilih', () {
+      expect(namaTtdLeger(d, 'koordinator'), (nama: 'Citra', jabatan: 'Koordinator Unit'));
+    });
+    test('koordinator kosong -> kembali ke pengampu; data lama tanpa pengampuUtama -> namaTutor', () {
+      expect(namaTtdLeger({...d, 'koordinatorUnit': ''}, 'koordinator').nama, 'Ani');
+      expect(namaTtdLeger({'kelas': {'namaTutor': 'Tutor Online'}}, 'utama').nama, 'Tutor Online');
     });
   });
 }
