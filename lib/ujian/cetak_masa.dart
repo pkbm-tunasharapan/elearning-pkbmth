@@ -36,7 +36,7 @@ const _css = '.kopisi{text-align:center}.yy{font-size:10pt;font-weight:bold;lett
     'h2{text-align:center;font-size:13pt;margin:4px 0 2px}h3{font-size:11pt;margin:12px 0 4px}'
     '.sub{text-align:center;font-size:9.5pt;margin:0 0 8px}.kaki{font-size:8pt;color:#555;margin-top:10px;text-align:right}'
     'table.g{border-collapse:collapse;width:100%}.g th,.g td{border:1px solid #555;padding:4px 5px;font-size:9pt;vertical-align:top}'
-    '.g th{font-weight:bold}.tgl,.pw{font-weight:bold;vertical-align:middle}.tgl{white-space:nowrap}.jam{white-space:nowrap}'
+    '.g th{font-weight:bold}.tgl,.pw{font-weight:bold;vertical-align:middle}.tgl{white-space:nowrap}.jam{white-space:nowrap;vertical-align:middle}'
     '.mp{font-weight:bold}.kecil2{font-size:8pt;color:#444}.paraf{width:70px}ol{margin:4px 0 0 18px;padding:0}li{font-size:9.5pt;margin:2px 0}'
     '.ttd{width:100%;margin-top:18px}.ttd td{border:none;font-size:10pt;text-align:center;width:50%}';
 
@@ -62,18 +62,36 @@ Future<void> cetakJadwalUjian(BuildContext context, String idMasa) async {
   b.write('<h2>JADWAL ${escHtml(teks(m['namaJenis']).toUpperCase())}</h2>');
   b.write('<p class="sub">${escHtml(teks(m['nama']))} · ${escHtml(_tglPanjang(teks(m['dari'])))} s.d. ${escHtml(_tglPanjang(teks(m['sampai'])))}<br>Peserta: ${escHtml(teks(m['peserta']))}</p>');
   b.write('<table class="g"><tr><th style="width:120px">Hari, tanggal</th><th style="width:85px">Waktu</th><th>Mata pelajaran</th><th>Rombel</th><th style="width:105px">Pelaksanaan</th></tr>');
-  final perTgl = <String, List<Map<String, dynamic>>>{};
-  for (final s in slot) {
-    perTgl.putIfAbsent(teks(s['tanggal']), () => []).add(s);
+  // v1.92.2: baris bernilai sama (tanggal, waktu, mapel, pelaksanaan) digabung, rombel satu paket lengkap -> "Paket X",
+  // dan sel waktu yang sama digabung ke bawah (seperti tanggal).
+  final rombelSlot = [for (final s in slot) <String>{for (final r in daftar(s['ruang']).map(peta)) teks(r['rombel']).split(' · ').first}.toList()];
+  final paket = anggotaPaket(rombelSlot.expand((x) => x));
+  final perTgl = <String, List<(Map<String, dynamic>, List<String>)>>{};
+  final kunci = <String, (Map<String, dynamic>, List<String>)>{};
+  for (var si = 0; si < slot.length; si++) {
+    final s = slot[si];
+    final k = [s['tanggal'], s['jam'], s['selesai'], s['durasi'], s['mapel'], s['mode']].map((x) => teks(x)).join('|');
+    final ada = kunci[k];
+    if (ada != null) {
+      for (final r in rombelSlot[si]) {
+        if (!ada.$2.contains(r)) ada.$2.add(r);
+      }
+      continue;
+    }
+    final baru = (s, [...rombelSlot[si]]);
+    kunci[k] = baru;
+    perTgl.putIfAbsent(teks(s['tanggal']), () => []).add(baru);
   }
   perTgl.forEach((tgl, l) {
+    final rWaktu = rentangSama([for (final x in l) '${teks(x.$1['jam'])}|${teks(x.$1['selesai'])}|${teks(x.$1['durasi'])}']);
     for (var i = 0; i < l.length; i++) {
-      final s = l[i];
-      final rombel = <String>{for (final r in daftar(s['ruang']).map(peta)) teks(r['rombel']).split(' · ').first}.join(', ');
+      final (s, rb) = l[i];
       b.write('<tr>');
       if (i == 0) b.write('<td class="tgl" rowspan="${l.length}">${escHtml(_tglPanjang(tgl))}</td>');
-      b.write('<td class="jam">${escHtml(teks(s['jam']))}–${escHtml(teks(s['selesai']))}<br><span class="kecil2">${s['durasi']} menit</span></td>'
-          '<td class="mp">${escHtml(teks(s['mapel']))}</td><td>${escHtml(rombel)}</td><td>${escHtml(teks(s['mode']))}</td></tr>');
+      if (rWaktu[i] > 0) {
+        b.write('<td class="jam"${rWaktu[i] > 1 ? ' rowspan="${rWaktu[i]}"' : ''}>${escHtml(teks(s['jam']))}–${escHtml(teks(s['selesai']))}<br><span class="kecil2">${s['durasi']} menit</span></td>');
+      }
+      b.write('<td class="mp">${escHtml(teks(s['mapel']))}</td><td>${escHtml(ringkasRombel(rb, paket))}</td><td>${escHtml(teks(s['mode']))}</td></tr>');
     }
   });
   b.write('</table>');
