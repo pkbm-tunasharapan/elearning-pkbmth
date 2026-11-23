@@ -21,6 +21,9 @@ Future<void> tampilkanPromosi(GlobalKey<NavigatorState> kunci) async {
   }
   if (Sesi.instance.masuk && Sesi.instance.isDinas) return;
   final sp = await SharedPreferences.getInstance();
+  // Paling banyak sekali sehari: hari yang sama tidak tampil lagi dan tidak memanggil server.
+  final w = DateTime.now(), hariIni = '${w.year}-${w.month}-${w.day}';
+  if (sp.getString('promoHari') == hariIni) return;
   final rev = sp.getInt('promoRev') ?? -1;
   Map<String, dynamic> d;
   try {
@@ -79,6 +82,8 @@ Future<void> tampilkanPromosi(GlobalKey<NavigatorState> kunci) async {
         ),
       );
 
+  await sp.setString('promoHari', hariIni);
+  if (!ctx.mounted) return;
   await showDialog<void>(
     context: ctx,
     builder: (c) {

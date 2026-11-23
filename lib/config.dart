@@ -17,6 +17,11 @@ const String kVersi = String.fromEnvironment('TH_VERSI', defaultValue: '1.92.8')
 /// APK beta pengembangan (package terpisah, terpasang berdampingan dengan aplikasi produksi).
 const bool kBeta = bool.fromEnvironment('TH_BETA');
 
+/// Nomor build APK beta (github.run_number) dan alamat info versi beta (diterbitkan workflow build-beta.yml
+/// bersama web beta). APK beta membandingkan nomor build ini, bukan versi rilis produksi.
+const int kBetaBuild = int.fromEnvironment('TH_BETA_BUILD');
+const String kBetaVersiUrl = 'https://th-ecourse-beta.pages.dev/versi-beta.json';
+
 /// v1.92.0: Supabase (migrasi bertahap). Kunci publishable memang publik; akses dibatasi RLS & fungsi di server.
 const String kSupabaseUrl = 'https://illiooqaguxfrsvtzntd.supabase.co';
 const String kSupabaseKunciPublik = 'sb_publishable__A_AfEI_sfx1WNPsuOmfrA_K4RT0zfc';

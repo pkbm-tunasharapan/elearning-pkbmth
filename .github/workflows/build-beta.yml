@@ -4,8 +4,11 @@ name: Build APK Beta (pengembangan, tidak dirilis)
 # - hanya dari cabang beta/** atau dijalankan manual; tidak pernah dari main
 # - package id.pkbmtunasharapan.elearning_staf.beta + nama "TH.E-Course Beta" -> terpasang berdampingan
 # - versi TH_VERSI berbeda dari rilis resmi/uji -> tidak dihitung pemakai rilis uji, tidak ditawari pembaruan
-# - hasil APK hanya berupa artifact Actions: TIDAK membuat GitHub Release (pengambil APK otomatis backend
-#   membaca releases/latest) dan TIDAK menerbitkan GitHub Pages (Pages repo ini milik web produksi)
+# - APK diterbitkan sebagai PRARILIS bertanda beta-terbaru (aset ditimpa tiap build). Prarilis tidak pernah
+#   menjadi releases/latest, jadi pengambil APK otomatis backend tetap membaca rilis produksi. Tidak menerbitkan
+#   GitHub Pages (Pages repo ini milik web produksi)
+# - versi-beta.json (nomor build + tautan APK) ikut diterbitkan di web beta; APK beta membacanya untuk
+#   menawarkan pembaruan beta (bukan rilis produksi)
 # - web beta diterbitkan ke Cloudflare Pages (proyek th-ecourse-beta, alamat terpisah) bila secret
 #   CLOUDFLARE_API_TOKEN & CLOUDFLARE_ACCOUNT_ID sudah diisi; tanpa secret langkah web dilewati
 on:
@@ -14,7 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # hanya untuk prarilis beta-terbaru
 
 concurrency:
   group: beta-${{ github.ref }}
@@ -64,7 +67,7 @@ jobs:
       - name: Build APK beta
         run: >
           flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
-          --dart-define=TH_BETA=true --dart-define=TH_VERSI=${{ env.TH_VERSI_BETA }}
+          --dart-define=TH_BETA=true --dart-define=TH_VERSI=${{ env.TH_VERSI_BETA }} --dart-define=TH_BETA_BUILD=${{ github.run_number }}
 
       - name: Simpan APK beta (artifact, bukan rilis)
         uses: actions/upload-artifact@v4
@@ -73,10 +76,38 @@ jobs:
           path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 14
 
+      - name: Terbitkan APK beta (prarilis beta-terbaru, bukan rilis resmi)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd build/app/outputs/flutter-apk
+          cp app-arm64-v8a-release.apk th-ecourse-beta-arm64.apk
+          cp app-armeabi-v7a-release.apk th-ecourse-beta-arm32.apk
+          if ! gh release view beta-terbaru >/dev/null 2>&1; then
+            gh release create beta-terbaru --prerelease --latest=false --target "$GITHUB_SHA"               --title "APK Beta (pengembangan)"               --notes "APK beta TH.E-Course untuk pengujian migrasi Supabase. Bukan rilis resmi. Pasang th-ecourse-beta-arm64.apk (HP lama 32-bit: arm32)."
+          fi
+          gh release upload beta-terbaru th-ecourse-beta-arm64.apk th-ecourse-beta-arm32.apk --clobber
+
       - name: Build web beta
         run: >
           flutter build web --release --base-href /
-          --dart-define=TH_BETA=true --dart-define=TH_VERSI=${{ env.TH_VERSI_BETA }}
+          --dart-define=TH_BETA=true --dart-define=TH_VERSI=${{ env.TH_VERSI_BETA }} --dart-define=TH_BETA_BUILD=${{ github.run_number }}
+
+      - name: Info versi beta untuk pembaruan otomatis APK beta
+        env:
+          PESAN: ${{ github.event.head_commit.message }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          pesan = (os.environ.get('PESAN') or '').strip().splitlines()
+          json.dump({
+            'versi': os.environ['TH_VERSI_BETA'],
+            'build': int(os.environ['GITHUB_RUN_NUMBER']),
+            'url': 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/releases/download/beta-terbaru/th-ecourse-beta-arm64.apk',
+            'catatan': pesan[0][:200] if pesan else '',
+          }, open('build/web/versi-beta.json', 'w'), ensure_ascii=False)
+          PY
+          cat build/web/versi-beta.json
 
       - name: Terbitkan web beta ke Cloudflare Pages
         env:

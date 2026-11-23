@@ -86,6 +86,20 @@ function kurTingkat_(t) {
 
 // Memeriksa daftar soal dari AI/hasil tempel. Soal valid: ada pertanyaan, minimal 4 opsi, kunci menunjuk opsi yang ada.
 // Bila kunci jawaban satu sesi menumpuk di satu huruf (mis. semua A), posisi opsi diacak. Soal berpilihan 'semua/tidak ada/A dan B' tidak diacak.
+// Pembangkit acak berbenih (FNV-1a 32-bit + mulberry32): teks yang sama selalu menghasilkan urutan yang sama.
+function kurAcakBenih_(t) {
+  var h = 2166136261;
+  t = String(t);
+  for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return function() {
+    h = (h + 0x6D2B79F5) >>> 0;
+    var x = h;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function kurAcakKunci_(out) {
   if (out.length < 4) return out;
   var hit = {}, maks = 0;
@@ -98,8 +112,11 @@ function kurAcakKunci_(out) {
     if (teks.some(function(x) { return terlarang.test(x); })) return;
     var benar = q.opsi[q.kunci];
     var lain = teks.filter(function(x) { return x !== benar; });
-    for (var i = lain.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = lain[i]; lain[i] = lain[j]; lain[j] = tmp; }
-    var tujuan = Math.floor(Math.random() * huruf.length), baru = {}, k = 0;
+    // Acakan BERBENIH dari teks soal: setiap kali bank dibaca hasilnya sama, sehingga soal yang tampil ke siswa
+    // dan kunci yang dipakai menilai selalu cocok (dulu Math.random -> beda tiap baca bila >= 60% kunci sama).
+    var acak = kurAcakBenih_(q.pertanyaan + '|' + teks.join('|'));
+    for (var i = lain.length - 1; i > 0; i--) { var j = Math.floor(acak() * (i + 1)); var tmp = lain[i]; lain[i] = lain[j]; lain[j] = tmp; }
+    var tujuan = Math.floor(acak() * huruf.length), baru = {}, k = 0;
     huruf.forEach(function(h, idx) { baru[h] = idx === tujuan ? benar : lain[k++]; });
     q.opsi = baru; q.kunci = huruf[tujuan];
   });

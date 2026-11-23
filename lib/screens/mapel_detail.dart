@@ -700,6 +700,14 @@ class _DiskusiScreenState extends State<DiskusiScreen> {
         _kom[s] ??= TextEditingController(text: teks(j['komentar']));
       }
       if (mounted) setState(() => _d = d);
+      // Dibuka dari Belum Dinilai/notifikasi: daftar itu tidak membawa teks pertanyaan, ambil terpisah tanpa menahan jawaban.
+      if (sb != null && teks(d['pertanyaan']).trim().isEmpty) {
+        try {
+          final lama = peta(await Api.instance('waStafSesiDiskusi', [_t, widget.idMapel, _idMateri]));
+          final p = teks(lama['pertanyaan']);
+          if (p.isNotEmpty && mounted && identical(_d, d)) setState(() => _d = {...d, 'pertanyaan': p});
+        } catch (_) {}
+      }
       // Keterangan internal penilaian otomatis (hanya KS, Admin, pengampu; tidak pernah dikirim ke siswa).
       try {
         final c = peta(peta(await Api.instance('waStafCatatanNilai', [_t, widget.idMapel, _idMateri]))['catatan']);

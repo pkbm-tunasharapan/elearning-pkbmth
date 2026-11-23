@@ -983,6 +983,43 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
     }
   }
 
+  /// Keterangan jadwal dari status ujian (jam buka, batas masuk, akses susulan/remedial, kunci, KKM).
+  String _jadwalUjian(Map<String, dynamic> uj) {
+    if (uj.isEmpty) return '';
+    String jam(dynamic ms) {
+      final n = angka(ms);
+      if (n <= 0) return '';
+      final w = DateTime.fromMillisecondsSinceEpoch(n);
+      return '${w.hour.toString().padLeft(2, '0')}.${w.minute.toString().padLeft(2, '0')}';
+    }
+
+    final baris = <String>[];
+    final akses = peta(uj['akses']), nanti = peta(uj['aksesNanti']);
+    if (uj['terkunci'] == true) {
+      baris.add('Ujian terkunci. Lapor ke pengawas untuk dibukakan.');
+    } else if (uj['berlangsung'] == true) {
+      baris.add('Ujian sedang berlangsung. Lanjutkan sebelum waktunya habis.');
+    } else if (akses.isNotEmpty) {
+      baris.add('Akses ${teks(akses['jenis'], 'ujian').toLowerCase()} dibuka ${teks(akses['mulai'])} s.d. ${teks(akses['selesai'])}.');
+    } else if (nanti.isNotEmpty) {
+      baris.add('Akses ${teks(nanti['jenis'], 'ujian').toLowerCase()} dibuka ${teks(nanti['mulai'])} s.d. ${teks(nanti['selesai'])}.');
+    } else {
+      final mulai = teks(uj['teksMulai']), batas = jam(uj['masukSampaiMs']);
+      switch (teks(uj['fase'])) {
+        case 'belum':
+          if (mulai.isNotEmpty) baris.add('Ujian dibuka $mulai.${batas.isNotEmpty ? ' Masuk paling lambat pukul $batas.' : ''}');
+        case 'masuk':
+          baris.add(batas.isNotEmpty ? 'Ujian sudah dibuka. Masuk paling lambat pukul $batas.' : 'Ujian sudah dibuka.');
+        case 'tutup':
+          if (uj['sudahMengerjakan'] != true) baris.add('Waktu masuk ujian sudah ditutup${mulai.isNotEmpty ? ' (dibuka $mulai)' : ''}.');
+      }
+    }
+    final aju = peta(uj['pengajuan']);
+    if (teks(aju['teks']).isNotEmpty) baris.add(teks(aju['teks']));
+    if (angka(uj['kkm']) > 0) baris.add('KKM ${angka(uj['kkm'])}.');
+    return baris.join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -1004,7 +1041,11 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
             _perluToken = uj['perluToken'] == true;
             final selesai = d['selesai'] == true;
             final tombol = teks(uj['tombol']);
-            final info = [teks(uj['pesan']), teks(uj['teks']), teks(uj['info']), teks(d['pesan'])].where((x) => x.isNotEmpty).toSet().join('\n');
+            final info = [teks(uj['pesan']), teks(uj['teks']), teks(uj['info']), teks(d['pesan']), if (!selesai) _jadwalUjian(uj)]
+                .where((x) => x.isNotEmpty)
+                .toSet()
+                .join('\n');
+            final adaNilai = teks(d['nilaiTotal']).isNotEmpty;
             return ListView(padding: const EdgeInsets.all(20), children: [
               Center(child: IkonBulat(Icons.quiz_rounded, warna: _warna('Ujian'), ukuran: 92)),
               const SizedBox(height: 16),
@@ -1039,7 +1080,7 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
                     ),
                   ]),
                 )
-              else if (selesai || d['nilaiTotal'] != null)
+              else if (adaNilai)
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(Gaya.radius)),

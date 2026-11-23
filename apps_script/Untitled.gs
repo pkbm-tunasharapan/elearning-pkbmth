@@ -449,8 +449,12 @@ function waStatusUjian(idUjian, idRombel, idMapel, nama) {
 }
 
 function waMulaiUjian(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat) {
-  try { return waMulaiUjianInti_(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat); }
-  finally { try { ujsBasi_(idUjian, idRombel, nama, true); } catch (eS) {} }   // E2
+  // E2: status Supabase hanya ditandai basi bila ujian benar-benar dimulai (atau galat tak terduga).
+  // Penolakan biasa (PIN/kode salah, belum dibuka, kelayakan) tidak mengubah data siswa; perubahan tab AKSES
+  // sudah menandai basi sendiri lewat ujUbah_ -> ujsBerubah_.
+  var r = null, ok = false;
+  try { r = waMulaiUjianInti_(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat); ok = true; return r; }
+  finally { if (!ok || !r || r.sukses !== false) { try { ujsBasi_(idUjian, idRombel, nama, true); } catch (eS) {} } }
 }
 function waMulaiUjianInti_(idUjian, idRombel, idMapel, nama, kodeAkses, pin, tokenUjian, perangkat) {
   // v1.39.0: WB yang sudah punya PIN wajib memasukkan PIN sebelum ujian dimulai

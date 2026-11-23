@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
@@ -98,6 +101,28 @@ Future<void> cekVersiAplikasi(GlobalKey<NavigatorState> kunci) async {
   if (_terakhirCekVersi != null && kini.difference(_terakhirCekVersi!) < const Duration(hours: 1)) return;
   _terakhirCekVersi = kini;
   Map<String, dynamic> d;
+  if (kBeta) {
+    // APK beta tidak ditawari rilis produksi/uji: cukup bandingkan nomor build dengan APK beta terbaru.
+    try {
+      final r = await http.get(Uri.parse(kBetaVersiUrl), headers: {'Cache-Control': 'no-cache'}).timeout(const Duration(seconds: 20));
+      if (r.statusCode != 200) throw Exception('HTTP ${r.statusCode}');
+      d = peta(jsonDecode(r.body));
+    } catch (_) {
+      _terakhirCekVersi = null;
+      return;
+    }
+    final build = angka(d['build']), url = teks(d['url']);
+    if (kBetaBuild <= 0 || build <= kBetaBuild || url.isEmpty) return;
+    final ctxB = kunci.currentContext;
+    if (ctxB == null || !ctxB.mounted) return;
+    _dialogVersiTerbuka = true;
+    try {
+      await _dialogVersi(ctxB, {'catatan': teks(d['catatan'])}, 'beta ${teks(d['versi'])} (build $build)', url, false);
+    } finally {
+      _dialogVersiTerbuka = false;
+    }
+    return;
+  }
   try {
     // token staf (bila sudah masuk) agar akun penguji ditawari RILIS UJI; tunggu sebentar sesi selesai dimuat
     for (var i = 0; i < 10 && Sesi.instance.token == null; i++) {
@@ -131,7 +156,7 @@ Future<void> _dialogVersi(BuildContext ctx, Map<String, dynamic> d, String terba
         icon: const Icon(Icons.system_update_rounded),
         title: Text(d['uji'] == true ? 'Rilis uji $terbaru tersedia' : 'Versi $terbaru tersedia'),
         content: Text([
-          'Versi Anda: $kVersi.',
+          kBeta ? 'Versi Anda: beta $kVersi (build $kBetaBuild).' : 'Versi Anda: $kVersi.',
           if (teks(d['catatan']).isNotEmpty) teks(d['catatan']),
           if (wajib) 'Pembaruan ini wajib dipasang agar aplikasi tetap berjalan benar.',
         ].join('\n\n')),
