@@ -195,6 +195,7 @@ function waStafMaintenanceAtur(token, aktif, pesan) {
   sp.setProperty('MODE_MAINTENANCE', on ? '1' : '0');
   sp.setProperty('MODE_MAINTENANCE_PESAN', String(pesan || '').slice(0, 300));
   try { CacheService.getScriptCache().put('mt_flag', on ? '1' : '0', 21600); } catch (e) {}
+  try { bljKredSinkron_(true); } catch (eK) {}   // login Supabase ikut pemeliharaan
   try { catat_(p.peran, p.id, p.nama, 'Maintenance', on ? 'ON' : 'OFF', 'OK'); } catch (e2) {}
   return { aktif: on, pesan: mtPesan_() };
 }

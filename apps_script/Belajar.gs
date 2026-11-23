@@ -56,6 +56,42 @@ function bljTandaStaf_(idPengguna) {
   } catch (e) { return ''; }
 }
 
+// ---------------------------------------------------------------- login siswa di Supabase
+// Kredensial untuk siswa_masuk: tanggal lahir hanya sebagai hash berpepper, PIN aktif sebagai hash+garam tab PIN.
+// Dikirim utuh (+-120 baris) hanya bila isinya berubah (sidik di Script Properties), atau paksa (PIN/pemeliharaan berubah).
+function bljKredSinkron_(paksa) {
+  if (!bljKunci_()) return 0;
+  var pep = pepper_(), pin = pinPeta_(), daftar = [];
+  getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) {
+    if (i === 0 || !String(r[1] || '').trim()) return;
+    var rb = sTeks_(r[0]).trim(), nm = String(r[1]).trim(), kn = normNama_(nm), tgl = formatTanggalUntukBanding_(r[2]);
+    if (!rb || !kn) return;
+    var p = tgl ? pin[pinKunci_(nm, tgl)] : null, aktif = !!(p && p.status === 'Aktif' && p.hash);
+    daftar.push({ r: rb, k: kn, n: nm, t: tgl ? sha256_(pep + ':tgl:' + kn + ':' + tgl) : '', h: aktif ? p.hash : '', g: aktif ? p.garam : '' });
+  });
+  var mt = false;
+  try { mt = mtAktif_(); } catch (eM) {}
+  var sp = PropertiesService.getScriptProperties(), sidik = sha256_(JSON.stringify(daftar) + '|' + mt);
+  if (!paksa && sp.getProperty('BLJ_KRED_SIDIK') === sidik) return 0;
+  var r = bljRpc_('siswa_kred_sinkron', { p_daftar: daftar, p_pemeliharaan: mt });
+  if (r.kode === 200) sp.setProperty('BLJ_KRED_SIDIK', sidik);
+  return r.kode === 200 ? daftar.length : -1;
+}
+
+// Siswa yang login lewat Supabase belum punya token sesi Apps Script (dipakai menu yang masih di sini: profil, kisi,
+// kelayakan, tagihan, kartu, PIN, ...). Aplikasi menukar tanda belajar yang sah dengan token itu di latar belakang.
+function waSesiDariTanda(tanda) {
+  var b = String(tanda || '').split('.'), k = bljKunci_();
+  if (b.length !== 5 || b[0] !== 'v2' || !k || Number(b[1]) < Date.now()) return { sukses: false };
+  var pesan = b.slice(0, 4).join('.');
+  if (bljHex_(Utilities.computeHmacSha256Signature(pesan, k, Utilities.Charset.UTF_8)) !== b[4]) return { sukses: false };
+  var dariHex = function(h) { var by = []; for (var i = 0; i < h.length; i += 2) by.push(parseInt(h.substr(i, 2), 16) << 24 >> 24); return Utilities.newBlob(by).getDataAsString('UTF-8'); };
+  var kn = dariHex(b[2]), rb = dariHex(b[3]), nama = '';
+  getSheetData(CONFIG.SHEETS.SISWA).forEach(function(r, i) { if (i > 0 && !nama && sTeks_(r[0]).trim() === rb && normNama_(r[1]) === kn) nama = String(r[1]).trim(); });
+  if (!nama) return { sukses: false };
+  return { sukses: true, sesi: ssBuat_({ nama: nama, idRombel: rb }) };
+}
+
 // Aplikasi staf mengambil tanda sekali per sesi (B3). Sesi lihat/intip tidak mendapat tanda.
 function waStafTandaBelajar(token) {
   var p = stafDariToken_(token);
@@ -327,7 +363,9 @@ function bljSinkronPenuh_() { return bljSinkron_(true); }
 function bljPemicu() {
   if (!bljKunci_()) return;
   if (PropertiesService.getScriptProperties().getProperty('BLJ_PEMICU_MENIT') !== String(BLJ.PEMICU_MENIT)) bljPastikanPemicu_();
-  try { waSbAntrean(); } catch (eA) {}
+  // satu putaran saja (waSbAntrean menunggu +-25 dtk saat sepi; di pemicu itu menghabiskan kuota 90 menit/hari)
+  try { var cA = CacheService.getScriptCache(); if (!cA.get('blj_antrean')) bljAntreanProses_(); } catch (eA) {}
+  try { bljKredSinkron_(false); } catch (eK) {}   // login siswa di Supabase: kredensial (hanya dikirim bila berubah)
   var sp = PropertiesService.getScriptProperties(), now = Date.now(), akhir = 0, akhirPenuh = 0, kotor = 0;
   try { akhir = Number(sp.getProperty(BLJ.PROP_AKHIR) || 0); akhirPenuh = Number(sp.getProperty(BLJ.PROP_PENUH) || 0); } catch (e) {}
   try { kotor = Number(CacheService.getScriptCache().get(BLJ.KOTOR) || 0); } catch (e2) {}
@@ -383,6 +421,7 @@ function bljAntreanProses_() {
         if (x.jenis === 'jawaban') bljSalinJawaban_(x.data);
         else if (x.jenis === 'absensi') bljSalinAbsensi_(x.data);
         else if (x.jenis === 'nilai') bljSalinNilai_(x.data);
+        else if (x.jenis === 'masuk') catat_('Siswa', x.data.idRombel, x.data.nama, 'Masuk', (x.data.cara ? x.data.cara + ' ' : '') + '(Supabase)', 'OK');
         else if (x.jenis === 'pelanggaran') pwCatat_(x.data.idUjian, x.data.idRombel, x.data.nama, x.data.jenis, x.data.detail, x.data.oleh);
         else if (x.jenis.indexOf('ujian_') === 0) {   // E3a: status di Supabase sudah benar -> jangan tandai basi
           UJS_DIAM_ = true;

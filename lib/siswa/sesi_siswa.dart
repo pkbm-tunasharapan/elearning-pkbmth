@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,6 +73,7 @@ class SesiSiswa extends ChangeNotifier {
     try {
       final sp = await SharedPreferences.getInstance();
       final kunci = sp.getString('bc_kunci') ?? '';
+      if (token.isEmpty) await _ambilTokenAps();   // login lewat Supabase: token Apps Script belum ada
       // v1.92.8: data sesi dari Supabase; token Apps Script tetap diperpanjang lewat waPulihSesiSiswa tiap 4 jam
       final kiniMs = kini.millisecondsSinceEpoch, apsMs = sp.getInt('siswaPulihAps') ?? 0;
       if (!paksa && kiniMs - apsMs < 4 * 3600000) {
@@ -92,12 +95,44 @@ class SesiSiswa extends ChangeNotifier {
     } catch (_) {}
   }
 
+  bool _ambilToken = false;
+
+  /// Tukar tanda belajar dengan token sesi Apps Script (dipakai menu yang masih di Apps Script).
+  Future<void> _ambilTokenAps() async {
+    if (_ambilToken || !masuk || token.isNotEmpty || teks(data['tandaBelajar']).isEmpty) return;
+    _ambilToken = true;
+    try {
+      final r = peta(await Api.instance('waSesiDariTanda', [teks(data['tandaBelajar'])]));
+      if (r['sukses'] == true && teks(r['sesi']).isNotEmpty && masuk) {
+        data = {...data, 'sesi': teks(r['sesi'])};
+        final sp = await SharedPreferences.getInstance();
+        await sp.setString(_kunci, jsonEncode(data));
+      }
+    } catch (_) {
+    } finally {
+      _ambilToken = false;
+    }
+  }
+
   /// v1.40.2: saran nama dari server bila nama salah ketik tetapi tanggal lahir cocok ("Maksud Anda: ...?").
   String saranNama = '';
 
   /// Mengembalikan pesan galat, atau null bila berhasil.
   Future<String?> masukSiswa(String nama, String kataSandi) async {
     saranNama = '';
+    // Login di Supabase (cepat untuk ratusan siswa serentak). Hanya jalur berhasil; selain itu waLogin seperti biasa.
+    final sb = await rpcTanpaTanda('siswa_masuk', {'p_nama': nama.trim(), 'p_sandi': kataSandi.trim().toUpperCase()});
+    if (sb != null && sb['sukses'] == true && teks(sb['tandaBelajar']).isNotEmpty) {
+      data = sb;
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(_kunci, jsonEncode(sb));
+      await sp.setInt('siswaPulihAps', DateTime.now().millisecondsSinceEpoch);
+      notifyListeners();
+      // token Apps Script (menu yang belum pindah) diambil di latar belakang, tersebar 0-60 detik agar login
+      // serentak tidak menumpuk di Apps Script
+      unawaited(Future<void>.delayed(Duration(milliseconds: Random().nextInt(60000)), _ambilTokenAps));
+      return null;
+    }
     final r = peta(await Api.instance('waLogin', [nama.trim(), kataSandi.trim().toUpperCase()]));
     if (r['sukses'] != true) {
       saranNama = teks(r['saran']);

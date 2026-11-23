@@ -21,6 +21,8 @@ var API_FLUTTER = {
     waSiswaPencapaian: true,
     // PIN warga belajar (PinSiswa.gs)
     waSiswaPinBuat: true,
+    // login siswa lewat Supabase: tukar tanda belajar dengan token sesi Apps Script (Belajar.gs)
+    waSesiDariTanda: true,
     // cek NISN/NIK saat mendaftar (IdentitasSiswa.gs)
     waDaftarCekIdentitas: true,
     // siswa (fungsi yang sama dengan yang dipakai halaman web siswa)

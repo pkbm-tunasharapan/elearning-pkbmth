@@ -259,6 +259,7 @@ function migrasiDariMenuBatalkan() {
 // ---------- mode pemeliharaan dari editor (cutover) ----------
 function hapusCacheMaintenance() {
   CacheService.getScriptCache().remove('mt_flag');
+  try { bljKredSinkron_(true); } catch (eK) {}   // login Supabase ikut pemeliharaan
   var v = PropertiesService.getScriptProperties().getProperty('MODE_MAINTENANCE');
   Logger.log('Cache mt_flag dihapus. MODE_MAINTENANCE = ' + v);
   return v;

@@ -52,6 +52,7 @@ function pinPeta_() {
 function pinHapusCache_(kunci) {
   var c = CacheService.getScriptCache();
   try { c.remove(PIN.CK_PETA); if (kunci) c.remove(PIN.CK_STATUS + pinCacheId_(kunci)); } catch (e) {}
+  try { bljKredSinkron_(true); } catch (eK) {}   // login Supabase: PIN baru/di-reset langsung berlaku
 }
 function pinCacheId_(kunci) { return Utilities.base64EncodeWebSafe(String(kunci)).slice(0, 200); }
 

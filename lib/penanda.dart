@@ -147,6 +147,23 @@ class TandaStaf {
   }
 }
 
+/// Panggil RPC Supabase tanpa tanda (mis. login siswa); null bila gagal atau `{lama: true}`.
+Future<Map<String, dynamic>?> rpcTanpaTanda(String fn, Map<String, dynamic> args) async {
+  if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty) return null;
+  try {
+    final r = await http
+        .post(Uri.parse('$kSupabaseUrl/rest/v1/rpc/$fn'),
+            headers: {'apikey': kSupabaseKunciPublik, 'Content-Type': 'application/json'}, body: jsonEncode(args))
+        .timeout(const Duration(seconds: 15));
+    if (r.statusCode != 200) return null;
+    final j = jsonDecode(r.body);
+    if (j is! Map || j['lama'] == true) return null;
+    return Map<String, dynamic>.from(j);
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Baca dari Supabase (mis. draf); null bila gagal atau `{lama: true}`.
 Future<Map<String, dynamic>?> rpcBelajar(String fn, Map<String, dynamic> args) async {
   if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty || teks(args['p_tanda']).isEmpty) return null;
