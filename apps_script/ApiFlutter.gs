@@ -58,6 +58,8 @@ function doPost(e) {
       if (typeof rlsCatatPakai_ === 'function' && !globalThis.__INTIP) rlsCatatPakai_(fn, args, body);   // pemakaian rilis uji oleh penguji
       if (typeof rfSisipNotif_ === 'function') hasilFn = rfSisipNotif_(fn, args, hasilFn);
       out = { ok: true, data: hasilFn };
+      // menu siswa yang lambat (kalender, kelayakan, pencapaian, kisi): simpan hasilnya di Supabase (br_menu)
+      if (!globalThis.__INTIP && typeof bmSimpan_ === 'function' && BM_FN[fn]) { try { bmSimpan_(fn, args, hasilFn); } catch (eBm) {} }
       // beranda staf di Supabase: staf yang baru menyimpan sesuatu dihitung ulang
       if (/^waStaf/.test(fn) && !memoBolehFn_(fn) && globalThis.__STAF_P && !globalThis.__INTIP && typeof bstKotor_ === 'function') bstKotor_(globalThis.__STAF_P.id);
     }

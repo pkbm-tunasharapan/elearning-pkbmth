@@ -147,6 +147,16 @@ class TandaStaf {
   }
 }
 
+/// Menu siswa yang dihitung Apps Script +-9 detik (kalender, kelayakan, pencapaian, kisi): hasil terakhir dari Supabase
+/// (br_menu) ditampilkan seketika; bila sudah > 10 menit, Apps Script menghitung ulang di latar belakang (hasilnya
+/// disimpan server untuk pembukaan berikutnya). Tanpa simpanan -> Apps Script seperti biasa.
+Future<dynamic> muatMenuSiswa(String jenis, String tanda, Future<dynamic> Function() jalurLama) async {
+  final sb = await rpcBelajar('br_menu_baca', {'p_tanda': tanda, 'p_jenis': jenis});
+  if (sb == null || sb['data'] is! Map) return await jalurLama();
+  if (angka(sb['umurMs']) > 10 * 60000) unawaited(jalurLama().catchError((_) => null));
+  return sb['data'];
+}
+
 /// Panggil RPC Supabase tanpa tanda (mis. login siswa); null bila gagal atau `{lama: true}`.
 Future<Map<String, dynamic>?> rpcTanpaTanda(String fn, Map<String, dynamic> args) async {
   if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty) return null;

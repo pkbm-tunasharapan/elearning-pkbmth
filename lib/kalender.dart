@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'api.dart';
 import 'berkas.dart';
+import 'penanda.dart';
 import 'session.dart';
+import 'siswa/sesi_siswa.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -479,7 +481,8 @@ class _KalenderSiswaScreenState extends State<KalenderSiswaScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Kalender Akademik')),
       body: Muatan<Map<String, dynamic>>(
-        muat: () async => peta(await Api.instance('waSiswaKalender', [widget.idRombel, widget.nama])),
+        muat: () async => peta(await muatMenuSiswa('kalender', teks(SesiSiswa.instance.data['tandaBelajar']),
+            () => Api.instance('waSiswaKalender', [widget.idRombel, widget.nama]))),
         bangun: (c, d, _) => KalenderView(data: d),
       ),
     );

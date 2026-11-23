@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../berkas.dart';
+import '../penanda.dart';
 import '../session.dart';
 import '../siswa/sesi_siswa.dart';
 import '../widgets.dart';
@@ -93,7 +94,8 @@ class _KisiSiswaScreenState extends State<KisiSiswaScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Kisi-kisi Ujian')),
       body: Muatan<Map<String, dynamic>>(
-        muat: () async => peta(await Api.instance('waSiswaKisi', [SesiSiswa.instance.token], const Duration(minutes: 2))),
+        muat: () async => peta(await muatMenuSiswa('kisi', teks(SesiSiswa.instance.data['tandaBelajar']),
+            () => Api.instance('waSiswaKisi', [SesiSiswa.instance.token], const Duration(minutes: 2)))),
         bangun: (context, d, segarkan) {
           final semua = daftar(d['kisi']).map(peta).toList();
           if (semua.isEmpty) {

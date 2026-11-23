@@ -1149,3 +1149,22 @@ function berandaProfil() {
   h.baris.forEach(function(b, i) { if (bersih(b.data) !== bersih(tunggal[i])) beda.push(semua[i].nama); });
   Logger.log('biasa ' + (t1 - t0) + ' ms, massal ' + (t2 - t1) + ' ms untuk ' + semua.length + ' siswa; beda: ' + (beda.length ? beda.join(', ') : 'tidak ada'));
 }
+
+// ---------------------------------------------------------------- menu siswa lambat -> simpanan Supabase (br_menu)
+// Kalender, kelayakan, pencapaian (periode bawaan), dan kisi-kisi dihitung Apps Script +-9 dtk. Hasil terakhir per siswa
+// disimpan di Supabase; aplikasi menampilkannya seketika lalu meminta hitung ulang di latar belakang bila sudah lama.
+var BM_FN = { waSiswaKalender: 'kalender', waSiswaKelayakan: 'kelayakan', waSiswaPencapaian: 'pencapaian', waSiswaKisi: 'kisi' };
+function bmSimpan_(fn, args, hasil) {
+  var jenis = BM_FN[fn];
+  if (!jenis || !hasil || typeof hasil !== 'object') return;
+  if (fn === 'waSiswaPencapaian' && args[1] && Object.keys(args[1]).length) return;   // hanya periode bawaan
+  var rb = '', nama = '';
+  if (fn === 'waSiswaKalender') { rb = String(args[0] || '').trim(); nama = String(args[1] || ''); }
+  else {
+    var m = args[0] ? CacheService.getScriptCache().get(SS.AWAL + String(args[0])) : null;
+    if (!m) return;
+    var d = JSON.parse(m); rb = String(d.idRombel || '').trim(); nama = String(d.nama || '');
+  }
+  if (!rb || !normNama_(nama)) return;
+  bljRpc_('br_menu_simpan', { p_rombel: rb, p_kunci: normNama_(nama), p_jenis: jenis, p_data: hasil });
+}

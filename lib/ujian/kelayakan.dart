@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../absensi/umum.dart';
 import '../api.dart';
 import '../honor/honor.dart' show rp;
+import '../penanda.dart';
 import '../session.dart';
 import '../siswa/sesi_siswa.dart';
 import '../widgets.dart';
@@ -590,7 +591,11 @@ class _KelayakanSiswaScreenState extends State<KelayakanSiswaScreen> {
       appBar: AppBar(title: const Text('Kelayakan Ujian')),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey(_v),
-        muat: () async => peta(await Api.instance('waSiswaKelayakan', [SesiSiswa.instance.token], const Duration(minutes: 2))),
+        muat: () async {
+          Future<dynamic> lama() => Api.instance('waSiswaKelayakan', [SesiSiswa.instance.token], const Duration(minutes: 2));
+          // sesudah mengajukan (_v > 0) selalu langsung server agar status permohonan terbaru tampil
+          return peta(_v == 0 ? await muatMenuSiswa('kelayakan', teks(SesiSiswa.instance.data['tandaBelajar']), lama) : await lama());
+        },
         bangun: (context, d, segarkan) {
           final keu = peta(d['keu']);
           final riwayat = daftar(d['riwayat']).map(peta).toList();

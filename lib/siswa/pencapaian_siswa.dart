@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api.dart';
 import '../nilai/opsi_rapor.dart' show semesterRapor;
+import '../penanda.dart';
 import '../widgets.dart';
 import 'sesi_siswa.dart';
 import 'tagihan_siswa.dart';
@@ -77,7 +78,11 @@ class _PencapaianSiswaScreenState extends State<PencapaianSiswaScreen> {
       appBar: AppBar(title: const Text('Kartu Pencapaian Studi')),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey('${_per?['tahun']}|${_per?['semester']}|$_v'),
-        muat: () async => peta(await Api.instance('waSiswaPencapaian', [SesiSiswa.instance.token, {...?_per}], const Duration(minutes: 3))),
+        muat: () async {
+          Future<dynamic> lama() => Api.instance('waSiswaPencapaian', [SesiSiswa.instance.token, {...?_per}], const Duration(minutes: 3));
+          // periode bawaan: simpanan Supabase dulu; periode lain atau sesudah disegarkan: langsung server
+          return peta(_per == null && _v == 0 ? await muatMenuSiswa('pencapaian', teks(SesiSiswa.instance.data['tandaBelajar']), lama) : await lama());
+        },
         bangun: (context, d, segarkan) {
           if (_pilihan.isEmpty) _pilihan = semesterRapor(peta(d['periodeKini']));
           final per = peta(d['periode']);
