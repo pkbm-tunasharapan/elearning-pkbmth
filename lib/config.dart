@@ -12,7 +12,7 @@ const String kNamaSekolah = 'PKBM Tunas Harapan';
 /// Versi aplikasi yang tampil di laci menu & beranda (samakan dengan pubspec.yaml).
 /// Versi bisa ditimpa saat build (--dart-define=TH_VERSI=...). APK beta memakai nomor berbeda (mis. 1.91.90)
 /// agar tidak terhitung sebagai pemakai rilis uji resmi dan tidak memicu tawaran pembaruan.
-const String kVersi = String.fromEnvironment('TH_VERSI', defaultValue: '1.92.8');
+const String kVersi = String.fromEnvironment('TH_VERSI', defaultValue: '1.92.9');
 
 /// APK beta pengembangan (package terpisah, terpasang berdampingan dengan aplikasi produksi).
 const bool kBeta = bool.fromEnvironment('TH_BETA');
