@@ -156,7 +156,18 @@ bool izinkanMenu(Sesi s, String id) {
 /// v1.41.1 (Tahap 2): fitur di luar peran dasar muncul bila admin memberikannya (izin 'lihat' / 'ubah').
 bool fiturTambahan(Sesi s, String id) => s.peranKustom.isNotEmpty || s.peran != 'Admin' ? const {'lihat', 'ubah'}.contains(teks(s.izin[_aliasFitur[id] ?? id])) : false;
 
-List<MenuApp> menuUntuk(Sesi s) => semuaMenu.where((m) => m.peran.contains(s.peran) ? izinkanMenu(s, m.id) : (m.id != 'peranIzin' && fiturTambahan(s, m.id))).toList();
+List<MenuApp> menuUntuk(Sesi s) {
+  final hasil = semuaMenu.where((m) => m.peran.contains(s.peran) ? izinkanMenu(s, m.id) : (m.id != 'peranIzin' && fiturTambahan(s, m.id))).toList();
+  // v1.92.11: satu fitur cukup satu menu (mis. Tutor punya 'rppSemua' bawaan + izin tambahan 'rpp' -> "Dokumen RPP" ganda).
+  // Menu bawaan peran diutamakan; menu dari izin tambahan dengan fitur sama dibuang.
+  final bawaan = {for (final m in hasil) if (m.peran.contains(s.peran)) _aliasFitur[m.id] ?? m.id};
+  final dipakai = <String>{};
+  return hasil.where((m) {
+    final f = _aliasFitur[m.id] ?? m.id;
+    if (!m.peran.contains(s.peran) && bawaan.contains(f)) return false;
+    return dipakai.add('$f|${m.peran.contains(s.peran)}');
+  }).toList();
+}
 
 // ───────────────────────── pengelompokan & pencarian menu ─────────────────────────
 
