@@ -244,7 +244,8 @@ function bljStatusTulis_(sidik, tahan, sidikAcuan) {
 var BLJ_T0_ = 0;
 function bljWaktu_(tahap) {
   var now = Date.now();
-  if (tahap) Logger.log('[blj] ' + tahap + ': ' + (now - BLJ_T0_) + ' ms');
+  // BLJ_T0_ = 0 berarti belum ada titik awal: catat tahap tanpa angka waktu (bukan selisih dari tahun 1970)
+  if (tahap) Logger.log('[blj] ' + tahap + (BLJ_T0_ ? ': ' + (now - BLJ_T0_) + ' ms' : ''));
   BLJ_T0_ = now;
 }
 
@@ -490,6 +491,7 @@ function ujsPemicu_(now, jam) {
 
 // Hitung & kirim status semua siswa untuk ujian dekat (+ siswa yang punya akses personal dekat).
 function ujsSinkron_() {
+  bljWaktu_('');   // awal pengukuran (bisa dipanggil sendiri, di luar bljSinkron_)
   var mulai = Date.now(), dalam = function(ms) { return ms >= mulai - UJS.JENDELA_LALU_MS && ms <= mulai + UJS.JENDELA_DEPAN_MS; };
   var sasaran = {}, jumlah = 0, baris = [], kirim = 0, paket = [];
   UJS_MEMO_ = {};
@@ -653,6 +655,7 @@ function brsKirim_(baris, ms) {
 }
 
 function brsPemicu_(now, jam) {
+  bljWaktu_('');
   var sp = PropertiesService.getScriptProperties(), batas = now + BRS.BATAS_MS;
   // 1) siswa kotor
   var c = CacheService.getScriptCache(), kotor = [];
@@ -691,6 +694,7 @@ function berandaSiapkan() {
 // Aplikasi 1.92.8+ menandai materi dibuka di Supabase (bl_baca_tandai). Di sini tampungan diambil & digabung ke tab
 // "Baca Materi" sekaligus: baris ada -> terakhir dibuka & jumlah ditambah; baris baru -> ditambahkan.
 function bljBacaSalin_() {
+  bljWaktu_('');
   var r = bljRpc_('bl_baca_ambil', { p_maks: 1000 });
   if (r.kode !== 200 || !Array.isArray(r.data) || !r.data.length) return 0;
   var rows = r.data;
@@ -764,6 +768,7 @@ function bstHitung_(daftar, batasMs) {
 }
 
 function bstPemicu_(now, jam) {
+  bljWaktu_('');
   var sp = PropertiesService.getScriptProperties(), c = CacheService.getScriptCache(), kotor = [];
   try { kotor = JSON.parse(c.get(BST.KOTOR) || '[]'); } catch (e) {}
   var tgl = Utilities.formatDate(new Date(now), 'Asia/Jakarta', 'yyyy-MM-dd');
