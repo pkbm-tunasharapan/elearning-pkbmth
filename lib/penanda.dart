@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -45,18 +46,24 @@ class SnapshotMateri {
 
   final Map<String, ({int versi, List<dynamic> data})> _simpan = {};
 
+  /// true bila panggilan ambil() terakhir untuk mapel ini memperoleh snapshot basi dan pemanggil ini yang
+  /// ditunjuk server (satu per mapel per 60 detik) untuk menyegarkannya lewat Apps Script di latar belakang.
+  final Set<String> _segarkan = {};
+  bool perluSegar(String idMapel) => _segarkan.remove(idMapel);
+
   Future<List<dynamic>?> ambil(String idMapel) async {
     if (kSupabaseUrl.isEmpty || kSupabaseKunciPublik.isEmpty || idMapel.isEmpty) return null;
     final lama = _simpan[idMapel];
     try {
       final r = await http
-          .post(Uri.parse('$kSupabaseUrl/rest/v1/rpc/materi_snapshot_baca'),
+          .post(Uri.parse('$kSupabaseUrl/rest/v1/rpc/materi_snapshot_baca2'),
               headers: {'apikey': kSupabaseKunciPublik, 'Content-Type': 'application/json'},
               body: jsonEncode({'p_id_mapel': idMapel, 'p_versi_klien': lama?.versi ?? 0}))
           .timeout(const Duration(seconds: 8));
       if (r.statusCode != 200) return null;
       final j = jsonDecode(r.body);
       if (j is! Map || j['sah'] != true) return null;
+      if (j['segarkan'] == true) _segarkan.add(idMapel);
       if (j['sama'] == true && lama != null) return lama.data;
       final data = j['data'], versi = j['versi'];
       if (data is! List || versi is! num) return null;
@@ -69,8 +76,16 @@ class SnapshotMateri {
 }
 
 /// Materi mapel untuk siswa: snapshot Supabase bila sah, selain itu Apps Script (jalur lama).
-Future<dynamic> ambilMateriSiswa(String idMapel, Future<dynamic> Function() jalurLama) async =>
-    (await SnapshotMateri.instance.ambil(idMapel)) ?? await jalurLama();
+/// Snapshot basi (hari yang sama) tetap ditampilkan; bila server menunjuk aplikasi ini, Apps Script dipanggil di latar
+/// belakang untuk menulis snapshot baru (jadi hanya satu siswa per mapel per menit yang memanggil Apps Script).
+Future<dynamic> ambilMateriSiswa(String idMapel, Future<dynamic> Function() jalurLama) async {
+  final d = await SnapshotMateri.instance.ambil(idMapel);
+  if (d == null) return await jalurLama();
+  if (SnapshotMateri.instance.perluSegar(idMapel)) {
+    unawaited(jalurLama().catchError((_) => null));
+  }
+  return d;
+}
 
 /// v1.92.0 (F2): riwayat jawaban siswa dibaca langsung dari Supabase (fungsi riwayat_baca) dengan
 /// "tanda belajar" dari respons login. Sesudah siswa sendiri mengirim jawaban/absensi/ujian, jalur lama

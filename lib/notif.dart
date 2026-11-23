@@ -148,10 +148,21 @@ class Notif with WidgetsBindingObserver {
       final siswa = id.startsWith('siswa|');
       if (!siswa && Sesi.instance.isDinas) return;
       // v1.92.0: tanya Supabase dulu; bila pasti tidak ada chat/nilai/referral baru, Apps Script tidak dipanggil.
-      if (sejak > 0 && sejakNilai > 0 && await Penanda.instance.segarkan() &&
-          takAdaBaru(Penanda.instance.semua, {'chat': sejak, 'nv': sejakNilai, 'rf': sejak})) {
-        _kosong++;
-        return;
+      if (sejak > 0 && sejakNilai > 0 && await Penanda.instance.segarkan()) {
+        final p = Penanda.instance.semua;
+        // penanda 'chat' berlaku untuk SELURUH sekolah: bila berubah, tanyakan dulu apakah ruang milik pengguna ini
+        // sendiri yang punya pesan baru (Supabase), agar obrolan rombel lain tidak memicu panggilan Apps Script.
+        var chatSepi = takAdaBaru(p, {'chat': sejak});
+        if (!chatSepi) {
+          final r = siswa
+              ? await rpcBelajar('ruang_ada_baru', {'p_tanda': teks(SesiSiswa.instance.data['tandaBelajar']), 'p_sejak': sejak})
+              : await rpcBelajar('ruang_ada_baru_staf', {'p_tanda': await TandaStaf.ambil(Sesi.instance.token), 'p_sejak': sejak});
+          chatSepi = r != null && r['baru'] == false;
+        }
+        if (chatSepi && takAdaBaru(p, {'nv': sejakNilai, 'rf': sejak})) {
+          _kosong++;
+          return;
+        }
       }
       // Pemeriksaan pertama hanya menandai titik awal (server tidak mengembalikan apa pun bila sejak = 0).
       final h = peta(siswa
