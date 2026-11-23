@@ -52,8 +52,20 @@ function onWajib_(token, peran) {
   return p;
 }
 
+// Peran dasar asli (sebelum izin tambahan menjalankan pengguna sebagai peran pelaksana, mis. Tutor -> Admin).
+function onDasar_(p) { return p.peranDasarAsli || p.peranAsli || p.peran; }
+
+// Cakupan mapel: null = semua (pimpinan: Admin/Superadmin/KS/Koordinator); selain itu hanya mapel ampuan pengguna (enrollment).
+function onCakupan_(p) {
+  if (ON.PERAN_LIHAT.indexOf(onDasar_(p)) >= 0) return null;   // Admin, Superadmin, KS, Koordinator: semua mapel
+  var boleh = {};
+  bacaEnrollment_().forEach(function(e) { if (e.idPengguna === p.id) boleh[e.idMapel] = true; });
+  return boleh;
+}
+
 // Jawaban diskusi yang belum dinilai dan sudah menunggu lebih dari N hari, dikelompokkan per diskusi.
-function onKandidat_(hari) {
+// saring: null = semua mapel; {idMapel: true} = hanya mapel itu (tutor dengan izin Penilaian Otomatis).
+function onKandidat_(hari, saring) {
   var sh = getSheet(CONFIG.SHEETS.JAWABAN);
   var v = sh.getDataRange().getValues();
   var out = { sh: sh, k: null, grup: [], baris: 0 };
@@ -79,6 +91,7 @@ function onKandidat_(hari) {
     if (!ms || ms > batas) continue; // waktu kirim tidak jelas atau belum lewat batas: tidak disentuh
     var idM = sTeks_(v[i][k.mapel]).trim();
     if (!mapel[idM]) continue; // mapel tidak aktif
+    if (saring && saring[idM] !== true) continue; // bukan mapel ampuan
     var idT = sTeks_(v[i][k.materi]).trim(), kunci = idM + '|' + idT;
     var g = grup[kunci];
     if (!g) {
@@ -115,21 +128,24 @@ function onRingkas_(c) {
 
 // ---------- API: pratinjau, jalankan, atur ----------
 function waAdminOtoNilaiPratinjau(token) {
-  onWajib_(token, ON.PERAN_JALANKAN);
+  var p = onWajib_(token, ON.PERAN_JALANKAN);
   var a = onAturan_();
-  var c = onKandidat_(a.hari);
+  var saring = onCakupan_(p);
+  var c = onKandidat_(a.hari, saring);
   var r = onRingkas_(c);
-  return { hari: a.hari, kkm: a.kkm, otomatis: a.otomatis, jam: ON.JAM_PEMICU, total: c.baris, jumlahDiskusi: c.grup.length, diskusi: r.diskusi, perTutor: r.perTutor, keterangan: ON.KET };
+  return { hari: a.hari, kkm: a.kkm, otomatis: a.otomatis, jam: ON.JAM_PEMICU, mapelSaya: !!saring, total: c.baris, jumlahDiskusi: c.grup.length, diskusi: r.diskusi, perTutor: r.perTutor, keterangan: ON.KET };
 }
 
 function waAdminOtoNilaiJalankan(token) {
   var p = onWajib_(token, ON.PERAN_JALANKAN);
-  return onJalankan_(p.nama + ' (' + p.peran + ')');
+  return onJalankan_(p.nama + ' (' + onDasar_(p) + ')', onCakupan_(p));
 }
 
 // d: {hari, otomatis}
 function waAdminOtoNilaiAtur(token, d) {
   var p = onWajib_(token, ON.PERAN_JALANKAN);
+  // pengaturan berlaku untuk semua mapel: hanya Admin/Superadmin asli
+  if (onCakupan_(p)) throw new Error('Pengaturan penilaian otomatis hanya dapat diubah Admin atau Superadmin.');
   d = d || {};
   var pr = PropertiesService.getScriptProperties();
   if (d.hari !== undefined) {
@@ -158,13 +174,13 @@ function pemicuOtoNilai() {
   }
 }
 
-function onJalankan_(oleh) {
+function onJalankan_(oleh, saring) {
   var a = onAturan_();
   var kunci = LockService.getScriptLock();
   kunci.waitLock(30000);
   try {
     ndPastikanKolom_(getSheet(CONFIG.SHEETS.JAWABAN));
-    var c = onKandidat_(a.hari);
+    var c = onKandidat_(a.hari, saring || null);
     if (!c.baris) return { dinilai: 0, diskusi: 0, poin: 0, kkm: a.kkm, hari: a.hari };
     var k = c.k, sh = c.sh;
     // kolom penilai/waktu bisa baru dibuat oleh ndPastikanKolom_: baca ulang header
