@@ -231,6 +231,17 @@ class Api {
     throw terakhir ?? Exception('Jawaban server tidak dapat diambil.');
   }
 
+  /// Galat tahap menyambung (sebelum data dikirim): aman diulang tanpa risiko tercatat dua kali.
+  static bool _belumTerkirim(Object e) {
+    if (e is TimeoutException) return false;
+    final s = '$e';
+    return s.contains('Network is unreachable') ||
+        s.contains('Failed host lookup') ||
+        s.contains('Connection refused') ||
+        s.contains('No route to host') ||
+        (s.contains('Connection failed') && !s.contains('abort'));
+  }
+
   ApiException _galat(String pesan, String kode, String fn, [Object? asal]) {
     final e = ApiException(pesan, kode: kode, fn: fn, detail: asal == null ? '' : '$asal');
     if (e.perluDilapor) onGalat?.call(e);
@@ -260,11 +271,22 @@ class Api {
       } else {
         final client = http.Client();
         try {
-          final req = http.Request('POST', uri)
-            ..followRedirects = false
-            ..headers['Content-Type'] = 'text/plain;charset=utf-8'
-            ..body = body;
-          final streamed = await client.send(req).timeout(batas);
+          // Jaringan HP putus sesaat (pindah WiFi/data, sinyal hilang): permintaan BELUM terkirim,
+          // jadi aman dicoba ulang otomatis (maks. 3 kali: jeda 2, 4, 6 detik) sebelum memunculkan E101.
+          late http.StreamedResponse streamed;
+          for (var coba = 0;; coba++) {
+            final req = http.Request('POST', uri)
+              ..followRedirects = false
+              ..headers['Content-Type'] = 'text/plain;charset=utf-8'
+              ..body = body;
+            try {
+              streamed = await client.send(req).timeout(batas);
+              break;
+            } catch (e) {
+              if (coba >= 3 || !_belumTerkirim(e)) rethrow;
+              await Future<void>.delayed(Duration(seconds: 2 * (coba + 1)));
+            }
+          }
           res = await http.Response.fromStream(streamed);
           var lompat = 0;
           while ((res.statusCode == 301 || res.statusCode == 302 || res.statusCode == 303 || res.statusCode == 307) && lompat < 5) {
