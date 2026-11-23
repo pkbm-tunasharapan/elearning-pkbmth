@@ -3,10 +3,27 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'chat.dart';
 import 'notif.dart';
+import 'penanda.dart';
 import 'session.dart';
 import 'siswa/sesi_siswa.dart';
 import 'theme.dart';
 import 'widgets.dart';
+
+/// Poll ruang obrolan tiap 4 detik: riwayat awal (dan cadangan) dari Apps Script, berikutnya pesan baru + daftar
+/// online dari Supabase (ruang_detak) agar 200 siswa di ruang obrolan tidak membebani Apps Script.
+Future<dynamic> Function(int) _pollCepat(Future<Map<String, dynamic>?> Function(int sejak) sb, Future<dynamic> Function(int sejak) lama) {
+  var awal = 0; // titik awal dari panggilan Apps Script pertama (ruang yang belum punya pesan tetap punya titik sejak)
+  return (sejak) async {
+    final s = sejak > 0 ? sejak : awal;
+    if (s > 0) {
+      final r = await sb(s);
+      if (r != null) return r;
+    }
+    final h = peta(await lama(sejak));
+    if (awal == 0) awal = angka(h['sekarangMs']) - 1000;
+    return h;
+  };
+}
 
 Future<void> _bukaRuang(NavigatorState nav, String kunci, Widget layar) async {
   final n = Notif.instance;
@@ -30,7 +47,10 @@ Future<void> bukaChatSiswa(NavigatorState nav, String kunci) {
       peranSaya: 'Siswa',
       pesanKosong: rombel ? 'Belum ada pesan. Sapa teman sekelas Anda!' : 'Belum ada pesan di obrolan ini. Tanyakan sesuatu ke tutor atau teman sekelas.',
       petunjuk: rombel ? 'Tulis pesan untuk teman satu rombel...' : 'Tulis pesan untuk kelas dan tutor mapel ini...',
-      poll: (sejak) => Api.instance('waRuangPoll', [s.nama, s.idRombel, kunci, sejak]),
+      poll: _pollCepat(
+        (sejak) => rpcBelajar('ruang_detak', {'p_tanda': teks(s.data['tandaBelajar']), 'p_kunci': kunci, 'p_sejak': sejak}),
+        (sejak) => Api.instance('waRuangPoll', [s.nama, s.idRombel, kunci, sejak]),
+      ),
       kirim: (t) => Api.instance('waRuangKirim', [s.nama, s.idRombel, kunci, t]),
     ),
   );
@@ -51,7 +71,10 @@ Future<void> bukaChatStaf(NavigatorState nav, String kunci, {String namaRombel =
       pesanKosong: staf
           ? 'Belum ada pesan. Mulai obrolan dengan sesama tutor dan admin.'
           : 'Belum ada pesan. Obrolan ini hanya untuk siswa kelas${namaRombel.isEmpty ? '' : ' $namaRombel'}, tutor mapel, dan admin.',
-      poll: (sejak) => Api.instance('waStafRuangPoll', [s.token, kunci, sejak]),
+      poll: _pollCepat(
+        (sejak) async => rpcBelajar('ruang_detak_staf', {'p_tanda': await TandaStaf.ambil(s.token), 'p_kunci': kunci, 'p_sejak': sejak}),
+        (sejak) => Api.instance('waStafRuangPoll', [s.token, kunci, sejak]),
+      ),
       kirim: (t) => Api.instance('waStafRuangKirim', [s.token, kunci, t]),
     ),
   );

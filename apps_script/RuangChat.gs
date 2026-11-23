@@ -156,6 +156,8 @@ function kirimRuang_(kunci, nama, peran, pesan) {
   }
   var now = new Date();
   getSheet(CONFIG.SHEETS.CHAT).appendRow([kunci, nama, teks, now, peran]);
+  // Salinan di Supabase: aplikasi membaca pesan baru & daftar online dari sana (ruang_detak), tidak lagi tiap 4 detik ke sini.
+  try { bljRpc_('ruang_pesan_tambah', { p_ruang: String(kunci), p_nama: String(nama), p_pesan: teks, p_ms: now.getTime(), p_peran: String(peran || 'Siswa') }); } catch (eSb) {}
   kcpTanda_('chat', now.getTime());   // v1.42.0: penanda untuk jalur cepat pemeriksaan
   tandaiHadirRuang_(kunci, nama, peran);
   return { sukses: true, waktu: now.getTime() };

@@ -351,11 +351,25 @@ function bljPemicu() {
 // Kiriman siswa yang masuk lewat Supabase (jawaban diskusi, absensi) disalin ke tab Jawaban/Absensi supaya alat staf
 // tetap berjalan. Supabase "membangunkan" fungsi ini lewat pg_net sesaat setelah kiriman (tanpa data; antrean ditarik
 // dari sini dengan rahasia), dan bljPemicu memprosesnya juga sebagai cadangan. Penulisan idempoten (kunci baris sama).
+// Supabase membangunkan paling banyak sekali per 20 detik (private.antrean_bangunkan), jadi satu eksekusi ini terus
+// menguras antrean sampai +-25 detik tanpa isian baru (maks. 4 menit). Panggilan yang datang saat pengurasan berjalan
+// hanya memasang penanda 'lagi' agar putaran berikutnya tidak berhenti sebelum memeriksa ulang.
 function waSbAntrean() {
   var c = CacheService.getScriptCache();
-  if (c.get('blj_antrean')) return { jalan: true };
-  c.put('blj_antrean', '1', 120);
-  try { return { diproses: bljAntreanProses_() }; } finally { c.remove('blj_antrean'); }
+  if (c.get('blj_antrean')) { c.put('blj_antrean_lagi', '1', 300); return { jalan: true }; }
+  c.put('blj_antrean', '1', 300);
+  var total = 0, mulai = Date.now(), sepi = 0;
+  try {
+    while (Date.now() - mulai < 4 * 60000) {
+      c.remove('blj_antrean_lagi');
+      var n = bljAntreanProses_();
+      total += n;
+      if (n || c.get('blj_antrean_lagi')) { sepi = 0; continue; }
+      if (++sepi > 3) break;
+      Utilities.sleep(8000);
+    }
+  } finally { c.remove('blj_antrean'); }
+  return { diproses: total };
 }
 
 function bljAntreanProses_() {
