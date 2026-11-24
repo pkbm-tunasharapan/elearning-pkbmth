@@ -252,6 +252,8 @@ function aiPanggil_(metode, url, badan, opsi) {
   }
   var terakhir = null;
   var maks = (opsi && opsi.maks) || AI.MAKS_PERCOBAAN;
+  // v1.93.0: Gemini 500/503 (sibuk/galat internal) pada satu model -> percobaan berikutnya memakai model cadangan.
+  var cadangan = aiModelCadangan_(url), gagal5xx = [], terakhir5xx = null;
   for (var i = 0; i < maks; i++) {
     var resp = UrlFetchApp.fetch(url, param);
     var kode = resp.getResponseCode();
@@ -278,12 +280,42 @@ function aiPanggil_(metode, url, badan, opsi) {
       Utilities.sleep(Math.max(2, kuota.detik + 1) * 1000);
       continue;
     }
+    // model cadangan tidak tersedia untuk kunci ini: lewati, dan laporkan galat model utama (bukan 404 cadangan)
+    if (kode === 404 && gagal5xx.length) {
+      terakhir = terakhir5xx;
+      if (cadangan.length && i < maks - 1) { url = aiGantiModelUrl_(url, cadangan.shift()); continue; }
+      break;
+    }
     var sementara = (kode === 500 || kode === 502 || kode === 503 || kode === 504);
+    if (sementara) terakhir5xx = terakhir;
+    if (sementara) gagal5xx.push(aiModelDariUrl_(url) + ' ' + kode + ': ' + String((json && json.error && json.error.message) || teks || '').slice(0, 120));
     if (!sementara || i === maks - 1) break;
     if ((Date.now() - mulai) / 1000 > AI.MAKS_DETIK_TOTAL - 30) break;
-    Utilities.sleep(2500 * (i + 1));
+    if (cadangan.length) {
+      url = aiGantiModelUrl_(url, cadangan.shift());   // langsung coba model lain, tanpa menunggu lama
+      Utilities.sleep(1500);
+    } else {
+      Utilities.sleep(2500 * (i + 1));
+    }
+  }
+  if (gagal5xx.length) {
+    try { catat_('Sistem', '-', 'AI', 'AI galat server Gemini', gagal5xx.join(' | ').slice(0, 900), 'GAGAL'); } catch (eC) {}
   }
   throw new Error(aiPesanGalat_(terakhir, penanda));
+}
+
+// v1.93.0: model cadangan saat model utama sibuk (urutan: GEMINI_MODEL_CADANGAN, model Free, bawaan, gemini-flash-latest).
+function aiModelDariUrl_(url) { var m = /\/models\/([^:\/]+):/.exec(String(url)); return m ? m[1] : ''; }
+function aiGantiModelUrl_(url, model) { return String(url).replace(/\/models\/[^:\/]+:/, '/models/' + model + ':'); }
+function aiModelCadangan_(url) {
+  var kini = aiModelDariUrl_(url);
+  if (!kini) return [];
+  var out = [];
+  [aiProp_('GEMINI_MODEL_CADANGAN'), aiProp_(AI.PROP_MODEL), AI.MODEL_DEFAULT, 'gemini-flash-latest'].forEach(function(m) {
+    m = String(m || '').trim().toLowerCase();
+    if (m && m !== kini && out.indexOf(m) < 0 && /^gemini-[a-z0-9.\-]{2,50}$/.test(m)) out.push(m);
+  });
+  return out;
 }
 
 function aiPesanGalat_(g, penanda) {

@@ -236,7 +236,9 @@ Future<dynamic> panggilAi(
       if (k.jenis == 'kuota') {
         await tunggu('Kuota AI gratis sedang penuh (percobaan ${coba + 1} dari 3)', math.min(90, math.max(20, k.detik + 3)));
       } else {
-        await tunggu('Server AI sedang sibuk (percobaan ${coba + 1} dari 5)', 15 * coba);
+        // v1.93.0: permintaan besar (buku utuh + banyak sesi) lebih sering ditolak saat server AI padat -> kecilkan juga
+        final kecil = kecilkan?.call() ?? '';
+        await tunggu('Server AI sedang sibuk (percobaan ${coba + 1} dari 5)${kecil.isEmpty ? '' : '; berikutnya lebih sedikit sesi per panggilan'}', 15 * coba);
       }
     }
   }
