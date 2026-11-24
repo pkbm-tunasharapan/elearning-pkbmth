@@ -41,8 +41,10 @@ if (typeof API_FLUTTER !== 'undefined' && API_FLUTTER && API_FLUTTER.TAMBAHAN) {
 // v1.93.0: data per semester (smt 1/2 tahun ajaran berjalan); tanpa argumen = semester aktif (perilaku lama).
 var KL_MEMO_ = {};
 function klData_(smtPilih) {
-  var per0 = nilPeriode_(), smt = smtPilih === 1 || smtPilih === 2 ? smtPilih : per0.smt;
-  if (KL_MEMO_[smt]) return KL_MEMO_[smt];
+  var kunci = smtPilih === 1 || smtPilih === 2 ? smtPilih : 'aktif';
+  if (KL_MEMO_[kunci]) return KL_MEMO_[kunci];
+  var per0 = nilPeriode_(), smt = kunci === 'aktif' ? per0.smt : kunci;
+  if (KL_MEMO_[smt]) return (KL_MEMO_[kunci] = KL_MEMO_[smt]);
   var per = smt === per0.smt ? per0 : nilPeriode_({ tahun: per0.tahun, semester: smt === 1 ? 'Ganjil' : 'Genap' });
   var at = nilAturan_(), cfg = taBaca_(), now = Date.now();
   var d = { per: per, periodeAktif: smt === per0.smt, at: at, cfg: cfg, syarat: Number(at.syaratHadir) || 80, hari: absHariIni_(), peta: hdrPetaBm_(), siswaBm: hdrSiswaBm_(),
@@ -87,7 +89,9 @@ function klData_(smtPilih) {
       }
     } catch (e4) {}
   }
-  return (KL_MEMO_[smt] = d);
+  KL_MEMO_[smt] = d;
+  if (d.periodeAktif) KL_MEMO_.aktif = d;
+  return d;
 }
 function klBatas_(d, ujian) { return ujian === 'UTS' ? Math.max(0, d.cfg.uts - 1) : d.cfg.sesiPerSemester; }
 function klAkhir_(d, idRombelSim) { var r = d.rb[idRombelSim]; return !!r && ujsKelasAkhir_(r.nama); }

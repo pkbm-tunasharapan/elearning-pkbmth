@@ -1188,14 +1188,14 @@ tes('kelayakan ujian: rumus absen A, ketuntasan per cakupan UTS/UAS, UPK kelas a
     const mkData = () => ({ per: { tahun: '2026/2027', semester: 'Ganjil', smt: 1 }, at: { blokir: true }, cfg: { uts: 4, sesiPerSemester: 18 }, syarat: 80, hari,
       peta: { kelas: { 'R12|MTK': [{ idMapel: 'M1', idRombel: 'BM1', aktif: true }] }, aktif: { 'R12|MTK': true } }, siswaBm: { BM1: [{ idRombel: 'BM1', nama: 'Ani', nisn: '' }] },
       item, baca, jawab, hk: {}, nmMapel: { MTK: 'Matematika' }, rb: { R12: { nama: 'C12' } }, sesiSt: {} });
-    g.KL_MEMO_ = mkData();
+    g.KL_MEMO_ = { aktif: mkData() };
     const c = { idRombel: 'BM1', nama: 'Ani' };
-    let h = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: true });
+    let h = g.klWb_(g.KL_MEMO_.aktif, w, c, ['R12|MTK'], { keu: true });
     sama([h.ujian.UTS.mapel[0].tuntas.persen, h.ujian.UAS.mapel[0].tuntas.persen], [100, 80], 'UTS sesi 1-3 tuntas, UAS 4/5');
     sama([h.ujian.UTS.status, h.ujian.UAS.status, h.ujian.UPK.status, h.ujian.UPK.mapel.length], ['Belum layak', 'Belum layak', 'Belum layak', 0], 'keuangan belum lunas; UPK tanpa akademik');
     sama(h.ujian.UTS.alasan, ['keuangan']);
-    sama(Object.keys(g.klWb_(g.KL_MEMO_, Object.assign({}, w, { idRombel: 'R11' }), c, ['R12|MTK'], { keu: true }).ujian), ['UTS', 'UAS'], 'bukan kelas akhir tanpa UPK');
-    const ht = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: false });
+    sama(Object.keys(g.klWb_(g.KL_MEMO_.aktif, Object.assign({}, w, { idRombel: 'R11' }), c, ['R12|MTK'], { keu: true }).ujian), ['UTS', 'UAS'], 'bukan kelas akhir tanpa UPK');
+    const ht = g.klWb_(g.KL_MEMO_.aktif, w, c, ['R12|MTK'], { keu: false });
     sama([Object.keys(ht.ujian), ht.ujian.UTS.status, ht.keu], [['UTS', 'UAS'], 'Layak', null], 'tutor: akademik saja');
     g.siswaDariSesi_ = () => ({ nama: 'Ani', idRombel: 'BM1' });
     g.ksWb_ = () => w;
@@ -1217,19 +1217,19 @@ tes('kelayakan ujian: rumus absen A, ketuntasan per cakupan UTS/UAS, UPK kelas a
     try { g.waStafKelayakanPutus('TB', { id: a.id, setuju: true, catatan: 'setuju' }); } catch (e) { galat = e.message; }
     sama(/Kepala Sekolah/.test(galat), true, 'bendahara tidak memutus');
     sama(g.waStafKelayakanPutus('TS', { id: a.id, setuju: true, catatan: 'Boleh ikut UTS' }).status, 'Disetujui');
-    g.KL_MEMO_ = mkData();
-    h = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: true });
+    g.KL_MEMO_ = { aktif: mkData() };
+    h = g.klWb_(g.KL_MEMO_.aktif, w, c, ['R12|MTK'], { keu: true });
     sama([h.ujian.UTS.status, h.ujian.UAS.status], ['Layak dengan catatan', 'Belum layak'], 'izin hanya untuk UTS');
     hari = '2026-11-21'; sisa = 100000;
-    g.KL_MEMO_ = mkData();
-    h = g.klWb_(g.KL_MEMO_, w, c, ['R12|MTK'], { keu: true });
+    g.KL_MEMO_ = { aktif: mkData() };
+    h = g.klWb_(g.KL_MEMO_.aktif, w, c, ['R12|MTK'], { keu: true });
     sama([h.ujian.UTS.status, notif.includes('kl_janji')], ['Belum layak', true], 'janji gugur');
     sama(g.izFitur_('waStafKelayakanDaftar'), 'kelayakanUjian');
     galat = '';
     try { g.waStafKelayakanPanggil('TT', { idWb: 'W1', pesan: 'Datang ke ruang guru' }); } catch (e) { galat = e.message; }
     sama(/Pemanggilan/.test(galat), true, 'tutor tidak bisa memanggil');
     sama(g.waStafKelayakanPanggil('TK', { idWb: 'W1', pesan: 'Datang ke ruang kurikulum Senin pukul 09.00' }).sukses, true);
-  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.KL_MEMO_ = null; }
+  } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.KL_MEMO_ = {}; }
 });
 
 // 38. batalkan jadwal mulai tanggal (v1.70.2)
