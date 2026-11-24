@@ -465,6 +465,13 @@ class _SusunKurScreenState extends State<SusunKurScreen> {
   late int _ukPeta = angka(d['perPeta'], 8), _ukBaca = angka(d['perBacaan'], 4), _ukSoal = angka(d['perSoal'], 8);
   final _sudahSmt = {1: 0, 2: 0};
 
+  // v1.93.0: bacaan dikerjakan 2 jalur sekaligus (sesi berbeda; dibatasi 2 agar kuota AI gratis per menit cukup).
+  // Jalur 0 sudah mulai menulis bacaan Semester 1 sementara rencana Semester 2 disusun.
+  static const _jalurBaca = 2;
+  int _bacaTerisi = 0;
+  final _sisaJalur = <String, int>{};
+  Future<void>? _bacaanLatar;
+
   @override
   void dispose() {
     _jam?.cancel();
@@ -552,12 +559,12 @@ class _SusunKurScreenState extends State<SusunKurScreen> {
     _atur(l, 'ok', '${_sudahSmt[smt]} sesi');
   }
 
-  Future<void> _bacaan(Langkah l) async {
-    var terisi = 0;
+  Future<void> _bacaanSatuJalur(Langkah l, Map<String, dynamic> jalur) async {
+    final kunci = '${jalur['smt'] ?? '*'}|${jalur['ke'] ?? '*'}';
     while (true) {
       final r = peta(await panggilAi(
         'waStafKurikulumBacaan',
-        () => [_t, widget.idMapel, _refKur.buku, _ukBaca],
+        () => [_t, widget.idMapel, _refKur.buku, _ukBaca, jalur],
         tunggu: _tunggu(l),
         kecilkan: () {
           if (_ukBaca > 1) {
@@ -567,16 +574,26 @@ class _SusunKurScreenState extends State<SusunKurScreen> {
           return '';
         },
       ));
-      terisi += angka(r['terisi']);
-      if (angka(r['sisa']) > 0) {
-        final total = terisi + angka(r['sisa']);
-        if (mounted) setState(() => l.frak = terisi / total);
-        _atur(l, 'jalan', '$terisi dari $total sesi selesai...');
-        continue;
-      }
-      _atur(l, 'ok', terisi > 0 ? '$terisi sesi ditulis' : 'Semua sesi sudah punya bacaan');
-      return;
+      _bacaTerisi += angka(r['terisi']);
+      _sisaJalur[kunci] = angka(r['sisa']);
+      final sisa = _sisaJalur.values.fold<int>(0, (a, b) => a + b);
+      if (mounted && _bacaTerisi + sisa > 0) setState(() => l.frak = (_bacaTerisi / (_bacaTerisi + sisa)).clamp(0, 0.99));
+      if (angka(r['sisa']) <= 0) return;
+      _atur(l, 'jalan', '$_bacaTerisi sesi selesai, $sisa lagi ($_jalurBaca jalur sekaligus)...');
     }
+  }
+
+  Future<void> _bacaan(Langkah l) async {
+    final latar = _bacaanLatar;
+    _bacaanLatar = null;
+    await Future.wait([
+      () async {
+        if (latar != null) await latar;   // jalur 0 Semester 1 yang sudah berjalan, lalu lanjut semua semester
+        await _bacaanSatuJalur(l, {'ke': 0, 'dari': _jalurBaca});
+      }(),
+      for (var k = 1; k < _jalurBaca; k++) _bacaanSatuJalur(l, {'ke': k, 'dari': _jalurBaca}),
+    ]);
+    _atur(l, 'ok', _bacaTerisi > 0 ? '$_bacaTerisi sesi ditulis' : 'Semua sesi sudah punya bacaan');
   }
 
   Future<void> _soal(Langkah l) async {
@@ -601,7 +618,10 @@ class _SusunKurScreenState extends State<SusunKurScreen> {
         _atur(l, 'jalan', '$terisi dari $total sesi selesai...');
         continue;
       }
-      _atur(l, 'ok', terisi > 0 ? '$terisi sesi disusun' : 'Semua sesi sudah punya bank soal');
+      // v1.93.0: sesi yang 2x gagal menghasilkan soal valid dilewati (tidak diulang terus); lengkapi lewat tombol Ubah
+      final lewat = daftar(r['dilewati']).map((e) => teks(e)).toList();
+      _atur(l, 'ok', '${terisi > 0 ? '$terisi sesi disusun' : 'Semua sesi sudah punya bank soal'}'
+          '${lewat.isEmpty ? '' : ' · dilewati (lengkapi manual): ${lewat.join(', ')}'}');
       return;
     }
   }
@@ -627,12 +647,19 @@ class _SusunKurScreenState extends State<SusunKurScreen> {
         _atur(x, 'ok', p.nama);
       }));
     }
+    final lBaca = _soalSaja ? null : Langkah('Menulis bacaan dan bank soal tiap sesi', bobot: _penuh ? 40 : 60, run: _bacaan);
     if (_penuh) {
       for (final smt in [1, 2]) {
-        l.add(Langkah('Menyusun rencana Semester $smt', bobot: 20, run: (x) => _peta(x, smt)));
+        l.add(Langkah('Menyusun rencana Semester $smt', bobot: 20, run: (x) async {
+          // v1.93.0: bacaan Semester 1 (jalur 0) mulai bersamaan dengan rencana Semester 2
+          if (smt == 2 && lBaca != null && _bacaanLatar == null) {
+            _bacaanLatar = _bacaanSatuJalur(lBaca, {'smt': 1, 'ke': 0, 'dari': _jalurBaca}).catchError((_) {});
+          }
+          await _peta(x, smt);
+        }));
       }
     }
-    if (!_soalSaja) l.add(Langkah('Menulis bacaan dan bank soal tiap sesi', bobot: _penuh ? 40 : 60, run: _bacaan));
+    if (lBaca != null) l.add(lBaca);
     l.add(Langkah('Menyusun bank soal ujian', bobot: _soalSaja ? 100 : 6, run: _soal));
     setState(() {
       _langkah = l;

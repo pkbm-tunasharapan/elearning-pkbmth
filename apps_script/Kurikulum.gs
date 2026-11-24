@@ -537,17 +537,28 @@ function kurPetaInti_(token, idMapel, refs, opsi) {
 }
 
 // ---------- tahap 1b: bacaan lengkap per sesi (4 sesi per panggilan) ----------
-function waStafKurikulumBacaan(token, idMapel, ref, maks) {
+// v1.93.0: jalur {ke, dari} (opsional): klien menjalankan beberapa panggilan sekaligus; tiap jalur hanya mengerjakan
+// sesi dengan (smt*100 + minggu) % dari === ke, jadi jalur tidak pernah menulis sesi yang sama.
+// opsi.smt (opsional): hanya sesi semester itu (bacaan Semester 1 bisa jalan sementara rencana Semester 2 disusun).
+function waStafKurikulumBacaan(token, idMapel, ref, maks, jalur) {
   if (typeof kurJagaUjian_ === 'function') kurJagaUjian_(idMapel);   // v1.83.3: bank terkunci saat ujian berlangsung
-  return aiLindungi_(token, function() { return kurBacaanInti_(token, idMapel, ref, maks); });
+  return aiLindungi_(token, function() { return kurBacaanInti_(token, idMapel, ref, maks, jalur); });
 }
 
-function kurBacaanInti_(token, idMapel, ref, maks) {
+function kurJalurCocok_(x, jalur) {
+  if (!jalur) return true;
+  if (jalur.smt && Number(jalur.smt) !== x.smt) return false;
+  var dari = parseInt(jalur.dari, 10), ke = parseInt(jalur.ke, 10);
+  if (!(dari > 1) || !(ke >= 0)) return true;
+  return (x.smt * 100 + x.minggu) % dari === ke % dari;
+}
+
+function kurBacaanInti_(token, idMapel, ref, maks, jalur) {
   var r = wajibMapel_(token, idMapel);
   aiWajibSiap_();
   var bukuList = kurDaftarRefBuku_(ref);
   var semua = kurBaca_(idMapel);
-  var kosong = semua.filter(function(x) { return x.bacaan.length < KUR.MIN_BACAAN; });
+  var kosong = semua.filter(function(x) { return x.bacaan.length < KUR.MIN_BACAAN && kurJalurCocok_(x, jalur); });
   if (!kosong.length) return { terisi: 0, sisa: 0, total: semua.length, soal: 0 };
   var banyak = Math.min(KUR.PER_BACAAN, Math.max(1, parseInt(maks, 10) || KUR.PER_BACAAN));
   var potong = kosong.slice(0, banyak);
@@ -607,13 +618,45 @@ function waStafKurikulumSoal(token, idMapel, maks) {
 function kurButuhSoal_(semua) {
   return semua.filter(function(x) { return x.bacaan.length >= KUR.MIN_BACAAN && x.bank.length < KUR.MIN_SOAL_BANK; });
 }
+// v1.93.0: sesi yang 2x berturut-turut tidak menghasilkan soal valid dilewati 6 jam (tidak diulang terus); lengkapi manual lewat Ubah.
+var KUR_SOAL_GAGAL_MAKS = 2;
+function kurSoalGagalKunci_(idMapel, id) { return 'kurSoalGagal|' + idMapel + '|' + id; }
+function kurSoalGagalBaca_(idMapel, ids) {
+  var c = CacheService.getScriptCache(), out = {};
+  try {
+    var m = c.getAll(ids.map(function(id) { return kurSoalGagalKunci_(idMapel, id); }));
+    ids.forEach(function(id) { out[id] = parseInt(m[kurSoalGagalKunci_(idMapel, id)], 10) || 0; });
+  } catch (e) {}
+  return out;
+}
+// Alasan soal mentah ditolak oleh kurBersihSoal_ (untuk Log Aktivitas).
+function kurSoalAlasanTolak_(daftar) {
+  var r = { mentah: 0, rujukan: 0, opsi: 0, kunci: 0 };
+  (Array.isArray(daftar) ? daftar : []).forEach(function(s) {
+    if (!s || typeof s !== 'object') return;
+    r.mentah++;
+    var masuk = s.opsi || {};
+    if (Array.isArray(masuk)) { var o2 = {}; masuk.forEach(function(t, i) { if (i < KM.HURUF_OPSI.length) o2[KM.HURUF_OPSI[i]] = t; }); masuk = o2; }
+    var opsi = {}, n = 0;
+    KM.HURUF_OPSI.forEach(function(h) { var t = aiTeks_(masuk[h], KM.MAKS_TEKS_OPSI); if (t) { opsi[h] = t; n++; } });
+    var kunci = String(s.kunci === undefined || s.kunci === null ? '' : s.kunci).trim().toUpperCase().charAt(0);
+    if (n < 4) r.opsi++;
+    else if (!opsi.hasOwnProperty(kunci)) r.kunci++;
+    else if (kurRujukTerlarang_(aiTeks_(s.pertanyaan, KM.MAKS_TEKS_SOAL), opsi)) r.rujukan++;
+  });
+  return r;
+}
 
 function kurSoalInti_(token, idMapel, maks) {
   var r = wajibMapel_(token, idMapel);
   aiWajibSiap_();
   var semua = kurBaca_(idMapel);
-  var butuh = kurButuhSoal_(semua);
-  if (!butuh.length) return { terisi: 0, sisa: 0, total: semua.length };
+  var butuhSemua = kurButuhSoal_(semua);
+  var gagalN = kurSoalGagalBaca_(idMapel, butuhSemua.map(function(x) { return x.smt + '-' + x.minggu; }));
+  var dilewati = butuhSemua.filter(function(x) { return gagalN[x.smt + '-' + x.minggu] >= KUR_SOAL_GAGAL_MAKS; });
+  var butuh = butuhSemua.filter(function(x) { return gagalN[x.smt + '-' + x.minggu] < KUR_SOAL_GAGAL_MAKS; });
+  var lewatTeks = dilewati.map(function(x) { return 'Semester ' + x.smt + ' sesi ' + x.minggu; });
+  if (!butuh.length) return { terisi: 0, sisa: 0, total: semua.length, dilewati: lewatTeks };
   var banyak = Math.min(KUR.PER_SOAL, Math.max(1, parseInt(maks, 10) || KUR.PER_SOAL));
   var potong = butuh.slice(0, banyak);
   if (hitung_('aip|' + r.p.id, 3600) > AI.MAKS_PROSES_PER_JAM) throw new Error('Terlalu banyak proses AI dalam satu jam. Coba lagi nanti.');
@@ -624,12 +667,26 @@ function kurSoalInti_(token, idMapel, maks) {
   }, { mulai: mulai, pikir: KUR.PIKIR, penanda: true });
   var pakai = aiRingkasPakai_(res, mulai);
   var j = aiParseJson_(aiTeksDariRespons_(res.json));
-  var bank = {};
+  var bank = {}, tolak = [];
   ((j && j.hasil) || []).forEach(function(h) {
     var id = kurIdSesi_(h);
     var b = kurBersihSoal_(h && h.soal);
     if (id && b.length >= KUR.MIN_SOAL_BANK) bank[id] = b;
+    else {
+      var a = kurSoalAlasanTolak_(h && h.soal);
+      tolak.push((id || '?') + ': ' + b.length + '/' + a.mentah + ' valid' + (a.rujukan ? ', ' + a.rujukan + ' merujuk buku' : '') +
+        (a.opsi ? ', ' + a.opsi + ' opsi kurang' : '') + (a.kunci ? ', ' + a.kunci + ' kunci salah' : '') + (id ? '' : ' (id tidak dikenali)'));
+    }
   });
+  // sesi yang diminta tetapi tidak menghasilkan bank: hitung gagal (dilewati setelah KUR_SOAL_GAGAL_MAKS kali)
+  try {
+    var cG = CacheService.getScriptCache();
+    potong.forEach(function(x) {
+      var id = x.smt + '-' + x.minggu;
+      if (bank[id]) cG.remove(kurSoalGagalKunci_(idMapel, id));
+      else cG.put(kurSoalGagalKunci_(idMapel, id), String((gagalN[id] || 0) + 1), 21600);
+    });
+  } catch (eG) {}
   var terisi = 0;
   var kunci = kmKunciUnik_();
   kunci.waitLock(20000);
@@ -641,12 +698,17 @@ function kurSoalInti_(token, idMapel, maks) {
       sh.getRange(x.baris, KUR.K.bank + 1).setValue(JSON.stringify(b));
       terisi++;
     });
-    kmCatat_(r.p, idMapel, 'AI bank soal kurikulum', terisi + ' sesi · ' + pakai, 'OK');
+    kmCatat_(r.p, idMapel, 'AI bank soal kurikulum', terisi + ' sesi · ' + pakai + (tolak.length ? ' · ditolak ' + tolak.join('; ') : ''), 'OK');
   } finally {
     kunci.releaseLock();
   }
-  if (!terisi) throw new Error('AI tidak menghasilkan soal yang lengkap untuk sesi ini. Coba lagi.');
-  return { terisi: terisi, sisa: Math.max(0, butuh.length - terisi), total: semua.length };
+  // v1.93.0: tidak melempar galat saat 0 sesi; sesi gagal dihitung dan dilewati setelah 2x, jadi klien tidak berputar terus
+  var sisaBaru = kurButuhSoal_(kurBaca_(idMapel)).length;
+  var gagalBaru = kurSoalGagalBaca_(idMapel, kurButuhSoal_(kurBaca_(idMapel)).map(function(x) { return x.smt + '-' + x.minggu; }));
+  var masihBisa = Object.keys(gagalBaru).filter(function(id) { return gagalBaru[id] < KUR_SOAL_GAGAL_MAKS; }).length;
+  var lewat = Object.keys(gagalBaru).filter(function(id) { return gagalBaru[id] >= KUR_SOAL_GAGAL_MAKS; })
+    .map(function(id) { var q = id.split('-'); return 'Semester ' + q[0] + ' sesi ' + q[1]; });
+  return { terisi: terisi, sisa: masihBisa, total: semua.length, dilewati: lewat, belum: sisaBaru };
 }
 
 // ---------- ubah satu sesi (tutor) ----------
