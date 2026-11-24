@@ -38,11 +38,14 @@ if (typeof API_FLUTTER !== 'undefined' && API_FLUTTER && API_FLUTTER.TAMBAHAN) {
 }
 
 // ---------- data (sekali baca per eksekusi) ----------
-var KL_MEMO_ = null;
-function klData_() {
-  if (KL_MEMO_) return KL_MEMO_;
-  var per = nilPeriode_(), at = nilAturan_(), cfg = taBaca_(), now = Date.now();
-  var d = { per: per, at: at, cfg: cfg, syarat: Number(at.syaratHadir) || 80, hari: absHariIni_(), peta: hdrPetaBm_(), siswaBm: hdrSiswaBm_(),
+// v1.93.0: data per semester (smt 1/2 tahun ajaran berjalan); tanpa argumen = semester aktif (perilaku lama).
+var KL_MEMO_ = {};
+function klData_(smtPilih) {
+  var per0 = nilPeriode_(), smt = smtPilih === 1 || smtPilih === 2 ? smtPilih : per0.smt;
+  if (KL_MEMO_[smt]) return KL_MEMO_[smt];
+  var per = smt === per0.smt ? per0 : nilPeriode_({ tahun: per0.tahun, semester: smt === 1 ? 'Ganjil' : 'Genap' });
+  var at = nilAturan_(), cfg = taBaca_(), now = Date.now();
+  var d = { per: per, periodeAktif: smt === per0.smt, at: at, cfg: cfg, syarat: Number(at.syaratHadir) || 80, hari: absHariIni_(), peta: hdrPetaBm_(), siswaBm: hdrSiswaBm_(),
     item: {}, baca: {}, jawab: {}, hk: {}, nmMapel: honNamaMapel_(), rb: honProgramRombel_(), sesiSt: {} };
   var aktifTa = String(cfg.label || '').trim() === String(per.tahun).trim() && per.smt >= 1 && per.smt <= cfg.jumlahSemester;
   if (aktifTa) {
@@ -84,7 +87,7 @@ function klData_() {
       }
     } catch (e4) {}
   }
-  return (KL_MEMO_ = d);
+  return (KL_MEMO_[smt] = d);
 }
 function klBatas_(d, ujian) { return ujian === 'UTS' ? Math.max(0, d.cfg.uts - 1) : d.cfg.sesiPerSemester; }
 function klAkhir_(d, idRombelSim) { var r = d.rb[idRombelSim]; return !!r && ujsKelasAkhir_(r.nama); }
@@ -280,38 +283,118 @@ function klCakupan_(p, r, d) {
   return { wb: function(w) { return !!unit[ubUnitEf_(w.id, lab)]; }, key: null };
 }
 
+// ---------- v1.93.0: pilihan ujian terpisah per semester ----------
+// UTS1/UAS1 = Semester 1, UTS2/UAS2 = Semester 2 (acuan UTS = sesi 1 s.d. sebelum sesi UTS; UAS = seluruh sesi semester itu),
+// UPK = kelas akhir (Semester 2, hanya keuangan).
+var KL_PILIHAN = [
+  { kode: 'UTS1', smt: 1, ujian: 'UTS', label: 'UTS Semester 1' },
+  { kode: 'UAS1', smt: 1, ujian: 'UAS', label: 'UAS Semester 1' },
+  { kode: 'UTS2', smt: 2, ujian: 'UTS', label: 'UTS Semester 2' },
+  { kode: 'UAS2', smt: 2, ujian: 'UAS', label: 'UAS Semester 2' },
+  { kode: 'UPK', smt: 2, ujian: 'UPK', label: 'UPK (kelas akhir)' }
+];
+// Bawaan: semester aktif; UTS bila sesi UTS semester itu belum berakhir, selain itu UAS.
+function klPilih_(kode) {
+  var x = KL_PILIHAN.filter(function(o) { return o.kode === String(kode || '').toUpperCase(); })[0];
+  if (x) return x;
+  var per = nilPeriode_(), cfg = taBaca_(), ujian = 'UAS';
+  try { if (taInfo_(cfg, per.smt, cfg.uts, Date.now()).status !== 'lewat') ujian = 'UTS'; } catch (e) {}
+  return KL_PILIHAN.filter(function(o) { return o.smt === per.smt && o.ujian === ujian; })[0] || KL_PILIHAN[0];
+}
+function klRentangTeks_(d, pl) {
+  if (pl.ujian === 'UPK') return 'Hanya menilai keuangan (tagihan jatuh tempo lunas).';
+  var b = klBatas_(d, pl.ujian), n = 0, akhir = 0, lewati = [];
+  for (var i = 1; i <= b; i++) { if (i === d.cfg.uts || i === d.cfg.uas) { if (i < b) lewati.push(i); continue; } n++; akhir = i; }
+  return 'Acuan ' + n + ' sesi belajar: sesi 1 s.d. ' + akhir + ' Semester ' + pl.smt + (lewati.length ? ' (sesi ' + lewati.join(', ') + ' = UTS, tidak dihitung)' : '') + '.';
+}
+
 // ---------- endpoint petugas ----------
-// q: {idRombel}. Hasil: daftar rombel dalam cakupan + penilaian siswa rombel terpilih (UTS, UAS, UPK).
+// q: {idRombel, ujian: 'UTS1'|'UAS1'|'UTS2'|'UAS2'|'UPK'}. Hasil: daftar rombel dalam cakupan + penilaian siswa rombel terpilih
+// untuk SATU jenis ujian. Tanpa q.ujian = pilihan bawaan (semester aktif).
 function waStafKelayakanDaftar(token, q) {
-  var p = stafDariToken_(token), r = klPeran_(p), d = klData_(), cak = klCakupan_(p, r, d);
   q = q || {};
+  var pl = klPilih_(q.ujian);
+  var p = stafDariToken_(token), r = klPeran_(p), d = klData_(pl.smt), cak = klCakupan_(p, r, d);
   var wbs = keuWbSemua_().filter(function(w) { return w.aktif && cak.wb(w); }), adaR = {};
   wbs.forEach(function(w) { adaR[w.idRombel] = (adaR[w.idRombel] || 0) + 1; });
-  var rombel = Object.keys(adaR).filter(function(id) { return klKeysRombel_(d, id, cak.key).length || r.lihatKeu; })
+  var rombel = Object.keys(adaR).filter(function(id) { return (klKeysRombel_(d, id, cak.key).length || r.lihatKeu) && (pl.ujian !== 'UPK' || klAkhir_(d, id)); })
     .map(function(id) { return { id: id, nama: d.rb[id] ? d.rb[id].nama : id, jumlah: adaR[id], akhir: klAkhir_(d, id) }; })
     .sort(function(a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); });
   var idR = rombel.some(function(x) { return x.id === String(q.idRombel || ''); }) ? String(q.idRombel) : (rombel[0] ? rombel[0].id : '');
   var keys = idR ? klKeysRombel_(d, idR, cak.key) : [];
   var siswa = wbs.filter(function(w) { return w.idRombel === idR; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); }).map(function(w) {
-    var h = klWb_(d, w, klCocok_(d, idR, keys, w), keys, { keu: r.lihatKeu });
-    if (!r.lihatKeu) Object.keys(h.ujian).forEach(function(u) { h.ujian[u].aktif = null; h.ujian[u].terakhir = null; });
+    var h = klWb_(d, w, klCocok_(d, idR, keys, w), keys, { keu: r.lihatKeu, ujian: [pl.ujian] });
+    if (!r.lihatKeu || !d.periodeAktif) Object.keys(h.ujian).forEach(function(u) { h.ujian[u].aktif = null; h.ujian[u].terakhir = null; });
     return h;
   });
   return { rombel: rombel, idRombel: idR, mapel: keys.map(function(k) { var km = k.split('|')[1]; return { kode: km, nama: d.nmMapel[km] || km }; }),
     siswa: siswa, syarat: d.syarat, tambahTm: KL.TAMBAH_TM * 100, periode: d.per.tahun + ' ' + d.per.semester, uts: d.cfg.uts,
+    ujian: pl.kode, ujianLabel: pl.label, rentang: klRentangTeks_(d, pl), periodeAktif: d.periodeAktif,
+    pilihan: KL_PILIHAN.map(function(o) { return { kode: o.kode, label: o.label }; }),
     peran: { keu: r.lihatKeu, aka: r.aka, keuAksi: r.keuAksi, putus: r.putus, panggil: r.panggil, tutor: r.tutor || r.ku }, pernyataan: KL.PERNYATAAN };
 }
 // Rincian satu siswa (item sesi yang belum tuntas, absensi, tagihan, riwayat permohonan).
-function waStafKelayakanSiswa(token, idWb) {
-  var p = stafDariToken_(token), r = klPeran_(p), d = klData_(), cak = klCakupan_(p, r, d);
+function waStafKelayakanSiswa(token, idWb, kodeUjian) {
+  var pl = kodeUjian ? klPilih_(kodeUjian) : null;
+  var p = stafDariToken_(token), r = klPeran_(p), d = klData_(pl ? pl.smt : undefined), cak = klCakupan_(p, r, d);
   var w = keuWbSemua_().filter(function(x) { return x.id === String(idWb || ''); })[0];
   if (!w || !cak.wb(w)) throw new Error('Siswa tidak ditemukan dalam cakupan Anda.');
   var keys = klKeysRombel_(d, w.idRombel, cak.key);
-  var h = klWb_(d, w, klCocok_(d, w.idRombel, keys, w), keys, { keu: r.lihatKeu, rinci: true });
-  h.riwayat = r.lihatKeu ? klAjuPeriode_(d).filter(function(x) { return x['ID WB'] === w.id; }).reverse().map(klAjuRingkas_) : [];
+  var h = klWb_(d, w, klCocok_(d, w.idRombel, keys, w), keys, { keu: r.lihatKeu, rinci: true, ujian: pl ? [pl.ujian] : undefined });
+  h.periodeAktif = d.periodeAktif;
+  if (pl) { h.ujianLabel = pl.label; h.rentang = klRentangTeks_(d, pl); }
+  if (!d.periodeAktif) Object.keys(h.ujian).forEach(function(u) { h.ujian[u].aktif = null; h.ujian[u].terakhir = null; h.ujian[u].bolehAju = false; });
+  h.riwayat = r.lihatKeu && d.periodeAktif ? klAjuPeriode_(d).filter(function(x) { return x['ID WB'] === w.id; }).reverse().map(klAjuRingkas_) : [];
   h.syarat = d.syarat;
   return h;
 }
+// v1.93.0: Laporan siswa BELUM LAYAK untuk satu jenis ujian, seluruh rombel dalam cakupan (dicetak global / per unit di aplikasi).
+// q: {ujian: 'UTS1'|'UAS1'|'UTS2'|'UAS2'|'UPK'}. Tutor & Koordinator Unit: tanpa keuangan (sesuai cakupan analisa).
+function waStafKelayakanLaporan(token, q) {
+  q = q || {};
+  var pl = klPilih_(q.ujian);
+  var p = stafDariToken_(token), r = klPeran_(p), d = klData_(pl.smt), cak = klCakupan_(p, r, d);
+  if (pl.ujian === 'UPK' && !r.lihatKeu) throw new Error('UPK hanya menilai keuangan; laporan UPK untuk Admin, Kepala Sekolah, Koordinator Kurikulum, dan Bendahara.');
+  var lab = ubPetaSiswa_(), pu = ubPetaUnit_(), unit = {}, perR = {}, rows = [];
+  keuWbSemua_().forEach(function(w) { if (w.aktif && cak.wb(w)) (perR[w.idRombel] = perR[w.idRombel] || []).push(w); });
+  Object.keys(perR).forEach(function(idR) {
+    if (pl.ujian === 'UPK' && !klAkhir_(d, idR)) return;
+    var keys = klKeysRombel_(d, idR, cak.key);
+    if (!keys.length && !r.lihatKeu) return;
+    perR[idR].forEach(function(w) {
+      var idU = '';
+      try { idU = ubUnitEf_(w.id, lab) || ''; } catch (eU) {}
+      var u = unit[idU] || (unit[idU] = { id: idU, nama: idU ? (pu[idU] ? pu[idU].nama : idU) : 'Tanpa unit', siswa: 0, belum: 0 });
+      u.siswa++;
+      var h = klWb_(d, w, klCocok_(d, idR, keys, w), keys, { keu: r.lihatKeu, ujian: [pl.ujian] }), x = h.ujian[pl.ujian];
+      if (!x || x.status !== 'Belum layak') return;
+      u.belum++;
+      var aju = d.periodeAktif && r.lihatKeu ? (x.aktif || x.terakhir) : null;
+      rows.push({
+        id: w.id, nisn: w.nisn || '', nama: w.nama, idRombel: idR, rombel: w.namaRombel || (d.rb[idR] ? d.rb[idR].nama : idR), unit: idU, namaUnit: u.nama,
+        akademik: !x.akaOk && !x.izinAka, keuangan: !x.keuOk && !x.izinKeu,
+        mapel: x.mapel.filter(function(m) { return !m.ok; }).map(function(m) {
+          return { nama: m.nama, tuntas: m.tuntas.persen, done: m.tuntas.done, total: m.tuntas.total, okTuntas: m.okTuntas, absen: m.absen.persen, okAbsen: m.okAbsen };
+        }),
+        sisa: h.keu ? h.keu.sisa : null, tagihan: h.keu ? h.keu.tagihan.map(function(t) { return t.nama + ' ' + honRp_(t.sisa); }) : [],
+        permohonan: aju ? aju.jenis + ' · ' + aju.status : ''
+      });
+    });
+  });
+  rows.sort(function(a, b) {
+    return a.namaUnit.localeCompare(b.namaUnit) || a.rombel.localeCompare(b.rombel, 'id', { numeric: true }) || a.nama.localeCompare(b.nama);
+  });
+  var kop = {};
+  try { kop = kwKop_(); } catch (eK) {}
+  try { catat_(p.peran, '-', p.nama, 'Laporan belum layak ujian', pl.label + ': ' + rows.length + ' siswa', 'OK'); } catch (eC) {}
+  return {
+    ujian: pl.kode, ujianLabel: pl.label, rentang: klRentangTeks_(d, pl), periode: d.per.tahun + ' Semester ' + pl.smt + ' (' + d.per.semester + ')',
+    syarat: d.syarat, tambahTm: KL.TAMBAH_TM * 100, keu: r.lihatKeu, siswa: rows,
+    unit: Object.keys(unit).map(function(k) { return unit[k]; }).sort(function(a, b) { return a.nama.localeCompare(b.nama); }),
+    pilihan: KL_PILIHAN.map(function(o) { return { kode: o.kode, label: o.label }; }), kop: kop, dibuat: absWaktu_(), oleh: p.nama
+  };
+}
+
 // Antrean permohonan (Admin, KS, Kurikulum, Bendahara). q: {status: 'aktif'|'semua'}
 function waStafKelayakanPermohonan(token, q) {
   var p = stafDariToken_(token), r = klPeran_(p);

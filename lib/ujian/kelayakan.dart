@@ -7,6 +7,7 @@ import '../penanda.dart';
 import '../session.dart';
 import '../siswa/sesi_siswa.dart';
 import '../widgets.dart';
+import 'laporan_kelayakan.dart';
 
 /// v1.70.0: Analisa Kelayakan Ujian (UTS, UAS, dan UPK untuk kelas akhir).
 /// Akademik: ketuntasan sesi & absensi (online + 10% x tatap muka) minimal sesuai syarat; keuangan: tagihan jatuh tempo lunas.
@@ -279,6 +280,7 @@ class KelayakanScreen extends StatefulWidget {
 
 class _KelayakanScreenState extends State<KelayakanScreen> {
   String _rombel = '';
+  String _ujian = '';   // v1.93.0: '' = bawaan server (semester aktif)
   String _tab = 'siswa';
   bool _hanyaBelum = false;
   int _v = 0;
@@ -286,8 +288,8 @@ class _KelayakanScreenState extends State<KelayakanScreen> {
   @override
   Widget build(BuildContext context) {
     return Muatan<Map<String, dynamic>>(
-      key: ValueKey('$_v|$_rombel'),
-      muat: () async => peta(await Api.instance('waStafKelayakanDaftar', [_t, {'idRombel': _rombel}], const Duration(minutes: 3))),
+      key: ValueKey('$_v|$_rombel|$_ujian'),
+      muat: () async => peta(await Api.instance('waStafKelayakanDaftar', [_t, {'idRombel': _rombel, 'ujian': _ujian}], const Duration(minutes: 3))),
       bangun: (context, d, segarkan) {
         final cs = Theme.of(context).colorScheme;
         final pr = peta(d['peran']);
@@ -297,14 +299,17 @@ class _KelayakanScreenState extends State<KelayakanScreen> {
         bool belum(Map<String, dynamic> s) => peta(s['ujian']).values.any((u) => teks(peta(u)['status']) == 'Belum layak');
         final tampil = _hanyaBelum ? siswa.where(belum).toList() : siswa;
         final bolehAju = pr['keu'] == true;
+        final kodeUjian = teks(d['ujian']);
+        final pilihan = daftar(d['pilihan']).map(peta).where((o) => pr['keu'] == true || teks(o['kode']) != 'UPK').toList();
         return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
           Card(
             color: cs.primaryContainer,
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Text('Periode ${teks(d['periode'])}. Syarat: ketuntasan sesi & absensi minimal ${_pct(d['syarat'])} '
-                  '(absensi = online + ${_pct(d['tambahTm'])} × persen tatap muka). UTS dihitung sampai sebelum sesi ${angka(d['uts'])}, UAS seluruh semester'
-                  '${pr['keu'] == true ? '; keuangan: tagihan jatuh tempo lunas. UPK (kelas akhir) hanya keuangan.' : '.'}'
+              child: Text('${teks(d['ujianLabel'])} · periode ${teks(d['periode'])}. ${teks(d['rentang'])}\n'
+                  'Syarat: ketuntasan sesi & absensi minimal ${_pct(d['syarat'])} (absensi = online + ${_pct(d['tambahTm'])} × persen tatap muka)'
+                  '${pr['keu'] == true ? '; keuangan: tagihan jatuh tempo lunas.' : '.'}'
+                  '${d['periodeAktif'] == false ? '\nSemester ini bukan semester berjalan: hanya analisa, tanpa permohonan.' : ''}'
                   '${pr['tutor'] == true ? '\nSebagai acuan pembinaan (tanpa keuangan).' : ''}'),
             ),
           ),
@@ -324,6 +329,28 @@ class _KelayakanScreenState extends State<KelayakanScreen> {
           if (_tab == 'aju' && bolehAju)
             _AntreanPermohonan(onBerubah: () => setState(() => _v++))
           else ...[
+            Row(children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('uj$kodeUjian'),
+                  isExpanded: true,
+                  initialValue: pilihan.any((o) => teks(o['kode']) == kodeUjian) ? kodeUjian : null,
+                  decoration: const InputDecoration(labelText: 'Jenis ujian', isDense: true),
+                  items: [for (final o in pilihan) DropdownMenuItem(value: teks(o['kode']), child: Text(teks(o['label'])))],
+                  onChanged: (v) => setState(() {
+                    _ujian = v ?? '';
+                    _rombel = '';
+                  }),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonalIcon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LaporanKelayakanScreen(ujian: kodeUjian))),
+                icon: const Icon(Icons.table_chart_outlined, size: 18),
+                label: const Text('Laporan'),
+              ),
+            ]),
+            const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               key: ValueKey('rb$idR'),
               isExpanded: true,
@@ -351,12 +378,13 @@ class _KelayakanScreenState extends State<KelayakanScreen> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Wrap(spacing: 6, runSpacing: 4, children: [
                       for (final e in peta(s['ujian']).entries)
-                        Lencana('${e.key}: ${teks(peta(e.value)['status'])}', warna: warnaKelayakan(context, teks(peta(e.value)['status']))),
+                        Lencana('${teks(d['ujianLabel'], e.key)}: ${teks(peta(e.value)['status'])}', warna: warnaKelayakan(context, teks(peta(e.value)['status']))),
                     ]),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () async {
-                    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => KelayakanSiswaStafScreen(idWb: teks(s['id']), nama: teks(s['nama']), peran: pr, pernyataan: teks(d['pernyataan']))));
+                    await Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => KelayakanSiswaStafScreen(idWb: teks(s['id']), nama: teks(s['nama']), peran: pr, pernyataan: teks(d['pernyataan']), ujian: kodeUjian)));
                     if (mounted) setState(() => _v++);
                   },
                 ),
@@ -370,8 +398,9 @@ class _KelayakanScreenState extends State<KelayakanScreen> {
 
 /// Rincian satu siswa untuk petugas + tindakan (panggil, form orang tua).
 class KelayakanSiswaStafScreen extends StatefulWidget {
-  const KelayakanSiswaStafScreen({super.key, required this.idWb, required this.nama, required this.peran, this.pernyataan = ''});
+  const KelayakanSiswaStafScreen({super.key, required this.idWb, required this.nama, required this.peran, this.pernyataan = '', this.ujian = ''});
   final String idWb;
+  final String ujian;   // v1.93.0: kode pilihan ujian (UTS1/UAS1/UTS2/UAS2/UPK); '' = semester aktif, semua ujian
   final String nama;
   final Map<String, dynamic> peran;
   final String pernyataan;
@@ -436,24 +465,27 @@ class _KelayakanSiswaStafScreenState extends State<KelayakanSiswaStafScreen> {
       ]),
       body: Muatan<Map<String, dynamic>>(
         key: ValueKey(_v),
-        muat: () async => peta(await Api.instance('waStafKelayakanSiswa', [_t, widget.idWb], const Duration(minutes: 2))),
+        muat: () async => peta(await Api.instance('waStafKelayakanSiswa', [_t, widget.idWb, if (widget.ujian.isNotEmpty) widget.ujian], const Duration(minutes: 2))),
         bangun: (context, d, segarkan) {
           final keu = d['keu'] == null ? null : peta(d['keu']);
           final riwayat = daftar(d['riwayat']).map(peta).toList();
+          final aktif = d['periodeAktif'] != false;
           return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
             Text('${teks(d['rombel'])}${d['akhir'] == true ? ' · kelas akhir' : ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
+            if (teks(d['rentang']).isNotEmpty)
+              Text('${teks(d['ujianLabel'])} · ${teks(d['rentang'])}${aktif ? '' : ' Bukan semester berjalan: tanpa permohonan.'}', style: const TextStyle(fontSize: 12.5)),
             const SizedBox(height: 6),
             for (final e in peta(d['ujian']).entries)
               Builder(builder: (context) {
                 final u = peta(e.value);
-                final belum = teks(u['status']) == 'Belum layak';
+                final belum = aktif && teks(u['status']) == 'Belum layak';
                 final aka = u['akaOk'] != true && u['izinAka'] != true, kurangKeu = u['keuOk'] != true && u['izinKeu'] != true;
                 return KartuKelayakan(u: u, keu: keu, syarat: angka(d['syarat'], 80), rinci: true, aksi: [
                   if (belum && aka && pr['aka'] == true)
                     OutlinedButton.icon(onPressed: () => _ortu(e.key, 'akademik', 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (kurikulum)')),
                   if (belum && kurangKeu && pr['keuAksi'] == true)
                     OutlinedButton.icon(onPressed: () => _ortu(e.key, 'keuangan', keu?['sisa'] ?? 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (keuangan)')),
-                  if (Sesi.instance.isAdmin && u['sudahAju'] == true && peta(u['aktif']).isEmpty)
+                  if (aktif && Sesi.instance.isAdmin && u['sudahAju'] == true && peta(u['aktif']).isEmpty)
                     OutlinedButton.icon(onPressed: () => _bukaUlang(e.key), icon: const Icon(Icons.lock_open_rounded, size: 18), label: const Text('Izinkan ajukan ulang')),
                 ]);
               }),
