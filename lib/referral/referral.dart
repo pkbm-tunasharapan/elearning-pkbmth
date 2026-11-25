@@ -777,6 +777,7 @@ class _DialogRekeningState extends State<_DialogRekening> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Rekening pembayaran cashback'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           SegmentedButton<String>(
@@ -784,11 +785,30 @@ class _DialogRekeningState extends State<_DialogRekening> {
             selected: {_metode},
             onSelectionChanged: (s) => setState(() => _metode = s.first),
           ),
-          const SizedBox(height: 10),
-          TextField(controller: _bank, decoration: InputDecoration(labelText: _metode == 'E-Wallet' ? 'E-Wallet (DANA, OVO, GoPay, ...)' : 'Nama bank', isDense: true)),
-          TextField(controller: _nomor, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: _metode == 'E-Wallet' ? 'Nomor e-wallet' : 'Nomor rekening', isDense: true)),
-          TextField(controller: _an, decoration: const InputDecoration(labelText: 'Atas nama', isDense: true)),
-          TextField(controller: _hp, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Nomor HP/WA (untuk konfirmasi)', isDense: true)),
+          const SizedBox(height: 16),
+          // v1.93.1: jarak antarkolom + label pendek (keterangan panjang dipindah ke helperText) agar tidak bertumpuk/terpotong
+          TextField(
+            controller: _bank,
+            decoration: InputDecoration(
+              labelText: _metode == 'E-Wallet' ? 'Nama e-wallet' : 'Nama bank',
+              helperText: _metode == 'E-Wallet' ? 'Mis. DANA, OVO, GoPay, ShopeePay' : 'Mis. BRI, BNI, Mandiri, BCA',
+              prefixIcon: Icon(_metode == 'E-Wallet' ? Icons.account_balance_wallet_outlined : Icons.account_balance_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nomor,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(labelText: _metode == 'E-Wallet' ? 'Nomor e-wallet' : 'Nomor rekening', prefixIcon: const Icon(Icons.numbers_rounded)),
+          ),
+          const SizedBox(height: 12),
+          TextField(controller: _an, decoration: const InputDecoration(labelText: 'Atas nama', prefixIcon: Icon(Icons.person_outline_rounded))),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _hp,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Nomor HP/WA', helperText: 'Untuk konfirmasi pembayaran', prefixIcon: Icon(Icons.phone_outlined)),
+          ),
         ]),
       ),
       actions: [
