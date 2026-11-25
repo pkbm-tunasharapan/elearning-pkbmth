@@ -31,7 +31,7 @@ var RL = {
   MAKS_PER_KODE_JAM: 15, MAKS_GLOBAL_JAM: 80,
   KAT_DIK: 'DIK',
   // v1.93.0: selama tahap beta, link status di e-mail & PDF mengarah ke web beta; ubah ke false saat rilis produksi
-  WEB_BETA: true,
+  WEB_BETA: false,
   HURUF: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 };
 (function() {

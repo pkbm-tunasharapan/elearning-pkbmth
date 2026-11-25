@@ -268,6 +268,8 @@ function waRefKonteks(token) {
 
 // berkas: {foto: dataUrl, ijazah, kk, ktp, ttd}
 function waRefDaftar(token, d, berkas) {
+  // v1.93.0: semua pendaftaran wajib lewat link referral pribadi promotor
+  throw new Error('Pendaftaran sekarang wajib lewat link referral. Perbarui aplikasi, lalu buka Referral → "Bagikan link saya" dan kirim link itu ke calon peserta.');
   var a = rfAkun_(token), o = rfBersihData_(d);
   berkas = berkas || {};
   RF.WAJIB_BERKAS.forEach(function(k) { if (!berkas[k]) throw new Error('Unggah ' + RF.BERKAS[k] + '.'); });
