@@ -305,7 +305,7 @@ class _KonfirmasiBayarState extends State<_KonfirmasiBayar> {
     final r = await jalankan(
         context,
         () async => peta(await Api.instance('waRlKonfirmasi',
-            [widget.kodeStatus, {'jumlah': j, 'metode': _metode, 'rekening': _rekening, 'bukti': _bukti, 'catatan': _catatan.text.trim()}], const Duration(minutes: 2))),
+            [widget.kodeStatus, {'jumlah': j, 'metode': _metode, 'rekening': _metode == 'Transfer' ? _rekening : '', 'bukti': _metode == 'Transfer' ? _bukti : null, 'catatan': _catatan.text.trim()}], const Duration(minutes: 2))),
         teksProses: 'Mengirim konfirmasi...');
     if (r.ok && mounted) {
       kabar(context, teks(r.data!['pesan'], 'Konfirmasi terkirim.'));
@@ -529,7 +529,7 @@ class _TinjauLinkScreenState extends State<TinjauLinkScreen> {
                   title: const Text('Tanda tangan promotor *'),
                   subtitle: Text(_ttd == null ? 'Menyatakan berkas sudah diperiksa dan sesuai' : 'Sudah ditandatangani'),
                   onTap: () async {
-                    final png = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const PadTandaTangan()));
+                    final png = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const PadTandaTangan(judul: 'Tanda tangan promotor')));
                     if (png != null && mounted) setState(() => _ttd = png);
                   },
                 ),

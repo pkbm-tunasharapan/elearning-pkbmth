@@ -30,6 +30,8 @@ var RL = {
   JATUH_TEMPO_DAFTAR_HARI: 7,
   MAKS_PER_KODE_JAM: 15, MAKS_GLOBAL_JAM: 80,
   KAT_DIK: 'DIK',
+  // v1.93.0: selama tahap beta, link status di e-mail & PDF mengarah ke web beta; ubah ke false saat rilis produksi
+  WEB_BETA: true,
   HURUF: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 };
 (function() {
@@ -251,7 +253,7 @@ function waRlKonfirmasi(kodeStatus, d) {
     if (!d.bukti) throw new Error('Unggah foto bukti transfer.');
     f = rfSimpanBerkas_(d.bukti, x['ID'] + '_konfirmasi_' + Utilities.formatDate(new Date(), absTz_(), 'yyyyMMdd_HHmmss'));
   }
-  kon.push({ id: 'KB-' + absId_().toUpperCase(), waktu: rfWaktu_(), jumlah: jml, metode: metode, rekening: String(d.rekening || '').slice(0, 120), bukti: f,
+  kon.push({ id: 'KB-' + absId_().toUpperCase(), waktu: rfWaktu_(), jumlah: jml, metode: metode, rekening: metode === 'Transfer' ? String(d.rekening || '').slice(0, 120) : '', bukti: f,
     catatan: String(d.catatan || '').slice(0, 200), status: 'Menunggu Promotor' });
   rfUbah_('DAFTAR', x._baris, { 'KONFIRMASI': JSON.stringify(kon), 'TAHAP': 'Konfirmasi Bayar', 'DIPERBARUI': rfWaktu_() });
   rfNotif_(x['PROMOTOR KUNCI'], 'Konfirmasi pembayaran: ' + x['NAMA'], honRp_(jml) + ' (' + metode + '). Periksa dan teruskan ke bendahara di menu Referral.');
@@ -452,13 +454,13 @@ function waStafRefVerifLinkPutus(token, id, setuju, catatan) {
     var tt = absBaca_(KEU.TAB_TAG, KEU.HDR_TAG), tahun = absSim_().tahun;
     var jtDaftar = Utilities.formatDate(new Date(Date.now() + RL.JATUH_TEMPO_DAFTAR_HARI * 86400000), absTz_(), 'yyyy-MM-dd');
     var idTagD = 'TAG-' + absId_().toUpperCase();
-    tt.sh.appendRow(absBaris_(tt, { 'ID TAGIHAN': idTagD, 'NAMA': ('Biaya Pendaftaran - ' + d.nama).slice(0, 120), 'KATEGORI': RF.KAT_DAF, 'JUMLAH': Number(x['BIAYA DAFTAR']),
+    tt.sh.appendRow(absBaris_(tt, { 'ID TAGIHAN': idTagD, 'NAMA': 'Biaya Pendaftaran (' + x['ID'] + ')', 'KATEGORI': RF.KAT_DAF, 'JUMLAH': Number(x['BIAYA DAFTAR']),
       'SASARAN': 'Siswa', 'NILAI SASARAN': idWb, 'JATUH TEMPO': jtDaftar, 'KETERANGAN': 'Pendaftaran referral ' + x['ID'] + ' · wajib lunas', 'TAHUN PELAJARAN': tahun,
       'AKTIF': true, 'DIBUAT OLEH': 'Sistem (pendaftaran ' + x['ID'] + ')', 'DIBUAT PADA': absWaktu_() }));
     var idTagP = '';
     if (Number(x['BIAYA PENDIDIKAN']) > 0) {
       idTagP = 'TAG-' + absId_().toUpperCase();
-      tt.sh.appendRow(absBaris_(tt, { 'ID TAGIHAN': idTagP, 'NAMA': ('Biaya Pendidikan - ' + d.nama).slice(0, 120), 'KATEGORI': RL.KAT_DIK, 'JUMLAH': Number(x['BIAYA PENDIDIKAN']),
+      tt.sh.appendRow(absBaris_(tt, { 'ID TAGIHAN': idTagP, 'NAMA': 'Biaya Pendidikan (' + x['ID'] + ')', 'KATEGORI': RL.KAT_DIK, 'JUMLAH': Number(x['BIAYA PENDIDIKAN']),
         'SASARAN': 'Siswa', 'NILAI SASARAN': idWb, 'JATUH TEMPO': x['JADWAL PENDIDIKAN'] || '', 'KETERANGAN': 'Pendaftaran referral ' + x['ID'] + ' · rencana bayar ' + (x['JADWAL PENDIDIKAN'] || '-'),
         'TAHUN PELAJARAN': tahun, 'AKTIF': true, 'DIBUAT OLEH': 'Sistem (pendaftaran ' + x['ID'] + ')', 'DIBUAT PADA': absWaktu_() }));
     }
@@ -561,7 +563,7 @@ function rlWbStatus_(idWb, status) {
 
 // ---------------- email & dokumen ----------------
 function rlLembaga_() { try { return kwKop_().nama || 'PKBM Tunas Harapan'; } catch (e) { return 'PKBM Tunas Harapan'; } }
-function rlLinkStatus_(x) { return rlLinkWeb_(false) + '?pendaftaran=' + x['KODE STATUS']; }
+function rlLinkStatus_(x) { return rlLinkWeb_(RL.WEB_BETA) + '?pendaftaran=' + x['KODE STATUS']; }
 function rlEmail_(x, judul, isi, lampiran) {
   var email = x['EMAIL'];
   if (!email || !emailValid_(email)) return;

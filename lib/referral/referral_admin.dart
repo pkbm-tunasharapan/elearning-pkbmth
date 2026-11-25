@@ -175,10 +175,11 @@ class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: SegmentedButton<int>(
               segments: [
-                const ButtonSegment(value: 3, label: Text('Lewat link'), icon: Icon(Icons.link_rounded)),
-                const ButtonSegment(value: 0, label: Text('Lama'), icon: Icon(Icons.how_to_reg_rounded)),
-                ButtonSegment(value: 1, label: Text('Penarikan${menungguTarik > 0 ? ' ($menungguTarik)' : ''}'), icon: const Icon(Icons.outbox_rounded)),
-                if (peran['admin'] == true) const ButtonSegment(value: 2, label: Text('Pengaturan'), icon: Icon(Icons.tune_rounded)),
+                // v1.93.0: 4 tombol di layar HP -> ikon + label singkat (label panjang terpotong-potong)
+                const ButtonSegment(value: 3, label: Text('Link'), tooltip: 'Pendaftaran lewat link', icon: Icon(Icons.link_rounded)),
+                const ButtonSegment(value: 0, label: Text('Lama'), tooltip: 'Pendaftaran lama', icon: Icon(Icons.how_to_reg_rounded)),
+                ButtonSegment(value: 1, label: Text('Tarik${menungguTarik > 0 ? ' ($menungguTarik)' : ''}'), tooltip: 'Penarikan saldo', icon: const Icon(Icons.outbox_rounded)),
+                if (peran['admin'] == true) const ButtonSegment(value: 2, label: Text('Atur'), tooltip: 'Pengaturan', icon: Icon(Icons.tune_rounded)),
               ],
               selected: {_tab},
               onSelectionChanged: (s) => setState(() => _tab = s.first),

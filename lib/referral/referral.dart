@@ -483,7 +483,8 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
 // ───────────────────────── tanda tangan ─────────────────────────
 
 class PadTandaTangan extends StatefulWidget {
-  const PadTandaTangan();
+  const PadTandaTangan({super.key, this.judul = 'Tanda tangan calon peserta'});
+  final String judul;
 
   @override
   State<PadTandaTangan> createState() => PadTandaTanganState();
@@ -508,7 +509,7 @@ class PadTandaTanganState extends State<PadTandaTangan> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tanda tangan calon peserta'), actions: [
+      appBar: AppBar(title: Text(widget.judul), actions: [
         TextButton(onPressed: () => setState(_garis.clear), child: const Text('Ulangi')),
       ]),
       body: Column(children: [
