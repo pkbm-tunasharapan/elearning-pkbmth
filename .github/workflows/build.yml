@@ -47,7 +47,7 @@ jobs:
 
       # Tes otomatis: bila satu tes gagal, APK tidak dibuat dan tidak dirilis.
       - name: Tes backend Apps Script
-        run: node tool/tes_backend.js
+        run: node tool/tes_backend.js && node tool/tes_referral_link.js
 
       - name: Tes aplikasi
         run: flutter test

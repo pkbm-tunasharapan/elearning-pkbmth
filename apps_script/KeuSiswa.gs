@@ -156,6 +156,7 @@ function waStafTagihanTransferPutus(token, id, terima, catatan, akun) {
       if (catatan.length < 5) throw new Error('Tulis alasan penolakan (minimal 5 huruf).');
       ksTfUbah_(tf.t, x.baris, { 'STATUS': 'Ditolak', 'DIPROSES OLEH': p.nama, 'DIPROSES PADA': rfWaktu_(), 'CATATAN': catatan });
       catat_(p.peran, '-', p.nama, 'Tolak transfer tagihan', x.id + ' ' + x.nama + ': ' + catatan, 'OK');
+      if (typeof rlSetelahTolak_ === 'function') rlSetelahTolak_(x.id);   // v1.93.0
       npKirim_('transfer_ditolak', { judul: 'Bukti transfer ditolak', isi: honRp_(x.jumlah) + ': ' + catatan + '. Silakan kirim ulang atau bayar online.', aksi: 'tagihan_saya', siswa: [x.idWb] });   // v1.50.0: notifikasi
       return { sukses: true };
     }
@@ -175,6 +176,7 @@ function waStafTagihanTransferPutus(token, id, terima, catatan, akun) {
     catat_(p.peran, w.idRombel, p.nama, 'Terima transfer tagihan', tag.nama + ' ' + w.nama + ' ' + x.jumlah, 'OK');
     npBayarDiterima_(w.id, tag.nama, x.jumlah, 'transfer diverifikasi');   // v1.50.0: notifikasi
     aqrSetelahBayar_(tag.id, w.id, 'Transfer', idTrx);   // v1.67.0
+    if (typeof rlSetelahBayar_ === 'function') rlSetelahBayar_(tag.id, w.id);   // v1.93.0: pendaftaran lewat link referral
     return { sukses: true, idTransaksi: idTrx };
   } finally { try { SpreadsheetApp.flush(); } catch (eF) {} lock.releaseLock(); }
 }

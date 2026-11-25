@@ -59,7 +59,7 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Tes backend Apps Script
-        run: node tool/tes_backend.js
+        run: node tool/tes_backend.js && node tool/tes_referral_link.js
 
       - name: Tes aplikasi
         run: flutter test

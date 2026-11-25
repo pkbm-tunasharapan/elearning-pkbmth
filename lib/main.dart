@@ -13,6 +13,7 @@ import 'pemberitahuan.dart';
 import 'pemeliharaan/sistem.dart';
 import 'profil.dart';
 import 'promosi.dart';
+import 'referral/daftar_link.dart';
 import 'ruang.dart';
 import 'screens/mapel_detail.dart';
 import 'siswa/mapel_siswa.dart';
@@ -145,6 +146,12 @@ class _AplikasiStafState extends State<AplikasiStaf> {
       home: ListenableBuilder(
         listenable: Listenable.merge([Sesi.instance, SesiSiswa.instance, ModeLihat.instance]),
         builder: (context, _) {
+          // v1.93.0: halaman publik pendaftaran lewat link referral (web): ?daftar=KODE / ?pendaftaran=KODESTATUS
+          if (kIsWeb) {
+            final kd = kodeDaftarDariUrl(), ks = kodeStatusDariUrl();
+            if (kd.isNotEmpty) return LinkPendaftaranScreen(kode: kd);
+            if (ks.isNotEmpty) return StatusPendaftaranScreen(kodeStatus: ks);
+          }
           final s = Sesi.instance;
           final ss = SesiSiswa.instance;
           if (!s.siap || !ss.siap) return const _Pembuka();

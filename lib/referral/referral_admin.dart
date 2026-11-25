@@ -6,6 +6,7 @@ import '../absensi/umum.dart';
 import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'daftar_link.dart';
 import 'referral.dart';
 
 String? get _t => Sesi.instance.token;
@@ -22,7 +23,7 @@ class ReferralAdminScreen extends StatefulWidget {
 
 class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
   int _v = 0;
-  int _tab = 0;
+  int _tab = 3;   // v1.93.0: bawaan tab pendaftaran lewat link
   String _saring = 'Semua';
   final _cari = TextEditingController();
 
@@ -174,7 +175,8 @@ class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: SegmentedButton<int>(
               segments: [
-                const ButtonSegment(value: 0, label: Text('Pendaftaran'), icon: Icon(Icons.how_to_reg_rounded)),
+                const ButtonSegment(value: 3, label: Text('Lewat link'), icon: Icon(Icons.link_rounded)),
+                const ButtonSegment(value: 0, label: Text('Lama'), icon: Icon(Icons.how_to_reg_rounded)),
                 ButtonSegment(value: 1, label: Text('Penarikan${menungguTarik > 0 ? ' ($menungguTarik)' : ''}'), icon: const Icon(Icons.outbox_rounded)),
                 if (peran['admin'] == true) const ButtonSegment(value: 2, label: Text('Pengaturan'), icon: Icon(Icons.tune_rounded)),
               ],
@@ -182,7 +184,7 @@ class _ReferralAdminScreenState extends State<ReferralAdminScreen> {
               onSelectionChanged: (s) => setState(() => _tab = s.first),
             ),
           ),
-          Expanded(child: switch (_tab) { 0 => _pendaftaran(d), 1 => _penarikan(d), _ => const _PengaturanReferral() }),
+          Expanded(child: switch (_tab) { 3 => AdminPendaftaranLinkScreen(token: _t ?? ''), 0 => _pendaftaran(d), 1 => _penarikan(d), _ => const _PengaturanReferral() }),
         ]);
       },
     );

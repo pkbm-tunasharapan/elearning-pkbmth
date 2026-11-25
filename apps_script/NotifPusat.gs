@@ -33,6 +33,9 @@ var NP = {
     { kode: 'pajak_belum_setor', nama: 'Potongan pajak belum disetor (tiap Senin)', grup: 'Keuangan', sasaran: 'peran', peran: ['Bendahara'] },
     { kode: 'ringkasan_keuangan', nama: 'Ringkasan keuangan mingguan (tiap Senin)', grup: 'Keuangan', sasaran: 'peran', peran: ['Kepala Sekolah', 'Superadmin'] },
     { kode: 'referral_baru', nama: 'Pendaftaran referral baru', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin', 'Front Office'] },
+    // v1.93.0: pendaftaran lewat link referral
+    { kode: 'referral_tinjau', nama: 'Pendaftaran referral menunggu persetujuan', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Bendahara'] },
+    { kode: 'referral_atur', nama: 'Siswa baru lunas pendaftaran (atur unit, rombel, label)', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin'] },
     { kode: 'referral_bukti', nama: 'Bukti bayar pendaftaran masuk', grup: 'Pendaftaran', sasaran: 'peran', peran: ['Admin', 'Front Office', 'Bendahara'] },
     // v1.53.0: hanya untuk pengguna yang bisa membuka menu Pengajuan Tutor (fitur)
     { kode: 'ujian_minta_buka', nama: 'Pengawas meminta kunci ujian dibuka', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Kepala Sekolah', 'Admin'], fitur: 'pengawasUjian' },

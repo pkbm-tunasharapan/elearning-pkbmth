@@ -5,6 +5,7 @@ import 'honor/honor.dart';
 import 'keuangan/keuangan.dart';
 import 'keuangan/va_custom.dart';
 import 'pemberitahuan.dart';
+import 'induk/induk.dart' show DataIndukScreen;
 import 'induk/pantauan_unit.dart';
 import 'jadwal/agenda_lembaga.dart';
 import 'referral/referral_admin.dart';
@@ -75,6 +76,8 @@ Future<void> bukaAksiNotif(BuildContext context, String aksi) async {
       if (!siswa) layar = const TransferTagihanScreen();
     case 'referral_admin':
       if (!siswa) layar = _bungkus('Kelola Referral', const ReferralAdminScreen());
+    case 'data_induk':   // v1.93.0: siswa baru lewat link referral lunas pendaftaran -> atur unit, rombel, label
+      if (!siswa) layar = _bungkus('Data Induk', const DataIndukScreen());
     case 'kotak_ujian':
       if (!siswa) layar = _bungkus('Kotak Ujian', const KotakUjianScreen());
     case 'rekap_nilai':

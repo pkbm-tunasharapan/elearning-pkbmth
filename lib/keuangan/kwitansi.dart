@@ -20,10 +20,13 @@ import '../widgets.dart';
 /// Penandatangan TETAP = penerbit pertama (nama + jabatan); cetak ulang oleh orang lain tidak mengganti nama. Stempel basah setelah dicetak.
 
 /// Ambil isi kwitansi dari server (nomor diterbitkan bila belum ada) lalu buka PDF-nya.
-Future<void> cetakKwitansi(BuildContext context, List<String> ids, {bool siswa = false}) async {
+Future<void> cetakKwitansi(BuildContext context, List<String> ids, {bool siswa = false, String? kodePendaftaran}) async {
   if (ids.isEmpty) return;
   final r = await jalankan(context, () async {
-    final d = peta(await Api.instance(siswa ? 'waSiswaKwitansi' : 'waStafKwitansi', [siswa ? SesiSiswa.instance.token : Sesi.instance.token, ids], const Duration(minutes: 2)));
+    // v1.93.0: pendaftar lewat link referral (belum punya akun) memakai kode status pendaftarannya
+    final d = peta(await (kodePendaftaran != null
+        ? Api.instance('waRlKwitansi', [kodePendaftaran, ids], const Duration(minutes: 2))
+        : Api.instance(siswa ? 'waSiswaKwitansi' : 'waStafKwitansi', [siswa ? SesiSiswa.instance.token : Sesi.instance.token, ids], const Duration(minutes: 2))));
     return pdfKwitansi(daftar(d['kwitansi']).map(peta).toList(), peta(d['kop']));
   }, teksProses: 'Menyusun kwitansi...');
   if (!r.ok || !context.mounted) return;

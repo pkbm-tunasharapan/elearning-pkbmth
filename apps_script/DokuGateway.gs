@@ -304,6 +304,7 @@ function gwCatatTagihan_(x, bayar, kanal, fee, total, adminBayar) {
   try { catat_('Sistem', '', 'Gateway otomatis', 'Bayar tagihan online', tag.nama + ' ' + x['NAMA'] + ' ' + bayar + (adminBayar ? ' + admin ' + adminBayar : ''), 'OK'); } catch (e) {}
   npBayarDiterima_(x['ID WB'], tag.nama, bayar, 'online ' + nmK);   // v1.50.0: notifikasi
   aqrSetelahBayar_(tag.id, x['ID WB'], 'Online ' + nmK, id);   // v1.67.0: aktivasi QR otomatis bila lunas
+  if (typeof rlSetelahBayar_ === 'function') rlSetelahBayar_(tag.id, x['ID WB']);   // v1.93.0
   npKirim_('bayar_online_masuk', { judul: 'Pembayaran online masuk ' + honRp_(bayar), isi: tag.nama + ' - ' + x['NAMA'] + ' (' + nmK + ').', aksi: 'keuangan', ref: 'gw|' + x['INVOICE'] });
   return [id, a, b].filter(String).join(',');
 }

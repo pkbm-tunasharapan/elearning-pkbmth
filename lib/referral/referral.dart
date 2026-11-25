@@ -10,6 +10,7 @@ import '../berkas.dart';
 import '../theme.dart';
 import '../keuangan/bayar_online.dart';
 import '../widgets.dart';
+import 'daftar_link.dart';
 
 String rpRef(dynamic n) {
   final v = (n is num ? n : num.tryParse('$n') ?? 0).round();
@@ -106,6 +107,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
         final at = peta(d['aturan']);
         final rek = d['rekening'] == null ? null : peta(d['rekening']);
         final daftarRef = daftar(d['daftar']).map(peta).toList();
+        final lewatLink = daftar(d['lewatLink']).map(peta).toList();
         final riwayat = daftar(d['riwayat']).map(peta).toList();
         final tarik = daftar(d['tarik']).map(peta).toList();
         return Stack(children: [
@@ -140,7 +142,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             const SizedBox(height: 12),
             SegmentedButton<int>(
               segments: [
-                ButtonSegment(value: 0, label: Text('Pendaftaran (${daftarRef.length})')),
+                ButtonSegment(value: 0, label: Text('Pendaftar (${lewatLink.length + daftarRef.length})')),
                 ButtonSegment(value: 1, label: Text('Riwayat saldo (${riwayat.length + tarik.length})')),
               ],
               selected: {_tab},
@@ -148,7 +150,24 @@ class _ReferralScreenState extends State<ReferralScreen> {
             ),
             const SizedBox(height: 8),
             if (_tab == 0) ...[
-              if (daftarRef.isEmpty) const Kosong(pesan: 'Belum ada peserta yang Anda daftarkan. Ketuk "Daftarkan peserta".', ikon: Icons.person_add_alt_1_rounded),
+              // v1.93.0: semua pendaftaran lewat link pribadi promotor
+              if (lewatLink.isEmpty && daftarRef.isEmpty)
+                const Kosong(pesan: 'Belum ada pendaftar. Ketuk "Bagikan link saya" lalu kirim link ke calon peserta.', ikon: Icons.link_rounded),
+              for (final x in lewatLink)
+                Card(
+                  child: ListTile(
+                    title: Text(teks(x['nama']), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text('${teks(x['id'])} · ${teks(x['program'])} · kelas ${teks(x['kelas'])} · ${teks(x['waktu'])}'
+                        '${angka(x['konfirmasiMenunggu']) > 0 ? '\nAda konfirmasi pembayaran yang perlu diteruskan' : ''}'
+                        '${teks(x['tahap']) == 'Menunggu Promotor' ? '\nPeriksa berkas & atur biaya' : ''}'),
+                    trailing: Lencana(teks(x['tahap']), warna: warnaTahap(context, teks(x['tahap']))),
+                    onTap: () async {
+                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TinjauLinkScreen(token: widget.token, id: teks(x['id']))));
+                      if (mounted) setState(() => _v++);
+                    },
+                  ),
+                ),
+              if (daftarRef.isNotEmpty) const JudulBagian('Pendaftaran lama (sebelum link)'),
               for (final x in daftarRef)
                 Card(
                   child: Padding(
@@ -197,7 +216,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
           Positioned(
             right: 16,
             bottom: 16,
-            child: FloatingActionButton.extended(heroTag: 'refDaftar', onPressed: () => _formulir(d), icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text('Daftarkan peserta')),
+            child: FloatingActionButton.extended(heroTag: 'refDaftar', onPressed: () => bagikanLinkSaya(context, widget.token), icon: const Icon(Icons.link_rounded), label: const Text('Bagikan link saya')),
           ),
         ]);
       },
@@ -214,10 +233,12 @@ const _tinggal = ['', 'Bersama orang tua', 'Wali', 'Kos', 'Asrama', 'Panti asuha
 const _transportasi = ['', 'Jalan kaki', 'Sepeda', 'Sepeda motor', 'Mobil pribadi', 'Angkutan umum', 'Ojek', 'Lainnya'];
 
 class FormPendaftaranRef extends StatefulWidget {
-  const FormPendaftaranRef({super.key, required this.token, required this.konteks, this.awal});
+  const FormPendaftaranRef({super.key, required this.token, required this.konteks, this.awal, this.kodeLink});
   final String token;
   final Map<String, dynamic> konteks;
   final Map<String, dynamic>? awal;
+  /// v1.93.0: diisi = formulir publik lewat link referral (tanpa login; biaya tidak ditampilkan).
+  final String? kodeLink;
 
   @override
   State<FormPendaftaranRef> createState() => _FormPendaftaranRefState();
@@ -225,7 +246,7 @@ class FormPendaftaranRef extends StatefulWidget {
 
 class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
   final Map<String, TextEditingController> _c = {};
-  final Map<String, String> _p = {'jk': '', 'agama': 'Islam', 'program': '', 'jenisTinggal': '', 'transportasi': '',
+  final Map<String, String> _p = {'jk': '', 'agama': 'Islam', 'program': '', 'kelasTujuan': '', 'jenisTinggal': '', 'transportasi': '',
     'ayahPendidikan': '', 'ayahPenghasilan': '', 'ibuPendidikan': '', 'ibuPenghasilan': '', 'waliPendidikan': '', 'waliPenghasilan': ''};
   final Map<String, String> _berkas = {};
   List<String> _sudahAda = [];
@@ -262,7 +283,7 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
 
   Future<void> _ambil(String k) async {
     if (k == 'ttd') {
-      final png = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const _PadTandaTangan()));
+      final png = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const PadTandaTangan()));
       if (png != null && mounted) setState(() => _berkas[k] = png);
       return;
     }
@@ -276,6 +297,7 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
       if (!_berkas.containsKey(k) && !_sudahAda.contains(k)) return kabar(context, 'Unggah ${_jenisBerkas[k] ?? k}.', galat: true);
     }
     final ubah = widget.awal != null;
+    if (widget.kodeLink != null) return _kirimLink(d);
     if (!await konfirmasi(context, ubah ? 'Simpan perubahan?' : 'Kirim pendaftaran?',
         'Pastikan data ${teks(d['nama'])} sudah benar. Petugas akan memverifikasi berkas, lalu Anda dapat melanjutkan pembayaran.', ya: 'Kirim')) {
       return;
@@ -291,6 +313,25 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
       kabar(context, ubah ? 'Data diperbarui dan dikirim ulang untuk verifikasi.' : 'Pendaftaran terkirim. Pantau statusnya di menu Referral.');
       Navigator.pop(context, true);
     }
+  }
+
+  bool get _kelasAkhir => const {'6', '9', '12'}.contains(_p['kelasTujuan']);
+
+  Future<void> _kirimLink(Map<String, dynamic> d) async {
+    if (teks(d['email']).isEmpty || !teks(d['email']).contains('@')) return kabar(context, 'Isi e-mail yang aktif. Pemberitahuan pendaftaran dikirim ke e-mail ini.', galat: true);
+    if (teks(d['kelasTujuan']).isEmpty) return kabar(context, 'Pilih kelas yang dituju.', galat: true);
+    if (_kelasAkhir && !_berkas.containsKey('rapor') &&
+        !await konfirmasi(context, 'Rapor belum diunggah', 'Untuk kelas akhir (6, 9, 12) sangat dianjurkan mengunggah rapor terakhir. Tetap kirim tanpa rapor?', ya: 'Tetap kirim')) {
+      return;
+    }
+    if (!mounted) return;
+    if (!await konfirmasi(context, 'Kirim pendaftaran?', 'Pastikan data ${teks(d['nama'])} sudah benar. Setelah dikirim, data diperiksa lalu Anda menerima kabar lewat e-mail.', ya: 'Kirim')) {
+      return;
+    }
+    if (!mounted) return;
+    final r = await jalankan(context, () async => peta(await Api.instance('waRlDaftar', [widget.kodeLink, d, _berkas], const Duration(minutes: 3))),
+        teksProses: 'Mengunggah data & berkas...');
+    if (r.ok && mounted) Navigator.pop(context, r.data);
   }
 
   Widget _t(String k, String label, {TextInputType? tipe, int? maks, String? bantu, bool huruf = false}) => Padding(
@@ -336,14 +377,17 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
     final program = daftar(widget.konteks['program']).map(peta).toList();
     final progOpsi = program.isEmpty ? ['Paket A', 'Paket B', 'Paket C'] : program.map((x) => teks(x['nama'])).toList();
     return Scaffold(
-      appBar: AppBar(title: Text(widget.awal == null ? 'Daftarkan peserta didik baru' : 'Ubah data pendaftaran')),
+      appBar: AppBar(
+          automaticallyImplyLeading: widget.kodeLink == null,
+          title: Text(widget.kodeLink != null ? 'Formulir pendaftaran' : (widget.awal == null ? 'Daftarkan peserta didik baru' : 'Ubah data pendaftaran'))),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
         Card(
           color: cs.primaryContainer.withValues(alpha: 0.4),
           child: ListTile(
             leading: const Icon(Icons.campaign_rounded),
-            title: Text('Promotor: ${teks(widget.konteks['nama'])}', style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: const Text('Tercatat otomatis dari akun Anda.'),
+            title: Text(widget.kodeLink != null ? 'Direkomendasikan oleh ${teks(widget.konteks['promotor'])}' : 'Promotor: ${teks(widget.konteks['nama'])}',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(widget.kodeLink != null ? '${teks(widget.konteks['lembaga'], 'PKBM Tunas Harapan')} · isi data sesuai dokumen resmi.' : 'Tercatat otomatis dari akun Anda.'),
           ),
         ),
         const JudulBagian('Identitas calon peserta'),
@@ -366,6 +410,14 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
         ),
         _pilih('agama', 'Agama', _agama),
         _pilih('program', 'Program / paket yang dituju *', progOpsi),
+        if (widget.kodeLink != null) ...[
+          _pilih('kelasTujuan', 'Kelas yang dituju *', [for (final k in daftar(widget.konteks['kelas']).map(peta)) '${k['kelas']}']),
+          if (_kelasAkhir)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text('Kelas akhir: mohon unggah rapor terakhir di bagian Berkas.', style: TextStyle(fontSize: 12.5, color: cs.primary, fontWeight: FontWeight.w600)),
+            ),
+        ],
         _t('sekolahAsal', 'Sekolah asal'),
         _t('kebutuhanKhusus', 'Kebutuhan khusus (kosongkan bila tidak ada)'),
         const JudulBagian('Alamat & kontak'),
@@ -383,7 +435,7 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
         _pilih('jenisTinggal', 'Jenis tinggal', _tinggal),
         _pilih('transportasi', 'Alat transportasi', _transportasi),
         _t('hp', 'Nomor HP / WhatsApp *', tipe: TextInputType.phone, maks: 16),
-        _t('email', 'E-mail', tipe: TextInputType.emailAddress),
+        _t('email', widget.kodeLink != null ? 'E-mail aktif * (pemberitahuan pendaftaran)' : 'E-mail', tipe: TextInputType.emailAddress),
         const JudulBagian('Data keluarga'),
         _t('noKk', 'Nomor KK', tipe: TextInputType.number, maks: 16),
         Row(children: [
@@ -410,7 +462,7 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
                 _berkas.containsKey(e.key) || _sudahAda.contains(e.key) ? Icons.check_circle_rounded : (e.key == 'ttd' ? Icons.draw_rounded : Icons.upload_file_rounded),
                 color: _berkas.containsKey(e.key) || _sudahAda.contains(e.key) ? Colors.green : cs.outline,
               ),
-              title: Text('${e.value}${_wajibBerkas.contains(e.key) ? ' *' : ''}'),
+              title: Text('${e.value}${_wajibBerkas.contains(e.key) ? ' *' : (e.key == 'rapor' && _kelasAkhir ? ' (dianjurkan)' : '')}'),
               subtitle: Text(_berkas.containsKey(e.key) ? 'Siap diunggah' : (_sudahAda.contains(e.key) ? 'Sudah ada (ketuk untuk mengganti)' : (e.key == 'ttd' ? 'Tanda tangan di layar' : 'Foto dari kamera atau galeri'))),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => _ambil(e.key),
@@ -430,14 +482,14 @@ class _FormPendaftaranRefState extends State<FormPendaftaranRef> {
 
 // ───────────────────────── tanda tangan ─────────────────────────
 
-class _PadTandaTangan extends StatefulWidget {
-  const _PadTandaTangan();
+class PadTandaTangan extends StatefulWidget {
+  const PadTandaTangan();
 
   @override
-  State<_PadTandaTangan> createState() => _PadTandaTanganState();
+  State<PadTandaTangan> createState() => PadTandaTanganState();
 }
 
-class _PadTandaTanganState extends State<_PadTandaTangan> {
+class PadTandaTanganState extends State<PadTandaTangan> {
   final List<List<Offset>> _garis = [];
   Size _ukuran = Size.zero;
 

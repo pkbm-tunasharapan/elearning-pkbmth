@@ -245,7 +245,9 @@ function rfRekening_(kunci) {
 
 function waRefKonteks(token) {
   var a = rfAkun_(token), at = rfAturan_(), saldoRows = rfBaca_('SALDO');
-  var daftar = rfBaca_('DAFTAR').filter(function(x) { return x['PROMOTOR KUNCI'] === a.kunci; }).map(function(x) { return rfObj_(x, false); }).reverse();
+  var semuaD = rfBaca_('DAFTAR').filter(function(x) { return x['PROMOTOR KUNCI'] === a.kunci; });
+  var daftar = semuaD.filter(function(x) { return x['SUMBER'] !== 'Link'; }).map(function(x) { return rfObj_(x, false); }).reverse();
+  var lewatLink = typeof rlRingkas_ === 'function' ? semuaD.filter(function(x) { return x['SUMBER'] === 'Link'; }).map(function(x) { return rlRingkas_(x, false); }).reverse() : [];
   var riwayat = saldoRows.filter(function(s) { return s['PROMOTOR KUNCI'] === a.kunci; }).map(function(s) {
     return { waktu: s['WAKTU'], jenis: s['JENIS'], jumlah: Number(s['JUMLAH']) || 0, keterangan: s['KETERANGAN'] };
   }).reverse();
@@ -261,7 +263,7 @@ function waRefKonteks(token) {
   var ap = rfAturanPublik_(at);
   if (at.qrisFile) { try { var qb = DriveApp.getFileById(at.qrisFile).getBlob(); ap.qris = 'data:' + qb.getContentType() + ';base64,' + Utilities.base64Encode(qb.getBytes()); } catch (e3) {} }
   return { nama: a.nama, peran: a.peran, saldo: rfSaldo_(a.kunci, saldoRows), rekening: rek, aturan: ap, daftar: daftar, riwayat: riwayat, tarik: tarik,
-    program: program, berkasJenis: RF.BERKAS, berkasWajib: RF.WAJIB_BERKAS };
+    program: program, berkasJenis: RF.BERKAS, berkasWajib: RF.WAJIB_BERKAS, lewatLink: lewatLink };
 }
 
 // berkas: {foto: dataUrl, ijazah, kk, ktp, ttd}
@@ -473,7 +475,7 @@ function waStafRefAdmin(token, q) {
   if (!r.lihat) throw new Error('Peran Anda tidak dapat melihat data referral.');
   q = q || {};
   if (r.bayar) { try { rfPulihkanKas_(); } catch (e0) {} }
-  var semua = rfBaca_('DAFTAR').map(function(x) { return rfObj_(x, true); }).reverse();
+  var semua = rfBaca_('DAFTAR').filter(function(x) { return x['SUMBER'] !== 'Link'; }).map(function(x) { return rfObj_(x, true); }).reverse();   // v1.93.0: lewat link -> waStafRefVerifLinkDaftar
   var hitung = {};
   semua.forEach(function(x) { hitung[x.status] = (hitung[x.status] || 0) + 1; });
   var tarik = rfBaca_('TARIK').map(function(t) {

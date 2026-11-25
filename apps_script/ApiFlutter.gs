@@ -3792,12 +3792,13 @@ function keuWbSemua_() {
     var st = sTeks_(absNilai_(t, r, 'STATUS')).trim();
     var idR = sTeks_(absNilai_(t, r, 'ROMBEL')).trim();
     out.push({ id: id, nisn: sTeks_(absNilai_(t, r, 'NISN')).trim(), nama: sTeks_(absNilai_(t, r, 'NAMA WB')).trim(), idRombel: idR,
-      namaRombel: rb[idR] ? rb[idR].nama : idR, program: rb[idR] ? rb[idR].program : '', aktif: !st || st === 'Aktif' });
+      namaRombel: rb[idR] ? rb[idR].nama : idR, program: rb[idR] ? rb[idR].program : '', aktif: !st || st === 'Aktif', calon: st === 'Calon' });
   }
   return out;
 }
 function keuKena_(tag, w) {
-  if (!w.aktif) return false;
+  // v1.93.0: calon peserta (pendaftaran referral, belum lunas) hanya terkena tagihan yang menyebut ID-nya langsung
+  if (!w.aktif && !(w.calon && tag.sasaran === 'Siswa')) return false;
   if (tag.sasaran === 'Program') return w.program === tag.nilaiSasaran;
   if (tag.sasaran === 'Rombel') return w.idRombel === tag.nilaiSasaran;
   if (tag.sasaran === 'Siswa') return (',' + String(tag.nilaiSasaran).replace(/\s+/g, '') + ',').indexOf(',' + w.id + ',') >= 0;
@@ -3931,6 +3932,7 @@ function waStafTagihanBayar(token, d) {
   catat_(p.peran, w.idRombel, p.nama, 'Bayar tagihan', tag.nama + ' ' + w.nama + ' ' + jumlah, 'OK');
   npBayarDiterima_(w.id, tag.nama, jumlah, 'dicatat petugas');   // v1.50.0: notifikasi
   aqrSetelahBayar_(tag.id, w.id, 'Dicatat ' + p.nama, id);   // v1.67.0: tagihan aktivasi QR lunas -> QR aktif
+  if (typeof rlSetelahBayar_ === 'function') rlSetelahBayar_(tag.id, w.id);   // v1.93.0
   return { sukses: true, id: id, tanggal: tgl, jumlah: jumlah, sisa: row.sisa - jumlah, nama: w.nama, nisn: w.nisn, rombel: w.namaRombel, tagihan: tag.nama, petugas: p.nama, lembaga: nilLembaga_() };
 }
 // d: {idTagihan, idWb, jumlah, alasan}
