@@ -791,7 +791,7 @@ class _DialogRekeningState extends State<_DialogRekening> {
             controller: _bank,
             decoration: InputDecoration(
               labelText: _metode == 'E-Wallet' ? 'Nama e-wallet' : 'Nama bank',
-              helperText: _metode == 'E-Wallet' ? 'Mis. DANA, OVO, GoPay, ShopeePay' : 'Mis. BRI, BNI, Mandiri, BCA',
+              helperText: _metode == 'E-Wallet' ? 'Mis. DANA, OVO, GoPay' : 'Mis. BRI, BNI, Mandiri, BCA',
               prefixIcon: Icon(_metode == 'E-Wallet' ? Icons.account_balance_wallet_outlined : Icons.account_balance_outlined),
             ),
           ),
