@@ -243,13 +243,16 @@ function waStafNilaiUnggahPratinjau(token, d) {
     if (s === '') { kosong++; continue; }
     var n = Number(s);
     if (isNaN(n) || n < 0 || n > 100) { ditolak.push(w.nama + ': nilai "' + row[kNilai] + '" tidak sah (harus 0–100)'); continue; }
+    // v1.93.1: kehadiran di bawah syarat TIDAK lagi menolak nilai: tetap disimpan, tetapi disembunyikan dari siswa
+    // (Kartu Pencapaian) sampai kehadiran memenuhi syarat atau ada dispensasi KS.
+    var sembunyi = '';
     if (jenis !== 'Lainnya' && at.blokir) {
       var gh = hk.gabung(w.id);   // kehadiran gabungan TH.E-Course + tatap muka
-      if (gh.total && gh.persen < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, jenis)) { ditolak.push(w.nama + ': kehadiran ' + gh.persen + '% di bawah syarat'); continue; }
+      if (gh.total && gh.persen < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, jenis)) sembunyi = ' (kehadiran ' + gh.persen + '%: disimpan, tidak ditampilkan ke siswa)';
     }
     var nb = String(nilBulat_(n)), lama = (ada[id] || {}).nilai || '', ket = kKet >= 0 ? String(row[kKet] || '').slice(0, 200) : '';
     if (lama !== '' && Number(lama) === Number(nb) && ((ada[id] || {}).ket || '') === ket) { sama++; continue; }
-    ubah.push({ idWb: id, nama: w.nama, lama: lama, baru: nb, ket: ket });
+    ubah.push({ idWb: id, nama: w.nama + sembunyi, lama: lama, baru: nb, ket: ket, disembunyikan: !!sembunyi });
   }
   var kunci = Utilities.getUuid().replace(/-/g, '');
   CacheService.getScriptCache().put('nxl_' + kunci, JSON.stringify({ oleh: p.id, idRombel: kelas.idRombel, kodeMapel: kelas.kodeMapel, jenis: jenis, tahun: per.tahun, semester: per.semester, ubah: ubah }), NXL.CACHE_DETIK);

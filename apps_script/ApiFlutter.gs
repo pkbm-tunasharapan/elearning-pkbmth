@@ -3008,10 +3008,8 @@ function waStafNilaiInput(token, d) {
       if (s !== '') {
         var n = Number(s);
         if (isNaN(n) || n < 0 || n > 100) { ditolak.push(w.nama + ' (nilai tidak sah)'); return; }
-        if (at.blokir && d.jenis !== 'Lainnya') {
-          var gh = hk.gabung(w.id);   // v1.38.4: kehadiran gabungan TH.E-Course + tatap muka
-          if (gh.total && gh.persen < at.syaratHadir && !nilDisCari_(dis, w.id, kelas.idRombel, kelas.kodeMapel, d.jenis)) { ditolak.push(w.nama + ' (kehadiran ' + gh.persen + '%)'); return; }
-        }
+        // v1.93.1: kehadiran di bawah syarat tidak menolak nilai; nilai disimpan dan disembunyikan dari siswa
+        // (waSiswaPencapaian) sampai kehadiran memenuhi syarat atau ada dispensasi KS.
         s = String(nilBulat_(n));
       }
       var kunci = [w.id, kelas.idRombel, kelas.kodeMapel, d.jenis].join('|');
@@ -3205,7 +3203,8 @@ function nilRaporWb_(wb, q) {
   kelas.forEach(function(kl) {
     var x = nilRekapKelas_(k, kl).filter(function(y) { return y.idWb === wb.id; })[0];
     if (!x) return;
-    rows.push({ kode: kl.kodeMapel, nama: kl.namaMapel, diskusi: x.diskusi, uts: x.uts.nilai, uas: x.uas.nilai, akhir: x.akhir, predikat: x.predikat, tuntas: x.tuntas, deskripsi: nilDeskripsi_(kl.namaMapel, x.predikat), persenHadir: x.persen });
+    rows.push({ kode: kl.kodeMapel, nama: kl.namaMapel, diskusi: x.diskusi, uts: x.uts.nilai, uas: x.uas.nilai, akhir: x.akhir, predikat: x.predikat, tuntas: x.tuntas, deskripsi: nilDeskripsi_(kl.namaMapel, x.predikat), persenHadir: x.persen,
+      utsBoleh: x.uts.boleh !== false, uasBoleh: x.uas.boleh !== false });
   });
   var rb = honProgramRombel_()[idR] || { nama: idR, program: '' };
   var hd = k.rekapHadir[wb.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 };
@@ -3231,6 +3230,15 @@ function waSiswaPencapaian(token, q) {
   if (!wb) throw new Error('Data Anda belum terhubung dengan Data Induk sekolah, jadi nilai belum bisa ditampilkan. Hubungi admin.');
   var d = nilWbDetail_(wb.id) || { id: wb.id, nisn: wb.nisn, nama: wb.nama, idRombel: simR };
   var h = nilRaporWb_(d, per);
+  // v1.93.1: nilai UTS/UAS siswa yang kehadirannya di bawah syarat (tanpa dispensasi) tidak ditampilkan; nilai akhir ikut disembunyikan
+  h.mapel = h.mapel.map(function(m) {
+    if (m.utsBoleh && m.uasBoleh) return m;
+    var o = JSON.parse(JSON.stringify(m));
+    if (!m.utsBoleh) o.uts = null;
+    if (!m.uasBoleh) o.uas = null;
+    o.akhir = null; o.predikat = ''; o.tuntas = null;
+    return o;
+  });
   var mapel = h.mapel, n = 0, jml = 0, tuntas = 0;
   mapel.forEach(function(m) { if (m.akhir !== null && m.akhir !== undefined && m.akhir !== '') { n++; jml += Number(m.akhir) || 0; if (m.tuntas) tuntas++; } });
   var out = {
