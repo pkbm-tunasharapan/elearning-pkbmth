@@ -456,6 +456,16 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
                         ),
                     ]),
                   ),
+                  // v1.93.3: salin token untuk ditempel ke grup WhatsApp / papan pengumuman
+                  if (dibuka)
+                    IconButton(
+                      tooltip: 'Salin token',
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: teks(sl['token'])));
+                        if (context.mounted) kabar(context, 'Token ${teks(sl['token'])} disalin.');
+                      },
+                      icon: const Icon(Icons.copy_rounded),
+                    ),
                   if (dibuka) IconButton(tooltip: 'Ganti token', onPressed: _gantiToken, icon: const Icon(Icons.autorenew_rounded)),
                 ]),
               ),
