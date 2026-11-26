@@ -857,6 +857,30 @@ class UjianSiswaScreen extends StatefulWidget {
 class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
   int _versi = 0;
   bool _berubah = false;
+  // v1.93.2: halaman dibuka sebelum ujian dibuka -> muat ulang otomatis tepat saat dibuka (tanpa keluar-masuk)
+  Timer? _tungguBuka;
+  int _targetBuka = 0;
+
+  void _jadwalkanBuka(Map<String, dynamic> uj) {
+    final mulai = angka(uj['mulaiMs']), kini = angka(uj['sekarangMs']);
+    if (teks(uj['fase']) != 'belum' || mulai <= 0 || kini <= 0) return;
+    if (_targetBuka == mulai && _tungguBuka != null) return;
+    _targetBuka = mulai.toInt();
+    _tungguBuka?.cancel();
+    // tunggu sampai jam buka (jam server), maks. 60 detik sekali agar tetap sinkron bila HP tertidur
+    final sisa = (mulai - kini).toInt() + 1500;
+    final jeda = Duration(milliseconds: sisa.clamp(1000, 60000));
+    _tungguBuka = Timer(jeda, () {
+      _tungguBuka = null;
+      if (mounted) setState(() => _versi++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _tungguBuka?.cancel();
+    super.dispose();
+  }
 
   String get _idUjian => teks(widget.item['id']);
 
@@ -1048,9 +1072,10 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
           muat: () async =>
               await rpcBelajar('uj_status', {'p_tanda': teks(_s.data['tandaBelajar']), 'p_nama': _s.nama, 'p_id_ujian': _idUjian, 'p_id_mapel': widget.idMapel}) ??
               peta(await Api.instance('waStatusUjian', [_idUjian, _s.idRombel, widget.idMapel, _s.nama])),
-          bangun: (context, d, _) {
+          bangun: (context, d, segarkan) {
             final uj = peta(d['uj']);
             _perluToken = uj['perluToken'] == true;
+            _jadwalkanBuka(uj);
             final selesai = d['selesai'] == true;
             final tombol = teks(uj['tombol']);
             final info = [teks(uj['pesan']), teks(uj['teks']), teks(uj['info']), teks(d['pesan']), if (!selesai) _jadwalUjian(uj)]
@@ -1058,7 +1083,10 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
                 .toSet()
                 .join('\n');
             final adaNilai = teks(d['nilaiTotal']).isNotEmpty;
-            return ListView(padding: const EdgeInsets.all(20), children: [
+            final menunggu = !selesai && teks(uj['fase']) == 'belum';
+            return RefreshIndicator(
+              onRefresh: segarkan,
+              child: ListView(padding: const EdgeInsets.all(20), physics: const AlwaysScrollableScrollPhysics(), children: [
               Center(child: IkonBulat(Icons.quiz_rounded, warna: _warna('Ujian'), ukuran: 92)),
               const SizedBox(height: 16),
               Text(teks(widget.item['judul']), textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
@@ -1103,6 +1131,16 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
                   ]),
                 ),
               if (info.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Text(info, textAlign: TextAlign.center)),
+              if (menunggu)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text('Tetap di halaman ini. Tombol "Mulai ujian" muncul otomatis saat ujian dibuka.',
+                        textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.primary, fontWeight: FontWeight.w600))),
+                  ]),
+                ),
               const SizedBox(height: 20),
               if (!selesai && (uj.isEmpty || uj['bolehMulai'] == true || uj['berlangsung'] == true))
                 FilledButton.icon(
@@ -1130,7 +1168,8 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
                   Expanded(child: Text('Selama ujian jangan keluar dari aplikasi. Berpindah aplikasi dicatat dan bisa mengunci ujian.', style: TextStyle(fontSize: 12.5))),
                 ]),
               ),
-            ]);
+            ]),
+            );
           },
         ),
       ),

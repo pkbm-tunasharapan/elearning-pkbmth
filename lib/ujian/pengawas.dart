@@ -148,17 +148,26 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
   Timer? _ulang;
   bool _sibuk = false;
   String _saring = '';
+  // v1.93.2: jam server dihitung berjalan (selisih jam HP saat data diterima), jadi token terbuka tepat waktu
+  // walau pemuatan berkala sedang gagal; pengawas juga bisa membuka token lebih awal secara manual.
+  int _selisihJam = 0;
+  bool _tokenManual = false;
+  Timer? _detik;
 
   @override
   void initState() {
     super.initState();
     _muat();
     _ulang = Timer.periodic(const Duration(seconds: 15), (_) => _muat(diam: true));
+    _detik = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && _d != null) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _ulang?.cancel();
+    _detik?.cancel();
     super.dispose();
   }
 
@@ -169,7 +178,8 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
       final d = peta(await Api.instance('waStafPengawasPantau', [_t, widget.idSlot, widget.idRombel], const Duration(seconds: 60)));
       if (!mounted) return;
       _periksaBaru(d);
-      setState(() { _d = d; _galat = null; });
+      final srv = angka(d['sekarangMs']);
+      setState(() { _d = d; _galat = null; if (srv > 0) _selisihJam = (srv - DateTime.now().millisecondsSinceEpoch).toInt(); });
     } on ApiException catch (e) {
       if (mounted && (!diam || _d == null)) setState(() => _galat = e.ramah);
     } catch (_) {
@@ -381,8 +391,8 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
     final sl = peta(d['slot']), ms = peta(d['masa']);
     final siswa = daftar(d['siswa']).map(peta).toList();
     final rk = peta(d['ringkas']);
-    final now = angka(d['sekarangMs']);
-    final dibuka = now >= angka(sl['mulaiMs']) - 30 * 60000;
+    final now = DateTime.now().millisecondsSinceEpoch + _selisihJam;   // jam server, berjalan
+    final dibuka = _tokenManual || angka(sl['mulaiMs']) <= 0 || now >= angka(sl['mulaiMs']) - 30 * 60000;
     final tampil = (_saring.isEmpty ? [...siswa] : siswa.where((s) => teks(s['status']) == _saring).toList())
       ..sort((a, b) {
         final x = _bobot(a, now).compareTo(_bobot(b, now));
@@ -432,7 +442,18 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       const Text('TOKEN UJIAN', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1)),
                       Text(dibuka ? teks(sl['token']) : '••••••', style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: 6)),
-                      Text(dibuka ? 'Umumkan kepada siswa saat ujian dimulai.' : 'Token tampil 30 menit sebelum ujian.', style: const TextStyle(fontSize: 12)),
+                      Text(dibuka ? 'Umumkan kepada siswa saat ujian dimulai.' : 'Token tampil otomatis 30 menit sebelum ujian.', style: const TextStyle(fontSize: 12)),
+                      if (!dibuka)
+                        TextButton.icon(
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                          onPressed: () async {
+                            if (await konfirmasi(context, 'Tampilkan token sekarang?', 'Jangan umumkan token sebelum siswa siap di ruang ujian.', ya: 'Tampilkan') && mounted) {
+                              setState(() => _tokenManual = true);
+                            }
+                          },
+                          icon: const Icon(Icons.visibility_rounded, size: 18),
+                          label: const Text('Tampilkan sekarang'),
+                        ),
                     ]),
                   ),
                   if (dibuka) IconButton(tooltip: 'Ganti token', onPressed: _gantiToken, icon: const Icon(Icons.autorenew_rounded)),
