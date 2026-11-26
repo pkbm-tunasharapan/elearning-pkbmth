@@ -171,12 +171,16 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
     super.dispose();
   }
 
-  Future<void> _muat({bool diam = false}) async {
-    if (_sibuk) return;
+  // v1.93.3: nomor pemuatan; hasil pemuatan yang dimulai sebelum token diganti dibuang (tidak menimpa token baru)
+  int _muatKe = 0;
+
+  Future<void> _muat({bool diam = false, bool paksa = false}) async {
+    if (_sibuk && !paksa) return;
     _sibuk = true;
+    final ke = ++_muatKe;
     try {
       final d = peta(await Api.instance('waStafPengawasPantau', [_t, widget.idSlot, widget.idRombel], const Duration(seconds: 60)));
-      if (!mounted) return;
+      if (!mounted || ke != _muatKe) return;
       _periksaBaru(d);
       final srv = angka(d['sekarangMs']);
       setState(() { _d = d; _galat = null; if (srv > 0) _selisihJam = (srv - DateTime.now().millisecondsSinceEpoch).toInt(); });
@@ -310,8 +314,16 @@ class _PantauRuangScreenState extends State<PantauRuangScreen> {
       return;
     }
     if (!mounted) return;
-    final r = await jalankan(context, () => Api.instance('waStafPengawasToken', [_t, widget.idSlot, widget.idRombel]), teksProses: 'Membuat token baru...');
-    if (r.ok && mounted) _muat();
+    final r = await jalankan(context, () async => peta(await Api.instance('waStafPengawasToken', [_t, widget.idSlot, widget.idRombel])), teksProses: 'Membuat token baru...');
+    if (!r.ok || !mounted) return;
+    final baru = teks(r.data!['token']);
+    final d = _d;
+    if (baru.isNotEmpty && d != null) {
+      _muatKe++;   // buang hasil pemuatan berkala yang masih berjalan (berisi token lama)
+      setState(() => d['slot'] = {...peta(d['slot']), 'token': baru});
+      kabar(context, 'Token baru: $baru');
+    }
+    _muat(paksa: true);
   }
 
   void _rinci(Map<String, dynamic> s) {
