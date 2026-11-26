@@ -7,11 +7,13 @@ import 'widgets.dart';
 /// Kartu "Agenda & Informasi" di beranda. Data dari server (waStafBeranda / waSiswaBeranda):
 /// {kartu: [{judul, ikon, menu, ringkas, item: [{t, s, n, w}], kosong}]}.
 class AgendaBeranda extends StatefulWidget {
-  const AgendaBeranda({super.key, required this.kunci, required this.muat, this.onPilih, this.bolehMenu = const {}});
+  const AgendaBeranda({super.key, required this.kunci, required this.muat, this.onPilih, this.bolehMenu = const {}, this.onPilihItem});
   final String kunci;
   final Future<dynamic> Function(bool paksa) muat;
   final void Function(String menu)? onPilih;
   final Set<String> bolehMenu;
+  /// v1.93.1: butir yang membawa tujuan sendiri (mis. ujian: mp/uj) bisa diketuk langsung.
+  final void Function(Map<String, dynamic> item)? onPilihItem;
 
   static final _versi = ValueNotifier<int>(0);
   static bool _paksa = false;
@@ -76,7 +78,7 @@ class _AgendaBerandaState extends State<AgendaBeranda> {
     if (kartu.isEmpty && status == null) return const Kosong(pesan: 'Belum ada agenda untuk ditampilkan.', ikon: Icons.event_available_rounded);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (status != null) _SpandukStatus(s: status),
-      for (final k in kartu) _KartuAgenda(k: k, onPilih: widget.onPilih, bolehMenu: widget.bolehMenu),
+      for (final k in kartu) _KartuAgenda(k: k, onPilih: widget.onPilih, bolehMenu: widget.bolehMenu, onPilihItem: widget.onPilihItem),
       if (_galat != null) Text(_galat!, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.error)),
     ]);
   }
@@ -164,10 +166,11 @@ Color? _warna(BuildContext c, String w) => switch (w) {
     };
 
 class _KartuAgenda extends StatefulWidget {
-  const _KartuAgenda({required this.k, this.onPilih, required this.bolehMenu});
+  const _KartuAgenda({required this.k, this.onPilih, required this.bolehMenu, this.onPilihItem});
   final Map<String, dynamic> k;
   final void Function(String menu)? onPilih;
   final Set<String> bolehMenu;
+  final void Function(Map<String, dynamic> item)? onPilihItem;
 
   @override
   State<_KartuAgenda> createState() => _KartuAgendaState();
@@ -213,7 +216,10 @@ class _KartuAgendaState extends State<_KartuAgenda> {
               if (item.isEmpty && teks(k['kosong']).isNotEmpty)
                 Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(teks(k['kosong']), style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13))),
               for (final x in tampil)
-                Padding(
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: widget.onPilihItem != null && teks(x['uj']).isNotEmpty ? () => widget.onPilihItem!(x) : null,
+                  child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Container(margin: const EdgeInsets.only(top: 6, right: 8), width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: _warna(context, teks(x['w'])) ?? cs.outlineVariant)),
@@ -228,7 +234,17 @@ class _KartuAgendaState extends State<_KartuAgenda> {
                         padding: const EdgeInsets.only(left: 8),
                         child: Text(teks(x['n']), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _warna(context, teks(x['w'])))),
                       ),
+                    if (widget.onPilihItem != null && teks(x['uj']).isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(99)),
+                          child: const Text('Masuk', style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
                   ]),
+                ),
                 ),
               if (item.length > 4)
                 Align(

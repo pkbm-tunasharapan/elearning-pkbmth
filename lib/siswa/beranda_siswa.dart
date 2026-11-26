@@ -143,6 +143,9 @@ class _BerandaIsi extends StatelessWidget {
                   if (m == 'kalender') Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama)));
                 },
                 bolehMenu: const {'kalender'},
+                // v1.93.1: ketuk ujian di agenda -> langsung ruang ujian mapel itu
+                onPilihItem: (x) => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => MapelSiswaScreen(idMapel: teks(x['mp']), namaMapel: teks(x['mn'], 'Ujian'), bukaUjian: teks(x['uj'])))),
               ),
             ),
             // mata pelajaran: daftar baris

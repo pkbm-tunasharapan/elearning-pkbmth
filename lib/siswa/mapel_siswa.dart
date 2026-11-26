@@ -50,10 +50,12 @@ Future<void> _buka(String url) async {
 
 /// Isi satu mata pelajaran untuk siswa, dikelompokkan per sesi.
 class MapelSiswaScreen extends StatefulWidget {
-  const MapelSiswaScreen({super.key, required this.idMapel, required this.namaMapel, this.tutor = ''});
+  const MapelSiswaScreen({super.key, required this.idMapel, required this.namaMapel, this.tutor = '', this.bukaUjian = ''});
   final String idMapel;
   final String namaMapel;
   final String tutor;
+  /// v1.93.1: ID ujian yang langsung dibuka setelah daftar materi dimuat (dari agenda beranda).
+  final String bukaUjian;
 
   @override
   State<MapelSiswaScreen> createState() => _MapelSiswaScreenState();
@@ -61,6 +63,7 @@ class MapelSiswaScreen extends StatefulWidget {
 
 class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
   int _versi = 0;
+  bool _sudahBukaUjian = false;
 
   void _muatUlang() => setState(() => _versi++);
 
@@ -113,6 +116,15 @@ class _MapelSiswaScreenState extends State<MapelSiswaScreen> {
         bangun: (context, d, _) {
           final items = daftar(d[0]).map(peta).toList();
           final riwayat = peta(d[1]);
+          if (!_sudahBukaUjian && widget.bukaUjian.isNotEmpty) {
+            _sudahBukaUjian = true;
+            final ujian = items.where((x) => teks(x['id']) == widget.bukaUjian).toList();
+            if (ujian.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _buka(ujian.first, riwayat);
+              });
+            }
+          }
           final grup = <String, List<Map<String, dynamic>>>{};
           for (final x in items) {
             grup.putIfAbsent(teks(x['sesi'], 'Sesi 1'), () => []).add(x);

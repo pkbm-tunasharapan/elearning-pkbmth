@@ -4012,7 +4012,9 @@ function brdAgenda_(bolehBm, bolehSim, hari, siswa) {
     var m = mp[j.idMapel];
     if (!m || (bolehBm && !bolehBm(j.idMapel, m))) return;
     var tmp = j.masa && masa[j.masa] ? muTeksTempat_(masa[j.masa], true, j.mode) : '';
-    out.push({ tgl: j.tanggal, t: j.jenis + ' ' + m.nama, s: m.rombel + ' · ' + j.jam + ' · ' + j.durasi + ' menit · ' + (tmp || (j.mode === 'Kertas' ? 'tulis' : 'online')) });
+    // v1.93.1: mp/uj/mn -> butir agenda siswa bisa diketuk langsung ke ruang ujian (bukan ke kalender)
+    out.push({ tgl: j.tanggal, t: j.jenis + ' ' + m.nama, s: m.rombel + ' · ' + j.jam + ' · ' + j.durasi + ' menit · ' + (tmp || (j.mode === 'Kertas' ? 'tulis' : 'online')),
+      mp: j.mode === 'Kertas' ? '' : String(j.idMapel), uj: j.mode === 'Kertas' ? '' : String(j.idUjian || ''), mn: m.nama });
   });
   try {
     nilAsSemua_(null).forEach(function(a) {
@@ -4023,7 +4025,11 @@ function brdAgenda_(bolehBm, bolehSim, hari, siswa) {
   } catch (e) {}
   out.sort(function(a, b) { return a.tgl.localeCompare(b.tgl); });
   var h3 = brdTgl_(3);
-  return out.slice(0, 10).map(function(x) { return { t: x.t, s: x.s, n: brdTglPendek_(x.tgl), w: x.tgl === h0 ? 'merah' : (x.tgl <= h3 ? 'kuning' : 'biru') }; });
+  return out.slice(0, 10).map(function(x) {
+    var o = { t: x.t, s: x.s, n: brdTglPendek_(x.tgl), w: x.tgl === h0 ? 'merah' : (x.tgl <= h3 ? 'kuning' : 'biru') };
+    if (siswa && x.mp && x.uj) { o.mp = x.mp; o.uj = x.uj; o.mn = x.mn; }
+    return o;
+  });
 }
 function brdKartuAgenda_(bolehBm, bolehSim) {
   return { judul: 'Agenda ujian 3 minggu ke depan', ikon: 'agenda', menu: 'kalender', item: brdAgenda_(bolehBm, bolehSim, 21), kosong: 'Belum ada UTS/UAS terjadwal dalam 3 minggu ke depan.' };
