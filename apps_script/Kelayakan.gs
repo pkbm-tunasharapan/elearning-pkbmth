@@ -27,7 +27,8 @@ var KL = {
   UJIAN: ['UTS', 'UAS', 'UPK'],
   TAMBAH_TM: 0.1,
   SEMUA: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Bendahara'],
-  AKADEMIK: ['Admin', 'Koordinator Kurikulum'],
+  // v1.94.0: rekomendasi akademik (dispensasi) oleh Koordinator Unit (unit siswa), Pengampu Mapel (mapel siswa), atau Admin
+  AKADEMIK: ['Admin', 'Koordinator Unit', 'Tutor'],
   KEUANGAN: ['Admin', 'Bendahara'],
   PUTUS: ['Admin', 'Kepala Sekolah'],
   AKTIF: ['Menunggu rekomendasi', 'Menunggu KS'],
@@ -222,6 +223,48 @@ function klAjuRingkas_(x) {
     ksOleh: x['KS OLEH'], ksCatatan: x['KS CATATAN'], ksPada: x['KS PADA'], panggilan: x['PANGGILAN'], keuGugur: x['KEU GUGUR'], catatanSistem: x['CATATAN SISTEM'], bukaUlang: x['BUKA ULANG'] || '' };
 }
 
+// v1.94.0: Tutor / Koordinator Unit hanya boleh bertindak atas siswa dalam cakupannya.
+function klWajibCakupan_(p, r, idWb) {
+  if (r.semua) return;
+  var w = keuWbSemua_().filter(function(x) { return x.id === String(idWb || ''); })[0];
+  if (!w || !klCakupan_(p, r, klData_()).wb(w)) throw new Error('Siswa ini di luar cakupan Anda (unit / mapel yang Anda ampu).');
+}
+// ID staf penerima permohonan akademik: koordinator unit siswa + pengampu mapel yang belum memenuhi syarat.
+function klPenerimaAka_(d, w, u) {
+  var out = {};
+  try { ubKoordWb_(w.id).forEach(function(id) { out[String(id)] = true; }); } catch (e) {}
+  try {
+    var idM = {};
+    (u.mapel || []).filter(function(m) { return !m.ok; }).forEach(function(m) {
+      (d.peta.kelas[w.idRombel + '|' + m.kode] || []).forEach(function(b) { idM[String(b.idMapel)] = true; });
+    });
+    bacaEnrollment_().forEach(function(e) { if (idM[String(e.idMapel)] && e.idPengguna) out[String(e.idPengguna)] = true; });
+  } catch (e2) {}
+  return Object.keys(out);
+}
+
+// v1.94.0: dispensasi hanya untuk PELAKSANAAN. Siswa yang ikut ujian lewat permohonan kelayakan yang disetujui
+// tidak dapat melihat nilai / hasil ujian itu (status kelayakan tidak terpenuhi). Peta: idWb|UJIAN|tahun|semester.
+var KL_DIS_MEMO_ = null;
+function klDisPeta_() {
+  if (KL_DIS_MEMO_) return KL_DIS_MEMO_;
+  var o = {};
+  try {
+    klAjuBaca_().data.forEach(function(x) {
+      if (x['STATUS'] === 'Disetujui') o[x['ID WB'] + '|' + x['UJIAN'] + '|' + x['TAHUN'] + '|' + x['SEMESTER']] = x;
+    });
+  } catch (e) {}
+  return (KL_DIS_MEMO_ = o);
+}
+// j: baris jadwal ujian; w: {id}. Hasil: baris permohonan yang disetujui atau null.
+function klDisJadwal_(j, w) {
+  var ujian = klUjianDariJadwal_(j);
+  if (!ujian || !w) return null;
+  var per = nilPeriode_(), smt = Number(j.smt) || per.smt;
+  var sem = smt === per.smt ? per.semester : nilPeriode_({ tahun: per.tahun, semester: smt === 1 ? 'Ganjil' : 'Genap' }).semester;
+  return klDisPeta_()[w.id + '|' + ujian + '|' + per.tahun + '|' + sem] || null;
+}
+
 // ---------- penilaian satu siswa ----------
 // keys: kelas (rombelSIM|kodeMapel) yang dinilai; o: {keu: bool, rinci: bool, siswaList, ujian: [..]}
 function klWb_(d, w, c, keys, o) {
@@ -402,9 +445,15 @@ function waStafKelayakanLaporan(token, q) {
 // Antrean permohonan (Admin, KS, Kurikulum, Bendahara). q: {status: 'aktif'|'semua'}
 function waStafKelayakanPermohonan(token, q) {
   var p = stafDariToken_(token), r = klPeran_(p);
-  if (!r.semua) throw new Error('Permohonan kelayakan untuk Admin, Kepala Sekolah, Koordinator Kurikulum, dan Bendahara.');
   q = q || {};
-  var d = klData_(), data = klAjuPeriode_(d).filter(function(x) { return q.status === 'semua' || KL.AKTIF.indexOf(x['STATUS']) >= 0; }).reverse().slice(0, 300).map(function(x) {
+  var d = klData_(), saring = function() { return true; };
+  if (!r.semua) {
+    // v1.94.0: Tutor & Koordinator Unit: permohonan akademik siswa dalam cakupannya (untuk direkomendasikan)
+    var cak = klCakupan_(p, r, d), wbPeta = {};
+    keuWbSemua_().forEach(function(w) { wbPeta[w.id] = w; });
+    saring = function(x) { var w = wbPeta[x['ID WB']]; return !!w && klPakaiAka_(x) && cak.wb(w); };
+  }
+  var data = klAjuPeriode_(d).filter(function(x) { return (q.status === 'semua' || KL.AKTIF.indexOf(x['STATUS']) >= 0) && saring(x); }).reverse().slice(0, 300).map(function(x) {
     var o = klAjuRingkas_(x);
     o.idWb = x['ID WB']; o.nama = x['NAMA']; o.rombel = x['ROMBEL']; o.sisaSaatAju = Number(x['SISA SAAT AJU']) || 0;
     var aktif = KL.AKTIF.indexOf(x['STATUS']) >= 0;
@@ -434,13 +483,14 @@ function waStafKelayakanRekomendasi(token, q) {
   var p = stafDariToken_(token), r = klPeran_(p);
   q = q || {};
   var bagian = q.bagian === 'keuangan' ? 'keuangan' : 'akademik';
-  if (bagian === 'akademik' ? !r.aka : !r.keuAksi) throw new Error(bagian === 'akademik' ? 'Rekomendasi akademik oleh Koordinator Kurikulum.' : 'Rekomendasi keuangan oleh Bendahara.');
+  if (bagian === 'akademik' ? !r.aka : !r.keuAksi) throw new Error(bagian === 'akademik' ? 'Rekomendasi akademik oleh Koordinator Unit, Pengampu Mapel, atau Admin.' : 'Rekomendasi keuangan oleh Bendahara.');
   var catatan = String(q.catatan || '').trim();
   if (catatan.length < 5) throw new Error('Isi catatan rekomendasi.');
   var kunci = LockService.getScriptLock();
   kunci.waitLock(20000);
   try {
     var c = klAjuCari_(q.id), x = c.x;
+    klWajibCakupan_(p, r, x['ID WB']);
     if (KL.AKTIF.indexOf(x['STATUS']) < 0) throw new Error('Permohonan ini sudah ' + x['STATUS'] + '.');
     if (bagian === 'akademik' ? !klPakaiAka_(x) : !klPakaiKeu_(x)) throw new Error('Permohonan ini tidak memerlukan rekomendasi ' + bagian + '.');
     var pre = bagian === 'akademik' ? 'REK AKADEMIK' : 'REK KEUANGAN', isi = {};
@@ -476,13 +526,14 @@ function waStafKelayakanPutus(token, q) {
 // Panggilan lewat notifikasi. q: {idWb, pesan}
 function waStafKelayakanPanggil(token, q) {
   var p = stafDariToken_(token), r = klPeran_(p);
-  if (!r.panggil) throw new Error('Pemanggilan oleh Koordinator Kurikulum, Bendahara, Kepala Sekolah, atau Admin.');
+  if (!r.panggil) throw new Error('Pemanggilan oleh Koordinator Unit, Pengampu Mapel, Bendahara, Kepala Sekolah, atau Admin.');
+  klWajibCakupan_(p, r, q && q.idWb);
   q = q || {};
   var pesan = String(q.pesan || '').trim();
   if (pesan.length < 10) throw new Error('Tulis isi panggilan (mis. waktu dan tempat menghadap).');
   var w = keuWbSemua_().filter(function(x) { return x.id === String(q.idWb || ''); })[0];
   if (!w) throw new Error('Siswa tidak ditemukan.');
-  var bagian = r.aka && !r.admin ? 'Bagian Kurikulum' : (r.keuAksi && !r.admin ? 'Bagian Keuangan' : (p.peran === 'Kepala Sekolah' ? 'Kepala Sekolah' : 'Admin'));
+  var bagian = r.tutor ? 'Pengampu Mapel' : (r.ku ? 'Koordinator Unit' : (r.keuAksi && !r.admin ? 'Bagian Keuangan' : (p.peran === 'Kepala Sekolah' ? 'Kepala Sekolah' : 'Admin')));
   npKirim_('kl_panggil', { judul: 'Panggilan dari ' + bagian, isi: pesan.slice(0, 450) + ' (' + p.nama + ')', aksi: 'kelayakan_saya', siswa: [w.id], ref: 'panggil|' + w.id + '|' + Date.now() });
   var d = klData_(), akt = klAjuPeriode_(d).filter(function(x) { return x['ID WB'] === w.id && KL.AKTIF.indexOf(x['STATUS']) >= 0; });
   akt.forEach(function(x) {
@@ -509,7 +560,8 @@ function klAjuBuat_(d, w, h, ujian, isi) {
   var t = absBaca_(KL.TAB, KL.HDR);
   t.sh.appendRow(absBaris_(t, baris));
   d.aju = null;
-  if (jenis !== 'Keuangan') npKirim_('kl_aju_akademik', { judul: 'Permohonan kelayakan ' + ujian + ' (akademik)', isi: w.nama + ' (' + (w.namaRombel || '') + ') · ' + kurang.slice(0, 200), aksi: 'kelayakan', ref: 'aka|' + id });
+  if (jenis !== 'Keuangan') npKirim_('kl_aju_akademik', { judul: 'Permohonan kelayakan ' + ujian + ' (akademik)', isi: w.nama + ' (' + (w.namaRombel || '') + ') · ' + kurang.slice(0, 200), aksi: 'kelayakan', ref: 'aka|' + id,
+    staf: klPenerimaAka_(d, w, u) });
   if (jenis !== 'Akademik') npKirim_('kl_aju_keuangan', { judul: 'Permohonan kelayakan ' + ujian + ' (keuangan)', isi: w.nama + ' (' + (w.namaRombel || '') + ') · sisa ' + honRp_(h.keu ? h.keu.sisa : 0), aksi: 'kelayakan', ref: 'keu|' + id });
   return baris;
 }
@@ -525,7 +577,8 @@ function waStafKelayakanOrtu(token, q) {
   var p = stafDariToken_(token), r = klPeran_(p);
   q = q || {};
   var bagian = q.bagian === 'keuangan' ? 'keuangan' : 'akademik';
-  if (bagian === 'akademik' ? !r.aka : !r.keuAksi) throw new Error(bagian === 'akademik' ? 'Form orang tua (akademik) diisi Koordinator Kurikulum.' : 'Form orang tua (keuangan) diisi Bendahara.');
+  if (bagian === 'akademik' ? !r.aka : !r.keuAksi) throw new Error(bagian === 'akademik' ? 'Form orang tua (akademik) diisi Koordinator Unit, Pengampu Mapel, atau Admin.' : 'Form orang tua (keuangan) diisi Bendahara.');
+  klWajibCakupan_(p, r, q.idWb);
   var ujian = KL.UJIAN.indexOf(String(q.ujian)) >= 0 ? String(q.ujian) : '';
   if (!ujian) throw new Error('Pilih jenis ujian.');
   var catatan = String(q.catatan || '').trim();
@@ -622,7 +675,8 @@ function waSiswaKelayakanAju(token, q) {
     if (!u.keuOk && !u.izinKeu) { var j = klJanji_(q, h.keu); isi['JANJI TANGGAL'] = j.tg; isi['JANJI NOMINAL'] = j.nom; }
     var b = klAjuBuat_(k.d, k.w, h, ujian, isi);
     try { catat_('Siswa', k.s.idRombel, k.w.nama, 'Ajukan kelayakan ' + ujian, b['ID'] + ' ' + b['JENIS'], 'OK'); } catch (e) {}
-    return { sukses: true, id: b['ID'], jenis: b['JENIS'], pesan: 'Permohonan terkirim ke ' + (b['JENIS'] === 'Keduanya' ? 'bagian kurikulum dan keuangan' : (b['JENIS'] === 'Akademik' ? 'bagian kurikulum' : 'bagian keuangan')) + ', lalu diputuskan Kepala Sekolah.' };
+    return { sukses: true, id: b['ID'], jenis: b['JENIS'], pesan: 'Permohonan terkirim untuk direkomendasikan ' + (b['JENIS'] === 'Keduanya' ? 'koordinator unit / pengampu mapel dan bagian keuangan' : (b['JENIS'] === 'Akademik' ? 'koordinator unit / pengampu mapel' : 'bagian keuangan')) +
+      ', lalu diputuskan Kepala Sekolah. Bila disetujui, Anda boleh mengikuti ujian, tetapi nilai ujian tersebut tidak ditampilkan kepada Anda.' };
   } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }
 

@@ -162,7 +162,7 @@ class _InfoAju extends StatelessWidget {
       if (teks(x['alasan']).isNotEmpty) 'Alasan: ${teks(x['alasan'])}',
       if (teks(x['janjiTanggal']).isNotEmpty) 'Janji bayar ${rp(x['janjiNominal'])} sampai ${tglIndo(teks(x['janjiTanggal']))}',
       if (teks(x['pernyataan']).isNotEmpty) 'Pernyataan orang tua: ${teks(x['pernyataan'])}',
-      if (teks(x['rekAkademik']).isNotEmpty) 'Kurikulum: ${teks(x['rekAkademik'])} – ${teks(x['rekAkademikCatatan'])} (${teks(x['rekAkademikOleh'])})',
+      if (teks(x['rekAkademik']).isNotEmpty) 'Akademik: ${teks(x['rekAkademik'])} – ${teks(x['rekAkademikCatatan'])} (${teks(x['rekAkademikOleh'])})',
       if (teks(x['rekKeuangan']).isNotEmpty) 'Keuangan: ${teks(x['rekKeuangan'])} – ${teks(x['rekKeuanganCatatan'])} (${teks(x['rekKeuanganOleh'])})',
       if (teks(x['ksCatatan']).isNotEmpty) 'Kepala Sekolah: ${teks(x['ksCatatan'])} (${teks(x['ksOleh'])})',
       if (teks(x['panggilan']).isNotEmpty) 'Panggilan:\n${teks(x['panggilan'])}',
@@ -298,7 +298,7 @@ class _KelayakanScreenState extends State<KelayakanScreen> {
         final siswa = daftar(d['siswa']).map(peta).toList();
         bool belum(Map<String, dynamic> s) => peta(s['ujian']).values.any((u) => teks(peta(u)['status']) == 'Belum layak');
         final tampil = _hanyaBelum ? siswa.where(belum).toList() : siswa;
-        final bolehAju = pr['keu'] == true;
+        final bolehAju = pr['keu'] == true || pr['aka'] == true;   // v1.94.0: koordinator unit & pengampu merekomendasikan
         final kodeUjian = teks(d['ujian']);
         final pilihan = daftar(d['pilihan']).map(peta).where((o) => pr['keu'] == true || teks(o['kode']) != 'UPK').toList();
         return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
@@ -435,7 +435,7 @@ class _KelayakanSiswaStafScreenState extends State<KelayakanSiswaStafScreen> {
     final args = <String, dynamic>{'idWb': widget.idWb, 'ujian': ujian, 'bagian': bagian};
     if (bagian == 'akademik') {
       final p = await _isiTeks(context, 'Pernyataan orang tua', label: 'Isi pernyataan', awal: widget.pernyataan, minimal: 20,
-          keterangan: 'Orang tua/wali menghadap bagian kurikulum. Intinya: siap menjaga agar kejadian ini tidak terulang.');
+          keterangan: 'Orang tua/wali menghadap koordinator unit / pengampu mapel. Intinya: siap menjaga agar kejadian ini tidak terulang.');
       if (p == null || !mounted) return;
       args['pernyataan'] = p;
     } else {
@@ -445,7 +445,7 @@ class _KelayakanSiswaStafScreenState extends State<KelayakanSiswaStafScreen> {
       args['janjiNominal'] = j.nominal;
     }
     if (!mounted) return;
-    final r = await _pilihPutusan(context, 'Rekomendasi ${bagian == 'akademik' ? 'kurikulum' : 'keuangan'} · $ujian', keterangan: 'Permohonan diteruskan ke Kepala Sekolah untuk diputuskan.');
+    final r = await _pilihPutusan(context, 'Rekomendasi ${bagian == 'akademik' ? 'akademik' : 'keuangan'} · $ujian', keterangan: 'Permohonan diteruskan ke Kepala Sekolah untuk diputuskan.');
     if (r == null || !mounted) return;
     args['setuju'] = r.$1;
     args['catatan'] = r.$2;
@@ -482,7 +482,7 @@ class _KelayakanSiswaStafScreenState extends State<KelayakanSiswaStafScreen> {
                 final aka = u['akaOk'] != true && u['izinAka'] != true, kurangKeu = u['keuOk'] != true && u['izinKeu'] != true;
                 return KartuKelayakan(u: u, keu: keu, syarat: angka(d['syarat'], 80), rinci: true, aksi: [
                   if (belum && aka && pr['aka'] == true)
-                    OutlinedButton.icon(onPressed: () => _ortu(e.key, 'akademik', 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (kurikulum)')),
+                    OutlinedButton.icon(onPressed: () => _ortu(e.key, 'akademik', 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (akademik)')),
                   if (belum && kurangKeu && pr['keuAksi'] == true)
                     OutlinedButton.icon(onPressed: () => _ortu(e.key, 'keuangan', keu?['sisa'] ?? 0), icon: const Icon(Icons.family_restroom_rounded, size: 18), label: const Text('Orang tua menghadap (keuangan)')),
                   if (aktif && Sesi.instance.isAdmin && u['sudahAju'] == true && peta(u['aktif']).isEmpty)
@@ -513,7 +513,7 @@ class _AntreanPermohonanState extends State<_AntreanPermohonan> {
   int _v = 0;
 
   Future<void> _rek(Map<String, dynamic> x, String bagian) async {
-    final r = await _pilihPutusan(context, 'Rekomendasi ${bagian == 'akademik' ? 'kurikulum' : 'keuangan'} · ${teks(x['nama'])}');
+    final r = await _pilihPutusan(context, 'Rekomendasi ${bagian == 'akademik' ? 'akademik' : 'keuangan'} · ${teks(x['nama'])}');
     if (r == null || !mounted) return;
     final h = await jalankan(context, () => Api.instance('waStafKelayakanRekomendasi', [_t, {'id': teks(x['id']), 'bagian': bagian, 'setuju': r.$1, 'catatan': r.$2}]));
     if (h.ok && mounted) {
@@ -569,7 +569,7 @@ class _AntreanPermohonanState extends State<_AntreanPermohonan> {
                   _InfoAju(x: x, judul: 'Permohonan'),
                   const SizedBox(height: 6),
                   Wrap(spacing: 8, runSpacing: 6, children: [
-                    if (x['bolehRekAka'] == true) OutlinedButton(onPressed: () => _rek(x, 'akademik'), child: Text(teks(x['rekAkademik']).isEmpty ? 'Rekomendasi kurikulum' : 'Ubah rekomendasi kurikulum')),
+                    if (x['bolehRekAka'] == true) OutlinedButton(onPressed: () => _rek(x, 'akademik'), child: Text(teks(x['rekAkademik']).isEmpty ? 'Rekomendasi akademik' : 'Ubah rekomendasi akademik')),
                     if (x['bolehRekKeu'] == true) OutlinedButton(onPressed: () => _rek(x, 'keuangan'), child: Text(teks(x['rekKeuangan']).isEmpty ? 'Rekomendasi keuangan' : 'Ubah rekomendasi keuangan')),
                     if (x['bolehPutus'] == true) FilledButton(onPressed: () => _putus(x), child: const Text('Putuskan')),
                     if (pr['panggil'] == true && teks(x['status']).startsWith('Menunggu')) TextButton.icon(onPressed: () => _panggil(x), icon: const Icon(Icons.campaign_outlined, size: 18), label: const Text('Panggil')),
@@ -598,8 +598,9 @@ class _KelayakanSiswaScreenState extends State<KelayakanSiswaScreen> {
   Future<void> _aju(String ujian, Map<String, dynamic> u, Map<String, dynamic> keu) async {
     final perluJanji = u['keuOk'] != true && u['izinKeu'] != true;
     final alasan = await _isiTeks(context, 'Permohonan kelayakan $ujian', label: 'Alasan', minimal: 10,
-        keterangan: 'Permohonan dikirim ke ${u['akaOk'] != true && perluJanji ? 'bagian kurikulum dan keuangan' : (perluJanji ? 'bagian keuangan' : 'bagian kurikulum')}, '
+        keterangan: 'Permohonan (dispensasi) direkomendasikan ${u['akaOk'] != true && perluJanji ? 'koordinator unit / pengampu mapel dan bagian keuangan' : (perluJanji ? 'bagian keuangan' : 'koordinator unit / pengampu mapel')}, '
             'lalu diputuskan Kepala Sekolah. Bila perlu klarifikasi, Anda akan dipanggil lewat notifikasi.\n\n'
+            'Dispensasi hanya untuk MENGIKUTI ujian: bila disetujui, nilai dan hasil ujian $ujian tetap tidak ditampilkan kepada Anda karena status kelayakan tidak terpenuhi.\n\n'
             'PERHATIAN: permohonan $ujian hanya bisa diajukan 1 kali, apa pun hasilnya (disetujui atau ditolak). Pastikan alasan sudah lengkap.');
     if (alasan == null || !mounted) return;
     final args = <String, dynamic>{'ujian': ujian, 'alasan': alasan};

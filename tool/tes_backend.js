@@ -1207,10 +1207,13 @@ tes('kelayakan ujian: rumus absen A, ketuntasan per cakupan UTS/UAS, UPK kelas a
     galat = '';
     try { g.waSiswaKelayakanAju('tok', { ujian: 'UTS', alasan: 'Menunggu gajian orang tua', janjiTanggal: '2026-11-20', janjiNominal: 100000 }); } catch (e) { galat = e.message; }
     sama(/sedang diproses/.test(galat), true, 'tidak dobel');
-    const orang = { TK: { nama: 'Kurnia', peran: 'Koordinator Kurikulum' }, TB: { nama: 'Bena', peran: 'Bendahara' }, TS: { nama: 'Kasih', peran: 'Kepala Sekolah' }, TT: { nama: 'Tono', peran: 'Tutor', id: 'U9' } };
+    const orang = { TA: { nama: 'Ana', peran: 'Admin' }, TK: { nama: 'Kurnia', peran: 'Koordinator Kurikulum' }, TB: { nama: 'Bena', peran: 'Bendahara' }, TS: { nama: 'Kasih', peran: 'Kepala Sekolah' }, TT: { nama: 'Tono', peran: 'Tutor', id: 'U9' } };
     g.stafDariToken_ = (t) => orang[t];
     galat = '';
     try { g.waStafKelayakanRekomendasi('TK', { id: a.id, bagian: 'akademik', setuju: true, catatan: 'oke saja' }); } catch (e) { galat = e.message; }
+    sama(/Koordinator Unit, Pengampu Mapel, atau Admin/.test(galat), true, 'v1.94.0: kurikulum bukan pemberi rekomendasi akademik');
+    galat = '';
+    try { g.waStafKelayakanRekomendasi('TA', { id: a.id, bagian: 'akademik', setuju: true, catatan: 'oke saja' }); } catch (e) { galat = e.message; }
     sama(/tidak memerlukan/.test(galat), true, 'permohonan keuangan tidak perlu rekomendasi akademik');
     sama(g.waStafKelayakanRekomendasi('TB', { id: a.id, bagian: 'keuangan', setuju: true, catatan: 'janji wajar' }).status, 'Menunggu KS');
     galat = '';
@@ -1226,10 +1229,29 @@ tes('kelayakan ujian: rumus absen A, ketuntasan per cakupan UTS/UAS, UPK kelas a
     sama([h.ujian.UTS.status, notif.includes('kl_janji')], ['Belum layak', true], 'janji gugur');
     sama(g.izFitur_('waStafKelayakanDaftar'), 'kelayakanUjian');
     galat = '';
-    try { g.waStafKelayakanPanggil('TT', { idWb: 'W1', pesan: 'Datang ke ruang guru' }); } catch (e) { galat = e.message; }
-    sama(/Pemanggilan/.test(galat), true, 'tutor tidak bisa memanggil');
-    sama(g.waStafKelayakanPanggil('TK', { idWb: 'W1', pesan: 'Datang ke ruang kurikulum Senin pukul 09.00' }).sukses, true);
+    try { g.waStafKelayakanPanggil('TK', { idWb: 'W1', pesan: 'Datang ke ruang guru' }); } catch (e) { galat = e.message; }
+    sama(/Pemanggilan/.test(galat), true, 'v1.94.0: kurikulum hanya melihat');
+    sama(g.waStafKelayakanPanggil('TA', { idWb: 'W1', pesan: 'Datang ke ruang kurikulum Senin pukul 09.00' }).sukses, true);
   } finally { nama.forEach((k) => { g[k] = simpan[k]; }); g.KL_MEMO_ = {}; }
+});
+
+// v1.94.0: dispensasi kelayakan hanya untuk pelaksanaan: nilai ujian siswa yang disetujui ikut tetap ditahan
+tes('dispensasi kelayakan: nilai/hasil ujian ditahan hanya untuk ujian & siswa yang diberi dispensasi', () => {
+  const sv = ['klAjuBaca_', 'nilPeriode_', 'sbWbSiswa_', 'sbMasaDariJadwal_'], simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    g.KL_DIS_MEMO_ = null;
+    g.klAjuBaca_ = () => ({ data: [{ STATUS: 'Disetujui', 'ID WB': 'W1', UJIAN: 'UTS', TAHUN: '2026/2027', SEMESTER: 'Ganjil' },
+      { STATUS: 'Ditolak', 'ID WB': 'W2', UJIAN: 'UTS', TAHUN: '2026/2027', SEMESTER: 'Ganjil' }] });
+    g.nilPeriode_ = (q) => (q ? { tahun: q.tahun, semester: q.semester, smt: q.semester === 'Ganjil' ? 1 : 2 } : { tahun: '2026/2027', semester: 'Ganjil', smt: 1 });
+    g.sbWbSiswa_ = (r, n) => ({ id: n === 'Ani' ? 'W1' : 'W2' });
+    g.sbMasaDariJadwal_ = () => null;
+    sama(g.sbTertahan_({ jenis: 'UTS', smt: 1 }, 'BM1', 'Ani').dispensasi, true, 'UTS Ani ditahan');
+    sama(g.sbTertahan_({ jenis: 'UAS', smt: 1 }, 'BM1', 'Ani'), null, 'UAS tidak');
+    sama(g.sbTertahan_({ jenis: 'UTS', smt: 2 }, 'BM1', 'Ani'), null, 'semester lain tidak');
+    sama(g.sbTertahan_({ jenis: 'UTS', smt: 1 }, 'BM1', 'Budi'), null, 'permohonan ditolak tidak menahan');
+    sama(g.sbTertahan_({ jenis: 'TRYOUT', smt: 1 }, 'BM1', 'Ani'), null, 'tryout tanpa syarat');
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); g.KL_DIS_MEMO_ = null; }
 });
 
 // 38. batalkan jadwal mulai tanggal (v1.70.2)
@@ -1609,7 +1631,7 @@ tes('jadwal minggu ke: berlaku per minggu dalam bulan, minggu ke-5 ikut 1 & 3, 1
 });
 
 // 51. notifikasi kelayakan ujian sesuai konteks + peran perangkat mengikuti akun sekarang (v1.76.1)
-tes('notif kelayakan: Admin & KS semua, Bendahara hanya keuangan, Kurikulum hanya akademik; peran perangkat = peran akun sekarang', () => {
+tes('notif kelayakan: Admin & KS semua, Bendahara hanya keuangan, akademik ke koordinator unit & pengampu (per akun); peran perangkat = peran akun sekarang', () => {
   const sv = ['npAturan_', 'npIzinFitur_', 'penggunaCache_'];
   const simpan = {};
   sv.forEach((k) => { simpan[k] = g[k]; });
@@ -1623,7 +1645,8 @@ tes('notif kelayakan: Admin & KS semua, Bendahara hanya keuangan, Kurikulum hany
     sama(terima('Admin'), ['kl_aju_akademik', 'kl_aju_keuangan', 'kl_ks', 'kl_janji']);
     sama(terima('Kepala Sekolah'), ['kl_aju_akademik', 'kl_aju_keuangan', 'kl_ks', 'kl_janji']);
     sama(terima('Bendahara'), ['kl_aju_keuangan', 'kl_janji']);
-    sama(terima('Koordinator Kurikulum'), ['kl_aju_akademik']);
+    sama(terima('Koordinator Kurikulum'), [], 'v1.94.0: kurikulum tidak lagi menerima');
+    sama(g.npCocok_({ jenis: 'kl_aju_akademik', siswa: [], tutor: [], staf: ['K7'] }, { jenis: 'staf', id: 'K7', peran: 'Koordinator Unit' }, at, ctx), true, 'koordinator unit / pengampu yang dituju menerima');
     sama(terima('Front Office'), []);
     g.penggunaCache_ = () => [{ id: 'U1', nama: 'Eva', peran: 'Bendahara', peranKustom: '', status: 'Aktif' }, { id: 'U2', nama: 'Off', peran: 'Admin', status: 'Nonaktif' }];
     sama(g.bcPeranKini_({ jenis: 'staf', id: 'U1', nama: 'Eva', peran: 'Admin' }).peran, 'Bendahara', 'perangkat didaftarkan saat Admin');

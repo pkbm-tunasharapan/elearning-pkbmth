@@ -8,6 +8,7 @@ import '../berkas.dart';
 import '../session.dart';
 import '../siswa/sesi_siswa.dart';
 import '../widgets.dart';
+import 'kelayakan.dart';
 
 /// v1.93.4: Kartu Peserta Ujian (format mirip KTPU) untuk ujian serentak (Masa Ujian).
 /// Memuat identitas, kode akses siswa (satu per siswa), dan jadwal per hari: jam, mapel, durasi, mode,
@@ -33,6 +34,7 @@ const _cssKartu = '.hal{page-break-after:always}.hal:last-child{page-break-after
     '.kode{border:2px solid #111;border-radius:6px;padding:6px 10px;text-align:center}.kode b{font-size:20pt;letter-spacing:4px}'
     'table.j{width:100%;border-collapse:collapse;margin-top:6px}table.j th,table.j td{border:1px solid #444;padding:3px 5px;font-size:9.5pt}'
     'table.j th{background:#eee}.hari td{background:#f3f3f3;font-weight:bold}.c{text-align:center}'
+    '.dis{display:inline-block;margin-top:4px;border:1.5px solid #b45309;color:#b45309;border-radius:4px;padding:1px 8px;font-size:9.5pt;letter-spacing:1px}'
     '.ket{font-size:8.8pt;margin-top:8px}.ket ol{margin:2px 0 0 16px;padding:0}.kaki{margin-top:12px;font-size:8.5pt;color:#444;display:flex;justify-content:space-between}';
 
 String _esc(dynamic s) => escHtml(s);
@@ -53,7 +55,8 @@ String _halamanKartu(Map<String, dynamic> k, Map<String, dynamic> masa, Map<Stri
   final adaRuang = masa['adaRuang'] == true;
   final b = StringBuffer('<div class="hal">')
     ..write(_kopHtml(kop))
-    ..write('<h2>KARTU PESERTA UJIAN<br><span style="font-size:10.5pt;font-weight:normal">${_esc(teks(masa['nama']))}</span></h2>')
+    ..write('<h2>KARTU PESERTA UJIAN<br><span style="font-size:10.5pt;font-weight:normal">${_esc(teks(masa['nama']))}</span>'
+        '${masa['dispensasi'] == true ? '<br><span class="dis">PESERTA DENGAN DISPENSASI</span>' : ''}</h2>')
     ..write('<table class="id"><tr><td class="l">Nama</td><td>: <b>${_esc(teks(k['nama']))}</b></td><td rowspan="4" style="width:30%">'
         '<div class="kode">KODE AKSES<br><b>${_esc(teks(k['kodeAkses'], '-'))}</b><div class="kecil">pribadi · jangan dibagikan</div></div></td></tr>'
         '<tr><td class="l">NISN</td><td>: ${_esc(teks(k['nisn'], '-'))}</td></tr>'
@@ -76,6 +79,7 @@ String _halamanKartu(Map<String, dynamic> k, Map<String, dynamic> masa, Map<Stri
         '<li>Ujian dapat dimulai paling lambat 15 menit setelah dibuka. Terlambat lebih dari itu, ajukan susulan lewat aplikasi.</li>'
         '<li>Selama ujian jangan keluar dari aplikasi. Berpindah aplikasi dicatat sebagai pelanggaran dan dapat mengunci ujian.</li>'
         '<li>Kode akses bersifat pribadi. Jangan memberikannya kepada siapa pun.</li>'
+        '${masa['dispensasi'] == true ? '<li>Anda mengikuti ujian dengan <b>dispensasi</b>: nilai dan hasil ujian ini tidak ditampilkan kepada Anda karena status kelayakan tidak terpenuhi.</li>' : ''}'
         '</ol></div>')
     ..write('<div class="kaki"><span>Tanggal cetak: ${_esc(dicetak)}</span><span>${_esc(teks(k['nisn'], '-'))} / ${_esc(teks(k['nama']))}</span></div>')
     ..write('</div>');
@@ -87,6 +91,7 @@ Future<String> htmlKartuUjian(List<Map<String, dynamic>> kartu, Map<String, dyna
   final b = StringBuffer(await watermarkHtml(await _logoKop(kop)));
   for (final k in kartu) {
     for (final m in daftar(k['masa']).map(peta)) {
+      if (m['terkunci'] == true) continue;   // v1.94.0: belum layak -> tidak dicetak
       b.write(_halamanKartu(k, m, kop, dicetak));
     }
   }
@@ -113,6 +118,7 @@ class KartuUjianSiswaScreen extends StatelessWidget {
         muat: () async => peta(await Api.instance('waSiswaKartuUjian', [SesiSiswa.instance.token], const Duration(minutes: 2))),
         bangun: (context, d, segarkan) {
           final masa = daftar(d['masa']).map(peta).toList();
+          final bisaCetak = masa.any((m) => m['terkunci'] != true);
           return RefreshIndicator(
             onRefresh: segarkan,
             child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
@@ -137,7 +143,7 @@ class KartuUjianSiswaScreen extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Salin kode akses',
-                      onPressed: teks(d['kodeAkses']).isEmpty
+                      onPressed: teks(d['kodeAkses']).isEmpty || d['kodeTerkunci'] == true
                           ? null
                           : () async {
                               await Clipboard.setData(ClipboardData(text: teks(d['kodeAkses'])));
@@ -148,11 +154,14 @@ class KartuUjianSiswaScreen extends StatelessWidget {
                   ]),
                 ),
               ),
-              Text('Saat mulai ujian, isi kode akses ini, PIN Anda, dan token dari pengawas.', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+              Text(d['kodeTerkunci'] == true
+                  ? 'Kode akses tampil setelah Anda layak mengikuti ujian (atau dispensasi disetujui).'
+                  : 'Saat mulai ujian, isi kode akses ini, PIN Anda, dan token dari pengawas.', style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
               const SizedBox(height: 8),
               if (masa.isEmpty) const Kosong(pesan: 'Belum ada ujian serentak yang dijadwalkan untuk Anda.', ikon: Icons.event_available_outlined),
               for (final m in masa) ...[
                 JudulBagian(teks(m['nama']), sub: teks(m['tempat'])),
+                if (m['terkunci'] == true || m['dispensasi'] == true) _StatusKelayakan(m: m),
                 for (final h in daftar(m['hari']).map(peta))
                   Card(
                     child: Padding(
@@ -183,7 +192,7 @@ class KartuUjianSiswaScreen extends StatelessWidget {
                   ),
               ],
               const SizedBox(height: 12),
-              if (masa.isNotEmpty)
+              if (bisaCetak)
                 FilledButton.icon(onPressed: () => _unduh(context, d), icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Unduh kartu ujian (PDF)')),
             ]),
           );
@@ -202,12 +211,22 @@ Future<void> cetakKartuMasa(BuildContext context, String idMasa) async {
   final d = r.data!;
   final rombel = daftar(d['rombel']).map(peta).toList();
   final semua = daftar(d['kartu']).map(peta).toList();
-  if (semua.isEmpty) return kabar(context, 'Belum ada peserta yang punya jadwal di masa ujian ini.', galat: true);
+  final belum = daftar(d['belumLayak']).map(peta).toList();
+  if (semua.isEmpty) {
+    return kabar(context, belum.isEmpty ? 'Belum ada peserta yang punya jadwal di masa ujian ini.' : 'Semua ${belum.length} peserta belum layak; kartu tidak dicetak.', galat: true);
+  }
   final pilih = await showDialog<String>(
     context: context,
     builder: (c) => SimpleDialog(
       title: const Text('Cetak kartu peserta'),
       children: [
+        if (belum.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text('${belum.length} siswa belum layak tidak dicetak (kecuali dispensasinya disetujui): '
+                '${belum.take(8).map((x) => teks(x['nama'])).join(', ')}${belum.length > 8 ? ', …' : ''}.',
+                style: TextStyle(fontSize: 12.5, color: Theme.of(c).colorScheme.error)),
+          ),
         SimpleDialogOption(onPressed: () => Navigator.pop(c, '*'), child: Text('Semua peserta (${semua.length} siswa)')),
         for (final rb in rombel)
           SimpleDialogOption(
@@ -223,4 +242,61 @@ Future<void> cetakKartuMasa(BuildContext context, String idMasa) async {
   final html = await htmlKartuUjian(kartu, peta(d['kop']), teks(d['dicetak']));
   if (!context.mounted) return;
   await htmlKePdf(context, nama: 'Kartu_Peserta_${teks(peta(d['masa'])['nama']).replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}.pdf', args: [Sesi.instance.token, html], watermark: false);
+}
+
+/// v1.94.0: status kelayakan satu masa di kartu siswa (terkunci / dispensasi).
+class _StatusKelayakan extends StatelessWidget {
+  const _StatusKelayakan({required this.m});
+  final Map<String, dynamic> m;
+
+  @override
+  Widget build(BuildContext context) {
+    final k = peta(m['kelayakan']);
+    final kunci = m['terkunci'] == true;
+    final warna = kunci ? Theme.of(context).colorScheme.error : Colors.orange.shade800;
+    return Card(
+      color: warna.withValues(alpha: 0.08),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(kunci ? Icons.lock_rounded : Icons.verified_user_outlined, color: warna, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(kunci ? 'Kartu terkunci: belum layak ${teks(k['ujian'])}' : 'Peserta dengan dispensasi', style: TextStyle(fontWeight: FontWeight.w800, color: warna))),
+          ]),
+          const SizedBox(height: 4),
+          if (kunci && teks(k['alasan']).isNotEmpty) Text('Belum memenuhi: ${teks(k['alasan'])}.', style: const TextStyle(fontSize: 12.5)),
+          if (kunci && teks(k['proses']).isNotEmpty) Text('Permohonan dispensasi Anda: ${teks(k['proses'])}.', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          if (!kunci)
+            const Text('Anda boleh mengikuti ujian ini, tetapi nilai dan hasilnya tidak ditampilkan kepada Anda karena status kelayakan tidak terpenuhi.',
+                style: TextStyle(fontSize: 12.5)),
+          if (kunci)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KelayakanSiswaScreen())),
+                icon: const Icon(Icons.send_rounded, size: 18),
+                label: Text(k['bolehAju'] == true ? 'Ajukan dispensasi' : 'Lihat kelayakan'),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// v1.94.0: buat kode akses untuk semua siswa yang belum punya (kode lama tidak diubah).
+Future<void> generateKodeAksesMassal(BuildContext context) async {
+  final ok = await konfirmasi(context, 'Buat kode akses semua siswa?',
+      'Kode akses dibuat untuk SEMUA siswa yang belum punya, tanpa membuka mapel satu per satu. Kode yang sudah ada tidak diubah, jadi kartu ujian yang sudah dicetak tetap berlaku.',
+      ya: 'Buat kode');
+  if (!ok || !context.mounted) return;
+  final r = await jalankan(context, () async => peta(await Api.instance('waStafMasaKodeAkses', [Sesi.instance.token], const Duration(minutes: 3))),
+      teksProses: 'Membuat kode akses...');
+  if (!r.ok || !context.mounted) return;
+  final d = r.data!;
+  kabar(context, angka(d['dibuat']) > 0
+      ? '${angka(d['dibuat'])} kode akses baru dibuat (${angka(d['sudahAda'])} siswa sudah punya).'
+      : 'Semua ${angka(d['total'])} siswa sudah punya kode akses.');
 }

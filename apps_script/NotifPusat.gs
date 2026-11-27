@@ -59,8 +59,9 @@ var NP = {
     { kode: 'va_custom_lunas', nama: 'Custom Transaction dibayar', grup: 'Keuangan', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah', 'Front Office', 'Bendahara'], fitur: 'vaCustom' },
     // v1.70.0: kelayakan ujian. v1.76.1: Admin & KS selalu menerima semua (wajib); peran lain hanya sesuai konteksnya
     // (batas: akademik -> Koordinator Kurikulum, keuangan -> Bendahara), walau Pengaturan Notifikasi diubah.
-    { kode: 'kl_aju_akademik', nama: 'Permohonan kelayakan ujian (akademik)', grup: 'Ujian', sasaran: 'peran', peran: ['Koordinator Kurikulum', 'Admin', 'Kepala Sekolah'], fitur: 'kelayakanUjian',
-      wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah', 'Koordinator Kurikulum'] },
+    // v1.94.0: akademik -> Koordinator Unit siswa & Pengampu mapel yang kurang (dikirim per ID staf), plus Admin & KS
+    { kode: 'kl_aju_akademik', nama: 'Permohonan kelayakan ujian (akademik)', grup: 'Ujian', sasaran: 'peran', peran: ['Admin', 'Kepala Sekolah'], fitur: 'kelayakanUjian',
+      wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah'] },
     { kode: 'kl_aju_keuangan', nama: 'Permohonan kelayakan ujian (keuangan)', grup: 'Ujian', sasaran: 'peran', peran: ['Bendahara', 'Admin', 'Kepala Sekolah'], fitur: 'kelayakanUjian',
       wajib: ['Admin', 'Kepala Sekolah'], batas: ['Admin', 'Kepala Sekolah', 'Bendahara'] },
     { kode: 'kl_ks', nama: 'Permohonan kelayakan ujian menunggu keputusan', grup: 'Ujian', sasaran: 'peran', peran: ['Kepala Sekolah', 'Admin'], fitur: 'kelayakanUjian',

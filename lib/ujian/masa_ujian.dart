@@ -142,6 +142,7 @@ class _MasaUjianScreenState extends State<MasaUjianScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Masa Ujian Serentak'), actions: [
+        IconButton(tooltip: 'Buat kode akses semua siswa', icon: const Icon(Icons.vpn_key_outlined), onPressed: () => generateKodeAksesMassal(context)),
         IconButton(
           tooltip: 'Tinjauan pelanggaran berat',
           icon: const Icon(Icons.gavel_rounded),

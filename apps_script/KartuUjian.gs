@@ -6,6 +6,9 @@
 // - Jadwal per hari: jam mulai-selesai, mapel, durasi, mode; kolom ruang hanya terisi untuk ujian tulis (offline)
 //   atau masa yang dilaksanakan di unit (ruang dari penugasan pengawas).
 // - Siswa: waSiswaKartuUjian(token). Petugas: waStafMasaKartu(token, idMasa, idRombel?) untuk cetak per masa/rombel.
+// - v1.94.0: kartu hanya untuk siswa yang LAYAK (Analisa Kelayakan Ujian jenis ujian masa itu). Belum layak -> kartu terkunci,
+//   siswa dapat mengajukan dispensasi (permohonan kelayakan). Disetujui -> kartu bertanda DISPENSASI (nilai ujian itu
+//   tetap tidak ditampilkan kepada siswa). Petugas: waStafMasaKodeAkses membuat kode akses semua siswa yang belum punya.
 // ============================================================================
 if (typeof API_FLUTTER !== 'undefined' && API_FLUTTER && API_FLUTTER.TAMBAHAN) API_FLUTTER.TAMBAHAN.waSiswaKartuUjian = true;
 
@@ -83,7 +86,7 @@ function kuKartuSiswa_(D, idRombel, nama, hanyaMasa) {
         ruang = ef ? String(ef.ruang || '') : '';
       }
     }
-    var o = per[m.id] || (per[m.id] = { id: m.id, nama: m.nama, jenis: m.jenis, jenisNama: MU.NAMA_JENIS[m.jenis] || m.jenis, smt: m.smt, dari: m.dari, sampai: m.sampai,
+    var o = per[m.id] || (per[m.id] = { id: m.id, nama: m.nama, jenis: m.jenis, cakupan: m.cakupan || '', jenisNama: MU.NAMA_JENIS[m.jenis] || m.jenis, smt: m.smt, dari: m.dari, sampai: m.sampai,
       tempat: muTeksTempat_(m, true), item: [] });
     o.item.push({ tanggal: j.tanggal, jam: j.jam, selesai: kuJamTambah_(j.jam, j.durasi), durasi: j.durasi, mapel: mp.nama,
       mode: tulis ? 'Tulis' : 'Online', ruang: ruang, tempat: diUnit ? tempat : '', idUjian: String(j.idUjian) });
@@ -108,13 +111,54 @@ function kuIdentitas_(D, idRombel, nama) {
   try { var wb = kuWb_(D, idRombel, nama); unit = wb ? kuNamaUnit_(D, ubUnitEf_(wb.id, ubPetaSiswa_())) : ''; } catch (e2) {}
   return { nama: nama, nisn: D.nisn[k] || '', rombel: rbNama, unit: unit, kodeAkses: D.siswaKode[k] || '' };
 }
+// v1.94.0: jenis kelayakan untuk masa ini ('' = tanpa syarat, mis. Tryout)
+function kuUjianMasa_(m) {
+  if (!m || m.jenis === 'TRYOUT') return '';
+  if (m.jenis === 'UTS' || m.jenis === 'UAS' || m.jenis === 'UPK') return m.jenis;
+  return m.cakupan === 'UTS' ? 'UTS' : 'UAS';
+}
+// Status kelayakan siswa untuk satu masa: {status, ujian, dispensasi, alasan, bolehAju, proses}
+function kuKelayakan_(idRombel, nama, m) {
+  var ujian = kuUjianMasa_(m), ok = { status: 'Layak', ujian: ujian, dispensasi: false, alasan: '', bolehAju: false, proses: '' };
+  if (!ujian) return ok;
+  try {
+    var d = klData_(m.smt);
+    if (!d.at.blokir) return ok;
+    var w = sbWbSiswa_(idRombel, nama);
+    if (!w) return ok;
+    var keys = klKeysRombel_(d, w.idRombel, null);
+    var h = klWb_(d, w, { idRombel: String(idRombel), nama: nama }, keys, { keu: true, ujian: [ujian] }), u = h.ujian[ujian];
+    if (!u) return ok;
+    var alasan = [];
+    if (!u.akaOk && !u.izinAka) {
+      alasan.push('akademik (' + u.mapel.filter(function(x) { return !x.ok; }).map(function(x) {
+        return x.nama + (x.okTuntas ? '' : ' tuntas ' + x.tuntas.persen + '%') + (x.okAbsen ? '' : ' absensi ' + x.absen.persen + '%');
+      }).join('; ') + '; minimal ' + d.syarat + '%)');
+    }
+    if (!u.keuOk && !u.izinKeu) alasan.push('keuangan (sisa tagihan ' + honRp_(h.keu ? h.keu.sisa : 0) + ')');
+    return { status: u.status, ujian: ujian, dispensasi: u.status === 'Layak dengan catatan', alasan: alasan.join(' · '), bolehAju: !!u.bolehAju,
+      proses: u.aktif ? u.aktif.status : '' };
+  } catch (e) { return ok; }   // gerbang mulai ujian tetap memeriksa ulang
+}
+// Pasang status kelayakan ke tiap masa pada kartu siswa.
+function kuPasangLayak_(masa, idRombel, nama) {
+  masa.forEach(function(o) {
+    var k = kuKelayakan_(idRombel, nama, { jenis: o.jenis, cakupan: o.cakupan, smt: o.smt });
+    o.kelayakan = k;
+    o.terkunci = k.status === 'Belum layak';
+    o.dispensasi = k.dispensasi;
+  });
+  return masa;
+}
 function kuKop_() { try { return kwKop_(); } catch (e) { return { nama: 'PKBM Tunas Harapan', baris: [] }; } }
 
 // ---------- siswa ----------
 function waSiswaKartuUjian(token) {
   var s = siswaDariSesi_(token), D = kuData_();
   var id = kuIdentitas_(D, s.idRombel, s.nama);
-  id.masa = kuKartuSiswa_(D, s.idRombel, s.nama, '');
+  id.masa = kuPasangLayak_(kuKartuSiswa_(D, s.idRombel, s.nama, ''), s.idRombel, s.nama);
+  // kode akses hanya tampil bila ada masa yang boleh diikuti (layak / dispensasi disetujui)
+  if (id.masa.length && id.masa.every(function(m) { return m.terkunci; })) { id.kodeAkses = ''; id.kodeTerkunci = true; }
   id.kop = kuKop_();
   id.dicetak = absHariIni_();
   return id;
@@ -129,7 +173,7 @@ function waStafMasaKartu(token, idMasa, idRombel) {
   var D = kuData_();
   if (!D.masa[m.id]) D.masa[m.id] = m;   // masa yang sudah lewat tetap bisa dicetak ulang
   if (!D.jadwal.some(function(j) { return j.masa === m.id; })) D.jadwal = D.jadwal.concat(ujJadwalSemua_().filter(function(j) { return j.masa === m.id; }));
-  var bm = nilSiswaBm_(), pilih = muPilihNama_(m), dilihat = {}, rombel = {}, out = [];
+  var bm = nilSiswaBm_(), pilih = muPilihNama_(m), dilihat = {}, rombel = {}, out = [], belum = [];
   muKelas_(m).forEach(function(k) {
     rombel[k.idRombel] = true;
     if (idRombel && String(k.idRombel) !== String(idRombel)) return;
@@ -140,14 +184,47 @@ function waStafMasaKartu(token, idMasa, idRombel) {
       var masa = kuKartuSiswa_(D, k.idRombel, sw.nama, m.id);
       if (!masa.length) return;
       var id = kuIdentitas_(D, k.idRombel, sw.nama);
-      id.masa = masa;
+      id.masa = kuPasangLayak_(masa, k.idRombel, sw.nama);
+      if (id.masa[0].terkunci) { belum.push({ nama: id.nama, rombel: id.rombel, alasan: id.masa[0].kelayakan.alasan }); return; }
       out.push(id);
     });
   });
   out.sort(function(a, b) { return (a.rombel + a.nama).localeCompare(b.rombel + b.nama, 'id', { numeric: true }); });
   var nmR = {};
   Object.keys(rombel).forEach(function(r) { try { nmR[r] = getNamaRombel_(r); } catch (e) { nmR[r] = r; } });
-  catat_(p.peran, '', p.nama, 'Cetak kartu peserta ujian', m.id + ' ' + m.nama + ': ' + out.length + ' siswa', 'OK');
-  return { masa: { id: m.id, nama: m.nama }, kartu: out, rombel: Object.keys(rombel).map(function(r) { return { id: r, nama: nmR[r] }; }).sort(function(a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); }),
+  catat_(p.peran, '', p.nama, 'Cetak kartu peserta ujian', m.id + ' ' + m.nama + ': ' + out.length + ' siswa' + (belum.length ? ', ' + belum.length + ' belum layak' : ''), 'OK');
+  belum.sort(function(a, b) { return (a.rombel + a.nama).localeCompare(b.rombel + b.nama, 'id', { numeric: true }); });
+  return { masa: { id: m.id, nama: m.nama }, kartu: out, belumLayak: belum, rombel: Object.keys(rombel).map(function(r) { return { id: r, nama: nmR[r] }; }).sort(function(a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); }),
     kop: kuKop_(), dicetak: absHariIni_() };
+}
+
+// ---------- v1.94.0: petugas membuat kode akses untuk SEMUA siswa yang belum punya (tanpa membuka mapel satu per satu) ----------
+// Kode yang sudah ada TIDAK diubah (kartu yang sudah dicetak tetap berlaku). Hasil: {dibuat, sudahAda, total}
+function waStafMasaKodeAkses(token) {
+  var p = stafDariToken_(token);
+  muWajib_(p);
+  var kunci = kmKunciUnik_();
+  kunci.waitLock(30000);
+  try {
+    var sheet = getSheet(CONFIG.SHEETS.SISWA), n = sheet.getLastRow();
+    if (n < 2) return { dibuat: 0, sudahAda: 0, total: 0 };
+    var v = sheet.getRange(1, 1, n, 4).getValues(), dipakai = {}, kol = [], dibuat = 0, sudah = 0, total = 0;
+    for (var a = 1; a < v.length; a++) { var k0 = String(v[a][3] || '').trim().toUpperCase(); if (k0) dipakai[k0] = true; }
+    for (var i = 1; i < v.length; i++) {
+      var lama = String(v[i][3] || '').trim(), nama = sTeks_(v[i][1]).trim(), idR = sTeks_(v[i][0]).trim();
+      kol.push([v[i][3]]);
+      if (!nama || !idR) continue;
+      total++;
+      if (lama) { sudah++; continue; }
+      var baru = '', coba = 0;
+      do { baru = buatKodeAkses_(CONFIG.PANJANG_KODE_AKSES); coba++; } while (dipakai[baru] && coba < 500);
+      if (dipakai[baru]) throw new Error('Gagal membuat kode yang unik. Coba lagi.');
+      dipakai[baru] = true;
+      kol[kol.length - 1] = [baru];
+      dibuat++;
+    }
+    if (dibuat) sheet.getRange(2, 4, kol.length, 1).setValues(kol);
+    catat_(p.peran, '-', p.nama, 'Generate kode akses massal', dibuat + ' kode baru (' + sudah + ' sudah punya)', 'OK');
+    return { dibuat: dibuat, sudahAda: sudah, total: total };
+  } finally { try { SpreadsheetApp.flush(); } catch (eF) {} kunci.releaseLock(); }
 }

@@ -2816,7 +2816,8 @@ function nilRekapKelas_(k, kelas) {
       });
       var man = k.manual[w.id + '|' + key + '|' + jn];
       var bolehJ = lolos || !!nilDisCari_(k.dis, w.id, kelas.idRombel, kelas.kodeMapel, jn) || !k.at.blokir;
-      komp[jn] = { online: on, manual: man ? man.nilai : null, nilai: man ? man.nilai : on, ket: man ? man.ket : '', boleh: bolehJ };
+      komp[jn] = { online: on, manual: man ? man.nilai : null, nilai: man ? man.nilai : on, ket: man ? man.ket : '', boleh: bolehJ,
+        dispensasi: !lolos && k.at.blokir && !!nilDisCari_(k.dis, w.id, kelas.idRombel, kelas.kodeMapel, jn) };   // v1.94.0
     });
     var ak = nilAkhir_(k.at, diskusi, komp.UTS.nilai, komp.UAS.nilai);
     // v1.40.0: nilai akhir rapor dari hardcopy (bila hanya nilai akhir yang tersedia) menggantikan hitungan komponen
@@ -3204,7 +3205,7 @@ function nilRaporWb_(wb, q) {
     var x = nilRekapKelas_(k, kl).filter(function(y) { return y.idWb === wb.id; })[0];
     if (!x) return;
     rows.push({ kode: kl.kodeMapel, nama: kl.namaMapel, diskusi: x.diskusi, uts: x.uts.nilai, uas: x.uas.nilai, akhir: x.akhir, predikat: x.predikat, tuntas: x.tuntas, deskripsi: nilDeskripsi_(kl.namaMapel, x.predikat), persenHadir: x.persen,
-      utsBoleh: x.uts.boleh !== false, uasBoleh: x.uas.boleh !== false });
+      utsBoleh: x.uts.boleh !== false && !x.uts.dispensasi, uasBoleh: x.uas.boleh !== false && !x.uas.dispensasi });   // v1.94.0: dispensasi = hanya pelaksanaan
   });
   var rb = honProgramRombel_()[idR] || { nama: idR, program: '' };
   var hd = k.rekapHadir[wb.id] || { Hadir: 0, Izin: 0, Sakit: 0, Alpa: 0 };
@@ -4343,7 +4344,7 @@ function brdSiswa_(s, paksa) {
       var j = jad[id];
       var thB = null;
       try { thB = sbTertahan_(j, s.idRombel, s.nama); } catch (eTb) {}   // v1.57.0
-      if (thB) { out.push({ t: j.jenis + ' ' + mapelKu[j.idMapel].nama, s: 'nilai terbuka setelah biaya ujian lunas', n: '**', w: 'kuning', tgl: j.tanggal }); return; }
+      if (thB) { out.push({ t: j.jenis + ' ' + mapelKu[j.idMapel].nama, s: thB.dispensasi ? 'nilai tidak ditampilkan (ikut ujian dengan dispensasi)' : 'nilai terbuka setelah biaya ujian lunas', n: '**', w: 'kuning', tgl: j.tanggal }); return; }
       out.push({ t: j.jenis + ' ' + mapelKu[j.idMapel].nama, s: 'ujian online · KKM ' + j.kkm, n: String(Math.round(best[id] * 10) / 10), w: best[id] >= j.kkm ? 'hijau' : 'merah', tgl: j.tanggal });
     });
     if (wb) {

@@ -986,7 +986,7 @@ class _UjianSiswaScreenState extends State<UjianSiswaScreen> {
         builder: (c) => AlertDialog(
           title: const Text('Ujian selesai'),
           content: Text(hasil['sukses'] == true && hasil['nilaiTertahan'] != null
-              ? 'Jawaban terkirim.\n\n${teks(peta(hasil['nilaiTertahan'])['pesan'], 'Nilai terbuka setelah biaya ujian dilunasi.')} Lunasi lewat menu Tagihan.'
+              ? 'Jawaban terkirim.\n\n${teks(peta(hasil['nilaiTertahan'])['pesan'], 'Nilai terbuka setelah biaya ujian dilunasi.')}${peta(hasil['nilaiTertahan'])['dispensasi'] == true ? '' : ' Lunasi lewat menu Tagihan.'}'
               : hasil['sukses'] == true
               ? 'Nilai Anda: ${teks(hasil['nilaiTotal'])} dari ${teks(hasil['nilaiMaks'], '100')}\n${teks(hasil['jumlahBenar'])} dari ${teks(hasil['totalSoal'])} soal benar.'
                   '${hasil['pelanggaranBerat'] == true ? '\n\nKarena pelanggaran berat, nilai ini akan ditinjau Kepala Sekolah: bisa tetap, diulang lewat susulan, atau dibatalkan.' : ''}'

@@ -151,6 +151,11 @@ function sbGerbang_(j, idRombel, nama) {
 }
 // Nilai ditahan untuk siswa (belum lunas). null = tidak ditahan.
 function sbTertahan_(j, idRombel, nama) {
+  // v1.94.0: ikut ujian lewat dispensasi kelayakan (permohonan disetujui) -> nilai/hasil ujian itu tidak pernah ditampilkan ke siswa
+  try {
+    var wD = sbWbSiswa_(idRombel, nama), dk = wD ? klDisJadwal_(j, wD) : null;
+    if (dk) return { dispensasi: true, masa: '', pesan: 'Nilai tidak ditampilkan: status kelayakan ' + dk['UJIAN'] + ' tidak terpenuhi (mengikuti ujian dengan dispensasi).' };
+  } catch (eD) {}
   var m = sbMasaDariJadwal_(j);
   if (!m || !sbMasaBayar_(m).aktif) return null;
   var w = sbWbSiswa_(idRombel, nama);
