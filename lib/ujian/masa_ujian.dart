@@ -11,6 +11,7 @@ import '../berkas.dart';
 import '../session.dart';
 import '../widgets.dart';
 import 'cetak_masa.dart';
+import 'kartu_ujian.dart';
 import 'kisi_kisi.dart';
 import 'laporan_kesiapan.dart';
 import 'pengawas.dart';
@@ -813,6 +814,7 @@ class _MasaRinciScreenState extends State<MasaRinciScreen> {
       child: Scaffold(
         appBar: AppBar(title: Text(teks(m['nama'])), actions: [
           if (draft) IconButton(tooltip: 'Ubah masa ujian', onPressed: _ubahMasa, icon: const Icon(Icons.edit_outlined)),
+          if (!draft) IconButton(tooltip: 'Cetak kartu peserta (PDF)', onPressed: () => cetakKartuMasa(context, widget.id), icon: const Icon(Icons.badge_outlined)),
           IconButton(tooltip: 'Muat ulang', onPressed: _muat, icon: const Icon(Icons.refresh_rounded)),
         ]),
         body: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [

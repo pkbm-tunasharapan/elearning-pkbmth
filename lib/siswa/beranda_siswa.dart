@@ -9,6 +9,7 @@ import '../kalender.dart';
 import '../profil.dart';
 import '../referral/referral.dart';
 import '../ruang.dart';
+import '../ujian/kartu_ujian.dart';
 import '../ujian/kelayakan.dart';
 import '../theme.dart';
 import '../ulang_tahun.dart';
@@ -73,7 +74,8 @@ class _BerandaIsi extends StatelessWidget {
       _AksiCepat(ikon: Icons.checklist_rounded, judul: 'Kisi-kisi', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KisiSiswaScreen()))),
       _AksiCepat(ikon: Icons.workspace_premium_outlined, judul: 'Pencapaian', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PencapaianSiswaScreen()))),
       _AksiCepat(ikon: Icons.calendar_month_outlined, judul: 'Kalender', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => KalenderSiswaScreen(idRombel: s.idRombel, nama: s.nama)))),
-      _AksiCepat(ikon: Icons.forum_outlined, judul: 'Chatroom', onTap: () => bukaChatSiswa(Navigator.of(context), 'ROMBEL')),
+      // v1.93.4: Chatroom sudah ada di navigasi bawah; ubinnya diganti Kartu Ujian
+      _AksiCepat(ikon: Icons.badge_outlined, judul: 'Kartu Ujian', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KartuUjianSiswaScreen()))),
     ];
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: gelap ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
@@ -320,6 +322,10 @@ class _BerandaSiswaState extends State<BerandaSiswa> {
                 Navigator.pop(c);
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BuatPinScreen()));
               }),
+          ListTile(leading: const Icon(Icons.badge_outlined), title: const Text('Kartu ujian'), onTap: () {
+            Navigator.pop(c);
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const KartuUjianSiswaScreen()));
+          }),
           ListTile(leading: const Icon(Icons.vpn_key_rounded), title: const Text('Kode akses ujian'), onTap: () {
             Navigator.pop(c);
             aturKodeAkses(context);
