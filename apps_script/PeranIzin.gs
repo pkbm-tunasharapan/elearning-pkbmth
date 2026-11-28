@@ -67,7 +67,7 @@ var IZN = {
     ['kinerja', 'Kinerja Tutor', 'Akademik', ['Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Tutor'], /^waStafKinerjaTutor$/],
     ['cp', 'CP · TP · ATP', 'Akademik', ['Admin'], /^waAdminKerangka\w*$/],
     ['kelolaMapel', 'Kelola Mata Pelajaran', 'Akademik', ['Admin'], /^waAdmin(DaftarMapel|SimpanMapel)$/],
-    ['ta', 'Tahun Ajaran', 'Akademik', ['Admin'], /^wa(AdminTa(Baca|Simpan|KaldikSimpan)|StafTahunBaru\w*)$/],
+    ['ta', 'Tahun Ajaran', 'Akademik', ['Admin'], /^wa(AdminTa(Baca|Simpan|Kaldik(Simpan|Templat|Unggah))|StafTahunBaru\w*)$/],
     ['susulan', 'Buka Susulan Massal', 'Akademik', ['Admin'], /^waAdminSusulan\w*$/],
     ['siswaRombel', 'Siswa per Rombel (termasuk reset PIN)', 'Warga Belajar', ['Admin', 'Tutor', 'Kepala Sekolah', 'Koordinator Kurikulum', 'Dinas Pendidikan'], /^waStaf(RombelSiswa|PinReset)$/],
     ['pantauanUnit', 'Pantauan Unit Belajar', 'Warga Belajar', ['Koordinator Unit', 'Admin', 'Superadmin', 'Kepala Sekolah', 'Koordinator Kurikulum'], /^waStaf(PantauUnit|LaporanPemetaanSiswa)$/],

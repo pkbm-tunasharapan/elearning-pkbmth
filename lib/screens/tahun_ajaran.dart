@@ -5,6 +5,7 @@ import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
 import 'kaldik.dart';
+import 'kaldik_templat.dart';
 
 String _iso(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 DateTime? _dariIso(String s) {
@@ -193,6 +194,26 @@ class _PengaturanState extends State<_Pengaturan> {
               },
             ),
           ),
+          // v1.95.0: templat Excel kaldik
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(onPressed: () => unduhTemplatKaldik(context), icon: const Icon(Icons.download_outlined), label: const Text('Unduh templat')),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.tonalIcon(
+                onPressed: () async {
+                  final r = await unggahTemplatKaldik(context);
+                  if (r != null && r.isNotEmpty && mounted) {
+                    setState(() => _isi(r));
+                    widget.berubah();
+                  }
+                },
+                icon: const Icon(Icons.upload_file_outlined),
+                label: const Text('Unggah templat'),
+              ),
+            ),
+          ]),
           const SizedBox(height: 12),
           Card(
             child: Padding(
@@ -413,6 +434,22 @@ class _TahunBaruState extends State<_TahunBaru> {
             },
           ),
         ),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton.icon(onPressed: () => unduhTemplatKaldik(context), icon: const Icon(Icons.download_outlined), label: const Text('Unduh templat')),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: () async {
+                final r = await unggahTemplatKaldik(context, labelBaru: _label.text.trim().isEmpty ? 'tahun baru' : _label.text.trim());
+                if (r != null && r.isNotEmpty && mounted) setState(() => _kaldik = r);
+              },
+              icon: const Icon(Icons.upload_file_outlined),
+              label: const Text('Unggah kaldik baru'),
+            ),
+          ),
+        ]),
         if (_kaldik == null)
           OutlinedButton.icon(
             onPressed: () async {

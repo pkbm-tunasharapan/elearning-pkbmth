@@ -25,7 +25,7 @@ String _r(DateTime a, DateTime b) => a == b ? _t(a) : '${_t(a)} – ${_t(b)}';
 class _KeteranganKaldikScreenState extends State<KeteranganKaldikScreen> {
   final _tempel = TextEditingController();
   late List<BarisKet> _baris = widget.awal.map((m) => BarisKet(teks(m['tanggal']), teks(m['kegiatan']), kategori: teks(m['kategori'], '').isEmpty ? null : teks(m['kategori']))).toList();
-  late final Map<String, bool> _pakai = {'mulai': !widget.sedangBerjalan, 'libur': true, 'uas': true, 'rapor': true};
+  late final Map<String, bool> _pakai = {'mulai': !widget.sedangBerjalan, 'libur': true, 'uts': true, 'uas': true, 'rapor': true};
 
   void _urai() {
     final b = uraiTempel(_tempel.text);
@@ -75,6 +75,8 @@ class _KeteranganKaldikScreenState extends State<KeteranganKaldikScreen> {
       'rapor': r.rapor == null ? null : isoTgl(r.rapor!),
       'uasDari': r.uasDari == null ? null : isoTgl(r.uasDari!),
       'uasSampai': r.uasSampai == null ? null : isoTgl(r.uasSampai!),
+      'utsDari': r.utsDari == null ? null : isoTgl(r.utsDari!),
+      'utsSampai': r.utsSampai == null ? null : isoTgl(r.utsSampai!),
       'libur': r.libur,
       'keterangan': _baris.map((b) => b.keJson()).toList(),
       'pakai': _pakai,
@@ -121,6 +123,10 @@ class _KeteranganKaldikScreenState extends State<KeteranganKaldikScreen> {
                 CheckboxListTile(
                     dense: true, contentPadding: EdgeInsets.zero, value: _pakai['libur'], onChanged: (v) => setState(() => _pakai['libur'] = v == true),
                     title: Text('Libur: ${r.libur.length} rentang (menggantikan daftar libur semester ini)')),
+                if (r.utsDari != null)
+                  CheckboxListTile(
+                      dense: true, contentPadding: EdgeInsets.zero, value: _pakai['uts'], onChanged: (v) => setState(() => _pakai['uts'] = v == true),
+                      title: Text('UTS: ${_r(r.utsDari!, r.utsSampai!)} (dibulatkan Senin–Minggu)')),
                 CheckboxListTile(
                     dense: true, contentPadding: EdgeInsets.zero, value: _pakai['uas'], onChanged: (v) => setState(() => _pakai['uas'] = v == true),
                     title: Text('UAS: ${r.uasDari == null ? '-' : _r(r.uasDari!, r.uasSampai!)} (dibulatkan Senin–Minggu)')),

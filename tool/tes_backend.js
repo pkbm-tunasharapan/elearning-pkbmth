@@ -1336,6 +1336,36 @@ tes('libur: pengingat H-1, libur panjang menyebut tanggal masuk kembali, Minggu 
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// v1.95.0: templat Excel kaldik -> kaldik (lembar CONTOH Jawa Barat 2026/2027)
+tes('templat kaldik: baca baris, kategori otomatis, galat per baris, susun semester, hari pertama semester berjalan dipertahankan', () => {
+  const sv = ['oflBacaXlsx_'], simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const hdr = g.KT.KOLOM;
+    const isi = g.KT.CONTOH.map((r, i) => [i + 1, String(r[0]), r[1], r[2], r[3], r[4], '']);
+    isi.push([99, '', '2026-12-02', '', 'Rapat yayasan', '', '']);   // kategori kosong -> kegiatan, semester kosong -> 1
+    g.oflBacaXlsx_ = () => ({ KALDIK: [['TEMPLAT'], [], [], [], [], [], [], hdr].concat(isi) });
+    const r = g.ktBaca_('x');
+    sama([r.galat, r.baris.length, r.baris[r.baris.length - 1].kategori], [[], g.KT.CONTOH.length + 1, 'kegiatan']);
+    const cfg = { uts: 9, uas: 18, sesiPerSemester: 18, kaldik: { s1: { mulai: '2026-07-27', tetap: {} } } };
+    const s = g.ktSusun_(r.baris, cfg, {});
+    sama(s.galat, []);
+    sama([s.kaldik.s1.mulai, s.kaldik.s2.mulai, s.kaldik.s1.rapor, s.kaldik.s2.rapor], ['2026-07-27', '2027-01-11', '2026-12-23', '2027-06-25'], 'S1 berjalan: hari pertama dipertahankan');
+    sama(/sudah berjalan/.test(s.info[0]), true);
+    sama([s.kaldik.s1.tetap[18].dari, s.kaldik.s1.tetap[18].sampai, s.kaldik.s2.tetap[18].dari, s.kaldik.s2.tetap[18].sampai],
+      ['2026-11-30', '2026-12-13', '2027-06-07', '2027-06-20'], 'UAS dibulatkan Senin-Minggu');
+    sama(s.kaldik.s2.libur.some((l) => l.dari === '2027-03-08' && l.sampai === '2027-03-19'), true);
+    sama(s.kaldik.s1.libur.length, 5);
+    const s2 = g.ktSusun_(r.baris, cfg, { gantiMulai: true });
+    sama(s2.kaldik.s1.mulai, '2026-07-15', 'gantiMulai: ikut templat');
+    // galat per baris
+    g.oflBacaXlsx_ = () => ({ KALDIK: [hdr, [1, '3', '2027-01-11', '', 'Hari pertama', 'Hari pertama masuk', ''], [2, '', '2027-02-10', '2027-02-08', 'Libur', 'Libur', ''],
+      [3, '', 'besok', '', 'x', '', ''], [4, '', '2027-03-01', '', 'y', 'Liburan', '']] });
+    const e = g.ktBaca_('x');
+    sama(e.galat.length, 4, 'semester 3, tanggal terbalik, tanggal tak terbaca, kategori tak dikenal');
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 // 38. batalkan jadwal mulai tanggal (v1.70.2)
 tes('batalkan jadwal: berlaku sampai sehari sebelum tanggal, yang belum berjalan dinonaktifkan, tanggal lampau ditolak', () => {
   const nama = ['jadBacaPm_', 'stafDariToken_', 'jadPeran_', 'absHariIni_', 'catat_'];

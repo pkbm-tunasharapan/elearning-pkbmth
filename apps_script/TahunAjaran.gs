@@ -433,7 +433,10 @@ function taKaldikBersih_(k, per) {
     });
     // v1.95.0: arsip tabel keterangan kaldik (sumber isian), maks. 150 baris
     var ket = (x.keterangan || []).slice(0, 150).map(function(r) {
-      return { tanggal: String(r.tanggal || '').slice(0, 80), kegiatan: String(r.kegiatan || '').slice(0, 200), kategori: String(r.kategori || '').slice(0, 20) };
+      var o2 = { tanggal: String(r.tanggal || '').slice(0, 80), kegiatan: String(r.kegiatan || '').slice(0, 200), kategori: String(r.kategori || '').slice(0, 20) };
+      if (taTgl_(r.dari)) { o2.dari = taIso_(taTgl_(r.dari)); o2.sampai = taTgl_(r.sampai) ? taIso_(taTgl_(r.sampai)) : o2.dari; }
+      if (r.ket) o2.ket = String(r.ket).slice(0, 120);
+      return o2;
     }).filter(function(r) { return r.tanggal || r.kegiatan; });
     if (ket.length) o.keterangan = ket;
     out['s' + s] = o;

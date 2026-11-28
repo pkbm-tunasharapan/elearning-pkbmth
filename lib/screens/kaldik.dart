@@ -138,6 +138,14 @@ class _KaldikEditorScreenState extends State<KaldikEditorScreen> {
         final senin = a.subtract(Duration(days: a.weekday - 1)), minggu = b.add(Duration(days: 7 - b.weekday));
         s.tetap[widget.uas] = {'dari': _iso(senin), 'sampai': _iso(minggu), 'ket': smt == 1 ? 'Asesmen sumatif akhir semester' : 'Asesmen sumatif akhir tahun'};
       }
+      final ua = _tgl(r['utsDari']), ub = _tgl(r['utsSampai']);
+      if (pakai['uts'] == true && ua != null && ub != null && widget.uts > 0) {
+        s.tetap[widget.uts] = {
+          'dari': _iso(ua.subtract(Duration(days: ua.weekday - 1))),
+          'sampai': _iso(ub.add(Duration(days: 7 - ub.weekday))),
+          'ket': 'Asesmen tengah semester'
+        };
+      }
       s.keterangan = daftar(r['keterangan']).map(peta).toList();
     });
     kabar(context, 'Keterangan diterapkan. Periksa lalu ketuk "Simpan & lihat jadwal".');

@@ -106,10 +106,11 @@ HasilTanggal? uraiTanggal(String teks) {
 }
 
 /// Kategori baris keterangan.
-const katMulai = 'mulai', katLibur = 'libur', katUas = 'uas', katRapor = 'rapor', katJenjang = 'ujianJenjang', katKegiatan = 'kegiatan';
+const katMulai = 'mulai', katLibur = 'libur', katUts = 'uts', katUas = 'uas', katRapor = 'rapor', katJenjang = 'ujianJenjang', katKegiatan = 'kegiatan';
 const kategoriLabel = {
   katMulai: 'Hari pertama masuk',
   katLibur: 'Libur',
+  katUts: 'UTS / asesmen tengah',
   katUas: 'UAS / asesmen akhir',
   katRapor: 'Pembagian rapor',
   katJenjang: 'Ujian jenjang (info)',
@@ -121,6 +122,7 @@ String kategoriKegiatan(String kegiatan) {
   if (k.contains('hari pertama') && (k.contains('masuk') || k.contains('sekolah'))) return katMulai;
   if (k.contains('pembagian rapor') || k.contains('pembagian raport')) return katRapor;
   if (RegExp(r'asesmen sumatif akhir (semester|tahun)|sumatif akhir tahun|sumatif akhir fase|penilaian akhir (semester|tahun)|ujian akhir semester').hasMatch(k)) return katUas;
+  if (RegExp(r'asesmen sumatif tengah semester|penilaian tengah semester|ujian tengah semester|\buts\b|\bpts\b').hasMatch(k)) return katUts;
   if (k.contains('akhir jenjang') || (RegExp(r'tes (kemampuan|kompetensi) akademik').hasMatch(k) && k.contains('paket'))) return katJenjang;
   if (RegExp(r'^(perkiraan )?(hari (guru|pendidikan|disabilitas|anak|kartini|pahlawan|santri|ibu))').hasMatch(k) || k.contains('pramuka')) return katKegiatan;
   if (RegExp(r'\blibur\b|cuti bersama|hari raya|tahun baru (islam|imlek|masehi|hijriah)|\bnatal\b|wafat isa|kenaikan isa|waisak|waisyak|nyepi|isra|maulid|idul (fitri|adha)|kemerdekaan|lahir pancasila|hari buruh')
@@ -138,7 +140,13 @@ class BarisKet {
   final HasilTanggal? hasil;
   late String kategori;
   bool get perkiraan => kegiatan.toLowerCase().contains('perkiraan') || tanggal.contains('*');
-  Map<String, dynamic> keJson() => {'tanggal': tanggal, 'kegiatan': kegiatan, 'kategori': kategori};
+  Map<String, dynamic> keJson() => {
+        'tanggal': tanggal,
+        'kegiatan': kegiatan,
+        'kategori': kategori,
+        if (hasil != null) 'dari': isoTgl(hasil!.dari),
+        if (hasil != null) 'sampai': isoTgl(hasil!.sampai),
+      };
 }
 
 final _tahun = RegExp(r'(19|20)\d{2}');
@@ -200,7 +208,7 @@ List<BarisKet> uraiTempel(String teks) {
 
 /// Ringkasan untuk diterapkan ke satu semester kaldik.
 class RingkasKet {
-  DateTime? mulai, rapor, uasDari, uasSampai;
+  DateTime? mulai, rapor, uasDari, uasSampai, utsDari, utsSampai;
   final libur = <Map<String, String>>[];
   final jenjang = <String>[];
 }
@@ -217,6 +225,9 @@ RingkasKet ringkasKet(List<BarisKet> baris) {
         r.mulai ??= h.dari;
       case katRapor:
         r.rapor = h.sampai;
+      case katUts:
+        r.utsDari = r.utsDari == null || h.dari.isBefore(r.utsDari!) ? h.dari : r.utsDari;
+        r.utsSampai = r.utsSampai == null || h.sampai.isAfter(r.utsSampai!) ? h.sampai : r.utsSampai;
       case katUas:
         r.uasDari = r.uasDari == null || h.dari.isBefore(r.uasDari!) ? h.dari : r.uasDari;
         r.uasSampai = r.uasSampai == null || h.sampai.isAfter(r.uasSampai!) ? h.sampai : r.uasSampai;
