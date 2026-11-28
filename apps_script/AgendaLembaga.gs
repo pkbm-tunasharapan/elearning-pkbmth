@@ -8,13 +8,18 @@
 // - Jadwal tatap muka pada tanggal agenda tidak wajib (tidak dihitung pertemuan wajib, tidak tampil sebagai jadwal):
 //   untuk rombel sasaran bila "gantikan jadwal tatap muka" aktif, dan untuk rombel bukan sasaran bila statusnya
 //   Libur / Belajar mandiri.
+// - v1.95.0: libur dari KALENDER AKADEMIK (Tahun Ajaran -> Kalender akademik) otomatis menjadi agenda
+//   "Libur (kalender akademik)" untuk semua siswa, langsung sah, tatap muka ditiadakan. Diperbarui tiap kaldik disimpan
+//   (ID berawalan KALDIK-); tidak bisa diubah/dibatalkan di sini, ubah lewat kalender akademik. Libur lain (libur daerah,
+//   libur lembaga, libur sebagian rombel/unit) tetap diinput manual di sini dan disahkan Kepala Sekolah.
 // Data: tab AGENDA LEMBAGA.
 // ============================================================================
 var AG = {
   TAB: 'AGENDA LEMBAGA',
   HDR: ['ID', 'NAMA', 'JENIS', 'DARI', 'SAMPAI', 'SASARAN', 'STATUS LAIN', 'GANTI JADWAL', 'KETERANGAN', 'STATUS',
     'DIBUAT OLEH', 'DIBUAT PADA', 'DISAHKAN OLEH', 'DISAHKAN PADA', 'CATATAN'],
-  JENIS: ['TKA', 'Kegiatan', 'Libur khusus', 'Lainnya'],
+  JENIS: ['TKA', 'Kegiatan', 'Libur nasional/daerah', 'Libur khusus', 'Lainnya'],
+  JENIS_KALDIK: 'Libur (kalender akademik)', AWALAN_KALDIK: 'KALDIK-',
   MODE: ['semua', 'jenjang', 'rombel', 'unit', 'siswa'],
   LAIN: ['Belajar biasa', 'Libur', 'Belajar mandiri'],
   PERAN_BUAT: ['Admin'], PERAN_SAH: ['Kepala Sekolah'], PERAN_LIHAT: ['Admin', 'Kepala Sekolah', 'Superadmin', 'Koordinator Kurikulum'],
@@ -153,6 +158,7 @@ function waStafAgendaSimpan(token, d) {
   var sh = muTab_(AG.TAB, AG.HDR);
   if (d.id) {
     var a = agCari_(d.id);
+    agWajibManual_(a);
     if (a.status !== 'Draft') throw new Error('Agenda yang sudah disahkan tidak bisa diubah. Minta Kepala Sekolah membatalkannya dulu.');
     Object.keys(isi).forEach(function(k) { sh.getRange(a.baris, AG.HDR.indexOf(k) + 1).setValue(isi[k]); });
     catat_(p.peran, '', p.nama, 'Ubah agenda', a.id + ' ' + nama, 'OK');
@@ -170,6 +176,7 @@ function waStafAgendaHapus(token, id) {
   var p = stafDariToken_(token);
   if (!agPeran_(p).buat) throw new Error('Agenda dihapus oleh Admin.');
   var a = agCari_(id);
+  agWajibManual_(a);
   if (a.status === 'Disahkan') throw new Error('Agenda yang sudah disahkan tidak bisa dihapus. Minta Kepala Sekolah membatalkannya.');
   muTab_(AG.TAB, AG.HDR).deleteRow(a.baris);
   catat_(p.peran, '', p.nama, 'Hapus agenda', a.id + ' ' + a.nama, 'OK');
@@ -197,6 +204,7 @@ function waStafAgendaBatal(token, id, alasan) {
   alasan = String(alasan || '').trim();
   if (alasan.length < 5) throw new Error('Tulis alasan pembatalan (minimal 5 huruf).');
   var a = agCari_(id);
+  agWajibManual_(a);
   if (a.status !== 'Disahkan') throw new Error('Agenda ini belum disahkan.');
   var sh = muTab_(AG.TAB, AG.HDR);
   sh.getRange(a.baris, AG.HDR.indexOf('STATUS') + 1).setValue('Draft');
@@ -208,6 +216,45 @@ function waStafAgendaBatal(token, id, alasan) {
   catat_(p.peran, '', p.nama, 'Batal agenda', a.id + ' ' + a.nama + ': ' + alasan, 'OK');
   return { sukses: true };
 }
+// ---------- v1.95.0: libur kalender akademik -> agenda ----------
+function agKaldik_(a) { return String(a.id || '').indexOf(AG.AWALAN_KALDIK) === 0; }
+function agWajibManual_(a) {
+  if (agKaldik_(a)) throw new Error('Libur ini berasal dari kalender akademik. Ubah lewat Tahun Ajaran -> Kalender akademik.');
+}
+// Samakan agenda KALDIK-* dengan daftar libur kaldik (semester 1 & 2). Hasil: {tambah, ubah, hapus}
+function agSinkronKaldik_(cfg) {
+  cfg = cfg || taBaca_();
+  var k = cfg.kaldik || {}, mau = {}, out = { tambah: 0, ubah: 0, hapus: 0 };
+  ['s1', 's2'].forEach(function(sx) {
+    ((k[sx] || {}).libur || []).forEach(function(l) {
+      var dari = ujTgl_(l.dari), sampai = ujTgl_(l.sampai || l.dari);
+      if (!dari || !sampai) return;
+      var id = AG.AWALAN_KALDIK + dari.replace(/-/g, '') + '-' + sampai.replace(/-/g, '');
+      if (mau[id]) { mau[id].nama = (mau[id].nama + ' / ' + l.nama).slice(0, 80); return; }
+      mau[id] = { dari: dari, sampai: sampai, nama: String(l.nama || 'Libur').slice(0, 80) };
+    });
+  });
+  var sh = muTab_(AG.TAB, AG.HDR), ada = agSemua_().filter(agKaldik_);
+  // hapus yang tidak ada lagi (dari bawah supaya nomor baris tetap)
+  ada.filter(function(a) { return !mau[a.id]; }).sort(function(a, b) { return b.baris - a.baris; }).forEach(function(a) { sh.deleteRow(a.baris); out.hapus++; });
+  var lama = {};
+  agSemua_().filter(agKaldik_).forEach(function(a) { lama[a.id] = a; });
+  Object.keys(mau).forEach(function(id) {
+    var m = mau[id], a = lama[id];
+    if (a) {
+      if (a.nama !== m.nama) { sh.getRange(a.baris, AG.HDR.indexOf('NAMA') + 1).setValue(m.nama); out.ubah++; }
+      return;
+    }
+    var isi = { 'ID': id, 'NAMA': m.nama, 'JENIS': AG.JENIS_KALDIK, 'DARI': m.dari, 'SAMPAI': m.sampai, 'SASARAN': JSON.stringify({ mode: 'semua', nilai: [] }),
+      'STATUS LAIN': 'Belajar biasa', 'GANTI JADWAL': 'Ya', 'KETERANGAN': 'Libur resmi kalender akademik ' + cfg.label + '.', 'STATUS': 'Disahkan',
+      'DIBUAT OLEH': 'Kalender akademik', 'DIBUAT PADA': ujNow_(), 'DISAHKAN OLEH': 'Kalender akademik', 'DISAHKAN PADA': ujNow_() };
+    sh.appendRow(AG.HDR.map(function(h) { return isi[h] === undefined ? '' : isi[h]; }));
+    out.tambah++;
+  });
+  agLupakan_();
+  return out;
+}
+
 function agKirimNotif_(a) {
   var pn = agPenerima_(a), tgl = agTglTeks_(a), out = { sasaran: pn.sasaran.length, bukan: 0, tutor: 0 };
   var ket = a.ket ? ' ' + a.ket : '';

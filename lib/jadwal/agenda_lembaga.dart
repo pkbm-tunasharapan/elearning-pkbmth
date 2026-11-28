@@ -86,12 +86,25 @@ class _AgendaLembagaScreenState extends State<AgendaLembagaScreen> {
           return Stack(children: [
             ListView(padding: const EdgeInsets.fromLTRB(16, 10, 16, 96), children: [
               const Text(
-                  'Agenda di luar kalender akademik (mis. TKA, kegiatan, libur khusus). Admin menyusun draf beserta sasaran dan status siswa lainnya; '
-                  'Kepala Sekolah mengesahkan. Jadwal tatap muka yang terdampak otomatis tidak dihitung pertemuan wajib.',
+                  'Agenda di luar kalender akademik (mis. TKA, kegiatan, libur nasional/daerah, libur khusus). Admin menyusun draf beserta sasaran dan status siswa lainnya; '
+                  'Kepala Sekolah mengesahkan. Jadwal tatap muka yang terdampak otomatis tidak dihitung pertemuan wajib. '
+                  'Libur dari kalender akademik (bertanda kalender) masuk otomatis dan diubah lewat Tahun Ajaran → Kalender akademik.',
                   style: TextStyle(fontSize: 12.5)),
               const SizedBox(height: 10),
               if (agenda.isEmpty) const Kosong(pesan: 'Belum ada agenda.', ikon: Icons.event_note_outlined),
               for (final a in agenda)
+                if (teks(a['id']).startsWith('KALDIK-'))
+                  // v1.95.0: libur dari kalender akademik (otomatis, hanya baca)
+                  Card(
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.calendar_month_outlined, color: Theme.of(context).colorScheme.error),
+                      title: Text(teks(a['nama']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text('${teks(a['tanggalTeks'])} · semua siswa · tatap muka ditiadakan'),
+                      trailing: const Lencana('Kaldik', warna: Colors.teal),
+                    ),
+                  )
+                else
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 10, 8, 6),

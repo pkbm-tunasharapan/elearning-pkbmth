@@ -403,6 +403,7 @@ function waAdminTaSimpan(token, d) {
   };
   PropertiesService.getScriptProperties().setProperty(TA.PROP, JSON.stringify(simpan));
   TA_MEMO_ = null; TA_JADWAL_MEMO_ = null;
+  if (d.kaldik !== undefined) { try { agSinkronKaldik_(taBaca_()); } catch (eA) {} }   // v1.95.0
   try { catat_(p.peran, '', p.nama, 'Atur tahun ajaran', simpan.label + ', mulai ' + simpan.mulai + ', ' + per + ' sesi/semester, UTS ' + uts + ', UAS ' + uas, 'OK'); } catch (e) {}
   return taPaket_(taBaca_(), new Date().getTime());
 }
@@ -448,6 +449,7 @@ function taKaldikTulis_(kaldik, p) {
   if (simpan.kaldik && simpan.kaldik.s1) simpan.mulai = taIso_(taSenin_(taTgl_(simpan.kaldik.s1.mulai)));
   PropertiesService.getScriptProperties().setProperty(TA.PROP, JSON.stringify(simpan));
   TA_MEMO_ = null; TA_JADWAL_MEMO_ = null;
+  try { agSinkronKaldik_(taBaca_()); } catch (eA) {}   // libur kaldik -> Agenda Lembaga
   try { if (typeof perfGantiVersi_ === 'function') perfGantiVersi_(); } catch (e0) {}
   try { catat_(p.peran, '', p.nama, 'Atur kalender akademik', simpan.label + ': S1 mulai ' + (simpan.kaldik.s1 || {}).mulai + ', S2 mulai ' + ((simpan.kaldik.s2 || {}).mulai || '-'), 'OK'); } catch (e) {}
   return taPaket_(taBaca_(), new Date().getTime());

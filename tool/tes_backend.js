@@ -1288,6 +1288,29 @@ tes('kaldik: minggu libur >= 3 hari dilewati, sesi tetap UAS bertanggal, jeda an
   g.TA_JADWAL_MEMO_ = null;
 });
 
+// v1.95.0: libur kaldik -> agenda KALDIK-* (tambah, ubah nama, hapus yang hilang); agenda kaldik tidak bisa diubah manual
+tes('kaldik -> agenda: sinkron libur, agenda kaldik hanya baca', () => {
+  const sv = ['muTab_', 'agSemua_', 'agLupakan_', 'ujNow_'], simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    let rows = [{ id: 'KALDIK-20261224-20261224', nama: 'Lama', baris: 2 }, { id: 'KALDIK-20260101-20260101', nama: 'Hilang', baris: 3 }, { id: 'AG-X', nama: 'Manual', baris: 4 }];
+    const tambah = [], ubah = [], hapus = [];
+    g.muTab_ = () => ({ deleteRow: (b) => { hapus.push(b); rows = rows.filter((r) => r.baris !== b); }, appendRow: (r) => tambah.push(r), getRange: (b) => ({ setValue: (v) => ubah.push([b, v]) }) });
+    g.agSemua_ = () => rows.map((r) => Object.assign({}, r));
+    g.agLupakan_ = () => {};
+    g.ujNow_ = () => '2026-11-28 10:00';
+    const cfg = { label: '2026/2027', kaldik: { s1: { libur: [{ dari: '2026-12-24', sampai: '2026-12-24', nama: 'Cuti bersama Natal' }, { dari: '2026-12-28', sampai: '2027-01-08', nama: 'Libur semester 1' }] } } };
+    const h = g.agSinkronKaldik_(cfg);
+    sama([h.tambah, h.ubah, h.hapus], [1, 1, 1]);
+    sama(hapus, [3], 'agenda kaldik yang tidak ada lagi dihapus; agenda manual tidak disentuh');
+    const baru = tambah[0], i = g.AG.HDR.indexOf.bind(g.AG.HDR);
+    sama([baru[i('ID')], baru[i('JENIS')], baru[i('STATUS')], baru[i('GANTI JADWAL')]], ['KALDIK-20261228-20270108', 'Libur (kalender akademik)', 'Disahkan', 'Ya']);
+    let galat = '';
+    try { g.agWajibManual_({ id: 'KALDIK-20261228-20270108' }); } catch (e) { galat = e.message; }
+    sama(/kalender akademik/.test(galat), true);
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 // 38. batalkan jadwal mulai tanggal (v1.70.2)
 tes('batalkan jadwal: berlaku sampai sehari sebelum tanggal, yang belum berjalan dinonaktifkan, tanggal lampau ditolak', () => {
   const nama = ['jadBacaPm_', 'stafDariToken_', 'jadPeran_', 'absHariIni_', 'catat_'];
