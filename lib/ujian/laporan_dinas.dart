@@ -47,8 +47,10 @@ const _css = '.kopisi{text-align:center}.yy{font-size:10pt;font-weight:bold}.lb{
     'table.k{width:100%;border-collapse:collapse}table.k td{vertical-align:top;padding:2px 3px;font-size:10.5pt}'
     'table.g{width:100%;border-collapse:collapse}table.g th,table.g td{border:1px solid #444;padding:3px 5px;font-size:9.5pt;vertical-align:top}table.g th{background:#eee}'
     'table.id{width:100%;border-collapse:collapse;margin:6px 0 8px}table.id td{border:1px solid #777;padding:4px 6px;font-size:9.5pt}'
-    'table.sl{width:100%;border-collapse:collapse}table.sl td{width:50%;vertical-align:top;padding:3px 8px 6px 2px;font-size:9.5pt;line-height:1.3}'
-    'table.sl tr{page-break-inside:avoid}.no{font-weight:bold}.op{padding-left:14px}'
+    '.kol{column-count:2;-webkit-column-count:2;column-gap:8mm;column-rule:.5pt solid #999}'
+    'table.sq{width:100%;border-collapse:collapse;margin-bottom:6px;page-break-inside:avoid}table.sq td{vertical-align:top;padding:0;font-size:9.5pt;line-height:1.3}'
+    'td.n{width:22px;font-weight:bold}table.op{border-collapse:collapse;margin-top:1px}table.op td{vertical-align:top;padding:0 0 1px;font-size:9.5pt;line-height:1.3}td.h{width:17px}'
+    'table.bt{width:100%;border-collapse:collapse}table.bt td{vertical-align:top;padding:0 0 3px;font-size:10.5pt;text-align:justify}td.bh{width:20px;text-align:left}'
     'table.lj{border-collapse:collapse;margin:0 auto}table.lj td{padding:2px 3px;font-size:9.5pt;text-align:center}'
     '.bl{display:inline-block;width:15px;height:15px;line-height:15px;border:1px solid #333;border-radius:8px;font-size:8pt;text-align:center;margin:0 1px}'
     '.hal{page-break-before:always}.kaki{font-size:8pt;color:#555;margin-top:8px}.ttd td{font-size:10.5pt}';
@@ -70,15 +72,15 @@ String htmlSk(Map<String, dynamic> d, Map<String, dynamic> sk) {
     ..write('<div class="judul" style="margin:10px 0 6px">KEPALA ${_e(lembaga.toUpperCase())},</div>')
     ..write('<table class="k">'
         '<tr><td style="width:90px">Menimbang</td><td style="width:10px">:</td><td>'
-        '<div class="p">a. bahwa untuk mengukur ketercapaian kompetensi peserta didik pada akhir semester ${_e(sem.toLowerCase())} tahun pelajaran ${_e(tahun)} perlu dilaksanakan ${_e(jenis)};</div>'
-        '<div class="p">b. bahwa untuk kelancaran penyelenggaraannya perlu dibentuk panitia penyelenggara;</div>'
-        '<div class="p">c. bahwa berdasarkan pertimbangan huruf a dan huruf b, perlu menetapkan Keputusan Kepala ${_e(lembaga)} tentang Panitia Penyelenggara ${_e(jenis)}.</div></td></tr>'
+        '<table class="bt"><tr><td class="bh">a.</td><td>bahwa untuk mengukur ketercapaian kompetensi peserta didik pada akhir semester ${_e(sem.toLowerCase())} tahun pelajaran ${_e(tahun)} perlu dilaksanakan ${_e(jenis)};</td></tr>'
+        '<tr><td class="bh">b.</td><td>bahwa untuk kelancaran penyelenggaraannya perlu dibentuk panitia penyelenggara;</td></tr>'
+        '<tr><td class="bh">c.</td><td>bahwa berdasarkan pertimbangan huruf a dan huruf b, perlu menetapkan Keputusan Kepala ${_e(lembaga)} tentang Panitia Penyelenggara ${_e(jenis)}.</td></tr></table></td></tr>'
         '<tr><td>Mengingat</td><td>:</td><td>'
-        '<div class="p">1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;</div>'
-        '<div class="p">2. Peraturan Pemerintah Nomor 57 Tahun 2021 tentang Standar Nasional Pendidikan sebagaimana telah diubah dengan Peraturan Pemerintah Nomor 4 Tahun 2022;</div>'
-        '<div class="p">3. Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi Nomor 21 Tahun 2022 tentang Standar Penilaian Pendidikan pada Pendidikan Anak Usia Dini, Jenjang Pendidikan Dasar, dan Jenjang Pendidikan Menengah;</div>'
-        '${teks(sk['seNomor']).isEmpty ? '' : '<div class="p">4. Surat Edaran Kepala Dinas Pendidikan Kabupaten Cirebon Nomor ${_e(teks(sk['seNomor']))}${teks(sk['seTanggal']).isEmpty ? '' : ' tanggal ${_e(_tgl(teks(sk['seTanggal'])))}'} perihal pelaksanaan ${_e(jenis)}.</div>'}'
-        '</td></tr></table>')
+        '<table class="bt"><tr><td class="bh">1.</td><td>Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;</td></tr>'
+        '<tr><td class="bh">2.</td><td>Peraturan Pemerintah Nomor 57 Tahun 2021 tentang Standar Nasional Pendidikan sebagaimana telah diubah dengan Peraturan Pemerintah Nomor 4 Tahun 2022;</td></tr>'
+        '<tr><td class="bh">3.</td><td>Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi Nomor 21 Tahun 2022 tentang Standar Penilaian Pendidikan pada Pendidikan Anak Usia Dini, Jenjang Pendidikan Dasar, dan Jenjang Pendidikan Menengah;</td></tr>'
+        '${teks(sk['seNomor']).isEmpty ? '' : '<tr><td class="bh">4.</td><td>Surat Edaran Kepala Dinas Pendidikan Kabupaten Cirebon Nomor ${_e(teks(sk['seNomor']))}${teks(sk['seTanggal']).isEmpty ? '' : ' tanggal ${_e(_tgl(teks(sk['seTanggal'])))}'} perihal pelaksanaan ${_e(jenis)}.</td></tr>'}'
+        '</table></td></tr></table>')
     ..write('<div class="judul" style="margin:10px 0 6px">MEMUTUSKAN:</div>')
     ..write('<table class="k">'
         '<tr><td style="width:90px">Menetapkan</td><td style="width:10px">:</td><td><b>KEPUTUSAN KEPALA ${_e(lembaga.toUpperCase())} TENTANG PANITIA PENYELENGGARA ${_e(jenis.toUpperCase())} SEMESTER ${_e(sem.toUpperCase())} TAHUN PELAJARAN ${_e(tahun)}.</b></td></tr>'
@@ -150,17 +152,15 @@ String htmlNaskahRombel(Map<String, dynamic> d, Map<String, dynamic> r, List<Map
       if (s.isEmpty) {
         x.write('<p><i>${_e(teks(u['galat'], 'Bank soal belum tersedia.'))}</i></p>');
       } else {
-        x.write('<table class="sl">');
-        for (var i = 0; i < s.length; i += 2) {
-          String sel(int k) {
-            if (k >= s.length) return '<td></td>';
-            final q = s[k], o = peta(q['o']);
-            return '<td><span class="no">${k + 1}.</span> ${_e(teks(q['t']))}'
-                '${[for (final h in huruf) if (o[h] != null && teks(o[h]).isNotEmpty) '<div class="op">$h. ${_e(teks(o[h]))}</div>'].join()}</td>';
-          }
-          x.write('<tr>${sel(i)}${sel(i + 1)}</tr>');
+        // v1.96.2: dua kolom mengalir seperti Word (kiri penuh dulu, lalu kanan); nomor & pilihan menggantung (rata)
+        x.write('<div class="kol">');
+        for (var k = 0; k < s.length; k++) {
+          final q = s[k], o = peta(q['o']);
+          x.write('<table class="sq"><tr><td class="n">${k + 1}.</td><td>${_e(teks(q['t']))}<table class="op">'
+              '${[for (final h in huruf) if (o[h] != null && teks(o[h]).isNotEmpty) '<tr><td class="h">$h.</td><td>${_e(teks(o[h]))}</td></tr>'].join()}'
+              '</table></td></tr></table>');
         }
-        x.write('</table>');
+        x.write('</div>');
       }
       x.write('<div class="kaki">© ${_e(teks(kop['nama'], 'PKBM'))} · naskah milik lembaga, tidak untuk disebarluaskan.</div>');
       halaman(x.toString());
