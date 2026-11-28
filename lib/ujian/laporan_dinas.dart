@@ -289,6 +289,9 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
     final langkah = (_pakai['sk'] == true ? 1 : 0) + (_pakai['jadwal'] == true ? masa.length : 0) +
         ((_pakai['soal'] == true || _pakai['lj'] == true || _pakai['kunci'] == true) ? rombel.length : 0);
     if (langkah == 0) return kabar(context, 'Pilih minimal satu isi laporan.', galat: true);
+    if ((_pakai['soal'] == true || _pakai['lj'] == true || _pakai['kunci'] == true) && rombel.isEmpty && _pakai['sk'] != true && _pakai['jadwal'] != true) {
+      return kabar(context, 'Pilih minimal satu rombel untuk naskah / lembar jawaban.', galat: true);
+    }
     var ke = 0;
     void maju(String t) => _proses.value = (t, ke++ / (langkah + 1));
     showDialog<void>(
@@ -436,7 +439,16 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
                       onChanged: (v) => setState(() => _pakai[e.key] = v == true),
                       title: Text(e.value),
                     ),
-                  JudulBagian('Rombel', sub: '${_rombel.length} dari ${daftar(d['rombel']).length} dipilih'),
+                  JudulBagian('Rombel yang dicetak (naskah & lembar jawaban)',
+                      sub: '${_rombel.length} dari ${daftar(d['rombel']).length} dipilih',
+                      aksi: Row(mainAxisSize: MainAxisSize.min, children: [
+                        TextButton(
+                            onPressed: () => setState(() => _rombel
+                              ..clear()
+                              ..addAll(daftar(d['rombel']).map((r) => teks(peta(r)['id'])))),
+                            child: const Text('Semua')),
+                        TextButton(onPressed: () => setState(_rombel.clear), child: const Text('Kosongkan')),
+                      ])),
                   Wrap(spacing: 6, runSpacing: 6, children: [
                     for (final r in daftar(d['rombel']).map(peta))
                       FilterChip(
