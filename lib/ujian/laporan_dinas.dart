@@ -201,6 +201,36 @@ String htmlNaskahRombel(Map<String, dynamic> d, Map<String, dynamic> r, List<Map
   return _dok(b.toString());
 }
 
+/// v1.96.1: SATU template lembar jawaban kosong (identitas diisi tangan), [n] nomor, pilihan A-E.
+String htmlLembarJawabanKosong(Map<String, dynamic> d, {int n = 50}) {
+  final kop = peta(d['kop']);
+  const huruf = ['A', 'B', 'C', 'D', 'E'];
+  final x = StringBuffer(_kop(kop))
+    ..write('<div class="judul">LEMBAR JAWABAN ${_e(teks(d['namaJenis']).toUpperCase())}<br>'
+        'SEMESTER ${_e(teks(d['semester']).toUpperCase())} TAHUN PELAJARAN ${_e(teks(d['tahun']))}</div>')
+    ..write('<table class="id">'
+        '<tr><td style="width:50%">Nama peserta: ........................................................</td><td>Nomor peserta / NISN: ........................................</td></tr>'
+        '<tr><td>Program / rombel: Paket ...... / ..................................</td><td>Mata pelajaran: ...................................................</td></tr>'
+        '<tr><td>Hari, tanggal: ....................................................</td><td>Ruang / unit: ......................................................</td></tr>'
+        '</table>')
+    ..write('<div style="font-size:9pt;margin:2px 0 6px"><b>Petunjuk:</b> hitamkan atau beri tanda silang (X) pada huruf jawaban yang dipilih. '
+        'Bila ingin mengganti jawaban, coret dua garis lalu pilih huruf lain. Program Paket A memakai pilihan A–D.</div>');
+  const kolom = 4;
+  final perKolom = (n / kolom).ceil();
+  x.write('<table style="width:100%;border-collapse:collapse"><tr>');
+  for (var c = 0; c < kolom; c++) {
+    x.write('<td style="vertical-align:top;width:25%"><table class="lj">');
+    for (var i = c * perKolom; i < (c + 1) * perKolom && i < n; i++) {
+      x.write('<tr><td style="text-align:right;font-weight:bold;width:24px">${i + 1}.</td><td>${huruf.map((h) => '<span class="bl">$h</span>').join()}</td></tr>');
+    }
+    x.write('</table></td>');
+  }
+  x.write('</tr></table>');
+  x.write('<table class="g" style="margin-top:14px"><tr><th>Jumlah benar</th><th>Nilai</th><th>Paraf pengawas</th><th>Paraf korektor</th><th>Tanda tangan peserta</th></tr>'
+      '<tr><td style="height:40px"></td><td></td><td></td><td></td><td></td></tr></table>');
+  return _dok(x.toString());
+}
+
 // ───────────────────────── PDF ─────────────────────────
 Future<List<int>> _pdf(String html) async {
   final r = peta(await Api.instance('waStafHtmlPdf', [_t, await sisipWatermark(html)], const Duration(minutes: 4)));
@@ -243,6 +273,7 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
   final _c = {for (final k in ['nomor', 'tanggal', 'tempat', 'seNomor', 'seTanggal', 'ketua', 'wakil', 'sekretaris', 'bendahara', 'anggota', 'pengawas', 'penyusun']) k: TextEditingController()};
   final _pakai = {'sk': true, 'jadwal': true, 'soal': true, 'lj': true, 'kunci': false};
   final _rombel = <String>{};
+  final _unit = <String>{};   // v1.96.0: unit yang dicetak (masa ujian per unit)
   final _proses = ValueNotifier<(String, double)>(('', 0));
 
   @override
@@ -262,6 +293,9 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
       }
       setState(() {
         _d = d;
+        _unit
+          ..clear()
+          ..addAll(_semuaUnit(d).keys);
         _rombel
           ..clear()
           ..addAll(daftar(d['rombel']).map((r) => teks(peta(r)['id'])));
@@ -269,6 +303,34 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _galat = e.ramah);
     }
+  }
+
+  // ---------- v1.96.0: saring per unit ----------
+  Map<String, String> _semuaUnit(Map<String, dynamic> d) {
+    final o = <String, String>{};
+    for (final m in daftar(d['masa']).map(peta)) {
+      for (final u in daftar(m['unit']).map(peta)) {
+        o[teks(u['id'])] = teks(u['nama'], teks(u['id']));
+      }
+    }
+    return Map.fromEntries(o.entries.toList()..sort((a, b) => a.value.compareTo(b.value)));
+  }
+
+  /// Masa ujian yang tercakup unit terpilih (masa tanpa unit selalu ikut).
+  List<Map<String, dynamic>> _masaTerpilih(Map<String, dynamic> d) => daftar(d['masa']).map(peta).where((m) {
+        final u = daftar(m['unit']).map((x) => teks(peta(x)['id'])).toList();
+        return u.isEmpty || u.any(_unit.contains);
+      }).toList();
+
+  /// Rombel dengan ujian yang hanya dari masa terpilih (rombel tanpa ujian disembunyikan).
+  List<Map<String, dynamic>> _rombelTersaring(Map<String, dynamic> d) {
+    final ids = _masaTerpilih(d).map((m) => teks(m['id'])).toSet();
+    final out = <Map<String, dynamic>>[];
+    for (final r in daftar(d['rombel']).map(peta)) {
+      final uj = daftar(r['ujian']).map(peta).where((u) => ids.contains(teks(u['masa']))).toList();
+      if (uj.isNotEmpty) out.add({...r, 'ujian': uj});
+    }
+    return out;
   }
 
   Map<String, dynamic> get _sk => {for (final e in _c.entries) e.key: e.value.text.trim()};
@@ -284,13 +346,14 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
     if (d == null) return;
     if (_pakai['sk'] == true && !await _simpanSk(diam: true)) return;
     if (!mounted) return;
-    final rombel = daftar(d['rombel']).map(peta).where((r) => _rombel.contains(teks(r['id']))).toList();
-    final masa = daftar(d['masa']).map(peta).toList();
-    final langkah = (_pakai['sk'] == true ? 1 : 0) + (_pakai['jadwal'] == true ? masa.length : 0) +
-        ((_pakai['soal'] == true || _pakai['lj'] == true || _pakai['kunci'] == true) ? rombel.length : 0);
+    final rombel = _rombelTersaring(d).where((r) => _rombel.contains(teks(r['id']))).toList();
+    final masa = _masaTerpilih(d);
+    if (masa.isEmpty && _pakai['sk'] != true) return kabar(context, 'Pilih minimal satu unit.', galat: true);
+    final langkah = (_pakai['sk'] == true ? 1 : 0) + (_pakai['jadwal'] == true ? masa.length : 0) + (_pakai['lj'] == true ? 1 : 0) +
+        ((_pakai['soal'] == true || _pakai['kunci'] == true) ? rombel.length : 0);
     if (langkah == 0) return kabar(context, 'Pilih minimal satu isi laporan.', galat: true);
-    if ((_pakai['soal'] == true || _pakai['lj'] == true || _pakai['kunci'] == true) && rombel.isEmpty && _pakai['sk'] != true && _pakai['jadwal'] != true) {
-      return kabar(context, 'Pilih minimal satu rombel untuk naskah / lembar jawaban.', galat: true);
+    if ((_pakai['soal'] == true || _pakai['kunci'] == true) && rombel.isEmpty && _pakai['sk'] != true && _pakai['jadwal'] != true && _pakai['lj'] != true) {
+      return kabar(context, 'Pilih minimal satu rombel untuk naskah soal.', galat: true);
     }
     var ke = 0;
     void maju(String t) => _proses.value = (t, ke++ / (langkah + 1));
@@ -326,9 +389,14 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
           if (daftar(j['slot']).isNotEmpty) bagian.add(await _pdf(htmlJadwalUjian(j)));
         }
       }
-      if (_pakai['soal'] == true || _pakai['lj'] == true || _pakai['kunci'] == true) {
+      if (_pakai['lj'] == true) {
+        maju('Template lembar jawaban...');
+        final maks = daftar(d['rombel']).expand((r) => daftar(peta(r)['ujian'])).fold<int>(0, (a, u) => angka(peta(u)['jumlah']) > a ? angka(peta(u)['jumlah']) : a);
+        bagian.add(await _pdf(htmlLembarJawabanKosong(d, n: maks > 0 ? maks : 50)));
+      }
+      if (_pakai['soal'] == true || _pakai['kunci'] == true) {
         for (final r in rombel) {
-          maju('Naskah & lembar jawaban ${teks(r['nama'])}...');
+          maju('Naskah soal ${teks(r['nama'])}...');
           final ids = daftar(r['ujian']).map((u) => teks(peta(u)['idUjian'])).toList();
           final ujian = <Map<String, dynamic>>[];
           for (var i = 0; i < ids.length; i += 14) {
@@ -342,7 +410,7 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
             u['jumlah'] = peta(info[teks(u['idUjian'])])['jumlah'];
           }
           if (ujian.isEmpty) continue;
-          bagian.add(await _pdf(htmlNaskahRombel(d, r, ujian, soal: _pakai['soal'] == true, lj: _pakai['lj'] == true, kunci: _pakai['kunci'] == true)));
+          bagian.add(await _pdf(htmlNaskahRombel(d, r, ujian, soal: _pakai['soal'] == true, lj: false, kunci: _pakai['kunci'] == true)));
         }
       }
       maju('Menggabungkan ${bagian.length} bagian...');
@@ -429,7 +497,7 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
                     'sk': 'SK panitia + lampiran susunan panitia',
                     'jadwal': 'Jadwal ujian (per masa ujian)',
                     'soal': 'Naskah soal sampel (2 kolom) tiap mapel tiap rombel',
-                    'lj': 'Lembar jawaban tiap mapel tiap rombel',
+                    'lj': 'Template lembar jawaban (1 halaman, identitas kosong)',
                     'kunci': 'Kunci jawaban (rahasia, jangan dikirim ke peserta)',
                   }.entries)
                     CheckboxListTile(
@@ -439,8 +507,20 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
                       onChanged: (v) => setState(() => _pakai[e.key] = v == true),
                       title: Text(e.value),
                     ),
-                  JudulBagian('Rombel yang dicetak (naskah & lembar jawaban)',
-                      sub: '${_rombel.length} dari ${daftar(d['rombel']).length} dipilih',
+                  if (_semuaUnit(d).isNotEmpty) ...[
+                    JudulBagian('Unit yang dicetak', sub: '${_masaTerpilih(d).length} dari ${daftar(d['masa']).length} masa ujian tercakup (jadwal & naskah soal)'),
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      for (final u in _semuaUnit(d).entries)
+                        FilterChip(
+                          avatar: const Icon(Icons.home_work_outlined, size: 18),
+                          label: Text(u.value),
+                          selected: _unit.contains(u.key),
+                          onSelected: (v) => setState(() => v ? _unit.add(u.key) : _unit.remove(u.key)),
+                        ),
+                    ]),
+                  ],
+                  JudulBagian('Rombel yang dicetak (naskah soal)',
+                      sub: '${_rombelTersaring(d).where((r) => _rombel.contains(teks(r['id']))).length} dari ${_rombelTersaring(d).length} dipilih',
                       aksi: Row(mainAxisSize: MainAxisSize.min, children: [
                         TextButton(
                             onPressed: () => setState(() => _rombel
@@ -449,8 +529,9 @@ class _LaporanDinasScreenState extends State<LaporanDinasScreen> {
                             child: const Text('Semua')),
                         TextButton(onPressed: () => setState(_rombel.clear), child: const Text('Kosongkan')),
                       ])),
+                  if (_rombelTersaring(d).isEmpty) const Kosong(pesan: 'Tidak ada rombel di unit terpilih.', ikon: Icons.groups_outlined),
                   Wrap(spacing: 6, runSpacing: 6, children: [
-                    for (final r in daftar(d['rombel']).map(peta))
+                    for (final r in _rombelTersaring(d))
                       FilterChip(
                         label: Text('${teks(r['nama'])} · ${daftar(r['ujian']).length}'),
                         selected: _rombel.contains(teks(r['id'])),

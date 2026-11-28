@@ -46,6 +46,8 @@ function waStafMasaLaporanData(token, jenis) {
   // pengawas dari penugasan masa
   var pengawas = {};
   masa.forEach(function(m) { try { pwTugasMasa_(m.id).forEach(function(t) { if (t['NAMA PENGAWAS']) pengawas[t['NAMA PENGAWAS']] = true; }); } catch (e1) {} });
+  var nmUnit = {};
+  try { ubUnit_().forEach(function(u) { nmUnit[u.id] = /^unit\b/i.test(u.nama) ? u.nama : 'Unit ' + u.nama; }); } catch (eU) {}
   var lb = nilLembaga_(), simpan = null;
   try { simpan = JSON.parse(PropertiesService.getScriptProperties().getProperty(ldKunci_(jenis)) || 'null'); } catch (e2) {}
   var dari = masa.reduce(function(a, m) { return !a || m.dari < a ? m.dari : a; }, ''), sampai = masa.reduce(function(a, m) { return m.sampai > a ? m.sampai : a; }, '');
@@ -57,7 +59,11 @@ function waStafMasaLaporanData(token, jenis) {
   };
   return {
     jenis: jenis, namaJenis: ldNamaJenis_(jenis), periode: per, tahun: per.tahun, semester: per.semester, smt: per.smt,
-    masa: masa.map(function(m) { return { id: m.id, nama: m.nama, dari: m.dari, sampai: m.sampai }; }), dari: dari, sampai: sampai,
+    // v1.96.0: unit peserta tiap masa (masa per unit) untuk pilihan cetak per unit
+    masa: masa.map(function(m) {
+      var u = m.peserta.mode === 'unit' ? (m.peserta.unit || []) : (m.unitTempat || []);
+      return { id: m.id, nama: m.nama, dari: m.dari, sampai: m.sampai, unit: u.map(function(id) { return { id: id, nama: nmUnit[id] || id }; }) };
+    }), dari: dari, sampai: sampai,
     rombel: rombel, kop: kuKop_(), lembaga: lb, kepala: lb.kepala, sk: simpan || bawaan, bawaan: bawaan, tersimpan: !!simpan,
     label: cfg.label, dibuat: absWaktu_(), oleh: p.nama
   };
