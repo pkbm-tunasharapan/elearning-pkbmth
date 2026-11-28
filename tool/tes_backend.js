@@ -1311,6 +1311,31 @@ tes('kaldik -> agenda: sinkron libur, agenda kaldik hanya baca', () => {
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
 });
 
+// v1.95.0: pengingat H-1 libur (kaldik & libur manual) ke siswa sasaran, tutor terdampak, staf
+tes('libur: pengingat H-1, libur panjang menyebut tanggal masuk kembali, Minggu saja dilewati', () => {
+  const sv = ['agSah_', 'absHariIni_', 'agPenerima_', 'agTutorTerdampak_', 'npKirim_', 'agTeksSasaran_'], simpan = {};
+  sv.forEach((k) => { simpan[k] = g[k]; });
+  try {
+    const kirim = [];
+    g.absHariIni_ = () => '2026-12-27';
+    g.agSah_ = () => [
+      { id: 'KALDIK-20261228-20270108', nama: 'Libur semester 1', jenis: 'Libur (kalender akademik)', dari: '2026-12-28', sampai: '2027-01-08', sasaran: { mode: 'semua', nilai: [] } },
+      { id: 'AG-1', nama: 'TKA', jenis: 'TKA', dari: '2026-12-28', sampai: '2026-12-28', sasaran: { mode: 'semua', nilai: [] } },
+      { id: 'AG-2', nama: 'Libur desa', jenis: 'Libur khusus', dari: '2026-12-29', sampai: '2026-12-29', sasaran: { mode: 'semua', nilai: [] } },
+    ];
+    g.agPenerima_ = () => ({ sasaran: ['W1', 'W2'], bukan: [], rombel: [] });
+    g.agTutorTerdampak_ = () => ['T1'];
+    g.agTeksSasaran_ = () => 'Semua siswa';
+    const taAsli = g.taBaca_; g.taBaca_ = () => ({ kaldik: { s2: { mulai: '2027-01-11' } } });
+    g.npKirim_ = (j, o) => kirim.push([j, o.judul, o.isi]);
+    sama(g.agPengingatLibur_(), 1, 'hanya libur yang mulai besok; TKA bukan libur');
+    sama(kirim.map((x) => x[0]), ['agenda_libur', 'agenda_tutor', 'agenda_staf']);
+    sama(/kembali 11 Januari 2027/.test(kirim[0][2]), true, 'masuk kembali = hari pertama semester 2');
+    sama(kirim[0][1], 'Besok libur: Libur semester 1');
+    g.taBaca_ = taAsli;
+  } finally { sv.forEach((k) => { g[k] = simpan[k]; }); }
+});
+
 // 38. batalkan jadwal mulai tanggal (v1.70.2)
 tes('batalkan jadwal: berlaku sampai sehari sebelum tanggal, yang belum berjalan dinonaktifkan, tanggal lampau ditolak', () => {
   const nama = ['jadBacaPm_', 'stafDariToken_', 'jadPeran_', 'absHariIni_', 'catat_'];

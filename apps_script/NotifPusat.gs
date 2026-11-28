@@ -237,6 +237,7 @@ function npPastikanPemicu_(paksa) {
 }
 function pemicuNotifHarian() {
   try { sbPengingatRemedial_(); } catch (eR) {}   // v1.57.0
+  try { if (typeof agPengingatLibur_ === 'function') agPengingatLibur_(); } catch (eL) { try { pmlCatatGalat_('pemicu', 'agPengingatLibur_', String(eL && eL.message || eL), eL && eL.stack, '', ''); } catch (eL1) {} }   // v1.95.0: pengingat H-1 libur
   try { npPengingatTagihan_(); } catch (e) { try { pmlCatatGalat_('pemicu', NP.PEMICU, String(e && e.message || e), e && e.stack, '', ''); } catch (e1) {} }
   try { if (new Date().getDay() === 1) npMingguan_(); } catch (e2) { try { pmlCatatGalat_('pemicu', NP.PEMICU, String(e2 && e2.message || e2), e2 && e2.stack, '', ''); } catch (e3) {} }
 }

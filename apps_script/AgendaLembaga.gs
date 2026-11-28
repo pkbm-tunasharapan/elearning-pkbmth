@@ -255,17 +255,20 @@ function agSinkronKaldik_(cfg) {
   return out;
 }
 
-function agKirimNotif_(a) {
-  var pn = agPenerima_(a), tgl = agTglTeks_(a), out = { sasaran: pn.sasaran.length, bukan: 0, tutor: 0 };
-  var ket = a.ket ? ' ' + a.ket : '';
-  if (pn.sasaran.length) npKirim_('agenda_sasaran', { judul: a.nama + ' · ' + tgl, isi: 'Anda termasuk peserta ' + a.nama + ' pada ' + tgl + '.' + ket, siswa: pn.sasaran, ref: 'ags|' + a.id });
-  if (a.statusLain !== 'Belajar biasa' && pn.bukan.length) {
-    out.bukan = pn.bukan.length;
-    npKirim_('agenda_libur', { judul: (a.statusLain === 'Libur' ? 'Libur: ' : 'Belajar mandiri: ') + tgl,
-      isi: 'Selama ' + a.nama + ' (' + tgl + '), ' + (a.statusLain === 'Libur' ? 'kegiatan belajar Anda diliburkan.' : 'Anda belajar mandiri secara online; tidak ada tatap muka.') + ket,
-      siswa: pn.bukan, ref: 'agl|' + a.id });
-  }
-  // tutor yang punya jadwal tatap muka pada tanggal agenda dan jadwalnya ditiadakan
+// v1.95.0: agenda libur (kalender akademik, libur nasional/daerah, libur khusus)
+function agLibur_(a) { return agKaldik_(a) || /libur/i.test(String(a.jenis || '')); }
+function agMasukLagi_(a) {
+  var t = ujtTambahHari_(a.sampai, 1);
+  // libur semester: masuk kembali = hari pertama semester berikutnya menurut kaldik (bila dalam 2 minggu)
+  try {
+    var k = taBaca_().kaldik || {};
+    ['s1', 's2'].forEach(function(sx) { var m = (k[sx] || {}).mulai; if (m && m >= t && m <= ujtTambahHari_(t, 14)) t = m; });
+  } catch (e) {}
+  for (var i = 0; i < 7 && new Date(t + 'T00:00:00').getDay() === 0; i++) t = ujtTambahHari_(t, 1);   // lewati hari Minggu
+  return agTeksTgl_(t);
+}
+// Tutor yang jadwal tatap mukanya ditiadakan agenda ini.
+function agTutorTerdampak_(a) {
   var tutor = {};
   try {
     jadBacaPm_().data.forEach(function(x) {
@@ -276,9 +279,44 @@ function agKirimNotif_(a) {
       }
     });
   } catch (e) {}
-  out.tutor = Object.keys(tutor).length;
+  return Object.keys(tutor);
+}
+// Pengingat H-1 libur (dipanggil pemicu notifikasi harian): siswa sasaran, tutor terdampak, staf.
+function agPengingatLibur_() {
+  var besok = ujtTambahHari_(absHariIni_(), 1), n = 0;
+  agSah_().forEach(function(a) {
+    if (!agLibur_(a) || a.dari !== besok) return;
+    if (a.dari === a.sampai && new Date(a.dari + 'T00:00:00').getDay() === 0) return;   // libur jatuh pada hari Minggu saja
+    var tgl = agTglTeks_(a), lama = a.dari !== a.sampai, pn = agPenerima_(a);
+    var isi = (lama ? 'Libur ' + a.nama + ' mulai besok (' + tgl + '). Kegiatan belajar kembali ' + agMasukLagi_(a) + '.'
+      : 'Besok (' + tgl + ') libur ' + a.nama + '. Tidak ada tatap muka.') + (a.ket && !agKaldik_(a) ? ' ' + a.ket : '');
+    if (pn.sasaran.length) npKirim_('agenda_libur', { judul: 'Besok libur: ' + a.nama, isi: isi, siswa: pn.sasaran, ref: 'aglh|' + a.id });
+    var tt = agTutorTerdampak_(a);
+    if (tt.length) npKirim_('agenda_tutor', { judul: 'Besok libur: ' + a.nama, isi: isi + ' Jadwal tatap muka Anda pada tanggal itu ditiadakan dan tidak dihitung pertemuan wajib.', tutor: tt, ref: 'agth|' + a.id });
+    npKirim_('agenda_staf', { judul: 'Besok libur: ' + a.nama, isi: isi + ' Sasaran: ' + agTeksSasaran_(a) + '.', aksi: 'agenda_lembaga', ref: 'agsh|' + a.id });
+    n++;
+  });
+  return n;
+}
+
+function agKirimNotif_(a) {
+  var pn = agPenerima_(a), tgl = agTglTeks_(a), out = { sasaran: pn.sasaran.length, bukan: 0, tutor: 0 };
+  var ket = a.ket ? ' ' + a.ket : '';
+  if (pn.sasaran.length && agLibur_(a)) {
+    npKirim_('agenda_libur', { judul: 'Libur: ' + a.nama + ' · ' + tgl, isi: 'Kegiatan belajar Anda diliburkan pada ' + tgl + ' (' + a.nama + '). Masuk kembali ' + agMasukLagi_(a) + '.' + ket,
+      siswa: pn.sasaran, ref: 'ags|' + a.id });
+  } else if (pn.sasaran.length) npKirim_('agenda_sasaran', { judul: a.nama + ' · ' + tgl, isi: 'Anda termasuk peserta ' + a.nama + ' pada ' + tgl + '.' + ket, siswa: pn.sasaran, ref: 'ags|' + a.id });
+  if (a.statusLain !== 'Belajar biasa' && pn.bukan.length) {
+    out.bukan = pn.bukan.length;
+    npKirim_('agenda_libur', { judul: (a.statusLain === 'Libur' ? 'Libur: ' : 'Belajar mandiri: ') + tgl,
+      isi: 'Selama ' + a.nama + ' (' + tgl + '), ' + (a.statusLain === 'Libur' ? 'kegiatan belajar Anda diliburkan.' : 'Anda belajar mandiri secara online; tidak ada tatap muka.') + ket,
+      siswa: pn.bukan, ref: 'agl|' + a.id });
+  }
+  // tutor yang punya jadwal tatap muka pada tanggal agenda dan jadwalnya ditiadakan
+  var tutor = agTutorTerdampak_(a);
+  out.tutor = tutor.length;
   if (out.tutor) npKirim_('agenda_tutor', { judul: 'Jadwal tatap muka ditiadakan · ' + tgl, isi: 'Karena ' + a.nama + ' (' + tgl + '), sebagian jadwal tatap muka Anda pada tanggal itu ditiadakan dan tidak dihitung pertemuan wajib.' + ket,
-    tutor: Object.keys(tutor), ref: 'agt|' + a.id });
+    tutor: tutor, ref: 'agt|' + a.id });
   npKirim_('agenda_staf', { judul: 'Agenda disahkan: ' + a.nama, isi: a.nama + ' · ' + tgl + ' · sasaran: ' + agTeksSasaran_(a) + ' · bukan sasaran: ' + a.statusLain + '.', aksi: 'agenda_lembaga', ref: 'agst|' + a.id });
   return out;
 }
