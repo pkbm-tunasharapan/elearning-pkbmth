@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'kaldik_keterangan.dart';
 
 /// v1.95.0: KALENDER AKADEMIK (kaldik). Tanggal sesi mengikuti kaldik: hari pertama masuk per semester, daftar libur
 /// (minggu dengan libur >= 3 hari dilewati), dan sesi ujian bertanggal (UTS/UAS/UPK, boleh > 1 minggu).
@@ -29,6 +30,7 @@ class _Smt {
   DateTime? mulai, rapor;
   final libur = <Map<String, dynamic>>[];
   final tetap = <int, Map<String, dynamic>>{};
+  List<Map<String, dynamic>> keterangan = [];   // baris tabel keterangan kaldik (arsip)
 
   _Smt.dari(Map<String, dynamic> m) {
     mulai = _tgl(m['mulai']);
@@ -36,6 +38,7 @@ class _Smt {
     for (final l in daftar(m['libur']).map(peta)) {
       libur.add({'dari': teks(l['dari']), 'sampai': teks(l['sampai'], teks(l['dari'])), 'nama': teks(l['nama'], 'Libur')});
     }
+    keterangan = daftar(m['keterangan']).map(peta).toList();
     peta(m['tetap']).forEach((k, v) {
       final n = int.tryParse(k);
       if (n != null) tetap[n] = {'dari': teks(peta(v)['dari']), 'sampai': teks(peta(v)['sampai']), 'ket': teks(peta(v)['ket'])};
@@ -49,6 +52,7 @@ class _Smt {
         'rapor': rapor == null ? '' : _iso(rapor!),
         'libur': libur,
         'tetap': {for (final e in tetap.entries) '${e.key}': e.value},
+        if (keterangan.isNotEmpty) 'keterangan': keterangan,
       };
 }
 
@@ -114,6 +118,31 @@ class _KaldikEditorScreenState extends State<KaldikEditorScreen> {
     setState(() => s.tetap[n] = {'dari': _iso(r.start), 'sampai': _iso(r.end), 'ket': nama});
   }
 
+  // Isi semester dari tabel keterangan kaldik (tanpa AI).
+  Future<void> _dariKeterangan(_Smt s, int smt) async {
+    final kini = DateTime.now();
+    final r = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(
+        builder: (_) => KeteranganKaldikScreen(smt: smt, awal: s.keterangan, sedangBerjalan: s.mulai != null && !s.mulai!.isAfter(kini))));
+    if (r == null || !mounted) return;
+    final pakai = peta(r['pakai']);
+    setState(() {
+      if (pakai['mulai'] == true && r['mulai'] != null) s.mulai = _tgl(r['mulai']);
+      if (pakai['rapor'] == true && r['rapor'] != null) s.rapor = _tgl(r['rapor']);
+      if (pakai['libur'] == true) {
+        s.libur
+          ..clear()
+          ..addAll(daftar(r['libur']).map((x) => Map<String, dynamic>.from(peta(x))));
+      }
+      final a = _tgl(r['uasDari']), b = _tgl(r['uasSampai']);
+      if (pakai['uas'] == true && a != null && b != null && widget.uas > 0) {
+        final senin = a.subtract(Duration(days: a.weekday - 1)), minggu = b.add(Duration(days: 7 - b.weekday));
+        s.tetap[widget.uas] = {'dari': _iso(senin), 'sampai': _iso(minggu), 'ket': smt == 1 ? 'Asesmen sumatif akhir semester' : 'Asesmen sumatif akhir tahun'};
+      }
+      s.keterangan = daftar(r['keterangan']).map(peta).toList();
+    });
+    kabar(context, 'Keterangan diterapkan. Periksa lalu ketuk "Simpan & lihat jadwal".');
+  }
+
   Future<void> _simpan() async {
     if (_s1.kosong) return kabar(context, 'Isi hari pertama masuk Semester 1.', galat: true);
     final data = {'s1': _s1.keJson(), if (!_s2.kosong) 's2': _s2.keJson()};
@@ -136,6 +165,19 @@ class _KaldikEditorScreenState extends State<KaldikEditorScreen> {
       if (smt == 2 && widget.upk > 0) (widget.upk, 'UPK'),
     ];
     return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 96), children: [
+      // v1.95.0: isi otomatis dari tabel keterangan kaldik dinas
+      Card(
+        color: cs.secondaryContainer,
+        child: ListTile(
+          leading: const Icon(Icons.table_rows_outlined),
+          title: const Text('Isi dari tabel keterangan kaldik', style: TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(s.keterangan.isEmpty
+              ? 'Tempel tabel Tanggal | Kegiatan di bawah kalender semester ini; hari pertama, libur, UAS, dan rapor terisi otomatis.'
+              : '${s.keterangan.length} baris keterangan tersimpan · ketuk untuk memeriksa / menerapkan ulang'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _dariKeterangan(s, smt),
+        ),
+      ),
       Card(
         child: Column(children: [
           ListTile(

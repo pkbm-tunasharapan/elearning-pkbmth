@@ -431,6 +431,11 @@ function taKaldikBersih_(k, per) {
       if (!a || !b || b < a) throw new Error('Semester ' + s + ', sesi ' + n + ': rentang tanggal tidak valid.');
       o.tetap[nn] = { dari: taIso_(a), sampai: taIso_(b), ket: String(t.ket || '').slice(0, 60) };
     });
+    // v1.95.0: arsip tabel keterangan kaldik (sumber isian), maks. 150 baris
+    var ket = (x.keterangan || []).slice(0, 150).map(function(r) {
+      return { tanggal: String(r.tanggal || '').slice(0, 80), kegiatan: String(r.kegiatan || '').slice(0, 200), kategori: String(r.kategori || '').slice(0, 20) };
+    }).filter(function(r) { return r.tanggal || r.kegiatan; });
+    if (ket.length) o.keterangan = ket;
     out['s' + s] = o;
   });
   if (!out.s1) throw new Error('Isi kalender Semester 1.');
