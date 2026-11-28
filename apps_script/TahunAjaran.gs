@@ -10,6 +10,14 @@
 //  - Siswa hanya melihat sesi yang sudah dimulai. Diskusi/ujian pada sesi yang sudah berakhir TERKUNCI
 //    kecuali tutor pengampu membukanya untuk siswa itu dengan alasan tertulis (sheet "Buka Sesi").
 // Konfigurasi disimpan di Script Properties (kunci TA_KONFIG). Bila belum pernah diatur, dipakai bawaan di TA.DEFAULT.
+// v1.95.0 KALENDER AKADEMIK (kaldik): bila cfg.kaldik diisi, tanggal sesi TIDAK lagi dibagi rata dari satu tanggal.
+//  - Tiap semester punya hari pertama masuk (s1/s2.mulai), daftar libur, dan sesi "tetap" (UTS/UAS/UPK) bertanggal.
+//  - Semester dipecah per minggu (Senin-Minggu). Minggu dengan >= 3 hari libur (Senin-Sabtu) = tidak efektif, dilewati.
+//    Libur 1-2 hari tidak menggeser sesi (hari itu ditandai libur di agenda).
+//  - Sesi tetap memakai rentang tanggalnya (boleh > 1 minggu, mis. ASAS 2 minggu); sesi biasa diisi berurutan ke
+//    minggu efektif berikutnya. Minggu efektif yang tersisa sebelum sesi tetap = minggu cadangan (remedial/susulan).
+//  - Di luar rentang sesi (jeda akhir semester, libur semester) tidak ada sesi berjalan.
+//  - Nomor sesi tetap 1..sesiPerSemester, jadi materi/kurikulum/absensi yang terikat nomor sesi tidak berubah.
 // ============================================================
 
 var TA = {
@@ -17,7 +25,8 @@ var TA = {
   HARI_PER_SESI: 7,
   JUMLAH_SEMESTER: 2,
   // upk (v1.63.0): sesi UPK (ujian kelulusan kelas akhir) di Semester 2; 0 = belum diatur
-  DEFAULT: { label: '2026/2027', mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, upk: 0, jamTayang: '00:01', jamBatas: '23:59', masaBukaHari: 7 },
+  DEFAULT: { label: '2026/2027', mulai: '2026-07-27', sesiPerSemester: 18, uts: 9, uas: 18, upk: 0, jamTayang: '00:01', jamBatas: '23:59', masaBukaHari: 7, kaldik: null },
+  LIBUR_MIN_HARI: 3,   // v1.95.0: minggu dengan libur >= 3 hari (Senin-Sabtu) tidak dipakai untuk sesi
   SHEET_BUKA: 'Buka Sesi',
   HEADERS_BUKA: ['ID', 'Waktu', 'ID Rombel', 'Nama Siswa', 'ID Mapel', 'Semester', 'Sesi', 'Alasan', 'Dibuka Oleh', 'Berlaku Sampai', 'Dicabut'],
   MIN_ALASAN: 15,
@@ -46,6 +55,7 @@ function taBaca_() {
   cfg.upk = parseInt(cfg.upk, 10) || 0;
   cfg.masaBukaHari = parseInt(cfg.masaBukaHari, 10) || TA.DEFAULT.masaBukaHari;
   cfg.jumlahSemester = TA.JUMLAH_SEMESTER;
+  if (cfg.kaldik && typeof cfg.kaldik !== 'object') cfg.kaldik = null;
   TA_MEMO_ = cfg;
   return cfg;
 }
@@ -102,7 +112,84 @@ function taParse_(cfg, teks) {
   return { smt: smt, n: n };
 }
 
+// ---------- v1.95.0: jadwal sesi dari kalender akademik ----------
+function taHari_(d, k) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + k); }
+function taSenin_(d) { var w = d.getDay(); return taHari_(d, w === 0 ? -6 : 1 - w); }
+function taIsoLokal_(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+// Set tanggal libur 'yyyy-MM-dd' dari [{dari, sampai, nama}]
+function taLiburSet_(libur) {
+  var set = {};
+  (libur || []).forEach(function(l) {
+    var a = taTgl_(l.dari), b = taTgl_(l.sampai || l.dari);
+    if (!a || !b) return;
+    for (var d = a, i = 0; d <= b && i < 400; d = taHari_(d, 1), i++) set[taIsoLokal_(d)] = l.nama || 'Libur';
+  });
+  return set;
+}
+var TA_JADWAL_MEMO_ = null;
+// Hasil: null (pakai rumus lama) atau {1: [{n, a: Date, b: Date}], 2: [...], peringatan: [...], minggu: {1: [...], 2: [...]}}
+function taJadwal_(cfg) {
+  var k = cfg && cfg.kaldik;
+  if (!k || !k.s1 || !taTgl_(k.s1.mulai)) return null;
+  if (TA_JADWAL_MEMO_ && TA_JADWAL_MEMO_.cfg === cfg) return TA_JADWAL_MEMO_.j;
+  var out = { peringatan: [], minggu: {} };
+  for (var s = 1; s <= cfg.jumlahSemester; s++) {
+    var ks = k['s' + s];
+    if (!ks || !taTgl_(ks.mulai)) { out[s] = null; continue; }
+    var libur = taLiburSet_(ks.libur), tetap = {}, rentangTetap = [];
+    Object.keys(ks.tetap || {}).forEach(function(n) {
+      var t = ks.tetap[n], a = taTgl_(t && t.dari), b = taTgl_(t && t.sampai);
+      if (a && b && b >= a) { tetap[Number(n)] = { a: a, b: b, ket: t.ket || '' }; rentangTetap.push({ n: Number(n), a: a, b: b }); }
+    });
+    var efektif = function(senin) {
+      var c = 0;
+      for (var i = 0; i < 6; i++) if (libur[taIsoLokal_(taHari_(senin, i))]) c++;
+      return c < TA.LIBUR_MIN_HARI;
+    };
+    var tumpang = function(a, b) { return rentangTetap.some(function(r) { return a <= r.b && b >= r.a; }); };
+    var mulai = taTgl_(ks.mulai), cursor = taSenin_(mulai), arr = [];
+    for (var n = 1; n <= cfg.sesiPerSemester; n++) {
+      if (tetap[n]) {
+        arr.push({ n: n, a: tetap[n].a, b: tetap[n].b, tetap: true });
+        if (cursor <= tetap[n].b) cursor = taHari_(taSenin_(tetap[n].b), 7);
+        continue;
+      }
+      var j = 0;
+      while (j < 80 && (!efektif(cursor) || tumpang(cursor, taHari_(cursor, 6)))) { cursor = taHari_(cursor, 7); j++; }
+      var a0 = n === 1 && mulai > cursor ? mulai : cursor, b0 = taHari_(cursor, 6);
+      rentangTetap.forEach(function(r) {
+        if (r.n > n && r.a <= b0) out.peringatan.push('Semester ' + s + ': minggu efektif kurang - Sesi ' + n + ' jatuh setelah sesi tetap ' + r.n + ' (' + taIsoLokal_(r.a) + ').');
+      });
+      arr.push({ n: n, a: a0, b: b0 });
+      cursor = taHari_(cursor, 7);
+    }
+    arr.sort(function(x, y) { return x.n - y.n; });
+    out[s] = arr;
+    // tabel minggu untuk pratinjau: dari minggu hari pertama sampai minggu rapor / sesi terakhir
+    var akhir = arr.reduce(function(m, x) { return x.b > m ? x.b : m; }, mulai), rapor = taTgl_(ks.rapor);
+    if (rapor && rapor > akhir) akhir = rapor;
+    var tabel = [];
+    for (var w = taSenin_(mulai), z = 0; w <= akhir && z < 60; w = taHari_(w, 7), z++) {
+      var we = taHari_(w, 6), isi = arr.filter(function(x) { return x.a <= we && x.b >= w; }).map(function(x) { return x.n; });
+      var lb = [];
+      for (var i = 0; i < 7; i++) { var nm = libur[taIsoLokal_(taHari_(w, i))]; if (nm && lb.indexOf(nm) < 0) lb.push(nm); }
+      tabel.push({ senin: taIsoLokal_(w), minggu: taIsoLokal_(we), sesi: isi, efektif: efektif(w), libur: lb });
+    }
+    out.minggu[s] = tabel;
+  }
+  if (!out[1]) return null;
+  TA_JADWAL_MEMO_ = { cfg: cfg, j: out };
+  return out;
+}
+
 function taRentang_(cfg, smt, n) {
+  var jt0 = taJam_(cfg.jamTayang) || [0, 1], jb0 = taJam_(cfg.jamBatas) || [23, 59], jd = taJadwal_(cfg);
+  if (jd && jd[smt] && jd[smt][n - 1]) {
+    var x = jd[smt][n - 1];
+    var m0 = new Date(x.a.getFullYear(), x.a.getMonth(), x.a.getDate(), jt0[0], jt0[1], 0, 0);
+    var s0 = new Date(x.b.getFullYear(), x.b.getMonth(), x.b.getDate(), jb0[0], jb0[1], 59, 0);
+    return { mulai: m0, selesai: s0, mulaiMs: m0.getTime(), selesaiMs: s0.getTime() };
+  }
   var g = (smt - 1) * cfg.sesiPerSemester + (n - 1);
   var awal = taTgl_(cfg.mulai);
   var jt = taJam_(cfg.jamTayang) || [0, 1];
@@ -147,7 +234,10 @@ function taPaket_(cfg, nowMs) {
     uts: cfg.uts, uas: cfg.uas, upk: cfg.upk, jamTayang: cfg.jamTayang, jamBatas: cfg.jamBatas, masaBukaHari: cfg.masaBukaHari,
     rentangTahun: taTeksTgl_(awal) + ' – ' + taTeksTgl_(tahunAkhir),
     sekarang: kini ? kini.nama : '', terdekat: (kini || depan || akhir).nama,
-    sesi: daftar
+    sesi: daftar,
+    // v1.95.0
+    kaldik: cfg.kaldik || null, peringatan: (taJadwal_(cfg) || {}).peringatan || [], minggu: (taJadwal_(cfg) || {}).minggu || null,
+    jeda: !kini && !!depan && !!taJadwal_(cfg)
   };
 }
 
@@ -308,12 +398,75 @@ function waAdminTaSimpan(token, d) {
   if (!(masa >= 1 && masa <= 30)) throw new Error('Lama sesi yang dibuka tutor antara 1 dan 30 hari.');
   var simpan = {
     label: label, mulai: taIso_(tgl), sesiPerSemester: per, uts: uts, uas: uas, upk: upk,
-    jamTayang: ('0' + jt[0]).slice(-2) + ':' + ('0' + jt[1]).slice(-2), jamBatas: ('0' + jb[0]).slice(-2) + ':' + ('0' + jb[1]).slice(-2), masaBukaHari: masa
+    jamTayang: ('0' + jt[0]).slice(-2) + ':' + ('0' + jt[1]).slice(-2), jamBatas: ('0' + jb[0]).slice(-2) + ':' + ('0' + jb[1]).slice(-2), masaBukaHari: masa,
+    kaldik: d.kaldik !== undefined ? taKaldikBersih_(d.kaldik, per) : (taBaca_().kaldik || null)   // v1.95.0
   };
   PropertiesService.getScriptProperties().setProperty(TA.PROP, JSON.stringify(simpan));
-  TA_MEMO_ = null;
+  TA_MEMO_ = null; TA_JADWAL_MEMO_ = null;
   try { catat_(p.peran, '', p.nama, 'Atur tahun ajaran', simpan.label + ', mulai ' + simpan.mulai + ', ' + per + ' sesi/semester, UTS ' + uts + ', UAS ' + uas, 'OK'); } catch (e) {}
   return taPaket_(taBaca_(), new Date().getTime());
+}
+
+// ---------- v1.95.0: kalender akademik ----------
+// Bersihkan & validasi masukan kaldik: {s1: {mulai, rapor, libur: [{dari, sampai, nama}], tetap: {n: {dari, sampai, ket}}}, s2: {...}}
+function taKaldikBersih_(k, per) {
+  if (!k) return null;
+  per = per || taBaca_().sesiPerSemester;
+  var out = {};
+  [1, 2].forEach(function(s) {
+    var x = k['s' + s];
+    if (!x) return;
+    var mulai = taTgl_(x.mulai);
+    if (!mulai) throw new Error('Semester ' + s + ': isi hari pertama masuk (yyyy-MM-dd).');
+    var o = { mulai: taIso_(mulai), rapor: taTgl_(x.rapor) ? taIso_(taTgl_(x.rapor)) : '', libur: [], tetap: {} };
+    (x.libur || []).forEach(function(l, i) {
+      var a = taTgl_(l.dari), b = taTgl_(l.sampai || l.dari);
+      if (!a || !b || b < a) throw new Error('Semester ' + s + ', libur ke-' + (i + 1) + ': tanggal tidak valid.');
+      o.libur.push({ dari: taIso_(a), sampai: taIso_(b), nama: String(l.nama || 'Libur').trim().slice(0, 80) });
+    });
+    Object.keys(x.tetap || {}).forEach(function(n) {
+      var t = x.tetap[n], nn = parseInt(n, 10), a = taTgl_(t && t.dari), b = taTgl_(t && t.sampai);
+      if (!(nn >= 1 && nn <= per)) throw new Error('Semester ' + s + ': sesi tetap ' + n + ' di luar 1..' + per + '.');
+      if (!a || !b || b < a) throw new Error('Semester ' + s + ', sesi ' + n + ': rentang tanggal tidak valid.');
+      o.tetap[nn] = { dari: taIso_(a), sampai: taIso_(b), ket: String(t.ket || '').slice(0, 60) };
+    });
+    out['s' + s] = o;
+  });
+  if (!out.s1) throw new Error('Isi kalender Semester 1.');
+  if (out.s2 && out.s2.mulai <= out.s1.mulai) throw new Error('Hari pertama Semester 2 harus setelah Semester 1.');
+  return out;
+}
+// Simpan kalender akademik saja (pengaturan lain tetap). Hasil: paket lengkap + pratinjau minggu + peringatan.
+function waAdminTaKaldikSimpan(token, kaldik) {
+  var p = wajibAdmin_(token);
+  return taKaldikTulis_(kaldik, p);
+}
+function taKaldikTulis_(kaldik, p) {
+  var cfg = taBaca_(), simpan = {};
+  Object.keys(TA.DEFAULT).forEach(function(k) { simpan[k] = cfg[k]; });
+  simpan.kaldik = taKaldikBersih_(kaldik, cfg.sesiPerSemester);
+  if (simpan.kaldik && simpan.kaldik.s1) simpan.mulai = taIso_(taSenin_(taTgl_(simpan.kaldik.s1.mulai)));
+  PropertiesService.getScriptProperties().setProperty(TA.PROP, JSON.stringify(simpan));
+  TA_MEMO_ = null; TA_JADWAL_MEMO_ = null;
+  try { if (typeof perfGantiVersi_ === 'function') perfGantiVersi_(); } catch (e0) {}
+  try { catat_(p.peran, '', p.nama, 'Atur kalender akademik', simpan.label + ': S1 mulai ' + (simpan.kaldik.s1 || {}).mulai + ', S2 mulai ' + ((simpan.kaldik.s2 || {}).mulai || '-'), 'OK'); } catch (e) {}
+  return taPaket_(taBaca_(), new Date().getTime());
+}
+// Semester aktif ikut kaldik: begitu Sesi 1 Semester 2 dimulai, PENGATURAN SEMESTER Ganjil -> Genap (hanya maju,
+// dalam tahun ajaran yang sama). Dipanggil pemicu harian.
+function taSelaraskanSemester_() {
+  var cfg = taBaca_(), j = taJadwal_(cfg);
+  if (!j || !j[2] || !j[2][0]) return '';
+  var sim = absSimBaca_();
+  if (String(sim.tahun || '').trim() !== String(cfg.label).trim() || /genap/i.test(sim.semester)) return '';
+  if (taIsoLokal_(new Date()) < taIsoLokal_(j[2][0].a)) return '';
+  var sh = simTab_('PENGATURAN'), hd = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var c = hd.map(function(x) { return String(x).trim().toUpperCase(); }).indexOf('SEMESTER');
+  if (c < 0) return '';
+  sh.getRange(2, c + 1).setValue('Genap');
+  try { if (typeof perfHapusCache_ === 'function') perfHapusCache_(); } catch (e) {}
+  try { catat_('Sistem', '', 'Kalender akademik', 'Semester berganti otomatis', cfg.label + ' Ganjil -> Genap', 'OK'); } catch (e2) {}
+  return 'Genap';
 }
 
 function taSiswaMapel_(ctx) {
@@ -566,6 +719,9 @@ function waStafTahunBaruJalankan(token, rencana) {
   var cfg = taBaca_();
   var label = String(rencana.label || '').trim();
   if (!/^[0-9A-Za-z\/\- ]{3,30}$/.test(label)) throw new Error('Nama tahun ajaran 3-30 karakter, mis. 2027/2028.');
+  // v1.95.0: kalender akademik tahun baru (opsional). Bila diisi, tanggal mulai = Senin minggu hari pertama Semester 1.
+  var kaldikBaru = rencana.kaldik ? taKaldikBersih_(rencana.kaldik, cfg.sesiPerSemester) : null;
+  if (kaldikBaru) rencana.mulai = taIso_(taSenin_(taTgl_(kaldikBaru.s1.mulai)));
   var tgl = taTgl_(rencana.mulai);
   if (!tgl) throw new Error('Tanggal mulai tidak valid.');
   if (tgl.getDay() !== 1) throw new Error('Tanggal mulai harus hari Senin (awal pekan).');
@@ -599,7 +755,8 @@ function waStafTahunBaruJalankan(token, rencana) {
       lapor.materi = tbResetMateri_();
     }
     langkah = 'pengaturan tahun ajaran';
-    waAdminTaSimpan(token, { label: label, mulai: rencana.mulai, sesiPerSemester: cfg.sesiPerSemester, uts: cfg.uts, uas: cfg.uas, jamTayang: cfg.jamTayang, jamBatas: cfg.jamBatas, masaBukaHari: cfg.masaBukaHari });
+    waAdminTaSimpan(token, { label: label, mulai: rencana.mulai, sesiPerSemester: cfg.sesiPerSemester, uts: cfg.uts, uas: cfg.uas, upk: cfg.upk, jamTayang: cfg.jamTayang, jamBatas: cfg.jamBatas, masaBukaHari: cfg.masaBukaHari,
+      kaldik: kaldikBaru });   // v1.95.0: kaldik tahun lama tidak terbawa
     try { catat_(p.peran, '', p.nama, 'Tahun ajaran baru', label + ': naik ' + lapor.siswa.naik + ', lulus ' + lapor.siswa.lulus + ', tetap ' + lapor.siswa.tetap, 'OK'); } catch (e) {}
     return { sukses: true, laporan: lapor };
   } catch (err) {

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../session.dart';
 import '../widgets.dart';
+import 'kaldik.dart';
 
 String _iso(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 DateTime? _dariIso(String s) {
@@ -166,6 +167,33 @@ class _PengaturanState extends State<_Pengaturan> {
             ),
           ),
           const SizedBox(height: 12),
+          // v1.95.0: kalender akademik (kaldik) menentukan tanggal sesi
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.calendar_month_outlined, color: d['kaldik'] == null ? cs.error : cs.primary),
+              title: const Text('Kalender akademik (kaldik)', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(d['kaldik'] == null
+                  ? 'Belum diisi: sesi dibagi rata dari tanggal mulai, tanpa memperhitungkan libur & jeda semester.'
+                  : 'Semester 1 mulai ${teks(peta(peta(d['kaldik'])['s1'])['mulai'])}'
+                      '${peta(peta(d['kaldik'])['s2']).isEmpty ? '' : ' · Semester 2 mulai ${teks(peta(peta(d['kaldik'])['s2'])['mulai'])}'}. '
+                      'Minggu libur dilewati, sesi ujian mengikuti tanggal kaldik.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final r = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(
+                    builder: (_) => KaldikEditorScreen(
+                        awal: d['kaldik'] == null ? null : peta(d['kaldik']),
+                        label: teks(d['label']),
+                        uts: angka(d['uts']),
+                        uas: angka(d['uas']),
+                        upk: angka(d['upk']))));
+                if (r != null && mounted) {
+                  setState(() => _isi(r));
+                  widget.berubah();
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -221,6 +249,10 @@ class _PengaturanState extends State<_Pengaturan> {
               ]),
             ),
           ),
+          if (peta(d['minggu']).isNotEmpty) ...[
+            JudulBagian('Pratinjau minggu', sub: 'Sesi, minggu libur, dan cadangan/jeda sesuai kaldik'),
+            TabelMinggu(paket: d),
+          ],
           JudulBagian('Jadwal sesi', sub: '${sesi.length} sesi · ${angka(d['jumlahSemester'])} semester'),
           Card(
             child: Column(children: [
@@ -261,6 +293,7 @@ class _TahunBaruState extends State<_TahunBaru> {
   bool _arsip = true;
   bool _resetMateri = true;
   Map<String, dynamic>? _laporan;
+  Map<String, dynamic>? _kaldik;   // v1.95.0: kalender akademik tahun baru
 
   @override
   void initState() {
@@ -303,6 +336,7 @@ class _TahunBaruState extends State<_TahunBaru> {
       'peta': _tujuan,
       'arsipData': _arsip,
       'resetMateri': _resetMateri,
+      if (_kaldik != null) 'kaldik': _kaldik,
     };
     final r = await jalankan(context, () => Api.instance('waStafTahunBaruJalankan', [Sesi.instance.token, rencana], const Duration(seconds: 360)),
         teksProses: 'Memproses tahun ajaran baru...');
@@ -361,14 +395,33 @@ class _TahunBaruState extends State<_TahunBaru> {
         const SizedBox(height: 12),
         TextField(controller: _label, decoration: const InputDecoration(labelText: 'Nama tahun ajaran baru')),
         const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final t = await _pilihSenin(context, _mulai);
-            if (t != null) setState(() => _mulai = t);
-          },
-          icon: const Icon(Icons.calendar_month),
-          label: Text(_mulai == null ? 'Pilih tanggal mulai (Senin)' : 'Mulai: ${_tgl(_mulai!.millisecondsSinceEpoch)}'),
+        // v1.95.0: langkah 1 - kalender akademik tahun baru (tanggal sesi mengikuti kaldik)
+        Card(
+          color: _kaldik == null ? Theme.of(context).colorScheme.tertiaryContainer : null,
+          child: ListTile(
+            leading: const Icon(Icons.calendar_month_outlined),
+            title: const Text('Kalender akademik tahun baru', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(_kaldik == null
+                ? 'Isi hari pertama masuk, libur, dan tanggal UTS/UAS dari kaldik dinas. Tanpa kaldik, sesi dibagi rata dari tanggal mulai.'
+                : 'Semester 1 mulai ${teks(peta(_kaldik!['s1'])['mulai'])}'
+                    '${peta(_kaldik!['s2']).isEmpty ? '' : ' · Semester 2 mulai ${teks(peta(_kaldik!['s2'])['mulai'])}'} · ketuk untuk mengubah'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final r = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(
+                  builder: (_) => KaldikEditorScreen(awal: _kaldik, label: _label.text.trim(), simpanKeServer: false)));
+              if (r != null && mounted) setState(() => _kaldik = r);
+            },
+          ),
         ),
+        if (_kaldik == null)
+          OutlinedButton.icon(
+            onPressed: () async {
+              final t = await _pilihSenin(context, _mulai);
+              if (t != null) setState(() => _mulai = t);
+            },
+            icon: const Icon(Icons.calendar_month),
+            label: Text(_mulai == null ? 'Pilih tanggal mulai (Senin)' : 'Mulai: ${_tgl(_mulai!.millisecondsSinceEpoch)}'),
+          ),
         JudulBagian('Peta kenaikan kelas', sub: '${rombel.length} rombel'),
         Card(
           child: Column(children: [

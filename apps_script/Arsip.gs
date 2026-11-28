@@ -140,6 +140,7 @@ function pemicuArsipLanjut() {
 
 // Pemicu harian: arsipkan semester yang baru lewat, lanjutkan proses, bersihkan arsip reguler yang semesternya sudah lewat.
 function pemicuArsipHarian() {
+  try { taSelaraskanSemester_(); } catch (eS) { pmlCatatGalat_('pemicu', 'taSelaraskanSemester_', String(eS && eS.message || eS), eS && eS.stack, '', ''); }   // v1.95.0
   try {
     var kini = nilPeriode_(), lalu = arsSebelum_(kini), awal = ARS.MULAI.split('|');
     if (nilUrutPer_(lalu) >= nilUrutPer_({ tahun: awal[0], semester: awal[1] })) {

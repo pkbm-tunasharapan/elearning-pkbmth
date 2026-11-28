@@ -1254,6 +1254,40 @@ tes('dispensasi kelayakan: nilai/hasil ujian ditahan hanya untuk ujian & siswa y
   } finally { sv.forEach((k) => { g[k] = simpan[k]; }); g.KL_DIS_MEMO_ = null; }
 });
 
+// v1.95.0: tanggal sesi mengikuti kalender akademik (kaldik Jawa Barat 2026/2027)
+tes('kaldik: minggu libur >= 3 hari dilewati, sesi tetap UAS bertanggal, jeda antarsemester, tanpa kaldik = rumus lama', () => {
+  const kaldik = {"s1": {"mulai": "2026-07-27", "rapor": "2026-12-23", "libur": [{"dari": "2026-08-17", "sampai": "2026-08-17", "nama": "Proklamasi Kemerdekaan RI"}, {"dari": "2026-08-25", "sampai": "2026-08-25", "nama": "Maulid Nabi Muhammad SAW"}, {"dari": "2026-12-24", "sampai": "2026-12-24", "nama": "Cuti bersama Natal"}, {"dari": "2026-12-25", "sampai": "2026-12-25", "nama": "Hari Natal"}, {"dari": "2026-12-28", "sampai": "2027-01-08", "nama": "Libur semester 1"}], "tetap": {"18": {"dari": "2026-11-23", "sampai": "2026-12-13", "ket": "Asesmen sumatif akhir semester"}}}, "s2": {"mulai": "2027-01-11", "rapor": "2027-06-25", "libur": [{"dari": "2027-02-06", "sampai": "2027-02-06", "nama": "Tahun Baru Imlek"}, {"dari": "2027-02-08", "sampai": "2027-02-12", "nama": "Libur awal Ramadan"}, {"dari": "2027-03-08", "sampai": "2027-03-19", "nama": "Libur Idul Fitri 1448 H"}, {"dari": "2027-03-09", "sampai": "2027-03-09", "nama": "Hari Raya Nyepi"}, {"dari": "2027-04-26", "sampai": "2027-04-26", "nama": "Wafat Isa Almasih"}, {"dari": "2027-05-01", "sampai": "2027-05-01", "nama": "Hari Buruh"}, {"dari": "2027-05-06", "sampai": "2027-05-06", "nama": "Kenaikan Isa Almasih"}, {"dari": "2027-05-16", "sampai": "2027-05-16", "nama": "Hari Raya Waisak"}, {"dari": "2027-05-17", "sampai": "2027-05-17", "nama": "Idul Adha 1448 H"}, {"dari": "2027-06-01", "sampai": "2027-06-01", "nama": "Hari Lahir Pancasila"}, {"dari": "2027-06-06", "sampai": "2027-06-06", "nama": "Tahun Baru Islam"}, {"dari": "2027-06-28", "sampai": "2027-07-09", "nama": "Libur akhir tahun ajaran"}], "tetap": {"18": {"dari": "2027-06-07", "sampai": "2027-06-20", "ket": "Asesmen sumatif akhir tahun"}}}};
+  const cfg = Object.assign({}, g.TA.DEFAULT, { jumlahSemester: 2, sesiPerSemester: 18, uts: 9, uas: 18, kaldik });
+  g.TA_JADWAL_MEMO_ = null;
+  const j = g.taJadwal_(cfg), r = (s, n) => [g.taIsoLokal_(j[s][n - 1].a), g.taIsoLokal_(j[s][n - 1].b)];
+  sama(r(1, 1), ['2026-07-27', '2026-08-02'], 'S1 sesi 1 = jadwal lama');
+  sama(r(1, 17), ['2026-11-16', '2026-11-22'], 'S1 sesi 17 tidak bergeser (libur 1 hari tidak menggeser)');
+  sama(r(1, 18), ['2026-11-23', '2026-12-13'], 'UAS S1 mencakup ASAS');
+  sama(r(2, 1), ['2027-01-11', '2027-01-17'], 'S2 mulai hari pertama masuk, bukan 30 Nov');
+  sama(r(2, 5), ['2027-02-15', '2027-02-21'], 'minggu awal Ramadan dilewati');
+  sama(r(2, 8), ['2027-03-22', '2027-03-28'], 'dua minggu Idul Fitri dilewati');
+  sama(r(2, 9), ['2027-03-29', '2027-04-04'], 'UTS S2');
+  sama(r(2, 17), ['2027-05-24', '2027-05-30'], 'sesi 17');
+  sama(r(2, 18), ['2027-06-07', '2027-06-20'], 'UAS S2 = ASAT (31 Mei = minggu cadangan)');
+  sama(j.peringatan, [], 'minggu efektif cukup');
+  const w = j.minggu[2].filter((x) => x.senin === '2027-05-31')[0];
+  sama([w.sesi, w.efektif], [[], true], 'minggu cadangan tanpa sesi');
+  const rt = g.taRentang_(cfg, 2, 1);
+  sama([rt.mulai.getFullYear(), rt.mulai.getMonth(), rt.mulai.getDate(), rt.mulai.getHours(), rt.selesai.getDate(), rt.selesai.getHours()], [2027, 0, 11, 0, 17, 23], 'taRentang_ memakai kaldik');
+  const lama = Object.assign({}, cfg, { kaldik: null });
+  g.TA_JADWAL_MEMO_ = null;
+  const rl = g.taRentang_(lama, 2, 1);
+  sama([rl.mulai.getMonth(), rl.mulai.getDate()], [10, 30], 'tanpa kaldik: rumus lama (S2 langsung menyambung)');
+  // kurang minggu efektif -> peringatan
+  g.TA_JADWAL_MEMO_ = null;
+  const sempit = Object.assign({}, cfg, { kaldik: { s1: { mulai: '2026-07-27', libur: [], tetap: { 18: { dari: '2026-10-05', sampai: '2026-10-11' } } } } });
+  sama(g.taJadwal_(sempit).peringatan.length > 0, true, 'minggu efektif kurang diperingatkan');
+  let galat = '';
+  try { g.taKaldikBersih_({ s1: { mulai: '2026-07-27' }, s2: { mulai: '2026-07-01' } }, 18); } catch (e) { galat = e.message; }
+  sama(/setelah Semester 1/.test(galat), true);
+  g.TA_JADWAL_MEMO_ = null;
+});
+
 // 38. batalkan jadwal mulai tanggal (v1.70.2)
 tes('batalkan jadwal: berlaku sampai sehari sebelum tanggal, yang belum berjalan dinonaktifkan, tanggal lampau ditolak', () => {
   const nama = ['jadBacaPm_', 'stafDariToken_', 'jadPeran_', 'absHariIni_', 'catat_'];
