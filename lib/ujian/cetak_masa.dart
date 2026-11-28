@@ -56,6 +56,11 @@ String _namaBerkas(String awal, Map<String, dynamic> m) => '${awal}_${teks(m['na
 Future<void> cetakJadwalUjian(BuildContext context, String idMasa) async {
   final d = await _data(context, idMasa);
   if (d == null || !context.mounted) return;
+  await htmlKePdf(context, nama: _namaBerkas('Jadwal_Ujian', peta(d['masa'])), args: [_t, htmlJadwalUjian(d)]);
+}
+
+/// v1.96.0: dokumen HTML jadwal ujian dari data waStafMasaCetak (dipakai juga Laporan Dinas).
+String htmlJadwalUjian(Map<String, dynamic> d) {
   final m = peta(d['masa']);
   final slot = daftar(d['slot']).map(peta).toList();
   final b = StringBuffer(_kop(peta(d['kop'])));
@@ -103,7 +108,7 @@ Future<void> cetakJadwalUjian(BuildContext context, String idMasa) async {
       '<li>Ujian tulis (offline) dikerjakan di kertas di ruang ujian bersama pengawas.</li>'
       '<li>Yang berhalangan hadir mengajukan ujian susulan dari halaman ujian di aplikasi.</li></ol>');
   b.write('<p class="kaki">Dicetak ${escHtml(teks(d['dibuat']))} oleh ${escHtml(teks(d['oleh']))}</p>');
-  await htmlKePdf(context, nama: _namaBerkas('Jadwal_Ujian', m), args: [_t, dokumenA4(b.toString(), _css)]);
+  return dokumenA4(b.toString(), _css);
 }
 
 /// Jadwal pengawasan: per slot x ruang + rekap tugas per pengawas + tanda tangan.

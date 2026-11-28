@@ -13,6 +13,7 @@ import '../widgets.dart';
 import 'cetak_masa.dart';
 import 'kartu_ujian.dart';
 import 'kisi_kisi.dart';
+import 'laporan_dinas.dart';
 import 'laporan_kesiapan.dart';
 import 'pengawas.dart';
 import 'tinjauan.dart';
@@ -143,6 +144,20 @@ class _MasaUjianScreenState extends State<MasaUjianScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Masa Ujian Serentak'), actions: [
         IconButton(tooltip: 'Buat kode akses semua siswa', icon: const Icon(Icons.vpn_key_outlined), onPressed: () => generateKodeAksesMassal(context)),
+        IconButton(
+          tooltip: 'Laporan Dinas (SK, jadwal, naskah soal, lembar jawaban)',
+          icon: const Icon(Icons.assignment_outlined),
+          onPressed: () async {
+            final j = await showDialog<String>(
+              context: context,
+              builder: (c) => SimpleDialog(title: const Text('Laporan Dinas untuk'), children: [
+                for (final x in const [('UAS', 'Asesmen Sumatif Akhir Semester (ASAS)'), ('UTS', 'Asesmen Sumatif Tengah Semester'), ('UPK', 'Ujian Pendidikan Kesetaraan')])
+                  SimpleDialogOption(onPressed: () => Navigator.pop(c, x.$1), child: Text(x.$2)),
+              ]),
+            );
+            if (j != null && context.mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => LaporanDinasScreen(jenis: j)));
+          },
+        ),
         IconButton(
           tooltip: 'Tinjauan pelanggaran berat',
           icon: const Icon(Icons.gavel_rounded),
